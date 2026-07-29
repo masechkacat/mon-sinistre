@@ -23,6 +23,10 @@ npm-debug.log*
 # claude code — личные настройки не коммитим
 .claude/settings.local.json
 
+# playwright mcp — служебные файлы и скриншоты в корне
+.playwright-mcp/
+/*.png
+
 # editors
 .vscode/*
 !.vscode/extensions.json
