@@ -15,6 +15,8 @@ npm run start:dev        # watch-режим, читает .env через --env-
 npm test                 # jest, все *.spec.ts в src/
 npm test -- steps        # один тест по подстроке пути
 npm run test:cov         # с покрытием
+npm run lint             # eslint, только проверка (используется pre-commit хуком)
+npm run lint:fix         # eslint с автопочинкой
 npm run migration:generate -- src/database/migrations/<Name>
 npm run migration:run
 npm run migration:revert

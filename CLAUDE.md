@@ -33,6 +33,8 @@ npm run lint             # eslint по всем workspace'ам
 
 Один тест: `npm test --workspace @jalons/api -- health.controller` (jest ищет `*.spec.ts` по подстроке пути).
 
+Pre-commit хук (`.githooks/pre-commit`, подключается через `core.hooksPath` скриптом `prepare` при `npm install`) прогоняет `npm run lint` и `npm test` перед каждым коммитом. Хук не должен изменять файлы — скрипты `lint` запускаются без `--fix` (в `@jalons/api` для автопочинки есть отдельный `lint:fix`).
+
 Окружение: Node.js ≥ 24, Docker. Секреты — `cp apps/api/.env.example apps/api/.env`, значения генерируются `openssl rand -base64 48`.
 
 ## Архитектура и доменная модель

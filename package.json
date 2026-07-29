@@ -13,6 +13,7 @@
     "apps/*"
   ],
   "scripts": {
+    "prepare": "git config core.hooksPath .githooks",
     "build:contracts": "npm run build --workspace @jalons/contracts",
     "build": "npm run build:contracts && npm run build --workspace @jalons/api && npm run build --workspace @jalons/web",
     "dev:contracts": "npm run dev --workspace @jalons/contracts",

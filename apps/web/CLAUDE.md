@@ -16,7 +16,7 @@ npm run build
 npm run lint
 ```
 
-API ожидается на http://localhost:3001. Тестов в этом пакете нет — доменная логика тестируется в API.
+API ожидается на http://localhost:3001. Тестов в этом пакете нет — доменная логика тестируется в API. Линтер — eslint c `eslint-config-next` (flat config в `eslint.config.mjs`), запускается pre-commit хуком.
 
 ## Особенности сборки
 
