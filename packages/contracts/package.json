@@ -1,0 +1,20 @@
+{
+  "name": "@jalons/contracts",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Types, enums and API contracts shared between the API and the web client",
+  "license": "UNLICENSED",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc -p tsconfig.json --watch --preserveWatchOutput",
+    "clean": "rm -rf dist"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
+}

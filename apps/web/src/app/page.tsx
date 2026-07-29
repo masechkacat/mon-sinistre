@@ -1,0 +1,14 @@
+export default function Home() {
+  return (
+    <div className="mx-auto max-w-2xl px-6 py-16">
+      <h1 className="text-3xl font-semibold">Jalons</h1>
+      <p className="mt-4 text-lg">
+        Suivi des démarches de renouvellement des droits notifiés par la CDAPH.
+      </p>
+      <p className="mt-8 text-sm">
+        Squelette du projet. Voir&nbsp;
+        <code>docs/technical-specification.md</code>.
+      </p>
+    </div>
+  );
+}

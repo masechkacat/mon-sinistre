@@ -1,0 +1,20 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "./src",
+    "outDir": "./dist",
+    "baseUrl": "./",
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "strictPropertyInitialization": false,
+    // @jalons/contracts is deliberately absent here. Mapping it to the package
+    // sources would pull them under this project's rootDir and scatter dist/.
+    // The workspace symlink resolves it to packages/contracts/dist instead,
+    // which is why build:contracts has to run first.
+    "paths": {
+      "src/*": ["src/*"]
+    }
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
+}

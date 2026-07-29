@@ -1,0 +1,30 @@
+# dependencies
+node_modules/
+
+# builds
+dist/
+build/
+.next/
+out/
+*.tsbuildinfo
+
+# environment — никогда не коммитим реальные значения
+.env
+.env.*
+!.env.example
+
+# tests & coverage
+coverage/
+
+# logs
+*.log
+npm-debug.log*
+
+# editors
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# os
+.DS_Store
+Thumbs.db

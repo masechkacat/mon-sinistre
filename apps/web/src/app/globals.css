@@ -1,0 +1,39 @@
+@import 'tailwindcss';
+
+/*
+ * Baseline accessibility rules that must survive any later design work.
+ * See specification § 9.
+ */
+
+/* Visible keyboard focus is never removed — § 9.2. */
+:focus-visible {
+  outline: 3px solid currentColor;
+  outline-offset: 2px;
+}
+
+/* Reachable by keyboard, out of the way otherwise — § 9.1. */
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  padding: 0.75rem 1rem;
+  background: Canvas;
+  color: CanvasText;
+  z-index: 100;
+}
+
+.skip-link:focus {
+  left: 0;
+}
+
+/* § 9.9 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
