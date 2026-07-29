@@ -31,7 +31,7 @@ npm test                 # jest в apps/api (тесты есть только т
 npm run lint             # eslint по всем workspace'ам
 ```
 
-Один тест: `npm test --workspace @jalons/api -- health.controller` (jest ищет `*.spec.ts` по подстроке пути).
+Один тест: `npm test --workspace @jalons/api -- env.validation` (jest ищет `*.spec.ts` по подстроке пути).
 
 Pre-commit хук (`.githooks/pre-commit`, подключается через `core.hooksPath` скриптом `prepare` при `npm install`) прогоняет `npm run lint` и `npm test` перед каждым коммитом. Хук не должен изменять файлы — скрипты `lint` запускаются без `--fix` (в `@jalons/api` для автопочинки есть отдельный `lint:fix`).
 

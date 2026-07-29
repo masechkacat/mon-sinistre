@@ -1,4 +1,4 @@
-import { ValidationPipe } from '@nestjs/common';
+import { Logger, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import {
@@ -17,6 +17,12 @@ async function bootstrap() {
   );
 
   const config = app.get(ConfigService);
+
+  // Without shutdown hooks SIGTERM kills the process abruptly: scheduled
+  // jobs keep running mid-tick and lifecycle hooks (onModuleDestroy,
+  // onApplicationShutdown) never fire — including TypeORM's pool cleanup
+  // once DatabaseModule lands.
+  app.enableShutdownHooks();
 
   await app.register(helmet, { contentSecurityPolicy: false });
   await app.register(fastifyCookie, {
@@ -44,7 +50,10 @@ async function bootstrap() {
       'Suivi des démarches de renouvellement des droits notifiés par la CDAPH',
     )
     .setVersion('0.1.0')
-    .addBearerAuth({ type: 'http', scheme: 'bearer', bearerFormat: 'JWT' }, 'JWT')
+    .addBearerAuth(
+      { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' },
+      'JWT',
+    )
     .build();
 
   SwaggerModule.setup('docs', app, () =>
@@ -55,8 +64,10 @@ async function bootstrap() {
   const host = config.get<string>('HOST') ?? '0.0.0.0';
 
   await app.listen(port, host);
-  console.log(`API      http://localhost:${port}`);
-  console.log(`OpenAPI  http://localhost:${port}/docs`);
+
+  const logger = new Logger('Bootstrap');
+  logger.log(`API      http://localhost:${port}`);
+  logger.log(`OpenAPI  http://localhost:${port}/docs`);
 }
 
 void bootstrap();
