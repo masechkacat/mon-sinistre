@@ -11,10 +11,7 @@ import { HealthController } from './health/health.controller';
  * DatabaseModule here once the first entities and migrations land.
  */
 @Module({
-  imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
-    ScheduleModule.forRoot(),
-  ],
+  imports: [ConfigModule.forRoot({ isGlobal: true }), ScheduleModule.forRoot()],
   controllers: [HealthController],
 })
 export class AppModule {}

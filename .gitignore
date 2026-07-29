@@ -20,6 +20,9 @@ coverage/
 *.log
 npm-debug.log*
 
+# claude code — личные настройки не коммитим
+.claude/settings.local.json
+
 # editors
 .vscode/*
 !.vscode/extensions.json

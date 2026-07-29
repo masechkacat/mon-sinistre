@@ -23,5 +23,8 @@
     "lint": "npm run lint --workspaces --if-present",
     "db:up": "docker compose --env-file ./apps/api/.env up -d db",
     "db:down": "docker compose down"
+  },
+  "devDependencies": {
+    "prettier": "^3.9.6"
   }
 }
