@@ -3,7 +3,7 @@ export default function Home() {
     <div className="mx-auto max-w-2xl px-6 py-16">
       <h1 className="text-3xl font-semibold">Jalons</h1>
       <p className="mt-4 text-lg">
-        Suivi des démarches de renouvellement des droits notifiés par la CDAPH.
+        Veille des arrêtés de catastrophe naturelle et suivi du sinistre.
       </p>
       <p className="mt-8 text-sm">
         Squelette du projet. Voir&nbsp;

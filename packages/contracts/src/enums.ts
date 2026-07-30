@@ -7,18 +7,20 @@
  */
 
 /**
- * Lifecycle of a single renewal cycle.
- * See specification § 4.6.
+ * Lifecycle of a sinistre (insurance claim companion).
+ * See specification § 4.
  */
-export enum DossierStatus {
-  /** Being prepared, not submitted yet. */
-  PREPARATION = 'PREPARATION',
-  /** Submitted to the MDPH, awaiting a decision. */
-  DEPOSE = 'DEPOSE',
-  /** A decision has been recorded. */
-  DECISION_RECUE = 'DECISION_RECUE',
-  /** Closed by the user, excluded from reminders. */
-  ARCHIVE = 'ARCHIVE',
+export enum SinistreStatus {
+  /** Created after the event but before any arrêté names the commune. */
+  AVANT_ARRETE = 'AVANT_ARRETE',
+  /** A matching arrêté entry exists; the declaration deadline is running. */
+  ARRETE_PUBLIE = 'ARRETE_PUBLIE',
+  /** The user declared the damage to their insurer. */
+  DECLARE = 'DECLARE',
+  /** Closed by the user (indemnified or otherwise settled). */
+  CLOS = 'CLOS',
+  /** Abandoned by the user, excluded from reminders. */
+  SANS_SUITE = 'SANS_SUITE',
 }
 
 /**
@@ -26,10 +28,11 @@ export enum DossierStatus {
  *
  * Only {@link StepStatus.FAIT} and {@link StepStatus.NON_APPLICABLE} are
  * persisted; the remaining values are derived from the planned date at read
- * time. See specification § 5.1.
+ * time. A step whose anchor date is not known yet has no planned date and no
+ * derived status beyond {@link StepStatus.A_VENIR}. See specification § 4.
  */
 export enum StepStatus {
-  /** Planned date is more than {@link SOON_THRESHOLD_DAYS} days away. */
+  /** Planned date is more than {@link SOON_THRESHOLD_DAYS} days away, or unknown. */
   A_VENIR = 'A_VENIR',
   /** Planned date is within {@link SOON_THRESHOLD_DAYS} days. */
   A_FAIRE = 'A_FAIRE',
@@ -37,54 +40,58 @@ export enum StepStatus {
   EN_RETARD = 'EN_RETARD',
   /** Marked as done by the user. */
   FAIT = 'FAIT',
-  /** Marked as not relevant for this dossier. */
+  /** Marked as not relevant for this sinistre. */
   NON_APPLICABLE = 'NON_APPLICABLE',
 }
 
 /**
- * Reference point a step's planned date is computed from.
- * See specification § 3.3.
+ * Reference point a step's planned date is computed from. Steps anchored to a
+ * date that has not happened yet exist without a planned date and acquire one
+ * when the anchor date becomes known. See specification § 4.
  */
 export enum StepAnchor {
-  /** Offset applies to the date current rights expire. */
-  DATE_EXPIRATION = 'DATE_EXPIRATION',
-  /** Offset applies to the submission date. */
-  DATE_DEPOT = 'DATE_DEPOT',
+  /** Offset applies to the date the damage occurred. */
+  DATE_SINISTRE = 'DATE_SINISTRE',
+  /** Offset applies to the arrêté's publication date in the Journal Officiel. */
+  DATE_PUBLICATION_ARRETE = 'DATE_PUBLICATION_ARRETE',
+  /** Offset applies to the date the user declared the damage to their insurer. */
+  DATE_DECLARATION = 'DATE_DECLARATION',
 }
 
 /**
- * Outcome of a submitted dossier.
- * See specification § 7.3.
+ * Outcome of one commune line in an arrêté annex.
+ * Annexe I lists recognised communes, annexe II refusals. See specification § 2.
  */
-export enum DecisionResult {
-  ACCORDE = 'ACCORDE',
+export enum ArreteEntryOutcome {
+  RECONNU = 'RECONNU',
   REFUSE = 'REFUSE',
-  PARTIEL = 'PARTIEL',
 }
 
 /**
- * Which source supplied the review duration used in the plan.
- *
- * Surfaced to the user so the origin of a computed date is always traceable.
- * See specification §§ 3.9, 3.10.
+ * Kind of file attached to an inventory item.
+ * See specification § 4.
  */
-export enum ReviewDurationSource {
-  /** Entered by the user for this dossier — highest priority. */
-  UTILISATEUR = 'UTILISATEUR',
-  /** Taken from the beneficiary's department. */
-  DEPARTEMENT = 'DEPARTEMENT',
-  /** Procedure default, used when no department figure exists. */
-  PROCEDURE = 'PROCEDURE',
+export enum FileKind {
+  PHOTO = 'PHOTO',
+  /** Receipt, invoice or any proof of value. */
+  JUSTIFICATIF = 'JUSTIFICATIF',
 }
 
 /** Days before the planned date at which a step becomes {@link StepStatus.A_FAIRE}. */
 export const SOON_THRESHOLD_DAYS = 30;
 
-/** Offsets, in days before a step's planned date, that trigger a reminder. See § 8.3. */
+/** Offsets, in days before a step's planned date, that trigger a reminder. See § 6. */
 export const REMINDER_OFFSETS_DAYS = [30, 14, 3] as const;
 
-/** Minimum interval, in days, between two reminders about the same overdue step. See § 8.3. */
+/**
+ * Reinforced reminder scale for the declaration deadline, in days before the
+ * deadline. The deadline itself comes from the deadline-rule reference data,
+ * never from a constant. See § 6.
+ */
+export const DECLARATION_REMINDER_OFFSETS_DAYS = [21, 14, 7, 3, 1] as const;
+
+/** Minimum interval, in days, between two reminders about the same overdue step. See § 6. */
 export const OVERDUE_REMINDER_INTERVAL_DAYS = 7;
 
-/** Age, in months, past which reference data is flagged as possibly stale. See § 3.13. */
+/** Age, in months, past which reference data is flagged as possibly stale. See § 7. */
 export const REFERENCE_DATA_STALE_AFTER_MONTHS = 6;

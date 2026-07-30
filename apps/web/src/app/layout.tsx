@@ -4,7 +4,7 @@ import './globals.css';
 export const metadata: Metadata = {
   title: 'Jalons',
   description:
-    'Suivi des démarches de renouvellement des droits notifiés par la CDAPH',
+    'Veille des arrêtés de catastrophe naturelle et suivi du sinistre',
 };
 
 export default function RootLayout({

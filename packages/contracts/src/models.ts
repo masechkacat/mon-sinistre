@@ -1,7 +1,7 @@
 import {
-  DecisionResult,
-  DossierStatus,
-  ReviewDurationSource,
+  ArreteEntryOutcome,
+  FileKind,
+  SinistreStatus,
   StepAnchor,
   StepStatus,
 } from './enums';
@@ -18,7 +18,7 @@ export type IsoDate = string;
 /** Timestamp with a time component, as ISO 8601. */
 export type IsoDateTime = string;
 
-/** Provenance of a reference-data statement. See specification §§ 3.11–3.13. */
+/** Provenance of a reference-data statement. See specification § 7. */
 export interface SourceReference {
   /** Where the requirement can be verified by the user. */
   url: string;
@@ -28,44 +28,86 @@ export interface SourceReference {
   possiblyOutdated: boolean;
 }
 
-/** A French department. See specification § 3.8. */
-export interface Departement {
-  /** INSEE code, e.g. `75`, `2A`, `971`. */
-  code: string;
+/** A French commune, mirrored from the INSEE referential. See specification § 4. */
+export interface Commune {
+  /** INSEE code, e.g. `30189`, `2A004`, `97101`. Not the postal code. */
+  codeInsee: string;
   name: string;
-  /** Observed review duration in months; null when unknown. */
-  reviewDurationMonths: number | null;
-  /** Date the figure above refers to. */
-  observedAt: IsoDate | null;
-}
-
-/** Person a dossier is filed for. See specification § 2. */
-export interface Beneficiaire {
-  id: string;
-  name: string;
-  birthDate: IsoDate;
-  /** True when the account holder is the beneficiary. */
-  isSelf: boolean;
+  /** INSEE department code, e.g. `30`, `2A`, `971`. */
   departementCode: string;
-  /** Derived from birthDate, see § 2.4. */
-  isAdult: boolean;
+  departementName: string;
 }
 
-/** Reference template a plan is built from. See specification § 3.2. */
-export interface ProcedureTemplate {
-  code: string;
-  name: string;
-  description: string;
-  /** Statutory limit, identical nationwide. */
-  legalReviewDurationMonths: number;
-  /** Fallback used when the department has no figure. Never below the legal limit. */
-  defaultReviewDurationMonths: number;
-  /** Age bracket this procedure applies to; null means no restriction. */
-  appliesToAdults: boolean | null;
-  source: SourceReference;
+/**
+ * An arrêté portant reconnaissance de l'état de catastrophe naturelle, as
+ * detected by the Journal Officiel monitor. See specification §§ 2, 5.
+ */
+export interface Arrete {
+  id: string;
+  /** NOR identifier, unique per arrêté; deduplication key of the monitor. */
+  nor: string;
+  signedAt: IsoDate;
+  /**
+   * Publication date in the Journal Officiel — the date legal deadlines run
+   * from. Always taken from the JORF XML itself, never from file arrival or
+   * third-party databases. See § 5.
+   */
+  publishedAt: IsoDate;
+  /** JORF issue, e.g. `JORF n°0137 du 13 juin 2026`. */
+  jorfNumber: string;
+  legifranceUrl: string;
 }
 
-/** One step of a procedure template. See specification § 3.3. */
+/** One commune line of an arrêté annex. See specification §§ 2, 4. */
+export interface ArreteEntry {
+  id: string;
+  arreteId: string;
+  codeInsee: string;
+  /** Risk label as printed in the annex, e.g. `Inondations et coulées de boue`. */
+  risque: string;
+  /** Period of the natural event the entry covers. */
+  eventStart: IsoDate;
+  eventEnd: IsoDate;
+  outcome: ArreteEntryOutcome;
+  /** Refusal motivation from annexe II; null for recognised entries. */
+  motivation: string | null;
+}
+
+/**
+ * A watch subscription: an email address notified on the day an arrêté names
+ * one of its communes. Account-less, double opt-in. See specification § 3.1.
+ */
+export interface Veille {
+  id: string;
+  email: string;
+  /** INSEE codes of the watched communes. */
+  communeCodes: string[];
+  /** Null until the confirmation link is visited; unconfirmed watches never receive alerts. */
+  confirmedAt: IsoDateTime | null;
+  createdAt: IsoDateTime;
+}
+
+/** One insurance claim being accompanied. See specification §§ 3.2, 4. */
+export interface Sinistre {
+  id: string;
+  communeCode: string;
+  /** Risk label; free text until an arrêté entry is linked. */
+  risque: string;
+  /** Date the damage occurred — first anchor of the plan. */
+  eventDate: IsoDate;
+  /**
+   * Entry that recognised (or refused) the commune for this event; null while
+   * no matching arrêté has been published. Linking it sets the declaration
+   * deadline. See § 3.2.
+   */
+  arreteEntryId: string | null;
+  /** Date the user declared the damage to their insurer; anchors post-declaration steps. */
+  declarationDate: IsoDate | null;
+  status: SinistreStatus;
+  createdAt: IsoDateTime;
+}
+
+/** Reference template a sinistre plan is built from. See specification § 4. */
 export interface StepTemplate {
   id: string;
   name: string;
@@ -74,94 +116,64 @@ export interface StepTemplate {
   /** Days added to the anchor date. Negative means "before". */
   offsetDays: number;
   required: boolean;
-  /** Document type this step produces, when it produces one. */
-  documentTypeCode: string | null;
   order: number;
   source: SourceReference;
 }
 
-/** Which duration was applied to a plan, and why. See specification §§ 3.9, 3.10. */
-export interface AppliedReviewDuration {
-  months: number;
-  source: ReviewDurationSource;
-}
-
-/** One renewal cycle. See specification § 4. */
-export interface Dossier {
-  id: string;
-  beneficiaireId: string;
-  procedureCode: string;
-  status: DossierStatus;
-  /** Date the current rights expire — the single input the whole plan derives from. */
-  expirationDate: IsoDate;
-  /** Recommended or user-adjusted submission date. */
-  submissionDate: IsoDate;
-  reviewDuration: AppliedReviewDuration;
-  /** Set once the dossier is actually submitted. See § 7.1. */
-  submittedAt: IsoDate | null;
-  decision: Decision | null;
-  createdAt: IsoDateTime;
-}
-
-/** Recorded outcome. See specification § 7.3. */
-export interface Decision {
-  result: DecisionResult;
-  decidedAt: IsoDate;
-  /** Expiry of the newly granted rights; null when refused. */
-  newExpirationDate: IsoDate | null;
-}
-
-/** A step within a dossier. See specification § 5. */
+/** A step within a sinistre. See specification § 4. */
 export interface Step {
   id: string;
-  dossierId: string;
+  sinistreId: string;
   name: string;
   description: string;
-  /** Computed date the step should be acted on. */
-  plannedDate: IsoDate;
+  /**
+   * Computed date the step should be acted on; null while the step's anchor
+   * date is not known yet (e.g. anchored to an arrêté not published yet).
+   */
+  plannedDate: IsoDate | null;
   /** Derived at read time, except for FAIT and NON_APPLICABLE. */
   status: StepStatus;
   /** Date the user marked it done. */
   completedAt: IsoDate | null;
-  /** False for steps the user added themselves; those are never recomputed. See § 5.6. */
+  /** False for steps the user added themselves; those are never recomputed. */
   fromTemplate: boolean;
   anchor: StepAnchor | null;
-  documentTypeCode: string | null;
   source: SourceReference | null;
 }
 
-/** Reference entry describing a kind of document. See specification § 6.6. */
-export interface DocumentType {
-  code: string;
-  name: string;
-  /** Default shelf life in months; null means it does not expire. */
-  defaultValidityMonths: number | null;
-  source: SourceReference;
+/** A file attached to an inventory item. Stored privately; served via signed URLs only. */
+export interface FileRef {
+  id: string;
+  kind: FileKind;
+  fileName: string;
+  contentType: string;
+  uploadedAt: IsoDateTime;
 }
 
-/** A document the user has obtained. See specification § 6. */
-export interface DocumentRecord {
+/** One damaged item in the sinistre inventory. See specification § 4. */
+export interface InventoryItem {
   id: string;
-  dossierId: string;
-  typeCode: string;
-  issuedAt: IsoDate;
-  /** Overrides the type default when set. */
-  validityMonths: number | null;
-  /** Computed from issuedAt and the applicable validity; null when perpetual. */
-  expiresAt: IsoDate | null;
-  /** Free note. Must not carry medical content — see § 11.1. */
-  comment: string | null;
+  sinistreId: string;
+  name: string;
+  description: string | null;
+  quantity: number;
+  /** Estimated value in euro cents; null when unknown. Integer to avoid float money. */
+  costCents: number | null;
+  serialNumber: string | null;
+  files: FileRef[];
+  createdAt: IsoDateTime;
 }
 
 /**
- * Raised when a document expires before the dossier is due to be submitted.
- * See specification §§ 6.4, 6.5.
+ * A legal deadline from the reference data, e.g. the 30-day declaration window.
+ * Every legal number in the application lives here with its source — there are
+ * no hard-coded legal durations. See specification §§ 2, 4.
  */
-export interface DocumentWarning {
-  documentId: string;
-  typeCode: string;
-  expiresAt: IsoDate;
-  submissionDate: IsoDate;
-  /** Earliest date the document can be reissued and still be valid at submission. */
-  reissueNotBefore: IsoDate;
+export interface DeadlineRule {
+  /** Stable code, e.g. `DECLARATION_ASSUREUR`. */
+  code: string;
+  /** Days counted from the anchor date. */
+  days: number;
+  anchor: StepAnchor;
+  source: SourceReference;
 }

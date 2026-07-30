@@ -47,7 +47,7 @@ async function bootstrap() {
   const swaggerConfig = new DocumentBuilder()
     .setTitle('Jalons API')
     .setDescription(
-      'Suivi des démarches de renouvellement des droits notifiés par la CDAPH',
+      'Veille des arrêtés de catastrophe naturelle et suivi du sinistre',
     )
     .setVersion('0.1.0')
     .addBearerAuth(
