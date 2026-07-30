@@ -8,13 +8,27 @@
 
 /**
  * Lifecycle of a sinistre (insurance claim companion).
- * See specification § 4.
+ *
+ * `AVANT_ARRETE → (ARRETE_PUBLIE | ARRETE_REFUSE) → DECLARE → CLOS`, plus
+ * `SANS_SUITE` from any state. A refused sinistre can move to
+ * {@link SinistreStatus.ARRETE_PUBLIE} later: the mairie may file a repeat
+ * demande and a subsequent arrêté (new NOR) can recognise the commune, in
+ * which case the sinistre is re-linked to the recognising entry.
+ * See specification § 4 and `docs/decisions.md`.
  */
 export enum SinistreStatus {
   /** Created after the event but before any arrêté names the commune. */
   AVANT_ARRETE = 'AVANT_ARRETE',
-  /** A matching arrêté entry exists; the declaration deadline is running. */
+  /** The linked arrêté entry is RECONNU; the declaration deadline is running. */
   ARRETE_PUBLIE = 'ARRETE_PUBLIE',
+  /**
+   * The linked arrêté entry is REFUSE. No declaration deadline runs; the plan
+   * switches to the refusal steps (contesting is the mairie's move, not the
+   * user's — ask about a repeat demande, keep all evidence, check non-CatNat
+   * cover). The contestation window anchors to
+   * {@link StepAnchor.DATE_PUBLICATION_ARRETE} via a deadline rule.
+   */
+  ARRETE_REFUSE = 'ARRETE_REFUSE',
   /** The user declared the damage to their insurer. */
   DECLARE = 'DECLARE',
   /** Closed by the user (indemnified or otherwise settled). */

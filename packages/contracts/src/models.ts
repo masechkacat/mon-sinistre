@@ -86,8 +86,10 @@ export interface Sinistre {
   eventDate: IsoDate;
   /**
    * Entry that recognised (or refused) the commune for this event; null while
-   * no matching arrêté has been published. Linking it sets the declaration
-   * deadline. See § 3.2.
+   * no matching arrêté has been published. Linking a RECONNU entry sets the
+   * declaration deadline; linking a REFUSE entry moves the sinistre to
+   * ARRETE_REFUSE. After a refusal the link may be replaced by a recognising
+   * entry from a later arrêté (repeat demande). See § 3.2.
    */
   arreteEntryId: string | null;
   /** Date the user declared the damage to their insurer; anchors post-declaration steps. */
