@@ -150,15 +150,23 @@ export interface FileRef {
   uploadedAt: IsoDateTime;
 }
 
-/** One damaged item in the sinistre inventory. See specification § 4. */
+/**
+ * One damaged item in the sinistre inventory. A fully filled item carries
+ * everything a claim dossier (or its future PDF export) needs. See § 4.
+ */
 export interface InventoryItem {
   id: string;
   sinistreId: string;
   name: string;
+  /** Brand and model, e.g. `IKEA Ektorp`. */
+  brand: string | null;
   description: string | null;
   quantity: number;
   /** Estimated value in euro cents; null when unknown. Integer to avoid float money. */
   costCents: number | null;
+  purchaseDate: IsoDate | null;
+  /** End of the warranty period, when known. */
+  warrantyUntil: IsoDate | null;
   serialNumber: string | null;
   files: FileRef[];
   createdAt: IsoDateTime;
