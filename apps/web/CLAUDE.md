@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Стек
 
-Next.js 16 (App Router, `src/app/`), React 19, Tailwind CSS 4 (через PostCSS, без tailwind.config). По ТЗ компонентная база — **shadcn/ui**; компоненты со сложным управлением фокусом (прежде всего выбор даты) — **React Aria Components**.
+Next.js 16 (App Router, `src/app/`), React 19, Tailwind CSS 4 (через PostCSS, без tailwind.config). Компонентная база — **shadcn/ui на Base UI** (дефолт shadcn с июля 2026; при инициализации выбирать Base UI, не Radix). Отдельных библиотек примитивов сверх этого не подключать.
 
 ## Команды (из apps/web)
 

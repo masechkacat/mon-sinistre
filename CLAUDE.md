@@ -17,7 +17,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 npm workspaces, три пакета:
 
 - `packages/contracts` (`@mon-sinistre/contracts`) — типы, enum'ы и константы, общие для API и клиента. Собирается **первым**: API импортирует его из `dist/`.
-- `apps/api` (`@mon-sinistre/api`) — NestJS + Fastify + TypeORM + PostgreSQL, порт 3001.
+- `apps/api` (`@mon-sinistre/api`) — NestJS + Fastify + Prisma + PostgreSQL, порт 3001.
 - `apps/web` (`@mon-sinistre/web`) — Next.js (App Router) + Tailwind 4, порт 3000. Использует contracts напрямую из исходников через `transpilePackages`.
 
 У каждого приложения есть свой CLAUDE.md с деталями.
@@ -59,7 +59,7 @@ Pre-commit хук (`.githooks/pre-commit`, подключается через `
 - **Файлы пользователей приватны**: фото и justificatifs — только по коротким подписанным URL, публичных бакетов нет.
 - Проверка принадлежности объектов пользователю выполняется **в запросе к базе**, а не после выборки; ответ на чужой объект не раскрывает факт его существования.
 - Язык интерфейса — **французский**; все пользовательские строки — в файлах локализации, contracts не содержит текстов для UI.
-- Изменения схемы БД — только через миграции; `synchronize` в продакшене запрещён.
+- Изменения схемы БД — только через `prisma migrate`; `prisma db push` в продакшене запрещён.
 - В логи не попадают email, адреса, содержимое инвентаря и файлы.
 - Email наблюдателей (Veille): double opt-in, отписка в один клик, немедленное удаление по запросу (RGPD).
 - Справочные данные всегда несут ссылку на источник и дату сверки (`SourceReference`); при расхождении сведений применяется более консервативное значение; при расхождении GASPAR и JORF приоритет у JORF.

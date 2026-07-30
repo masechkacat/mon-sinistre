@@ -9,9 +9,9 @@ import { HealthController } from './health/health.controller';
 /**
  * Root module.
  *
- * TypeOrmModule is deliberately not wired in yet: the application starts
- * without a database so the skeleton can run before any entity exists. Add
- * DatabaseModule here once the first entities and migrations land.
+ * Prisma is deliberately not wired in yet: the application starts without a
+ * database so the skeleton can run before any model exists. Add PrismaModule
+ * here once the first models and migrations land.
  *
  * ThrottlerGuard is global; auth endpoints must get stricter per-route
  * limits via @Throttle() when the auth module lands.

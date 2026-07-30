@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Стек
 
-NestJS 11 на **Fastify** (не Express — плагины подключаются через `app.register`, см. `src/main.ts`), TypeORM + PostgreSQL, Passport (local + JWT), Swagger на `/docs`.
+NestJS 11 на **Fastify** (не Express — плагины подключаются через `app.register`, см. `src/main.ts`), **Prisma** + PostgreSQL, Passport (local + JWT), Swagger на `/docs`.
 
 ## Команды (из apps/api)
 
@@ -17,17 +17,17 @@ npm test -- steps        # один тест по подстроке пути
 npm run test:cov         # с покрытием
 npm run lint             # eslint, только проверка (используется pre-commit хуком)
 npm run lint:fix         # eslint с автопочинкой
-npm run migration:generate -- src/database/migrations/<Name>
-npm run migration:run
-npm run migration:revert
-npm run seed             # заполнение справочников (коммуны INSEE, шаблоны планов, справочник сроков)
+npm run prisma:generate  # перегенерировать клиент после правки schema.prisma
+npm run migration:dev    # prisma migrate dev — создать/применить миграцию локально
+npm run migration:deploy # prisma migrate deploy — применить миграции (прод/CI)
+npm run seed             # prisma db seed — справочники (коммуны INSEE, шаблоны планов, сроки)
 ```
 
 База данных поднимается из корня: `npm run db:up`. Перед запуском API нужен собранный contracts (`npm run build:contracts` из корня) — рантайм импортирует его из `dist/`. В тестах это не нужно: jest через `moduleNameMapper` подставляет исходники `packages/contracts/src`.
 
 ## Текущее состояние
 
-Скелет: `AppModule` намеренно не подключает TypeORM, чтобы приложение стартовало без базы (см. комментарий в `src/app.module.ts`). При добавлении первых сущностей нужно создать `DatabaseModule` (data source ожидается в `src/database/data-source.ts` — на него ссылаются migration-скрипты) и подключить его в `AppModule`.
+Скелет: Prisma установлен (`prisma`, `@prisma/client`), но намеренно не подключён — приложение стартует без базы (см. комментарий в `src/app.module.ts`). При добавлении первых моделей нужно создать `prisma/schema.prisma`, `PrismaModule`/`PrismaService` (с disconnect в `onModuleDestroy`) и подключить в `AppModule`; Prisma читает `DATABASE_URL` — добавить её в env-схему и `.env.example` тем же коммитом.
 
 Уже подключено в скелете:
 
@@ -44,7 +44,7 @@ npm run seed             # заполнение справочников (ком
 
 - Глобальный `ValidationPipe` с `whitelist + forbidNonWhitelisted`: у каждого эндпоинта, принимающего данные, должен быть DTO с декораторами class-validator, иначе любое тело запроса будет отклонено.
 - Проверка принадлежности объекта пользователю — **в условии запроса к базе** (`where: { ..., user }`), не после выборки. Чужой и несуществующий объект дают одинаковый ответ (404, не 403).
-- Изменения схемы — только миграции; `synchronize` не включать.
+- Изменения схемы — только через `prisma migrate` (файлы миграций в git); `prisma db push` — только для локальных экспериментов, в прод никогда.
 - Файлы пользователей (фото ущерба, justificatifs) — в приватном S3-совместимом хранилище, наружу только короткие подписанные URL; публичных бакетов нет.
 - Юридические сроки берутся только из справочника `DeadlineRule` (с `SourceReference`), не хардкодятся; дата публикации arrêté — только из XML JORF, не из GASPAR и не из даты появления файла в выгрузке DILA.
 - В логи не попадают email, адреса, содержимое инвентаря и файлы.

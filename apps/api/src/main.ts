@@ -20,8 +20,8 @@ async function bootstrap() {
 
   // Without shutdown hooks SIGTERM kills the process abruptly: scheduled
   // jobs keep running mid-tick and lifecycle hooks (onModuleDestroy,
-  // onApplicationShutdown) never fire — including TypeORM's pool cleanup
-  // once DatabaseModule lands.
+  // onApplicationShutdown) never fire — including Prisma's disconnect
+  // once PrismaModule lands.
   app.enableShutdownHooks();
 
   await app.register(helmet, { contentSecurityPolicy: false });

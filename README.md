@@ -16,7 +16,7 @@ catastrophe naturelle в Journal Officiel и ведёт пострадавшег
 ## Структура
 
 ```
-apps/api        NestJS + Fastify + TypeORM + PostgreSQL
+apps/api        NestJS + Fastify + Prisma + PostgreSQL
 apps/web        Next.js + shadcn/ui
 packages/contracts  типы и enum'ы, общие для API и клиента
 docs            техническое задание
