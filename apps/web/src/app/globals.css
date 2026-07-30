@@ -2,16 +2,16 @@
 
 /*
  * Baseline accessibility rules that must survive any later design work.
- * See specification § 9.
+ * See specification § 7 and the a11y rules in this app's CLAUDE.md.
  */
 
-/* Visible keyboard focus is never removed — § 9.2. */
+/* Visible keyboard focus is never removed. */
 :focus-visible {
   outline: 3px solid currentColor;
   outline-offset: 2px;
 }
 
-/* Reachable by keyboard, out of the way otherwise — § 9.1. */
+/* Reachable by keyboard, out of the way otherwise. */
 .skip-link {
   position: absolute;
   left: -9999px;
@@ -26,7 +26,6 @@
   left: 0;
 }
 
-/* § 9.9 */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

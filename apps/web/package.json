@@ -2,7 +2,7 @@
   "name": "@mon-sinistre/web",
   "version": "0.1.0",
   "private": true,
-  "description": "Jalons web client",
+  "description": "Mon Sinistre web client",
   "license": "UNLICENSED",
   "scripts": {
     "dev": "next dev",

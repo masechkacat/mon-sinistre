@@ -5,18 +5,7 @@ import {
   StepAnchor,
   StepStatus,
 } from './enums';
-
-/**
- * Calendar date without a time component, as `YYYY-MM-DD`.
- *
- * All domain dates are day-precision. Using a plain string rather than `Date`
- * keeps them free of timezone shifts: a deadline is the same day everywhere,
- * and serialising a `Date` across the wire is exactly how such dates drift.
- */
-export type IsoDate = string;
-
-/** Timestamp with a time component, as ISO 8601. */
-export type IsoDateTime = string;
+import { IsoDate, IsoDateTime } from './iso-date';
 
 /** Provenance of a reference-data statement. See specification § 7. */
 export interface SourceReference {

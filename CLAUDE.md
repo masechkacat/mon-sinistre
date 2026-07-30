@@ -18,7 +18,7 @@ npm workspaces, три пакета:
 
 - `packages/contracts` (`@mon-sinistre/contracts`) — типы, enum'ы и константы, общие для API и клиента. Собирается **первым**: API импортирует его из `dist/`.
 - `apps/api` (`@mon-sinistre/api`) — NestJS + Fastify + Prisma + PostgreSQL, порт 3001.
-- `apps/web` (`@mon-sinistre/web`) — Next.js (App Router) + Tailwind 4, порт 3000. Использует contracts напрямую из исходников через `transpilePackages`.
+- `apps/web` (`@mon-sinistre/web`) — Next.js (App Router) + Tailwind 4, порт 3000. Contracts резолвится в его `dist/` (поле `main`), поэтому web тоже требует собранный contracts; `transpilePackages` нужен, чтобы dev-сервер подхватывал пересборку пакета.
 
 У каждого приложения есть свой CLAUDE.md с деталями.
 
@@ -26,7 +26,7 @@ npm workspaces, три пакета:
 
 ```bash
 npm run db:up            # PostgreSQL 17 в Docker (нужен apps/api/.env)
-npm run build:contracts  # обязательно перед первым запуском API
+npm run build:contracts  # обязательно перед первым запуском API и web
 npm run dev:api          # NestJS в watch-режиме, http://localhost:3001, /docs — OpenAPI
 npm run dev:web          # Next.js, http://localhost:3000
 npm run dev:contracts    # tsc --watch для contracts (при параллельной правке типов)
@@ -51,7 +51,7 @@ Pre-commit хук (`.githooks/pre-commit`, подключается через `
 - **Юридические сроки — только из справочника `DeadlineRule`** с `SourceReference`; захардкоженных юридических цифр в коде нет.
 - **Статусы шагов вычисляются на чтении**, в базе хранятся только `FAIT` и `NON_APPLICABLE`. Пороги (`SOON_THRESHOLD_DAYS = 30`, напоминания 30/14/3, усиленная шкала дедлайна декларации 21/14/7/3/1) — константы в contracts.
 - Синистр хранит **копию плана** на момент создания: изменение шаблона не трогает существующие синистры. Шаги, добавленные пользователем (`fromTemplate: false`), никогда не пересчитываются.
-- Все доменные даты — `IsoDate` (строка `YYYY-MM-DD`, без времени и таймзон). Не заменять на `Date`.
+- Все доменные даты — `IsoDate` (брендированная строка `YYYY-MM-DD`, без времени и таймзон; произвольный `string` не пройдёт типизацию — конструировать через `toIsoDate`/`isIsoDate` из contracts). Не заменять на `Date`.
 
 ## Жёсткие ограничения (из ТЗ, нарушать нельзя)
 

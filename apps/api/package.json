@@ -2,7 +2,7 @@
   "name": "@mon-sinistre/api",
   "version": "0.1.0",
   "private": true,
-  "description": "Jalons REST API",
+  "description": "Mon Sinistre REST API",
   "license": "UNLICENSED",
   "scripts": {
     "build": "nest build",
@@ -22,7 +22,6 @@
   "dependencies": {
     "@fastify/cookie": "^11.1.2",
     "@fastify/helmet": "^13.1.0",
-    "@fastify/static": "^9.3.0",
     "@mon-sinistre/contracts": "*",
     "@nestjs/common": "^11.1.28",
     "@nestjs/config": "^4.0.4",
