@@ -3,9 +3,7 @@
 Assistant catastrophe naturelle : veille des arrêtés au Journal Officiel et
 suivi du sinistre.
 
-> Кодовое имя репозитория и npm-пакетов — `jalons` (`@jalons/*`); публичное имя
-> продукта — **Mon Sinistre**. Домены-кандидаты: `mon-sinistre.fr`,
-> `monsinistre.app` (свободны на 30.07.2026).
+> Домены-кандидаты: `mon-sinistre.fr`, `monsinistre.app` (свободны на 30.07.2026).
 
 Приложение уведомляет жителей выбранных коммун в день публикации arrêté de
 catastrophe naturelle в Journal Officiel и ведёт пострадавшего через страховой
@@ -24,7 +22,7 @@ packages/contracts  типы и enum'ы, общие для API и клиента
 docs            техническое задание
 ```
 
-Монорепозиторий на npm workspaces. Общие типы вынесены в `@jalons/contracts`,
+Монорепозиторий на npm workspaces. Общие типы вынесены в `@mon-sinistre/contracts`,
 чтобы статусы синистра и шагов не расходились между сервером и клиентом.
 
 ## Запуск

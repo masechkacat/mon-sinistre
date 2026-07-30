@@ -1,5 +1,5 @@
 {
-  "name": "@jalons/web",
+  "name": "@mon-sinistre/web",
   "version": "0.1.0",
   "private": true,
   "description": "Jalons web client",
@@ -11,7 +11,7 @@
     "lint": "eslint ."
   },
   "dependencies": {
-    "@jalons/contracts": "*",
+    "@mon-sinistre/contracts": "*",
     "next": "^16.2.12",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"

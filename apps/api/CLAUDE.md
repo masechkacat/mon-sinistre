@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-Контекст всего монорепозитория — в корневом `../../CLAUDE.md`. Здесь — специфика `@jalons/api`.
+Контекст всего монорепозитория — в корневом `../../CLAUDE.md`. Здесь — специфика `@mon-sinistre/api`.
 
 ## Стек
 
@@ -49,6 +49,6 @@ npm run seed             # заполнение справочников (ком
 - Юридические сроки берутся только из справочника `DeadlineRule` (с `SourceReference`), не хардкодятся; дата публикации arrêté — только из XML JORF, не из GASPAR и не из даты появления файла в выгрузке DILA.
 - В логи не попадают email, адреса, содержимое инвентаря и файлы.
 - Refresh-токены — в httpOnly-cookie с ротацией; access — в теле ответа. Секреты и сроки — в `.env` (`.env.example` — актуальный список переменных).
-- Статусы шагов (`A_VENIR`/`A_FAIRE`/`EN_RETARD`) вычисляются при чтении из плановой даты; в базе хранятся только `FAIT` и `NON_APPLICABLE`. Enum'ы и пороги брать из `@jalons/contracts`, не дублировать.
+- Статусы шагов (`A_VENIR`/`A_FAIRE`/`EN_RETARD`) вычисляются при чтении из плановой даты; в базе хранятся только `FAIT` и `NON_APPLICABLE`. Enum'ы и пороги брать из `@mon-sinistre/contracts`, не дублировать.
 - Доменные даты — строки `YYYY-MM-DD` (тип `IsoDate`), в Postgres — колонки `date`, не `timestamp`.
 - Рассылка напоминаний — `@nestjs/schedule`, раз в сутки, не больше одного письма пользователю в день; сбой отправки одному получателю не прерывает остальных.

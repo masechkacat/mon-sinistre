@@ -7,7 +7,7 @@
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
     "strictPropertyInitialization": false,
-    // @jalons/contracts is deliberately absent here. Mapping it to the package
+    // @mon-sinistre/contracts is deliberately absent here. Mapping it to the package
     // sources would pull them under this project's rootDir and scatter dist/.
     // The workspace symlink resolves it to packages/contracts/dist instead,
     // which is why build:contracts has to run first.

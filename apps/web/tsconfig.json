@@ -26,7 +26,7 @@
       "@/*": [
         "./src/*"
       ],
-      "@jalons/contracts": [
+      "@mon-sinistre/contracts": [
         "../../packages/contracts/src"
       ]
     }

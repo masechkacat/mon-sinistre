@@ -1,5 +1,5 @@
 {
-  "name": "@jalons/api",
+  "name": "@mon-sinistre/api",
   "version": "0.1.0",
   "private": true,
   "description": "Jalons REST API",
@@ -23,7 +23,7 @@
     "@fastify/cookie": "^11.1.2",
     "@fastify/helmet": "^13.1.0",
     "@fastify/static": "^9.3.0",
-    "@jalons/contracts": "*",
+    "@mon-sinistre/contracts": "*",
     "@nestjs/common": "^11.1.28",
     "@nestjs/config": "^4.0.4",
     "@nestjs/core": "^11.1.28",
@@ -79,7 +79,7 @@
       "^.+\\.(t|j)s$": "ts-jest"
     },
     "moduleNameMapper": {
-      "^@jalons/contracts$": "<rootDir>/../../../packages/contracts/src",
+      "^@mon-sinistre/contracts$": "<rootDir>/../../../packages/contracts/src",
       "^src/(.*)$": "<rootDir>/$1"
     },
     "collectCoverageFrom": [

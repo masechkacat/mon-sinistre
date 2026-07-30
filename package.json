@@ -1,5 +1,5 @@
 {
-  "name": "jalons",
+  "name": "mon-sinistre",
   "version": "0.1.0",
   "private": true,
   "description": "Veille des arrêtés de catastrophe naturelle et suivi du sinistre",
@@ -14,13 +14,13 @@
   ],
   "scripts": {
     "prepare": "git config core.hooksPath .githooks",
-    "build:contracts": "npm run build --workspace @jalons/contracts",
-    "build": "npm run build:contracts && npm run build --workspace @jalons/api && npm run build --workspace @jalons/web",
-    "dev:contracts": "npm run dev --workspace @jalons/contracts",
-    "dev:api": "npm run start:dev --workspace @jalons/api",
-    "dev:web": "npm run dev --workspace @jalons/web",
-    "test": "npm run test --workspace @jalons/api",
-    "test:watch": "npm run test:watch --workspace @jalons/api",
+    "build:contracts": "npm run build --workspace @mon-sinistre/contracts",
+    "build": "npm run build:contracts && npm run build --workspace @mon-sinistre/api && npm run build --workspace @mon-sinistre/web",
+    "dev:contracts": "npm run dev --workspace @mon-sinistre/contracts",
+    "dev:api": "npm run start:dev --workspace @mon-sinistre/api",
+    "dev:web": "npm run dev --workspace @mon-sinistre/web",
+    "test": "npm run test --workspace @mon-sinistre/api",
+    "test:watch": "npm run test:watch --workspace @mon-sinistre/api",
     "lint": "npm run lint --workspaces --if-present",
     "db:up": "docker compose --env-file ./apps/api/.env up -d db",
     "db:down": "docker compose down"

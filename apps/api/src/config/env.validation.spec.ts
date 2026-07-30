@@ -5,9 +5,9 @@ const SECRET = 'x'.repeat(48);
 const validEnv = {
   DB_HOST: 'localhost',
   DB_PORT: '5432',
-  DB_USER: 'jalons',
+  DB_USER: 'mon_sinistre',
   DB_PASSWORD: 'secret',
-  DB_NAME: 'jalons',
+  DB_NAME: 'mon_sinistre',
   JWT_SECRET: SECRET,
   JWT_REFRESH_SECRET: SECRET,
   COOKIE_SECRET: SECRET,

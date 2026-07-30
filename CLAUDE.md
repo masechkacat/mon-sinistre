@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 > страхового случая catastrophe naturelle — причины и проверка источников данных в
 > `docs/pivot-catnat.md`.
 
-**Mon Sinistre** (публичное имя; кодовое имя репозитория и пакетов — `jalons`/`@jalons/*`) — assistant catastrophe naturelle: уведомляет жителей выбранных коммун в день публикации arrêté в Journal Officiel и ведёт пострадавшего через страховой случай — план действий с первого дня после события, 30-дневный срок декларации, сроки страховщика, инвентарь ущерба с фото. Оно не даёт юридических консультаций и не взаимодействует со страховщиком от имени пользователя — его задача не дать пропустить сроки.
+**Mon Sinistre** — assistant catastrophe naturelle: уведомляет жителей выбранных коммун в день публикации arrêté в Journal Officiel и ведёт пострадавшего через страховой случай — план действий с первого дня после события, 30-дневный срок декларации, сроки страховщика, инвентарь ущерба с фото. Оно не даёт юридических консультаций и не взаимодействует со страховщиком от имени пользователя — его задача не дать пропустить сроки.
 
 Полное техническое задание: `docs/technical-specification.md`. Оно определяет функциональные требования, но не контракты API и не структуру модулей — эти решения принимаются в коде.
 
@@ -16,9 +16,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 npm workspaces, три пакета:
 
-- `packages/contracts` (`@jalons/contracts`) — типы, enum'ы и константы, общие для API и клиента. Собирается **первым**: API импортирует его из `dist/`.
-- `apps/api` (`@jalons/api`) — NestJS + Fastify + TypeORM + PostgreSQL, порт 3001.
-- `apps/web` (`@jalons/web`) — Next.js (App Router) + Tailwind 4, порт 3000. Использует contracts напрямую из исходников через `transpilePackages`.
+- `packages/contracts` (`@mon-sinistre/contracts`) — типы, enum'ы и константы, общие для API и клиента. Собирается **первым**: API импортирует его из `dist/`.
+- `apps/api` (`@mon-sinistre/api`) — NestJS + Fastify + TypeORM + PostgreSQL, порт 3001.
+- `apps/web` (`@mon-sinistre/web`) — Next.js (App Router) + Tailwind 4, порт 3000. Использует contracts напрямую из исходников через `transpilePackages`.
 
 У каждого приложения есть свой CLAUDE.md с деталями.
 
@@ -35,9 +35,9 @@ npm test                 # jest в apps/api (тесты есть только т
 npm run lint             # eslint по всем workspace'ам
 ```
 
-Один тест: `npm test --workspace @jalons/api -- env.validation` (jest ищет `*.spec.ts` по подстроке пути).
+Один тест: `npm test --workspace @mon-sinistre/api -- env.validation` (jest ищет `*.spec.ts` по подстроке пути).
 
-Pre-commit хук (`.githooks/pre-commit`, подключается через `core.hooksPath` скриптом `prepare` при `npm install`) прогоняет `npm run lint` и `npm test` перед каждым коммитом. Хук не должен изменять файлы — скрипты `lint` запускаются без `--fix` (в `@jalons/api` для автопочинки есть отдельный `lint:fix`).
+Pre-commit хук (`.githooks/pre-commit`, подключается через `core.hooksPath` скриптом `prepare` при `npm install`) прогоняет `npm run lint` и `npm test` перед каждым коммитом. Хук не должен изменять файлы — скрипты `lint` запускаются без `--fix` (в `@mon-sinistre/api` для автопочинки есть отдельный `lint:fix`).
 
 Окружение: Node.js ≥ 24, Docker. Секреты — `cp apps/api/.env.example apps/api/.env`, значения генерируются `openssl rand -base64 48`.
 
