@@ -1,6 +1,11 @@
-# Jalons
+# Mon Sinistre
 
-Veille des arrêtés de catastrophe naturelle et suivi du sinistre.
+Assistant catastrophe naturelle : veille des arrêtés au Journal Officiel et
+suivi du sinistre.
+
+> Кодовое имя репозитория и npm-пакетов — `jalons` (`@jalons/*`); публичное имя
+> продукта — **Mon Sinistre**. Домены-кандидаты: `mon-sinistre.fr`,
+> `monsinistre.app` (свободны на 30.07.2026).
 
 Приложение уведомляет жителей выбранных коммун в день публикации arrêté de
 catastrophe naturelle в Journal Officiel и ведёт пострадавшего через страховой

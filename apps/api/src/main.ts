@@ -45,7 +45,7 @@ async function bootstrap() {
   );
 
   const swaggerConfig = new DocumentBuilder()
-    .setTitle('Jalons API')
+    .setTitle('Mon Sinistre API')
     .setDescription(
       'Veille des arrêtés de catastrophe naturelle et suivi du sinistre',
     )

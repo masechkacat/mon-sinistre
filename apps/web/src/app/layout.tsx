@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Jalons',
+  title: 'Mon Sinistre',
   description:
     'Veille des arrêtés de catastrophe naturelle et suivi du sinistre',
 };
