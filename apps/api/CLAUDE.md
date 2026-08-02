@@ -28,13 +28,12 @@ npm run seed             # prisma db seed — справочники (комму
 
 ## Текущее состояние
 
-Скелет: Prisma 7 установлена (`prisma`, `@prisma/client` 7.x), но намеренно не подключена — приложение стартует без базы (см. комментарий в `src/app.module.ts`). Подключать строго в стиле Prisma 7 — процесс заметно отличается от Prisma 5/6, инструкции из старых туториалов не годятся:
+Prisma 7 подключена (стиль v7 — driver adapter, инструкции из туториалов для Prisma 5/6 не годятся):
 
-- **`prisma.config.ts`** в корне пакета — единственный источник конфигурации CLI (ключ `"prisma"` в package.json больше не читается): первой строкой загрузка `.env` через нативный `process.loadEnvFile()` в `try/catch` (CLI в v7 сама `.env` **не** загружает; catch нужен, потому что при отсутствии файла — например в CI, где переменные приходят из окружения, — `loadEnvFile` бросает исключение), затем `defineConfig` с путём к схеме и `datasource.url`; конфигурация seed-команды — тоже здесь. `dotenv` не подключать: он резолвится только как транзитивная зависимость `@nestjs/config` (фантомная), а Node ≥ 24 умеет это сам.
-- **`DATABASE_URL` отдельной переменной не заводить**: connection string собирается из существующих `DB_HOST/DB_PORT/DB_USER/DB_PASSWORD/DB_NAME` — в `prisma.config.ts` из `process.env`, в `PrismaService` из ConfigService. Так docker-compose, CLI миграций и рантайм гарантированно смотрят на одну базу (решение — `docs/decisions.md`).
-- **`prisma/schema.prisma`**: в `datasource db` только `provider = "postgresql"` (url живёт в конфиге); генератор — `provider = "prisma-client"` (не `prisma-client-js`) с явным `output` вне node_modules; сгенерированную папку добавить в .gitignore, `npm run prisma:generate` — после каждой правки схемы и в сборке перед `nest build`.
-- **Driver adapter — стандартный путь v7**: добавить `@prisma/adapter-pg` (драйвер `pg` уже в зависимостях) и инстанцировать `new PrismaClient({ adapter: new PrismaPg({ connectionString }) })`.
-- **`PrismaModule`/`PrismaService`**: сервис наследует сгенерированный `PrismaClient`, делает disconnect в `onModuleDestroy` (сработает через уже включённый `enableShutdownHooks`) и подключается в `AppModule`.
+- **`prisma.config.ts`** в корне пакета — единственный источник конфигурации CLI (ключ `"prisma"` в package.json больше не читается): первой строкой `process.loadEnvFile()` в `try/catch` (CLI в v7 сама `.env` **не** загружает; при отсутствии файла — например в CI — переменные приходят из окружения). `dotenv` не подключать: фантомная зависимость, Node ≥ 24 умеет это сам. Конфигурация seed-команды (`migrations.seed`), когда появится, — тоже здесь.
+- **`DATABASE_URL` не существует**: connection string собирает `buildDatabaseUrl` (`src/prisma/database-url.ts`) из `DB_HOST/DB_PORT/DB_USER/DB_PASSWORD/DB_NAME` — в `prisma.config.ts` из `process.env`, в `PrismaService` из ConfigService. Так docker-compose, CLI миграций, рантайм и интеграционные тесты гарантированно смотрят на одну базу (решение — `docs/decisions.md`).
+- **`prisma/schema.prisma`**: в `datasource db` только `provider = "postgresql"` (url живёт в конфиге); генератор `prisma-client` эмитит TypeScript в `src/generated/prisma` (папка в .gitignore). `npm run prisma:generate` — после каждой правки схемы; `npm run build` делает это сам перед `nest build`. Модели: `Commune` (справочник по `docs/research/data-model.md` § 3, миграция `init_commune`).
+- **`PrismaService`** (`src/prisma/`) наследует сгенерированный `PrismaClient` поверх `@prisma/adapter-pg`, disconnect в `onModuleDestroy` (срабатывает через `enableShutdownHooks`); **`PrismaModule`** глобальный и подключён в `AppModule`.
 
 Уже подключено в скелете:
 
