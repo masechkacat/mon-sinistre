@@ -189,6 +189,7 @@ describe('GET /communes (integration)', () => {
     ['missing q', undefined],
     ['empty q', ''],
     ['single-character q', 'a'],
+    ['q longer than 64 characters', 'a'.repeat(65)],
   ])('rejects %s with a validation error', async (_label, q) => {
     const res = await search(q);
 

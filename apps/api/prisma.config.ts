@@ -27,8 +27,11 @@ export default defineConfig({
   schema: 'prisma/schema.prisma',
   datasource: {
     url: buildDatabaseUrl({
-      host: process.env.DB_HOST ?? 'localhost',
-      port: process.env.DB_PORT ?? 5432,
+      // All five are required, exactly like the runtime's getOrThrow — the CLI
+      // must never silently fall back to a default host while the app refuses
+      // to start on the same .env.
+      host: required('DB_HOST'),
+      port: required('DB_PORT'),
       user: required('DB_USER'),
       password: required('DB_PASSWORD'),
       database: required('DB_NAME'),
