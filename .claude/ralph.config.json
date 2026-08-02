@@ -52,7 +52,6 @@
     "Bash(gh pr create:*)",
     "Bash(gh pr merge:*)",
     "Bash(gh issue close:*)",
-    "Edit(**/package.json)",
-    "Write(**/package.json)"
+    "Edit(**/package.json)"
   ]
 }

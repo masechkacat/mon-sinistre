@@ -18,6 +18,7 @@ const {
   branchName,
   buildPrompt,
   checkIterationCommit,
+  checkLinearAdvance,
   checkSameBranch,
   closesIssue,
   fieldKey,
@@ -269,6 +270,22 @@ test('checkIterationCommit останавливает цикл на чужом �
   assert.throws(
     () => checkIterationCommit(1, 'feat: поиск\n\nCloses #13', 12, REPO),
     /Closes #12/,
+  );
+});
+
+test('checkLinearAdvance пропускает обычное продвижение ветки', () => {
+  assert.doesNotThrow(() =>
+    checkLinearAdvance(true, 'commune-referential/phase-3'),
+  );
+});
+
+test('checkLinearAdvance останавливает цикл на переписанной истории', () => {
+  // amend и reset --soft за начало итерации дают ровно один коммит в
+  // `before..after` — счётчик их не отличает, а на непушенной ветке фазы push
+  // пропустил бы переписанный коммит origin/main.
+  assert.throws(
+    () => checkLinearAdvance(false, 'commune-referential/phase-3'),
+    /переписала историю/,
   );
 });
 

@@ -528,10 +528,32 @@ function checkSameBranch(now, branch) {
  * выпадет навсегда, потому что `queueFor` пропускает In Review. Задача тихо
  * потерялась бы между бордом и планом.
  */
-function verifyCommit(before, after, issueNumber, repo) {
+function verifyCommit(before, after, issueNumber, repo, branch) {
+  checkLinearAdvance(
+    quiet(() => git(['merge-base', '--is-ancestor', before, after])),
+    branch,
+  );
   const count = Number(git(['rev-list', '--count', `${before}..${after}`]));
   const message = git(['log', '-1', '--format=%B', after]);
   checkIterationCommit(count, message, issueNumber, repo);
+}
+
+/**
+ * Ветка обязана двигаться вперёд: прежний HEAD — предок нового.
+ *
+ * Одного счётчика `before..after` мало: `git commit --amend` и `git reset
+ * --soft` за начало итерации (запрещён только `--hard`) тоже дают ровно один
+ * коммит — но не потомка. На уже запушенной ветке это поймал бы push
+ * (non-fast-forward), а на первом коммите фазы ветки на origin ещё нет, push
+ * пройдёт — и в неё молча уедет переписанный коммит `origin/main`. Ровно тот
+ * откат, который ловит `requireFreshBase`, только он отработал до итерации.
+ */
+function checkLinearAdvance(isDescendant, branch) {
+  if (isDescendant) return;
+  fail(
+    `Итерация переписала историю ${branch} — новый коммит не потомок прежнего HEAD`,
+    'Похоже на amend или reset за начало итерации. Смотри git reflog, разбери руками и запусти цикл снова.',
+  );
 }
 
 /** Чистая часть проверки — берёт готовые количество и сообщение. */
@@ -811,7 +833,7 @@ function main() {
       }
 
       if (headAfter !== headBefore) {
-        verifyCommit(headBefore, headAfter, issue.number, repo);
+        verifyCommit(headBefore, headAfter, issue.number, repo, branch);
         pushBranch(branch);
         ok(`коммит ${headAfter.slice(0, 8)} запушен в origin/${branch}`);
         moveToInReview(cfg, board, issue.number);
@@ -879,6 +901,7 @@ module.exports = {
   branchName,
   buildPrompt,
   checkIterationCommit,
+  checkLinearAdvance,
   checkSameBranch,
   closesIssue,
   fieldKey,
