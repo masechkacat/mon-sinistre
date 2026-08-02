@@ -25,6 +25,13 @@ function required(name: string): string {
 
 export default defineConfig({
   schema: 'prisma/schema.prisma',
+  migrations: {
+    // npm run seed → one-off idempotent referential import (communes COG).
+    // tsconfig-paths/register keeps the `src/...` path alias working at
+    // runtime: plain ts-node would only survive type-level src imports
+    // (tsc elides them), and any value-level one would die MODULE_NOT_FOUND.
+    seed: 'ts-node -r tsconfig-paths/register prisma/seed.ts',
+  },
   datasource: {
     url: buildDatabaseUrl({
       // All five are required, exactly like the runtime's getOrThrow — the CLI
