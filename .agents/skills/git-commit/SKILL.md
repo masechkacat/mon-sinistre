@@ -115,6 +115,23 @@ EOF
 - Reference issues: `Closes #123`, `Refs #456`
 - Keep description under 72 characters
 
+## Closing Keywords Are Live — Never Use a Real Number in an Example
+
+GitHub scans the **whole** commit message (and PR body) for closing keywords —
+`Closes`, `Fixes`, `Resolves` and their forms — and does not care about
+typography. A line written as an illustration, in quotes, still closes the
+issue on merge.
+
+This has already cost this project a task: `«Closes: #12» больше не валит цикл`
+in commit `f7075e6` closed issue #12, which nobody had worked on, and it
+silently dropped out of the phase plan (2026-08-02).
+
+- A real closing trailer appears **once** per commit — the one for this commit.
+- Any example, quote, or explanation of the trailer uses a placeholder:
+  `Closes #<N>`. Never a number that exists in the repo.
+- Backticks are not a shield. Do not rely on them.
+- The same applies to PR titles and bodies: they close issues on merge too.
+
 ## Git Safety Protocol
 
 - NEVER update git config
