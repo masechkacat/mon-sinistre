@@ -12,8 +12,9 @@ NestJS 11 на **Fastify** (не Express — плагины подключают
 
 ```bash
 npm run start:dev        # watch-режим, читает .env через --env-file
-npm test                 # jest, все *.spec.ts в src/
+npm test                 # jest, все *.spec.ts в src/ (юнит, без Docker)
 npm test -- steps        # один тест по подстроке пути
+npm run test:int         # интеграционные *.int-spec.ts против реального Postgres (нужен db:up)
 npm run test:cov         # с покрытием
 npm run lint             # eslint, только проверка (используется pre-commit хуком)
 npm run lint:fix         # eslint с автопочинкой
@@ -37,6 +38,8 @@ Prisma 7 подключена (стиль v7 заметно отличается
 - **Driver adapter** (стандартный путь v7): `@prisma/adapter-pg`, `new PrismaClient({ adapter: new PrismaPg({ connectionString }) })` — см. `src/prisma/prisma.service.ts`.
 - **`PrismaModule`** (`src/prisma/`) — `@Global()`, экспортирует `PrismaService`; сервис наследует сгенерированный `PrismaClient`, делает `$connect` в `onModuleInit` (недоступная база валит bootstrap, а не первый запрос) и disconnect в `onModuleDestroy` (срабатывает через `enableShutdownHooks`).
 - **Модели**: `Commune` по `../../docs/research/data-model.md` § 3 (codeInsee PK, версионирование через `effectiveTo`/`successorCodeInsee`, `sourceUrl`/`sourceVerifiedAt`); миграции — в `prisma/migrations/`.
+
+**Интеграционные тесты** (решение — research-отчёт, не перевыбирать): спеки `*.int-spec.ts` лежат рядом с кодом в `src/`, гоняются `npm run test:int` (`jest.int.config.js`) против отдельной базы `${DB_NAME}_test` на том же docker-compose Postgres. `test/global-setup.ts` создаёт базу (клиентом `pg`) и применяет миграции (`prisma migrate deploy` с переопределённым `DB_NAME`); `test/int-env.ts` переопределяет `DB_NAME` в каждом воркере — globalSetup выполняется в отдельном процессе и его env до воркеров не доходит. `maxWorkers: 1` обязателен, пока тесты делят одну базу; между тестами — `TRUNCATE` затронутых таблиц в `beforeEach`, не пересоздание схемы. Юнит-конфиг (`testRegex: .*\.spec\.ts$`) int-спеки не видит — pre-commit хук остаётся быстрым и без Docker-требования; `tsconfig.build.json` исключает `*.int-spec.ts` из сборки.
 
 Уже подключено в скелете:
 
