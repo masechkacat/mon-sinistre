@@ -1,19 +1,10 @@
-import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from 'src/generated/prisma/client';
-import { buildDatabaseUrl } from 'src/prisma/database-url';
+import { createIntTestPrismaClient } from 'src/prisma/prisma-client.int-helper';
 import {
   CommuneImportService,
   CommuneImportSource,
 } from './commune-import.service';
 import { GEO_API_COMMUNES_URL, GeoApiCommune } from './geo-api.client';
-
-const requiredEnv = (name: string): string => {
-  const value = process.env[name];
-  if (!value) {
-    throw new Error(`${name} must be set for integration tests`);
-  }
-  return value;
-};
 
 const geoCommune = (
   code: string,
@@ -39,17 +30,7 @@ describe('CommuneImportService (integration)', () => {
   beforeAll(() => {
     // No Nest context on purpose — the seed script will wire the service the
     // same way (docs/research/commune-referential.md, «Архитектура seed»).
-    prisma = new PrismaClient({
-      adapter: new PrismaPg({
-        connectionString: buildDatabaseUrl({
-          host: requiredEnv('DB_HOST'),
-          port: requiredEnv('DB_PORT'),
-          user: requiredEnv('DB_USER'),
-          password: requiredEnv('DB_PASSWORD'),
-          database: requiredEnv('DB_NAME'),
-        }),
-      }),
-    });
+    prisma = createIntTestPrismaClient();
   });
 
   afterAll(async () => {
@@ -81,6 +62,10 @@ describe('CommuneImportService (integration)', () => {
     expect(rows[0]).toMatchObject({
       codeInsee: '02168',
       name: 'Château-Thierry',
+      // The search key of the row: filled here, or `GET /communes?q=chateau`
+      // silently finds nothing while every search test stays green on its own
+      // fixtures.
+      nameNormalized: 'chateau-thierry',
       departementCode: '02',
       departementName: 'Aisne',
       sourceUrl: GEO_API_COMMUNES_URL,
@@ -115,6 +100,9 @@ describe('CommuneImportService (integration)', () => {
     const rows = await prisma.commune.findMany();
     expect(rows).toHaveLength(1);
     expect(rows[0]?.name).toBe('Val-de-Fumé');
+    // The search key follows the name, otherwise the referential would keep
+    // answering under the old one.
+    expect(rows[0]?.nameNormalized).toBe('val-de-fume');
   });
 
   it('keeps codes that disappeared from the source untouched', async () => {
@@ -122,6 +110,7 @@ describe('CommuneImportService (integration)', () => {
       data: {
         codeInsee: '08053',
         name: 'Bazeilles',
+        nameNormalized: 'bazeilles',
         departementCode: '08',
         departementName: 'Ardennes',
         sourceUrl: GEO_API_COMMUNES_URL,
@@ -152,6 +141,7 @@ describe('CommuneImportService (integration)', () => {
       data: {
         codeInsee: '14712',
         name: 'Val-de-Fumé',
+        nameNormalized: 'val-de-fume',
         departementCode: '14',
         departementName: 'Calvados',
         sourceUrl: GEO_API_COMMUNES_URL,
@@ -162,6 +152,7 @@ describe('CommuneImportService (integration)', () => {
       data: {
         codeInsee: '14713',
         name: 'Vieux-Fumé',
+        nameNormalized: 'vieux-fume',
         departementCode: '14',
         departementName: 'Calvados',
         effectiveTo: new Date('2017-01-01'),

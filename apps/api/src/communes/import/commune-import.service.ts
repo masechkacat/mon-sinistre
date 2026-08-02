@@ -1,4 +1,5 @@
 import { PrismaClient } from 'src/generated/prisma/client';
+import { normalizeCommuneName } from 'src/communes/normalize-commune-name';
 import { GEO_API_COMMUNES_URL, GeoApiCommune } from './geo-api.client';
 
 /**
@@ -79,6 +80,10 @@ export class CommuneImportService {
   ): Promise<void> {
     const fields = {
       name: commune.nom,
+      // Written here and nowhere else: the search key must come from the same
+      // function the query uses, or a renamed commune would keep answering
+      // under its old spelling (docs/research/commune-referential.md).
+      nameNormalized: normalizeCommuneName(commune.nom),
       departementCode: commune.codeDepartement,
       departementName: commune.departement.nom,
       sourceUrl: GEO_API_COMMUNES_URL,

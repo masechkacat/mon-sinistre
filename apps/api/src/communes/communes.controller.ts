@@ -20,8 +20,10 @@ export class CommunesController {
   @ApiOperation({
     summary: 'Search communes by name prefix or exact INSEE code',
     description:
-      'Public endpoint. Matches active communes only; the result is capped ' +
-      'at COMMUNE_SEARCH_LIMIT entries sorted by name.',
+      'Public endpoint. The name match ignores case and diacritics ' +
+      '("chateau" finds "Château-Thierry"); the INSEE code must match ' +
+      'exactly, case aside. Matches active communes only; the result is ' +
+      'capped at COMMUNE_SEARCH_LIMIT entries sorted by name.',
   })
   @ApiOkResponse({ type: [CommuneResponseDto] })
   @ApiBadRequestResponse({

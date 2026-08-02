@@ -17,6 +17,10 @@ generator client {
 model Commune {
   codeInsee          String    @id
   name               String
+  // Поисковый ключ названия: normalizeCommuneName(name), заполняется импортом.
+  // Nullable до backfill (перезапуск идемпотентного импорта), затем NOT NULL
+  // отдельной миграцией.
+  nameNormalized     String?
   departementCode    String
   departementName    String
   // null = код действует в актуальном COG
@@ -27,4 +31,11 @@ model Commune {
   predecessors       Commune[] @relation("CommuneSuccessor")
   sourceUrl          String
   sourceVerifiedAt   DateTime  @db.Date
+
+  // Префиксный поиск и сортировка: колонка объявлена COLLATE "C" (миграция
+  // normalize_collation), поэтому обычный btree обслуживает и LIKE 'q%', и
+  // ORDER BY — класс оператора text_pattern_ops больше не нужен. Collation
+  // Prisma не поддерживает и в схеме не выражается: она живёт только в SQL
+  // миграции, дрейфом не считается (проверка — commune-name-normalized.int-spec).
+  @@index([nameNormalized])
 }
