@@ -35,6 +35,8 @@ Prisma 7 подключена (стиль v7 — driver adapter, инструк�
 - **`prisma/schema.prisma`**: в `datasource db` только `provider = "postgresql"` (url живёт в конфиге); генератор `prisma-client` эмитит TypeScript в `src/generated/prisma` (папка в .gitignore). `npm run prisma:generate` — после каждой правки схемы; `npm run build` делает это сам перед `nest build`. Модели: `Commune` (справочник по `docs/research/data-model.md` § 3, миграция `init_commune`).
 - **`PrismaService`** (`src/prisma/`) наследует сгенерированный `PrismaClient` поверх `@prisma/adapter-pg`, disconnect в `onModuleDestroy` (срабатывает через `enableShutdownHooks`); **`PrismaModule`** глобальный и подключён в `AppModule`.
 
+Модули: `CommunesModule` — публичный поиск `GET /communes?q=` (префикс названия или точный код INSEE, только действующие коды, лимит `COMMUNE_SEARCH_LIMIT` из contracts; до фазы 3 — по «сырому» `name`, нормализация регистра и диакритики придёт с `nameNormalized`).
+
 Уже подключено в скелете:
 
 - Валидация переменных окружения на старте (`src/config/env.validation.ts`, class-validator): отсутствующий или некорректный секрет валит приложение при bootstrap, а не при первом использовании. Новая переменная добавляется в эту схему и в `.env.example` одним коммитом. SMTP-переменные необязательны, пока нет модуля рассылки — ужесточить при его появлении.
