@@ -95,18 +95,27 @@ export class GeoApiClient {
     if (!response.ok) {
       throw new Error(`geo.api.gouv.fr responded with HTTP ${response.status}`);
     }
-    const payload: unknown = await response.json();
+    let payload: unknown;
+    try {
+      payload = await response.json();
+    } catch (error) {
+      // String(error) stays in the message: the seed logs message only,
+      // while `cause` keeps the original error for programmatic consumers.
+      throw new Error(
+        'geo.api.gouv.fr response is not valid JSON — likely a truncated ' +
+          `transfer: ${String(error)}`,
+        { cause: error },
+      );
+    }
     if (!Array.isArray(payload)) {
       throw new Error(
         'geo.api.gouv.fr response is not a JSON array — the API format changed',
       );
     }
-    const communes = (payload as unknown[]).map(
-      (record, index): GeoApiCommune => {
-        assertGeoApiCommune(record, index);
-        return record;
-      },
-    );
+    const communes = payload.map((record, index): GeoApiCommune => {
+      assertGeoApiCommune(record, index);
+      return record;
+    });
     if (communes.length < MIN_EXPECTED_COMMUNES) {
       throw new Error(
         `geo.api.gouv.fr returned ${communes.length} communes — below the ` +

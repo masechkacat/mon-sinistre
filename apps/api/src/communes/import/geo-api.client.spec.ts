@@ -101,6 +101,16 @@ describe('GeoApiClient', () => {
     await expect(client.fetchCommunes()).rejects.toThrow('503');
   });
 
+  it('rejects a truncated response body that is not valid JSON', async () => {
+    const fetchFn = jest.fn(() =>
+      Promise.resolve(new Response('[{"code":"01001"', { status: 200 })),
+    );
+
+    await expect(new GeoApiClient(fetchFn).fetchCommunes()).rejects.toThrow(
+      /not valid JSON/,
+    );
+  });
+
   it('rejects a response that is not a JSON array', async () => {
     const client = new GeoApiClient(fetchOf({ message: 'maintenance' }));
 

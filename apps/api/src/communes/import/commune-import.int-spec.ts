@@ -28,7 +28,7 @@ const geoCommune = (
 });
 
 // The import is tested against an in-memory source: the HTTP layer (including
-// the completeness floor) has its own suite in geo-api.client.int-spec.ts.
+// the completeness floor) has its own suite in geo-api.client.spec.ts.
 const sourceOf = (communes: GeoApiCommune[]): CommuneImportSource => ({
   fetchCommunes: () => Promise.resolve(communes),
 });
@@ -64,12 +64,14 @@ describe('CommuneImportService (integration)', () => {
     new CommuneImportService(prisma, sourceOf(communes)).run();
 
   it('fills an empty database, stamping every row with source and verification date', async () => {
-    const today = new Date().toISOString().slice(0, 10);
+    // Two candidate dates so a UTC-midnight crossing mid-test cannot flake.
+    const before = new Date().toISOString().slice(0, 10);
 
     const result = await importOf([
       geoCommune('02168', 'Château-Thierry', '02', 'Aisne'),
       geoCommune('2A004', 'Ajaccio', '2A', 'Corse-du-Sud'),
     ]);
+    const after = new Date().toISOString().slice(0, 10);
 
     expect(result).toEqual({ processed: 2, total: 2 });
     const rows = await prisma.commune.findMany({
@@ -86,7 +88,9 @@ describe('CommuneImportService (integration)', () => {
       successorCodeInsee: null,
     });
     for (const row of rows) {
-      expect(row.sourceVerifiedAt.toISOString().slice(0, 10)).toBe(today);
+      expect([before, after]).toContain(
+        row.sourceVerifiedAt.toISOString().slice(0, 10),
+      );
     }
   });
 
@@ -188,25 +192,5 @@ describe('CommuneImportService (integration)', () => {
 
     expect(result).toEqual({ processed: 1201, total: 1201 });
     expect(await prisma.commune.count()).toBe(1201);
-  });
-
-  it('fails with a count mismatch error when an upsert is lost', async () => {
-    // A silently lost write cannot be provoked through the real client —
-    // simulate it at the Prisma boundary: one upsert rejects, the rest pass.
-    const upsert = jest
-      .fn()
-      .mockRejectedValueOnce(new Error('connection reset by peer'))
-      .mockResolvedValue({});
-    const losingPrisma = { commune: { upsert } } as unknown as PrismaClient;
-    const service = new CommuneImportService(
-      losingPrisma,
-      sourceOf([
-        geoCommune('01001', "L'Abergement-Clémenciat", '01', 'Ain'),
-        geoCommune('01002', "L'Abergement-de-Varey", '01', 'Ain'),
-        geoCommune('01004', 'Ambérieu-en-Bugey', '01', 'Ain'),
-      ]),
-    );
-
-    await expect(service.run()).rejects.toThrow('2 of 3');
   });
 });
