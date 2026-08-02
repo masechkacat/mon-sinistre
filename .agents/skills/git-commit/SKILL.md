@@ -112,7 +112,7 @@ EOF
 - One logical change per commit
 - Present tense: "add" not "added"
 - Imperative mood: "fix bug" not "fixes bug"
-- Reference issues: `Closes #123`, `Refs #456`
+- Reference issues: `Closes #<N>`, `Refs #<N>` (see the rule below — never a live number in an example)
 - Keep description under 72 characters
 
 ## Closing Keywords Are Live — Never Use a Real Number in an Example
@@ -122,14 +122,18 @@ GitHub scans the **whole** commit message (and PR body) for closing keywords —
 typography. A line written as an illustration, in quotes, still closes the
 issue on merge.
 
-This has already cost this project a task: `«Closes: #12» больше не валит цикл`
-in commit `f7075e6` closed issue #12, which nobody had worked on, and it
-silently dropped out of the phase plan (2026-08-02).
+This has already cost this project the same task twice in one day (2026-08-02):
+an illustrative line in commit `f7075e6` closed issue 12, which nobody had
+worked on, and it dropped out of the phase plan silently. Reopening it was not
+enough — quoting that same line in the commit that introduced this very rule
+closed it again.
 
 - A real closing trailer appears **once** per commit — the one for this commit.
 - Any example, quote, or explanation of the trailer uses a placeholder:
   `Closes #<N>`. Never a number that exists in the repo.
-- Backticks are not a shield. Do not rely on them.
+- Quotes and backticks are not a shield. Do not rely on them.
+- Writing about an incident: keep the keyword and the live number apart — say
+  "issue 12", never the trailer form with that number.
 - The same applies to PR titles and bodies: they close issues on merge too.
 
 ## Git Safety Protocol
