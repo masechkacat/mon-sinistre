@@ -35,13 +35,85 @@ export const GEO_API_TIMEOUT_MS = 60_000;
 
 export type FetchFn = typeof globalThis.fetch;
 
+const isNonEmptyString = (value: unknown): value is string =>
+  typeof value === 'string' && value.length > 0;
+
+/**
+ * A record missing any required field fails the whole import — never a silent
+ * skip of that record. Codes INSEE in the message are public data.
+ */
+function assertGeoApiCommune(
+  record: unknown,
+  index: number,
+): asserts record is GeoApiCommune {
+  if (typeof record !== 'object' || record === null) {
+    throw new Error(`geo.api.gouv.fr record #${index} is not an object`);
+  }
+  const { code, nom, codeDepartement, departement } = record as Record<
+    string,
+    unknown
+  >;
+  const identity = isNonEmptyString(code)
+    ? `#${index} (code ${code})`
+    : `#${index}`;
+  if (!isNonEmptyString(code)) {
+    throw new Error(`geo.api.gouv.fr record ${identity} has no code`);
+  }
+  if (!isNonEmptyString(nom)) {
+    throw new Error(`geo.api.gouv.fr record ${identity} has no nom`);
+  }
+  if (!isNonEmptyString(codeDepartement)) {
+    throw new Error(
+      `geo.api.gouv.fr record ${identity} has no codeDepartement`,
+    );
+  }
+  const departementNom =
+    typeof departement === 'object' && departement !== null
+      ? (departement as Record<string, unknown>).nom
+      : undefined;
+  if (!isNonEmptyString(departementNom)) {
+    throw new Error(
+      `geo.api.gouv.fr record ${identity} has no departement.nom`,
+    );
+  }
+}
+
 export class GeoApiClient {
   /** fetchFn is injectable so tests mock HTTP without nock/msw. */
   constructor(private readonly fetchFn: FetchFn = globalThis.fetch) {}
 
-  fetchCommunes(): Promise<GeoApiCommune[]> {
-    return Promise.reject(
-      new Error('GeoApiClient.fetchCommunes: not implemented yet'),
+  /**
+   * One request for the whole referential: the response is a single JSON
+   * array without pagination (verified live on 2026-08-02), so a truncated
+   * transfer yields invalid JSON and fails here rather than importing a
+   * partial list.
+   */
+  async fetchCommunes(): Promise<GeoApiCommune[]> {
+    const response = await this.fetchFn(GEO_API_COMMUNES_URL, {
+      signal: AbortSignal.timeout(GEO_API_TIMEOUT_MS),
+    });
+    if (!response.ok) {
+      throw new Error(`geo.api.gouv.fr responded with HTTP ${response.status}`);
+    }
+    const payload: unknown = await response.json();
+    if (!Array.isArray(payload)) {
+      throw new Error(
+        'geo.api.gouv.fr response is not a JSON array — the API format changed',
+      );
+    }
+    const communes = (payload as unknown[]).map(
+      (record, index): GeoApiCommune => {
+        assertGeoApiCommune(record, index);
+        return record;
+      },
     );
+    if (communes.length < MIN_EXPECTED_COMMUNES) {
+      throw new Error(
+        `geo.api.gouv.fr returned ${communes.length} communes — below the ` +
+          `expected minimum of ${MIN_EXPECTED_COMMUNES}, refusing a possibly ` +
+          'truncated referential',
+      );
+    }
+    return communes;
   }
 }
