@@ -41,6 +41,7 @@ function run(cmd, args, opts = {}) {
 }
 
 const git = (args) => run('git', args);
+const currentBranch = () => git(['rev-parse', '--abbrev-ref', 'HEAD']);
 const gh = (args) => run('gh', args, { stdio: ['ignore', 'pipe', 'pipe'] });
 const ghJson = (args) => JSON.parse(gh(args) || 'null');
 
@@ -76,6 +77,8 @@ function quiet(fn) {
 
 // ─── конфигурация ─────────────────────────────────────────────────────────────
 
+const isPositiveInt = (v) => Number.isInteger(v) && v >= 1;
+
 function loadConfig() {
   if (!fs.existsSync(CONFIG_PATH))
     fail(`Нет ${path.relative(ROOT, CONFIG_PATH)}`);
@@ -103,8 +106,27 @@ function validateConfig(cfg) {
   ]) {
     if (!cfg.project[key]) fail(`В конфиге не указан project.${key}`);
   }
+  if (typeof cfg.feature !== 'string') fail('feature должна быть строкой');
+  if (!cfg.phases.every(isPositiveInt)) {
+    fail('В phases допустимы только положительные целые номера фаз');
+  }
+  if (typeof cfg.project.number !== 'number') {
+    fail('project.number должен быть числом');
+  }
+
   cfg.maxIterations ??= 1;
   cfg.stallLimit ??= 2;
+  // Тип проверяется после дефолтов: "5" из конфига прошло бы дальше и сломалось
+  // бы уже в сравнении с числом — цикл шёл бы либо вечно, либо ни разу.
+  for (const key of ['maxIterations', 'stallLimit']) {
+    if (!isPositiveInt(cfg[key])) fail(`${key} должен быть целым числом ≥ 1`);
+  }
+
+  // Тип коммита в заголовке PR фазы: инфраструктурная фаза — не feat.
+  cfg.prType ??= 'feat';
+  if (typeof cfg.prType !== 'string' || !cfg.prType) {
+    fail('prType должен быть непустой строкой (feat, chore, fix …)');
+  }
   return cfg;
 }
 
@@ -147,13 +169,21 @@ function preflight(cfg) {
       ? 'рабочее дерево не чистое (в dry-run не мешает)'
       : 'рабочее дерево чистое',
   );
+}
 
+/**
+ * Обновление refs — перед каждой фазой, а не один раз на прогон: PR предыдущей
+ * фазы мог быть смержен уже во время прогона, и ветка следующей ушла бы от
+ * устаревшего origin/main — без кода фазы, которую цикл только что дождался.
+ * Заодно освежается origin/{ветка} для `requireRemoteMerged`.
+ */
+function fetchOrigin() {
   if (DRY_RUN) {
     ok('origin не обновлялся — dry-run не трогает даже refs');
-  } else {
-    git(['fetch', 'origin', '--quiet']);
-    ok('origin обновлён');
+    return;
   }
+  git(['fetch', 'origin', '--quiet']);
+  ok('origin обновлён');
 }
 
 // ─── GitHub: milestone, issues, борд ──────────────────────────────────────────
@@ -265,10 +295,14 @@ function boardItems(cfg) {
     map.set(number, { itemId: item.id, status: item[key] });
   }
 
+  // Не fail: на свежем борде статус может быть законно пуст у всех карточек.
+  // Но последствие надо назвать целиком — очередь перестаёт отличать взятые
+  // issues от невзятых, и цикл может выдать агенту уже сделанную задачу.
   if (items.length && withStatus === 0) {
     warn(
       `Ни у одной карточки не заполнено поле «${cfg.project.statusField}» (ключ ${key}) — ` +
-        `проверь project.statusField в конфиге, иначе очередь не увидит уже взятые issues`,
+        `проверь project.statusField в конфиге.\n   Цикл продолжит работу, но очередь не ` +
+        `отличит взятые issues от невзятых и может выдать агенту уже сделанную задачу.`,
     );
   }
   return map;
@@ -462,6 +496,28 @@ function requireFreshBase(branch, origin) {
   );
 }
 
+/**
+ * После итерации HEAD обязан стоять на ветке фазы.
+ *
+ * `git checkout -b` агенту не запрещён (запрет префиксный и закрывает только
+ * `main`), а коммит на посторонней ветке проходит все остальные проверки:
+ * дерево чистое, HEAD продвинулся ровно на один коммит с нужным трейлером.
+ * Push при этом молча ничего не делает — ветка фазы не двигалась.
+ */
+function requireSameBranch(branch) {
+  checkSameBranch(currentBranch(), branch);
+}
+
+/** Чистая часть — берёт готовое имя текущей ветки (`HEAD` при detached). */
+function checkSameBranch(now, branch) {
+  if (now === branch) return;
+  fail(
+    `Итерация ушла с ветки ${branch} на «${now}» — работа не на ветке фазы`,
+    `Коммит (если он есть) ищи там: git log ${now}. Перенеси его на ${branch} ` +
+      `(git cherry-pick) и запусти цикл снова.`,
+  );
+}
+
 // ─── коммит итерации ──────────────────────────────────────────────────────────
 
 /**
@@ -472,36 +528,56 @@ function requireFreshBase(branch, origin) {
  * выпадет навсегда, потому что `queueFor` пропускает In Review. Задача тихо
  * потерялась бы между бордом и планом.
  */
-function verifyCommit(before, after, issueNumber) {
+function verifyCommit(before, after, issueNumber, repo) {
   const count = Number(git(['rev-list', '--count', `${before}..${after}`]));
+  const message = git(['log', '-1', '--format=%B', after]);
+  checkIterationCommit(count, message, issueNumber, repo);
+}
+
+/** Чистая часть проверки — берёт готовые количество и сообщение. */
+function checkIterationCommit(count, message, issueNumber, repo) {
   if (count !== 1) {
     fail(
       `Итерация оставила ${count} коммит(ов) вместо одного (issue #${issueNumber})`,
       'Правило — один issue = один коммит. Разбери руками и запусти цикл снова.',
     );
   }
-
-  const message = git(['log', '-1', '--format=%B', after]);
-  if (!closesIssue(message, issueNumber)) {
+  if (!closesIssue(message, issueNumber, repo)) {
     fail(
       `В коммите нет «Closes #${issueNumber}» — issue не закроется при мерже PR`,
-      'Допиши трейлер (git commit --amend) и запусти цикл снова.',
+      `Допиши трейлер (git commit --amend) и запусти цикл снова. Годятся формы: ` +
+        `«Closes #${issueNumber}», «Closes ${repo}#${issueNumber}», ссылкой на issue.`,
     );
   }
 }
 
+const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 /**
  * Закроет ли сообщение коммита именно этот issue при мерже PR.
  *
- * Набор ключевых слов — тот, что распознаёт сам GitHub; каждому номеру нужно
- * своё слово, поэтому «Closes #12, #13» вторую issue не закрывает и здесь.
- * Двоеточие GitHub допускает («Closes: #12» закрывает), поэтому валить на нём
- * цикл нельзя. Пробел перед `#` обязателен: «Closes#12» GitHub не понимает, и
+ * Набор ключевых слов и форм ссылки — тот, что распознаёт сам GitHub: `#N`,
+ * `owner/repo#N` и полная ссылка на issue. Каждому номеру нужно своё слово,
+ * поэтому «Closes #12, #13» вторую issue не закрывает и здесь. Двоеточие
+ * GitHub допускает («Closes: #12» закрывает), поэтому валить на нём цикл
+ * нельзя. Пробел перед ссылкой обязателен: «Closes#12» GitHub не понимает, и
  * пропустить такой коммит значило бы оставить issue незакрытым после мержа.
+ *
+ * Кросс-репозиторные формы принимаются только для своего репозитория:
+ * «Closes other/repo#12» закроет чужой issue, а наш останется открытым.
  */
-function closesIssue(message, issueNumber) {
+function closesIssue(message, issueNumber, repo) {
+  const keyword = '(?:clos(?:e|es|ed)|fix(?:es|ed)?|resolv(?:e|es|ed))';
+  const forms = ['#'];
+  if (repo) {
+    const slug = escapeRegExp(repo);
+    forms.push(
+      `${slug}#`,
+      `https?:\\/\\/(?:www\\.)?github\\.com\\/${slug}\\/issues\\/`,
+    );
+  }
   return new RegExp(
-    `\\b(clos(e|es|ed)|fix(es|ed)?|resolv(e|es|ed)):?[ \\t]+#${issueNumber}\\b`,
+    `\\b${keyword}:?[ \\t]+(?:${forms.join('|')})${issueNumber}\\b`,
     'i',
   ).test(message);
 }
@@ -560,6 +636,11 @@ function runIteration(cfg, prompt) {
 }
 
 // ─── завершение фазы ──────────────────────────────────────────────────────────
+
+/** Тип коммита берётся из конфига: инфраструктурная фаза — не `feat`. */
+function prTitle(cfg, phase, milestone) {
+  return `${cfg.prType}(${cfg.feature}): фаза ${phase} — ${phaseLabel(milestone)}`;
+}
 
 function openPullRequest(cfg, phase, milestone, branch) {
   if (DRY_RUN) {
@@ -623,7 +704,7 @@ function openPullRequest(cfg, phase, milestone, branch) {
       '--head',
       branch,
       '--title',
-      `feat(${cfg.feature}): фаза ${phase} — ${phaseLabel(milestone)}`,
+      prTitle(cfg, phase, milestone),
       '--body',
       body,
     ]);
@@ -648,7 +729,9 @@ function main() {
   const opened = [];
 
   // Счётчики на весь запуск, а не на фазу: maxIterations — это «сколько issues
-  // за прогон», как и обещано в конфиге и CLAUDE.md.
+  // за прогон», как и обещано в конфиге и CLAUDE.md. Итерация без коммита тоже
+  // израсходована (сессия оплачена), поэтому при maxIterations = 1 до stallLimit
+  // дело не доходит — он предохранитель для прогонов на несколько issues.
   let iterations = 0;
   let stall = 0;
   let previous = null;
@@ -670,6 +753,7 @@ function main() {
     }
 
     step(`Фаза ${phase}: ${phaseLabel(milestone)}`);
+    fetchOrigin();
     ensureBranch(branch);
     previous = { phase, milestone };
 
@@ -706,12 +790,17 @@ function main() {
         return report(opened);
       }
 
-      const headBefore = git(['rev-parse', 'HEAD']);
+      const headBefore = git(['rev-parse', branch]);
       const exit = runIteration(
         cfg,
         buildPrompt(cfg, phase, milestone, branch, issue),
       );
-      const headAfter = git(['rev-parse', 'HEAD']);
+      requireSameBranch(branch);
+      // Состояние читается по имени ветки, а не по HEAD: коммит на посторонней
+      // ветке HEAD продвинул бы, а `git push origin {ветка}` отработал бы как
+      // «Everything up-to-date» — цикл отчитался бы об успехе, увёл карточку в
+      // In Review, и issue выпал бы из очереди навсегда вместе с работой.
+      const headAfter = git(['rev-parse', branch]);
 
       const dirty = git(['status', '--porcelain']);
       if (dirty) {
@@ -722,7 +811,7 @@ function main() {
       }
 
       if (headAfter !== headBefore) {
-        verifyCommit(headBefore, headAfter, issue.number);
+        verifyCommit(headBefore, headAfter, issue.number, repo);
         pushBranch(branch);
         ok(`коммит ${headAfter.slice(0, 8)} запушен в origin/${branch}`);
         moveToInReview(cfg, board, issue.number);
@@ -789,11 +878,14 @@ module.exports = {
   RalphStop,
   branchName,
   buildPrompt,
+  checkIterationCommit,
+  checkSameBranch,
   closesIssue,
   fieldKey,
   filterQueue,
   milestonePrefix,
   phaseLabel,
   pickMilestone,
+  prTitle,
   validateConfig,
 };

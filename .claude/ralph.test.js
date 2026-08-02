@@ -17,14 +17,19 @@ const {
   RalphStop,
   branchName,
   buildPrompt,
+  checkIterationCommit,
+  checkSameBranch,
   closesIssue,
   fieldKey,
   filterQueue,
   milestonePrefix,
   phaseLabel,
   pickMilestone,
+  prTitle,
   validateConfig,
 } = require('./ralph.js');
+
+const REPO = 'masechkacat/mon-sinistre';
 
 /** Конфиг-минимум: тесты правят от него только то, что проверяют. */
 function config(overrides = {}) {
@@ -202,6 +207,71 @@ test('closesIssue не срабатывает на простое упомина
   assert.ok(!closesIssue('см. обсуждение в #12', 12));
 });
 
+test('closesIssue принимает формы owner/repo#N и ссылку — GitHub их закрывает', () => {
+  assert.ok(closesIssue(`Closes ${REPO}#12`, 12, REPO));
+  assert.ok(
+    closesIssue(`Closes https://github.com/${REPO}/issues/12`, 12, REPO),
+  );
+});
+
+test('closesIssue не засчитывает issue чужого репозитория', () => {
+  // «Closes other/repo#12» закроет чужой issue, а наш останется открытым.
+  assert.ok(!closesIssue('Closes other/repo#12', 12, REPO));
+  assert.ok(
+    !closesIssue('Closes https://github.com/other/repo/issues/12', 12, REPO),
+  );
+});
+
+// ─── ветка после итерации ─────────────────────────────────────────────────────
+
+test('checkSameBranch пропускает ветку фазы', () => {
+  assert.doesNotThrow(() =>
+    checkSameBranch(
+      'commune-referential/phase-3',
+      'commune-referential/phase-3',
+    ),
+  );
+});
+
+test('checkSameBranch останавливает цикл на посторонней ветке и detached HEAD', () => {
+  // Коммит там прошёл бы все прочие проверки: дерево чистое, HEAD продвинулся
+  // на один коммит с трейлером, а push ветки фазы молча не двигает ничего.
+  assert.throws(
+    () => checkSameBranch('hotfix', 'commune-referential/phase-3'),
+    /hotfix/,
+  );
+  assert.throws(
+    () => checkSameBranch('HEAD', 'commune-referential/phase-3'),
+    RalphStop,
+  );
+});
+
+// ─── проверка коммита итерации ────────────────────────────────────────────────
+
+test('checkIterationCommit пропускает ровно один коммит с трейлером', () => {
+  assert.doesNotThrow(() =>
+    checkIterationCommit(1, 'feat: поиск\n\nCloses #12', 12, REPO),
+  );
+});
+
+test('checkIterationCommit останавливает цикл на двух коммитах', () => {
+  assert.throws(
+    () => checkIterationCommit(2, 'feat: поиск\n\nCloses #12', 12, REPO),
+    /2 коммит/,
+  );
+});
+
+test('checkIterationCommit останавливает цикл, когда коммита нет', () => {
+  assert.throws(() => checkIterationCommit(0, '', 12, REPO), RalphStop);
+});
+
+test('checkIterationCommit останавливает цикл на чужом номере issue', () => {
+  assert.throws(
+    () => checkIterationCommit(1, 'feat: поиск\n\nCloses #13', 12, REPO),
+    /Closes #12/,
+  );
+});
+
 // ─── валидация конфига ────────────────────────────────────────────────────────
 
 test('validateConfig проставляет умолчания', () => {
@@ -225,6 +295,21 @@ test('validateConfig требует feature', () => {
 test('validateConfig требует непустой phases', () => {
   assert.throws(() => validateConfig(config({ phases: [] })), /phases/);
   assert.throws(() => validateConfig(config({ phases: 3 })), /phases/);
+});
+
+test('validateConfig отбивает лимиты не-числом и не-целые номера фаз', () => {
+  assert.throws(
+    () => validateConfig(config({ maxIterations: '5' })),
+    /maxIterations/,
+  );
+  assert.throws(() => validateConfig(config({ stallLimit: 0 })), /stallLimit/);
+  assert.throws(() => validateConfig(config({ phases: ['3'] })), /phases/);
+});
+
+test('validateConfig подставляет prType и отбивает пустой', () => {
+  assert.equal(validateConfig(config()).prType, 'feat');
+  assert.equal(validateConfig(config({ prType: 'chore' })).prType, 'chore');
+  assert.throws(() => validateConfig(config({ prType: '' })), /prType/);
 });
 
 test('validateConfig требует секцию project целиком', () => {
@@ -255,4 +340,16 @@ test('buildPrompt называет issue, ветку и файл правил', 
   assert.match(prompt, /#12/);
   assert.match(prompt, /commune-referential\/phase-3/);
   assert.match(prompt, /Фаза: 3 — «Поиск»/);
+});
+
+test('prTitle берёт тип коммита из конфига', () => {
+  const milestone = '[commune-referential] Фаза 3: Поиск';
+  assert.equal(
+    prTitle(validateConfig(config()), 3, milestone),
+    'feat(commune-referential): фаза 3 — Поиск',
+  );
+  assert.equal(
+    prTitle(validateConfig(config({ prType: 'chore' })), 3, milestone),
+    'chore(commune-referential): фаза 3 — Поиск',
+  );
 });

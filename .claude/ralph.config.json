@@ -6,6 +6,7 @@
   "maxBudgetUsd": 10,
   "maxTurns": 120,
   "permissionMode": "acceptEdits",
+  "prType": "feat",
   "project": {
     "number": 2,
     "owner": "masechkacat",
@@ -23,11 +24,18 @@
     "Task",
     "Agent",
     "Skill",
-    "Bash(npm:*)",
+    "Bash(npm test)",
+    "Bash(npm test:*)",
+    "Bash(npm run lint)",
+    "Bash(npm run lint:*)",
+    "Bash(npm run test:tooling)",
+    "Bash(npm run build:contracts)",
+    "Bash(npm run db:up)",
     "Bash(npx prisma migrate:*)",
     "Bash(npx prisma generate:*)",
     "Bash(git:*)",
-    "Bash(gh:*)"
+    "Bash(gh issue view:*)",
+    "Bash(gh issue comment:*)"
   ],
   "disallowedTools": [
     "Bash(npx prisma db push:*)",
@@ -37,9 +45,14 @@
     "Bash(git rebase:*)",
     "Bash(git checkout main:*)",
     "Bash(git switch main:*)",
+    "Bash(git commit --no-verify:*)",
+    "Bash(gh api:*)",
+    "Bash(gh alias:*)",
+    "Bash(gh project:*)",
     "Bash(gh pr create:*)",
     "Bash(gh pr merge:*)",
     "Bash(gh issue close:*)",
-    "Bash(gh api:*)"
+    "Edit(**/package.json)",
+    "Write(**/package.json)"
   ]
 }
