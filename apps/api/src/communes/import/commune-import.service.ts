@@ -42,14 +42,32 @@ export class CommuneImportService {
     );
 
     let processed = 0;
+    const failures: unknown[] = [];
     for (let i = 0; i < communes.length; i += IMPORT_CHUNK_SIZE) {
       const chunk = communes.slice(i, i + IMPORT_CHUNK_SIZE);
       const settled = await Promise.allSettled(
         chunk.map((commune) => this.upsert(commune, sourceVerifiedAt)),
       );
-      processed += settled.filter(
-        (result) => result.status === 'fulfilled',
-      ).length;
+      for (const result of settled) {
+        if (result.status === 'fulfilled') {
+          processed += 1;
+        } else {
+          failures.push(result.reason);
+        }
+      }
+    }
+
+    // Reconciliation against the source, not against the table: codes that
+    // disappeared from the response stay in the database and must not fail
+    // the run. Counts and the driver error only — no personal data here.
+    if (processed !== communes.length) {
+      throw new Error(
+        `Commune import reconciliation failed: persisted ${processed} of ` +
+          `${communes.length} communes received from the source` +
+          (failures.length > 0
+            ? `; first failure: ${String(failures[0])}`
+            : ''),
+      );
     }
 
     return { processed, total: communes.length };
