@@ -30,13 +30,14 @@
   ],
   "disallowedTools": [
     "Bash(npx prisma db push:*)",
-    "Bash(git push --force:*)",
-    "Bash(git push -f:*)",
+    "Bash(git push:*)",
     "Bash(git reset --hard:*)",
     "Bash(git rebase:*)",
     "Bash(git checkout main:*)",
     "Bash(git switch main:*)",
+    "Bash(gh pr create:*)",
     "Bash(gh pr merge:*)",
-    "Bash(gh issue close:*)"
+    "Bash(gh issue close:*)",
+    "Bash(gh api:*)"
   ]
 }

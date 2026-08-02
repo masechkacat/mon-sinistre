@@ -21,6 +21,10 @@ const path = require('node:path');
 const ROOT = path.resolve(__dirname, '..');
 const CONFIG_PATH = path.join(__dirname, 'ralph.config.json');
 
+// Пределы выборок gh: при достижении цикл предупреждает, а не молча теряет хвост.
+const BOARD_LIMIT = 500;
+const ISSUE_LIMIT = 200;
+
 // ─── примитивы ────────────────────────────────────────────────────────────────
 
 /** Внешняя команда без shell: аргументы не проходят через интерпретатор. */
@@ -67,6 +71,21 @@ function loadConfig() {
   if (!Array.isArray(cfg.phases) || cfg.phases.length === 0) {
     fail('В конфиге не указаны phases', 'Например: "phases": [3]');
   }
+  if (!cfg.project) {
+    fail(
+      'В конфиге нет секции project',
+      'Без борда цикл не знает, какие issues уже взяты в работу.',
+    );
+  }
+  for (const key of [
+    'number',
+    'owner',
+    'statusField',
+    'inReviewOption',
+    'doneOption',
+  ]) {
+    if (!cfg.project[key]) fail(`В конфиге не указан project.${key}`);
+  }
   cfg.maxIterations ??= 1;
   cfg.stallLimit ??= 2;
   return cfg;
@@ -112,8 +131,12 @@ function preflight(cfg) {
       : 'рабочее дерево чистое',
   );
 
-  git(['fetch', 'origin', '--quiet']);
-  ok('origin обновлён');
+  if (DRY_RUN) {
+    ok('origin не обновлялся — dry-run не трогает даже refs');
+  } else {
+    git(['fetch', 'origin', '--quiet']);
+    ok('origin обновлён');
+  }
 }
 
 // ─── GitHub: milestone, issues, борд ──────────────────────────────────────────
@@ -156,9 +179,29 @@ function findMilestone(repo, feature, phase) {
   return found[0].title;
 }
 
+/**
+ * Фаза считается смерженной, когда закрыты все её issues: закрывает их GitHub по
+ * трейлеру `Closes #N` в момент мержа PR. Проверять предком ветки нельзя —
+ * squash-мерж переписывает коммиты, и ветка предком main не станет.
+ */
+function isPhaseMerged(milestone) {
+  return milestoneIssues(milestone, 'open').length === 0;
+}
+
 function phaseLabel(milestoneTitle) {
   const m = milestoneTitle.match(/^\[.+?\]\s*Фаза\s*\d+:\s*(.+)$/);
   return m ? m[1].trim() : milestoneTitle;
+}
+
+/** `gh` именует поля борда camelCase'ом от их названия: «Status» → `status`. */
+function fieldKey(name) {
+  return name
+    .trim()
+    .split(/\s+/)
+    .map((w, i) =>
+      i === 0 ? w.toLowerCase() : w[0].toUpperCase() + w.slice(1).toLowerCase(),
+    )
+    .join('');
 }
 
 /** Карта «номер issue → { itemId, status }» с доски проекта. */
@@ -172,12 +215,35 @@ function boardItems(cfg) {
     '--format',
     'json',
     '--limit',
-    '500',
+    String(BOARD_LIMIT),
   ]);
+  const items = data?.items || [];
+  if (items.length >= BOARD_LIMIT) {
+    warn(
+      `Борд отдал ${BOARD_LIMIT} карточек — это предел выборки, часть могла не попасть`,
+    );
+  }
+
+  // Статус читается по ключу от project.statusField, а не по захардкоженному
+  // `status`: иначе переименование поля на борде дало бы undefined у всех
+  // карточек, фильтр очереди перестал бы работать и цикл брал бы один и тот же
+  // issue снова и снова.
+  const key = fieldKey(cfg.project.statusField);
   const map = new Map();
-  for (const item of data?.items || []) {
+  let withStatus = 0;
+
+  for (const item of items) {
     const number = item.content?.number;
-    if (number) map.set(number, { itemId: item.id, status: item.status });
+    if (!number) continue;
+    if (item[key]) withStatus++;
+    map.set(number, { itemId: item.id, status: item[key] });
+  }
+
+  if (items.length && withStatus === 0) {
+    warn(
+      `Ни у одной карточки не заполнено поле «${cfg.project.statusField}» (ключ ${key}) — ` +
+        `проверь project.statusField в конфиге, иначе очередь не увидит уже взятые issues`,
+    );
   }
   return map;
 }
@@ -192,6 +258,14 @@ function boardItems(cfg) {
  * снова и снова.
  */
 function queueFor(cfg, milestone, board) {
+  const issues = milestoneIssues(milestone, 'open');
+  const parked = new Set([cfg.project.inReviewOption, cfg.project.doneOption]);
+  return issues
+    .filter((i) => !parked.has(board.items.get(i.number)?.status))
+    .sort((a, b) => a.number - b.number);
+}
+
+function milestoneIssues(milestone, state) {
   const issues =
     ghJson([
       'issue',
@@ -199,17 +273,18 @@ function queueFor(cfg, milestone, board) {
       '--milestone',
       milestone,
       '--state',
-      'open',
+      state,
       '--json',
       'number,title',
       '--limit',
-      '200',
+      String(ISSUE_LIMIT),
     ]) || [];
-
-  const parked = new Set([cfg.project.inReviewOption, cfg.project.doneOption]);
-  return issues
-    .filter((i) => !parked.has(board.get(i.number)?.status))
-    .sort((a, b) => a.number - b.number);
+  if (issues.length >= ISSUE_LIMIT) {
+    warn(
+      `В milestone «${milestone}» ${ISSUE_LIMIT} issues — это предел выборки, часть могла не попасть`,
+    );
+  }
+  return issues;
 }
 
 function resolveBoardFields(cfg) {
@@ -294,20 +369,83 @@ function ensureBranch(branch) {
 
   if (hasLocal) {
     git(['checkout', branch]);
-    if (
-      !quiet(() => git(['merge-base', '--is-ancestor', 'origin/main', branch]))
-    ) {
-      warn(
-        `Ветка ${branch} отстала от origin/main — в PR может уехать откат чужих правок`,
-      );
-    }
+    requireFreshBase(branch, 'существующая локальная ветка');
     ok(`ветка ${branch} (существующая)`);
   } else if (hasRemote) {
     git(['checkout', '-b', branch, `origin/${branch}`]);
+    requireFreshBase(branch, 'ветка с origin');
     ok(`ветка ${branch} (с origin)`);
   } else {
     git(['checkout', '-b', branch, 'origin/main']);
     ok(`ветка ${branch} (новая, от origin/main)`);
+  }
+}
+
+/**
+ * Ветка обязана содержать весь `origin/main`. Отставшая ветка в автономном
+ * прогоне — это молчаливый откат чужих правок в PR фазы: предупреждение здесь
+ * никто не прочитает, поэтому цикл останавливается.
+ */
+function requireFreshBase(branch, origin) {
+  if (
+    quiet(() => git(['merge-base', '--is-ancestor', 'origin/main', branch]))
+  ) {
+    return;
+  }
+  const behind = git(['rev-list', '--count', `${branch}..origin/main`]);
+  fail(
+    `Ветка ${branch} (${origin}) отстала от origin/main на ${behind} коммит(ов)`,
+    `В PR фазы уехал бы откат чужих правок. Смержи: git merge origin/main — и запусти цикл снова.`,
+  );
+}
+
+// ─── коммит итерации ──────────────────────────────────────────────────────────
+
+/**
+ * Итерация обязана оставить ровно один коммит с трейлером `Closes #N`.
+ *
+ * Проверяет это скрипт, а не доверие к агенту: без трейлера issue не закроется
+ * при мерже PR, а карточку скрипт уже переведёт в In Review — и из очереди она
+ * выпадет навсегда, потому что `queueFor` пропускает In Review. Задача тихо
+ * потерялась бы между бордом и планом.
+ */
+function verifyCommit(before, after, issueNumber) {
+  const count = Number(git(['rev-list', '--count', `${before}..${after}`]));
+  if (count !== 1) {
+    fail(
+      `Итерация оставила ${count} коммит(ов) вместо одного (issue #${issueNumber})`,
+      'Правило — один issue = один коммит. Разбери руками и запусти цикл снова.',
+    );
+  }
+
+  // Набор ключевых слов — тот, что распознаёт сам GitHub; каждому номеру нужно
+  // своё слово, поэтому «Closes #12, #13» вторую issue не закрывает и здесь.
+  const closes = new RegExp(
+    `\\b(clos(e|es|ed)|fix(es|ed)?|resolv(e|es|ed)) #${issueNumber}\\b`,
+    'i',
+  );
+  const message = git(['log', '-1', '--format=%B', after]);
+  if (!closes.test(message)) {
+    fail(
+      `В коммите нет «Closes #${issueNumber}» — issue не закроется при мерже PR`,
+      'Допиши трейлер (git commit --amend) и запусти цикл снова.',
+    );
+  }
+}
+
+/**
+ * Пуш после каждого коммита, а не только в конце фазы: иначе карточка уезжает в
+ * In Review, а на GitHub нет ни строчки — борд врёт, и работа живёт в одной
+ * локальной копии.
+ */
+function pushBranch(branch) {
+  try {
+    git(['push', '-u', 'origin', branch]);
+  } catch (e) {
+    fail(
+      `Не удалось запушить ${branch}`,
+      `${(e.stderr || e.message || '').trim()}\n   Коммит на месте локально — разберись с origin и запусти цикл снова.`,
+    );
   }
 }
 
@@ -356,8 +494,6 @@ function openPullRequest(cfg, phase, milestone, branch) {
     return null;
   }
 
-  git(['push', '-u', 'origin', branch]);
-
   const existing = ghJson([
     'pr',
     'list',
@@ -373,19 +509,21 @@ function openPullRequest(cfg, phase, milestone, branch) {
     return existing[0].url;
   }
 
-  const all =
-    ghJson([
-      'issue',
-      'list',
-      '--milestone',
-      milestone,
-      '--state',
-      'all',
-      '--json',
-      'number,title',
-      '--limit',
-      '200',
-    ]) || [];
+  // Фаза могла быть закрыта и смержена раньше: тогда коммитов относительно
+  // origin/main нет, и `gh pr create` упал бы на «No commits between».
+  const commits = Number(
+    git(['rev-list', '--count', `origin/main..${branch}`]),
+  );
+  if (commits === 0) {
+    warn(
+      `В ${branch} нет коммитов относительно origin/main — открывать нечего (фаза уже смержена?)`,
+    );
+    return null;
+  }
+
+  pushBranch(branch);
+
+  const all = milestoneIssues(milestone, 'all');
 
   const body = [
     `Фаза ${phase} плана \`docs/plan/${cfg.feature}.md\`.`,
@@ -402,18 +540,26 @@ function openPullRequest(cfg, phase, milestone, branch) {
     '_Собрано Ralph Loop (`.claude/ralph.js`), по одному коммиту на issue._',
   ].join('\n');
 
-  const url = gh([
-    'pr',
-    'create',
-    '--base',
-    'main',
-    '--head',
-    branch,
-    '--title',
-    `feat(${cfg.feature}): фаза ${phase} — ${phaseLabel(milestone)}`,
-    '--body',
-    body,
-  ]);
+  let url;
+  try {
+    url = gh([
+      'pr',
+      'create',
+      '--base',
+      'main',
+      '--head',
+      branch,
+      '--title',
+      `feat(${cfg.feature}): фаза ${phase} — ${phaseLabel(milestone)}`,
+      '--body',
+      body,
+    ]);
+  } catch (e) {
+    fail(
+      `Не удалось открыть PR для ${branch}`,
+      `${(e.stderr || e.message || '').trim()}\n   Коммиты запушены — PR можно открыть руками: gh pr create --head ${branch}`,
+    );
+  }
   ok(`PR открыт: ${url}`);
   return url;
 }
@@ -431,19 +577,35 @@ function main() {
   const board = { items: boardItems(cfg), fields: resolveBoardFields(cfg) };
   const opened = [];
 
+  // Счётчики на весь запуск, а не на фазу: maxIterations — это «сколько issues
+  // за прогон», как и обещано в конфиге и CLAUDE.md.
+  let iterations = 0;
+  let stall = 0;
+  let previous = null;
+
   for (const phase of cfg.phases) {
     const milestone = findMilestone(repo, cfg.feature, phase);
     const branch = `${cfg.feature}/phase-${phase}`;
 
+    // Ветка каждой фазы растёт от origin/main, а фазы плана зависимы: начинать
+    // следующую до мержа предыдущей значит строить её без её же кода.
+    if (previous && !isPhaseMerged(previous.milestone)) {
+      warn(
+        `Фаза ${previous.phase} ещё не в main — фаза ${phase} строилась бы без её кода.`,
+      );
+      console.log(
+        `   Смержи PR фазы ${previous.phase} и запусти цикл снова с "phases": [${phase}].`,
+      );
+      break;
+    }
+
     step(`Фаза ${phase}: ${phaseLabel(milestone)}`);
     ensureBranch(branch);
-
-    let iterations = 0;
-    let stall = 0;
+    previous = { phase, milestone };
 
     while (true) {
       board.items = boardItems(cfg);
-      const queue = queueFor(cfg, milestone, board.items);
+      const queue = queueFor(cfg, milestone, board);
 
       if (queue.length === 0) {
         step(`Фаза ${phase} закрыта — открываю PR`);
@@ -490,7 +652,9 @@ function main() {
       }
 
       if (headAfter !== headBefore) {
-        ok(`коммит ${headAfter.slice(0, 8)}`);
+        verifyCommit(headBefore, headAfter, issue.number);
+        pushBranch(branch);
+        ok(`коммит ${headAfter.slice(0, 8)} запушен в origin/${branch}`);
         moveToInReview(cfg, board, issue.number);
         stall = 0;
       } else {
@@ -522,4 +686,13 @@ function report(prUrls) {
   }
 }
 
-main();
+try {
+  main();
+} catch (e) {
+  // Любой сорвавшийся git/gh иначе вылетел бы стектрейсом посреди автономного
+  // прогона — а читать его будет человек, вернувшийся к остановившемуся циклу.
+  fail(
+    'Непредвиденная ошибка — цикл остановлен',
+    (e.stderr || e.stack || e.message || String(e)).trim(),
+  );
+}
