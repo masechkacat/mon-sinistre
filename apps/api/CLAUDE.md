@@ -12,8 +12,9 @@ NestJS 11 на **Fastify** (не Express — плагины подключают
 
 ```bash
 npm run start:dev        # watch-режим, читает .env через --env-file
-npm test                 # jest, все *.spec.ts в src/
+npm test                 # jest, все *.spec.ts в src/ (юнит, без Docker)
 npm test -- steps        # один тест по подстроке пути
+npm run test:int         # интеграционные тесты (*.int-spec.ts) против реального Postgres — нужен npm run db:up
 npm run test:cov         # с покрытием
 npm run lint             # eslint, только проверка (используется pre-commit хуком)
 npm run lint:fix         # eslint с автопочинкой
@@ -41,6 +42,17 @@ npm run seed             # prisma db seed — справочники (комму
 - Глобальный rate limiting (`@nestjs/throttler`, 100 запросов в минуту, `ThrottlerGuard` через `APP_GUARD`). Auth-эндпоинтам при появлении задать более строгие лимиты через `@Throttle()`.
 - `app.enableShutdownHooks()` в `main.ts` — корректная остановка cron-задач по SIGTERM; когда появится PrismaModule, тот же механизм вызовет его disconnect.
 - `tsconfig.build.json` исключает `*.spec.ts` из продакшен-сборки; `nest build` использует его автоматически.
+
+## Интеграционные тесты
+
+Решение и его причины — `docs/research/commune-referential.md`; здесь итог:
+
+- Интеграционные спеки — `*.int-spec.ts` рядом с кодом в `src/`. Юнит-конфиг в `package.json` их не видит (суффикс не подпадает под `.*\.spec\.ts$`), поэтому pre-commit хук и корневой `npm test` остаются быстрыми и без Docker-требования.
+- `jest.int.config.js`: `testRegex '.*\.int-spec\.ts$'`, `maxWorkers: 1` — обязателен, пока тесты делят одну базу; если прогон станет медленным — база-на-воркера через `JEST_WORKER_ID`, не testcontainers.
+- База — `${DB_NAME}_test` на том же docker-compose Postgres (`npm run db:up` из корня). `test/jest.int.global-setup.js` создаёт её при отсутствии (клиентом `pg`) и прогоняет `prisma migrate deploy` с переопределённым `DB_NAME`; `test/jest.int.env.js` тем же переопределением направляет туда `PrismaService` в тестах.
+- Между тестами — `TRUNCATE` затронутых таблиц в `beforeEach`, не пересоздание схемы.
+- `*.int-spec.ts` исключены из продакшен-сборки в `tsconfig.build.json`, как и `*.spec.ts`.
+- В CI понадобится сервисный Postgres 18 — зафиксировать при настройке CI.
 
 ## Актуализация документации
 
