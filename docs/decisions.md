@@ -118,7 +118,8 @@ Prisma-схемы справочника; войдёт в черновик мо�
 
 **Решение.** Переменную `DATABASE_URL` не заводить. Connection string собирается
 из `DB_*` в двух местах с одним источником: в `prisma.config.ts` (после
-`import 'dotenv/config'`) — для CLI миграций и seed, в `PrismaService` (из
+загрузки `.env` нативным `process.loadEnvFile()`) — для CLI миграций и seed, в
+`PrismaService` (из
 ConfigService) — для рантайма. Инструкция подключения — в `apps/api/CLAUDE.md`,
 раздел «Текущее состояние».
 
