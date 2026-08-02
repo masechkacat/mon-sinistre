@@ -1,5 +1,6 @@
 import {
   ArreteEntryOutcome,
+  DurationUnit,
   FileKind,
   SinistreStatus,
   StepAnchor,
@@ -52,6 +53,12 @@ export interface ArreteEntry {
   id: string;
   arreteId: string;
   codeInsee: string;
+  /**
+   * Commune label as printed in the annex. Historical context (arrêté screen,
+   * annexe attachment) is always displayed from this field, never from the
+   * current referential name. See `docs/research/data-model.md` § 3.
+   */
+  communeLabelRaw: string;
   /** Risk label as printed in the annex, e.g. `Inondations et coulées de boue`. */
   risque: string;
   /** Period of the natural event the entry covers. */
@@ -171,8 +178,10 @@ export interface InventoryItem {
 export interface DeadlineRule {
   /** Stable code, e.g. `DECLARATION_ASSUREUR`. */
   code: string;
-  /** Days counted from the anchor date. */
-  days: number;
+  /** Length of the window counted from the anchor date, expressed in `unit`. */
+  duration: number;
+  /** Never pre-converted to days: a legal month is not 30 days. */
+  unit: DurationUnit;
   anchor: StepAnchor;
   source: SourceReference;
 }
