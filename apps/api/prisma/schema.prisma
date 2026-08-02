@@ -1,0 +1,10 @@
+// Datasource url lives in prisma.config.ts (assembled from DB_*).
+
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}

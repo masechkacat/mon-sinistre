@@ -8,6 +8,9 @@ build/
 out/
 *.tsbuildinfo
 
+# prisma — клиент перегенерируется из schema.prisma
+apps/api/src/generated/
+
 # environment — никогда не коммитим реальные значения
 .env
 .env.*

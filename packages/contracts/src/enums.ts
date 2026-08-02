@@ -73,16 +73,6 @@ export enum StepAnchor {
 }
 
 /**
- * Unit of a {@link DeadlineRule} duration. Insurer deadlines are worded in
- * months in the law, and a legal month is not 30 days — the unit is part of
- * the rule, never converted to days in advance. See `docs/research/data-model.md` § 3.
- */
-export enum DurationUnit {
-  DAYS = 'DAYS',
-  MONTHS = 'MONTHS',
-}
-
-/**
  * Outcome of one commune line in an arrêté annex.
  * Annexe I lists recognised communes, annexe II refusals. See specification § 2.
  */

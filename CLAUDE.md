@@ -25,7 +25,7 @@ npm workspaces, три пакета:
 ## Команды (из корня)
 
 ```bash
-npm run db:up            # PostgreSQL 18 в Docker (нужен apps/api/.env)
+npm run db:up            # PostgreSQL 17 в Docker (нужен apps/api/.env)
 npm run build:contracts  # обязательно перед первым запуском API и web
 npm run dev:api          # NestJS в watch-режиме, http://localhost:3001, /docs — OpenAPI
 npm run dev:web          # Next.js, http://localhost:3000
