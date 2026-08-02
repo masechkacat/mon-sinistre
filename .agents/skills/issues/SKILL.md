@@ -9,6 +9,9 @@ description: Создаёт GitHub milestones и issues из файла план
 `masechkacat/mon-sinistre`. Борд (Project «Mon Sinistre», workflow auto-add)
 подхватывает открытые issues сам — добавлять их в проект вручную не нужно.
 
+**Имя фичи** — имя файла плана без расширения (`docs/plan/commune-referential.md`
+→ `commune-referential`). Оно входит в название каждого milestone.
+
 ## Порядок действий
 
 1. Прочитай файл плана, выпиши фазы и задачи.
@@ -19,9 +22,9 @@ description: Создаёт GitHub milestones и issues из файла план
 3. Проверь метки (`gh label list`); недостающие создай:
    `gh label create <name> --color <hex>`.
 4. Для каждой фазы создай milestone:
-   `gh api repos/{owner}/{repo}/milestones -f title="Фаза N: {название}" -f description="Цель: {…}. Когда готова: {…}"`
+   `gh api repos/{owner}/{repo}/milestones -f title="[{фича}] Фаза N: {название}" -f description="Цель: {…}. Когда готова: {…}"`
 5. Для каждой задачи создай issue **в порядке фаз** (нумерация issues повторит план):
-   `gh issue create --title "…" --body "…" --label "…" --milestone "Фаза N: {название}"`
+   `gh issue create --title "…" --body "…" --label "…" --milestone "[{фича}] Фаза N: {название}"`
 6. Выведи сводку: фаза → milestone → номера созданных issues.
 
 ## Формат issue
@@ -32,6 +35,17 @@ description: Создаёт GitHub milestones и issues из файла план
 - **Labels** — по полю «Затрагивает» фазы: api → `backend`, web → `frontend`,
   contracts → `contracts`, db → `db`; задачи на тесты дополнительно — `tests`.
 - **Milestone** — точное название milestone фазы.
+
+## Формат milestone
+
+`[{фича}] Фаза N: {название}` — например `[commune-referential] Фаза 3: Поиск
+без учёта регистра и диакритики`.
+
+Имя фичи в названии обязательно: milestones в репозитории общие для всех фич, и
+без префикса «Фаза 1» второй фичи столкнётся с «Фазой 1» первой. Кроме того по
+этому формату Ralph Loop (`.claude/ralph.js`) находит milestone по номеру фазы и
+выводит имя рабочей ветки — `{фича}/phase-N`. Менять формат нельзя, не поправив
+`.claude/ralph.js`.
 
 ## Правила
 

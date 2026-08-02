@@ -21,6 +21,7 @@
     "dev:web": "npm run dev --workspace @mon-sinistre/web",
     "test": "npm run test --workspace @mon-sinistre/api",
     "test:watch": "npm run test:watch --workspace @mon-sinistre/api",
+    "test:tooling": "node --test \".claude/**/*.test.js\"",
     "lint": "npm run lint --workspaces --if-present",
     "db:up": "docker compose --env-file ./apps/api/.env up -d db",
     "db:down": "docker compose --env-file ./apps/api/.env down"
