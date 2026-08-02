@@ -1,0 +1,30 @@
+// URL базы живёт в prisma.config.ts (собирается из DB_*), не здесь.
+datasource db {
+  provider = "postgresql"
+}
+
+// Генератор Prisma 7 "prisma-client" эмитит TypeScript в src/generated/prisma
+// (вне node_modules); папка в .gitignore, перегенерация — npm run prisma:generate.
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+// Справочник коммун на основе COG (docs/research/data-model.md § 3):
+// идентичность по коду INSEE, история — через преемника. Устаревшие коды
+// не удаляются: строка остаётся с effectiveTo и ссылкой на successor.
+// Доменные даты — колонки date, не timestamp (правило проекта).
+model Commune {
+  codeInsee          String    @id
+  name               String
+  departementCode    String
+  departementName    String
+  // null = код действует в актуальном COG
+  effectiveTo        DateTime? @db.Date
+  // куда влилась commune nouvelle; резолвится итеративно на чтении
+  successorCodeInsee String?
+  successor          Commune?  @relation("CommuneSuccessor", fields: [successorCodeInsee], references: [codeInsee], onDelete: Restrict)
+  predecessors       Commune[] @relation("CommuneSuccessor")
+  sourceUrl          String
+  sourceVerifiedAt   DateTime  @db.Date
+}

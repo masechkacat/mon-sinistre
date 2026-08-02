@@ -1,6 +1,9 @@
 # dependencies
 node_modules/
 
+# prisma — клиент генерируется из схемы (npm run prisma:generate)
+apps/api/src/generated/
+
 # builds
 dist/
 build/

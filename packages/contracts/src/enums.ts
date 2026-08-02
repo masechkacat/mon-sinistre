@@ -119,3 +119,9 @@ export const OVERDUE_REMINDER_INTERVAL_DAYS = 7;
 
 /** Age, in months, past which reference data is flagged as possibly stale. See § 7. */
 export const REFERENCE_DATA_STALE_AFTER_MONTHS = 6;
+
+/**
+ * Maximum number of communes returned by the public commune search.
+ * The result shape is the {@link Commune} contract itself.
+ */
+export const COMMUNE_SEARCH_LIMIT = 10;
