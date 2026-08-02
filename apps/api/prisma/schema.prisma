@@ -17,6 +17,10 @@ generator client {
 model Commune {
   codeInsee          String    @id
   name               String
+  // Поисковый ключ названия: normalizeCommuneName(name), заполняется импортом.
+  // Nullable до backfill (перезапуск идемпотентного импорта), затем NOT NULL
+  // отдельной миграцией.
+  nameNormalized     String?
   departementCode    String
   departementName    String
   // null = код действует в актуальном COG
@@ -27,4 +31,12 @@ model Commune {
   predecessors       Commune[] @relation("CommuneSuccessor")
   sourceUrl          String
   sourceVerifiedAt   DateTime  @db.Date
+
+  // Префиксный поиск: обычный btree под не-C collation LIKE 'q%' не ускоряет,
+  // поэтому класс оператора задан явно. Индекс объявлен здесь, а не только
+  // в SQL миграции: иначе следующий migrate dev счёл бы его дрейфом и снёс.
+  // Класс оператора Prisma обратно из базы не читает, поэтому каждая новая
+  // миграция будет содержать эквивалентный DROP+CREATE этого индекса —
+  // такой блок из сгенерированного файла удалять (проверка — int-тест).
+  @@index([nameNormalized(ops: raw("text_pattern_ops"))], map: "Commune_nameNormalized_prefix_idx")
 }
