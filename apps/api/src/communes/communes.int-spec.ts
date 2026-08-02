@@ -253,12 +253,12 @@ describe('GET /communes (integration)', () => {
       ]);
     });
 
-    // Two pairs, because a single one only discriminates under one kind of
-    // collation and the database behind CI is not the one running here:
-    // byte-order collations (postgres:18-alpine is musl, so even en_US.utf8
-    // compares bytes) sort É after every unaccented letter, while glibc/ICU
-    // ignore the accent and the hyphen at the primary level. Each pair catches
-    // a sort left on the raw `name` under one of the two.
+    // Two pairs: one catches a sort left on the raw `name` through the accent,
+    // the other through the hyphen. Both expectations are byte order, which is
+    // what the column declares (COLLATE "C", migration normalize_collation) —
+    // and therefore what CI will see too, whichever image runs Postgres there.
+    // Before that collation was pinned, the hyphen pair passed on musl and ICU
+    // and failed on glibc, which ignores a hyphen at the primary level.
     it.each([
       {
         label: 'an accent',
@@ -318,17 +318,23 @@ describe('GET /communes (integration)', () => {
       expect(body.map((c) => c.name)).toEqual(["L'Isle-Adam"]);
     });
 
-    it('keeps the exact INSEE code branch working for 2A004', async () => {
-      await prisma.commune.createMany({
-        data: [commune('2A004', 'Ajaccio', '2A', 'Corse-du-Sud')],
-      });
+    it.each(['2A004', '2a004'])(
+      'finds the Corsican commune by INSEE code q=%s whatever the case',
+      async (q) => {
+        await prisma.commune.createMany({
+          data: [commune('2A004', 'Ajaccio', '2A', 'Corse-du-Sud')],
+        });
 
-      // The code branch compares the raw q with codeInsee, which the import
-      // stores as it comes from the COG — normalizing q would break it.
-      const found = await search('2A004');
-      expect(found.statusCode).toBe(200);
-      expect(JSON.parse(found.payload)).toHaveLength(1);
-    });
+        // Codes are stored as the COG delivers them, uppercase; a phone
+        // keyboard types "2a004". The code branch upper-cases q instead of
+        // normalizing it — normalization is for names and would not help here.
+        const found = await search(q);
+        expect(found.statusCode).toBe(200);
+        const body = JSON.parse(found.payload) as Commune[];
+        expect(body).toHaveLength(1);
+        expect(body[0]?.name).toBe('Ajaccio');
+      },
+    );
 
     it('still excludes expired communes from a normalized search', async () => {
       await prisma.commune.createMany({
@@ -368,5 +374,26 @@ describe('GET /communes (integration)', () => {
         expect(JSON.parse(res.payload)).toEqual([]);
       },
     );
+
+    it('treats a backslash in q as an ordinary character', async () => {
+      // The backslash is the one wildcard whose handling depends on order:
+      // escaped after % and _, it would escape the escapes added before it.
+      // No French commune contains one, so the discriminating fixture is
+      // synthetic — without escaping, the pattern "test\%" would ask Postgres
+      // for a literal per cent and match neither row, passing the test for the
+      // wrong reason. Here the escaped pattern must match exactly one.
+      await prisma.commune.createMany({
+        data: [
+          commune('99001', 'Test\\Ville', '99', 'Test'),
+          commune('99002', 'TestXVille', '99', 'Test'),
+        ],
+      });
+
+      const res = await search('test\\');
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.payload) as Commune[];
+      expect(body.map((c) => c.name)).toEqual(['Test\\Ville']);
+    });
   });
 });

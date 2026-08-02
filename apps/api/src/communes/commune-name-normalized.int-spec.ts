@@ -58,19 +58,36 @@ describe('Commune.nameNormalized migration (integration)', () => {
     expect(columns).toEqual([{ data_type: 'text', is_nullable: 'YES' }]);
   });
 
-  it('indexes nameNormalized with text_pattern_ops for prefix search', async () => {
+  it('declares nameNormalized COLLATE "C" so the sort order is portable', async () => {
+    const columns = await prisma.$queryRaw<{ collation_name: string }[]>`
+      SELECT collation_name
+        FROM information_schema.columns
+       WHERE table_name = 'Commune' AND column_name = 'nameNormalized'`;
+
+    // Normalization strips case and accents but not punctuation, and that is
+    // where collations disagree: glibc ignores a hyphen at the primary level,
+    // musl and ICU do not, so "Saint-Étienne" and "Sainte-Marie" swap places
+    // between postgres:18 and postgres:18-alpine. Byte order is the same
+    // everywhere — this assertion is what keeps the search result identical
+    // across deployments, and the sort test below meaningful in CI.
+    expect(columns).toEqual([{ collation_name: 'C' }]);
+  });
+
+  it('indexes nameNormalized with a plain btree for prefix search', async () => {
     const indexes = await prisma.$queryRaw<
       { indexdef: string }[]
     >`SELECT indexdef FROM pg_indexes
        WHERE tablename = 'Commune'
-         AND indexname = 'Commune_nameNormalized_prefix_idx'`;
+         AND indexname = 'Commune_nameNormalized_idx'`;
 
-    // A plain btree under a non-C collation does not serve LIKE 'q%'; the
-    // access method and the column are asserted too, so that swapping the
+    // Under COLLATE "C" a plain btree serves both LIKE 'q%' and ORDER BY, so
+    // the text_pattern_ops operator class the first migration needed is gone.
+    // The access method and the column are asserted too, so that swapping the
     // index for a different one under the same name does not pass unnoticed.
     expect(indexes).toHaveLength(1);
     expect(indexes[0]?.indexdef).toContain('USING btree');
-    expect(indexes[0]?.indexdef).toContain('"nameNormalized" text_pattern_ops');
+    expect(indexes[0]?.indexdef).toContain('"nameNormalized"');
+    expect(indexes[0]?.indexdef).not.toContain('text_pattern_ops');
   });
 
   it('stores the search key produced by normalizeCommuneName', async () => {

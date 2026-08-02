@@ -32,11 +32,10 @@ model Commune {
   sourceUrl          String
   sourceVerifiedAt   DateTime  @db.Date
 
-  // Префиксный поиск: обычный btree под не-C collation LIKE 'q%' не ускоряет,
-  // поэтому класс оператора задан явно. Индекс объявлен здесь, а не только
-  // в SQL миграции: иначе следующий migrate dev счёл бы его дрейфом и снёс.
-  // Класс оператора Prisma обратно из базы не читает, поэтому каждая новая
-  // миграция будет содержать эквивалентный DROP+CREATE этого индекса —
-  // такой блок из сгенерированного файла удалять (проверка — int-тест).
-  @@index([nameNormalized(ops: raw("text_pattern_ops"))], map: "Commune_nameNormalized_prefix_idx")
+  // Префиксный поиск и сортировка: колонка объявлена COLLATE "C" (миграция
+  // normalize_collation), поэтому обычный btree обслуживает и LIKE 'q%', и
+  // ORDER BY — класс оператора text_pattern_ops больше не нужен. Collation
+  // Prisma не поддерживает и в схеме не выражается: она живёт только в SQL
+  // миграции, дрейфом не считается (проверка — commune-name-normalized.int-spec).
+  @@index([nameNormalized])
 }

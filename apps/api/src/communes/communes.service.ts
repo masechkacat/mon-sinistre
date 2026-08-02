@@ -20,13 +20,21 @@ export class CommunesService {
 
   /**
    * Prefix match on the normalized name — both sides of the comparison go
-   * through normalizeCommuneName, so "chateau" finds "Château-Thierry". The
-   * sort runs on the same column and therefore does not depend on the
-   * database collation. Only active codes are searchable — expired ones stay
-   * in the referential for historical references but never surface here.
+   * through normalizeCommuneName, so "chateau" finds "Château-Thierry". Only
+   * active codes are searchable — expired ones stay in the referential for
+   * historical references but never surface here.
    *
-   * The INSEE code branch compares the raw `q`: codes are stored as the COG
-   * delivers them, uppercase (2A004), and normalizing would break the match.
+   * The sort runs on the same column, which the migration declares
+   * `COLLATE "C"`: normalization strips case and accents but not punctuation,
+   * and punctuation is exactly where collations disagree — glibc ignores a
+   * hyphen at the primary level while musl and ICU do not, so "Saint-Étienne"
+   * and "Sainte-Marie" swap places between deployments. Byte order makes the
+   * result identical everywhere (verified against both images, 2026-08-02).
+   *
+   * The INSEE code branch upper-cases `q` instead of normalizing it: codes are
+   * stored as the COG delivers them (2A004), so a phone keyboard's "2a004"
+   * would otherwise find nothing — but the rest of normalization must not
+   * touch a code.
    */
   search(q: string): Promise<Commune[]> {
     return this.prisma.commune.findMany({
@@ -38,7 +46,7 @@ export class CommunesService {
               startsWith: escapeLikePattern(normalizeCommuneName(q)),
             },
           },
-          { codeInsee: q },
+          { codeInsee: q.toUpperCase() },
         ],
       },
       orderBy: { nameNormalized: 'asc' },
