@@ -31,13 +31,16 @@ npm run dev:api          # NestJS в watch-режиме, http://localhost:3001, 
 npm run dev:web          # Next.js, http://localhost:3000
 npm run dev:contracts    # tsc --watch для contracts (при параллельной правке типов)
 npm run build            # contracts → api → web
-npm test                 # jest в apps/api (тесты есть только там)
+npm test                 # jest в apps/api (доменные тесты есть только там)
+npm run test:tooling     # node --test по .claude/ — обвязка вне workspace'ов
 npm run lint             # eslint по всем workspace'ам
 ```
 
 Один тест: `npm test --workspace @mon-sinistre/api -- env.validation` (jest ищет `*.spec.ts` по подстроке пути).
 
-Pre-commit хук (`.githooks/pre-commit`, подключается через `core.hooksPath` скриптом `prepare` при `npm install`) прогоняет `npm run lint` и `npm test` перед каждым коммитом. Хук не должен изменять файлы — скрипты `lint` запускаются без `--fix` (в `@mon-sinistre/api` для автопочинки есть отдельный `lint:fix`).
+`.claude/` не входит в workspaces, поэтому ни eslint, ни jest его не видят — для скриптов обвязки заведён отдельный `test:tooling` на встроенном `node --test` (без зависимостей, Node ≥ 24 уже требуется). Новый файл рядом с `.claude/*.test.js` подхватывается сам.
+
+Pre-commit хук (`.githooks/pre-commit`, подключается через `core.hooksPath` скриптом `prepare` при `npm install`) прогоняет `npm run lint`, `npm test` и `npm run test:tooling` перед каждым коммитом. Хук не должен изменять файлы — скрипты `lint` запускаются без `--fix` (в `@mon-sinistre/api` для автопочинки есть отдельный `lint:fix`).
 
 Окружение: Node.js ≥ 24, Docker. Секреты — `cp apps/api/.env.example apps/api/.env`, значения генерируются `openssl rand -base64 48`.
 
@@ -52,11 +55,11 @@ node .claude/ralph.js             # прогнать фазу из .claude/ralph
 
 Что цикл делает сам, а агент — нет: проверяет коммит итерации (ровно один, с `Closes #N`), пушит ветку, переводит issue в In Review, открывает PR после закрытия фазы. Имя ветки выводится как `{фича}/phase-{N}` и в конфиге не хранится; milestone ищется по формату `[{фича}] Фаза N: …`, который задаёт скилл `issues`. Ревью PR запускается вручную (`/code-review`).
 
-Предполётно требуются `docs/prd/{фича}.md`, `docs/plan/{фича}.md`, `docs/research/{фича}.md` и чистое рабочее дерево — иначе цикл не стартует. Останавливается: по исчерпании `maxIterations` (issues за запуск), по `stallLimit` итераций без коммита, при незакоммиченных изменениях после итерации, при коммите без `Closes #N`, и если ветка фазы отстала от `origin/main` — иначе в PR уехал бы молчаливый откат чужих правок.
+Предполётно требуются `docs/prd/{фича}.md`, `docs/plan/{фича}.md`, `docs/research/{фича}.md` и чистое рабочее дерево — иначе цикл не стартует. Останавливается: по исчерпании `maxIterations` (issues за запуск), по `stallLimit` итераций без коммита, при незакоммиченных изменениях после итерации, при коммите без `Closes #N`, если issue не оказалось на борде (статус не перевести — следующая итерация выдала бы агенту уже сделанную задачу) и если ветка фазы отстала от `origin/main` или от собственного `origin/{ветка}` — иначе в PR уехал бы молчаливый откат чужих правок.
 
 Несколько фаз в `phases` цикл проходит только последовательно: следующую он начнёт, лишь когда все issues предыдущей закрыты (то есть её PR смержен) — ветка каждой фазы растёт от `origin/main`, и без этого фаза строилась бы без кода предыдущей.
 
-`disallowedTools` в конфиге закрывает основные грабли (`git push`, `git rebase`, `gh pr merge`, `gh issue close`, `prisma db push`), но запреты префиксные и составной командой обходятся — правила для агента живут в `.claude/ralph.md`, а не только в правах.
+Права агента: `allowedTools` намеренно не содержит `node`, `npx` (кроме `prisma migrate`/`generate`) и `npm exec` — через любую из этих команд префиксные запреты обходятся одной строкой, и `disallowedTools` (`git push`, `git rebase`, `gh pr merge`, `gh issue close`, `prisma db push`) стал бы декоративным. Запреты всё равно остаются грубым фильтром — правила для агента живут в `.claude/ralph.md`, а не только в правах.
 
 ## Архитектура и доменная модель
 

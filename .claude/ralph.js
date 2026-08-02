@@ -25,6 +25,9 @@ const CONFIG_PATH = path.join(__dirname, 'ralph.config.json');
 const BOARD_LIMIT = 500;
 const ISSUE_LIMIT = 200;
 
+/** `--dry-run` прогоняет всю обвязку, но не запускает claude и ничего не меняет. */
+const DRY_RUN = process.argv.includes('--dry-run');
+
 // ─── примитивы ────────────────────────────────────────────────────────────────
 
 /** Внешняя команда без shell: аргументы не проходят через интерпретатор. */
@@ -45,10 +48,21 @@ const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const step = (m) => console.log(`\n\x1b[1m${m}\x1b[0m`);
 const warn = (m) => console.log(`\x1b[33m!\x1b[0m ${m}`);
 
+/**
+ * Остановка цикла. Бросается, а не `process.exit`: иначе проверки нельзя
+ * покрыть тестами — они гасили бы тестовый процесс вместо возврата ошибки.
+ * Печатает и выходит один обработчик внизу файла.
+ */
+class RalphStop extends Error {
+  constructor(message, hint) {
+    super(message);
+    this.name = 'RalphStop';
+    this.hint = hint;
+  }
+}
+
 function fail(message, hint) {
-  console.error(`\n\x1b[31m⛔ ${message}\x1b[0m`);
-  if (hint) console.error(`   ${hint}`);
-  process.exit(1);
+  throw new RalphStop(message, hint);
 }
 
 function quiet(fn) {
@@ -65,8 +79,11 @@ function quiet(fn) {
 function loadConfig() {
   if (!fs.existsSync(CONFIG_PATH))
     fail(`Нет ${path.relative(ROOT, CONFIG_PATH)}`);
-  const cfg = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
+  return validateConfig(JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8')));
+}
 
+/** Проверка и дефолты — отдельно от чтения файла, чтобы покрывалось тестами. */
+function validateConfig(cfg) {
   if (!cfg.feature) fail('В конфиге не указана feature');
   if (!Array.isArray(cfg.phases) || cfg.phases.length === 0) {
     fail('В конфиге не указаны phases', 'Например: "phases": [3]');
@@ -154,16 +171,25 @@ function repoSlug() {
 
 /** Milestone ищется по формату из скилла `issues`: «[фича] Фаза N: название». */
 function findMilestone(repo, feature, phase) {
+  // `--paginate` обязателен: без него gh отдаёт только первую страницу (30
+  // штук), а `state=all` копит закрытые milestone всех прошлых фич — на третьей
+  // фиче цикл падал бы с «не найден milestone» там, где он есть.
   const list = ghJson([
     'api',
-    `repos/${repo}/milestones`,
-    '-X',
-    'GET',
-    '-f',
-    'state=all',
+    `repos/${repo}/milestones?state=all&per_page=100`,
+    '--paginate',
   ]);
-  const prefix = `[${feature}] Фаза ${phase}:`;
-  const found = (list || []).filter((m) => m.title.startsWith(prefix));
+  return pickMilestone(list || [], feature, phase);
+}
+
+function milestonePrefix(feature, phase) {
+  return `[${feature}] Фаза ${phase}:`;
+}
+
+/** Выбор milestone из готового списка — чистая часть `findMilestone`. */
+function pickMilestone(list, feature, phase) {
+  const prefix = milestonePrefix(feature, phase);
+  const found = list.filter((m) => m.title.startsWith(prefix));
 
   if (found.length === 0) {
     fail(
@@ -258,10 +284,14 @@ function boardItems(cfg) {
  * снова и снова.
  */
 function queueFor(cfg, milestone, board) {
-  const issues = milestoneIssues(milestone, 'open');
+  return filterQueue(milestoneIssues(milestone, 'open'), board.items, cfg);
+}
+
+/** Чистая часть очереди: отсев взятых карточек и порядок плана. */
+function filterQueue(issues, items, cfg) {
   const parked = new Set([cfg.project.inReviewOption, cfg.project.doneOption]);
   return issues
-    .filter((i) => !parked.has(board.items.get(i.number)?.status))
+    .filter((i) => !parked.has(items.get(i.number)?.status))
     .sort((a, b) => a.number - b.number);
 }
 
@@ -314,22 +344,30 @@ function resolveBoardFields(cfg) {
   );
   if (!status) fail(`На борде нет поля «${cfg.project.statusField}»`);
 
-  const option = (status.options || []).find(
-    (o) => o.name === cfg.project.inReviewOption,
-  );
-  if (!option)
-    fail(
-      `В поле «${status.name}» нет значения «${cfg.project.inReviewOption}»`,
-    );
+  // Проверяются оба значения, а не только inReviewOption: опечатка в
+  // doneOption не мешает переводу статуса, но молча ослабляет фильтр очереди —
+  // цикл перестал бы считать закрытые карточки взятыми.
+  const byName = (name) => {
+    const option = (status.options || []).find((o) => o.name === name);
+    if (!option) fail(`В поле «${status.name}» нет значения «${name}»`);
+    return option;
+  };
+  const inReview = byName(cfg.project.inReviewOption);
+  byName(cfg.project.doneOption);
 
-  return { projectId: project.id, fieldId: status.id, optionId: option.id };
+  return { projectId: project.id, fieldId: status.id, optionId: inReview.id };
 }
 
 function moveToInReview(cfg, board, issueNumber) {
   const item = board.items.get(issueNumber);
+  // Не warn: без карточки статус не переведётся, `queueFor` не отсеет issue —
+  // и следующая итерация выдаст агенту уже сделанную задачу. Коммит при этом
+  // на месте и запушен, так что чинится это добавлением карточки на борд.
   if (!item) {
-    warn(`Issue #${issueNumber} нет на борде — статус не переведён`);
-    return;
+    fail(
+      `Issue #${issueNumber} нет на борде — статус не переведён`,
+      'Коммит запушен. Добавь issue в проект (workflow auto-add) и запусти цикл снова.',
+    );
   }
   gh([
     'project',
@@ -349,6 +387,10 @@ function moveToInReview(cfg, board, issueNumber) {
 // ─── ветка ────────────────────────────────────────────────────────────────────
 
 /** Имя ветки выводится из фичи и номера фазы — в конфиге его нет и разъехаться нечему. */
+function branchName(feature, phase) {
+  return `${feature}/phase-${phase}`;
+}
+
 function ensureBranch(branch) {
   const hasLocal = quiet(() =>
     git(['rev-parse', '--verify', '--quiet', `refs/heads/${branch}`]),
@@ -369,6 +411,7 @@ function ensureBranch(branch) {
 
   if (hasLocal) {
     git(['checkout', branch]);
+    requireRemoteMerged(branch);
     requireFreshBase(branch, 'существующая локальная ветка');
     ok(`ветка ${branch} (существующая)`);
   } else if (hasRemote) {
@@ -379,6 +422,26 @@ function ensureBranch(branch) {
     git(['checkout', '-b', branch, 'origin/main']);
     ok(`ветка ${branch} (новая, от origin/main)`);
   }
+}
+
+/**
+ * Локальная ветка обязана содержать весь свой `origin/<branch>` — например
+ * после прогона с другой машины. Проверять до итерации, а не после: `pushBranch`
+ * упал бы на non-fast-forward, когда сессия агента уже потрачена.
+ */
+function requireRemoteMerged(branch) {
+  const remote = `origin/${branch}`;
+  const known = quiet(() =>
+    git(['rev-parse', '--verify', '--quiet', `refs/remotes/${remote}`]),
+  );
+  if (!known) return;
+  if (quiet(() => git(['merge-base', '--is-ancestor', remote, branch]))) return;
+
+  const behind = git(['rev-list', '--count', `${branch}..${remote}`]);
+  fail(
+    `Локальная ${branch} отстала от ${remote} на ${behind} коммит(ов)`,
+    'Push упал бы уже после потраченной итерации. Подтяни: git pull --ff-only — и запусти цикл снова.',
+  );
 }
 
 /**
@@ -418,19 +481,29 @@ function verifyCommit(before, after, issueNumber) {
     );
   }
 
-  // Набор ключевых слов — тот, что распознаёт сам GitHub; каждому номеру нужно
-  // своё слово, поэтому «Closes #12, #13» вторую issue не закрывает и здесь.
-  const closes = new RegExp(
-    `\\b(clos(e|es|ed)|fix(es|ed)?|resolv(e|es|ed)) #${issueNumber}\\b`,
-    'i',
-  );
   const message = git(['log', '-1', '--format=%B', after]);
-  if (!closes.test(message)) {
+  if (!closesIssue(message, issueNumber)) {
     fail(
       `В коммите нет «Closes #${issueNumber}» — issue не закроется при мерже PR`,
       'Допиши трейлер (git commit --amend) и запусти цикл снова.',
     );
   }
+}
+
+/**
+ * Закроет ли сообщение коммита именно этот issue при мерже PR.
+ *
+ * Набор ключевых слов — тот, что распознаёт сам GitHub; каждому номеру нужно
+ * своё слово, поэтому «Closes #12, #13» вторую issue не закрывает и здесь.
+ * Двоеточие GitHub допускает («Closes: #12» закрывает), поэтому валить на нём
+ * цикл нельзя. Пробел перед `#` обязателен: «Closes#12» GitHub не понимает, и
+ * пропустить такой коммит значило бы оставить issue незакрытым после мержа.
+ */
+function closesIssue(message, issueNumber) {
+  return new RegExp(
+    `\\b(clos(e|es|ed)|fix(es|ed)?|resolv(e|es|ed)):?[ \\t]+#${issueNumber}\\b`,
+    'i',
+  ).test(message);
 }
 
 /**
@@ -566,9 +639,6 @@ function openPullRequest(cfg, phase, milestone, branch) {
 
 // ─── основной цикл ────────────────────────────────────────────────────────────
 
-/** `--dry-run` прогоняет всю обвязку, но не запускает claude и ничего не меняет. */
-const DRY_RUN = process.argv.includes('--dry-run');
-
 function main() {
   const cfg = loadConfig();
   preflight(cfg);
@@ -585,7 +655,7 @@ function main() {
 
   for (const phase of cfg.phases) {
     const milestone = findMilestone(repo, cfg.feature, phase);
-    const branch = `${cfg.feature}/phase-${phase}`;
+    const branch = branchName(cfg.feature, phase);
 
     // Ветка каждой фазы растёт от origin/main, а фазы плана зависимы: начинать
     // следующую до мержа предыдущей значит строить её без её же кода.
@@ -686,13 +756,44 @@ function report(prUrls) {
   }
 }
 
-try {
-  main();
-} catch (e) {
+// ─── запуск ───────────────────────────────────────────────────────────────────
+
+/** Единственное место, где остановка печатается и гасит процесс. */
+function abort(e) {
   // Любой сорвавшийся git/gh иначе вылетел бы стектрейсом посреди автономного
   // прогона — а читать его будет человек, вернувшийся к остановившемуся циклу.
-  fail(
-    'Непредвиденная ошибка — цикл остановлен',
-    (e.stderr || e.stack || e.message || String(e)).trim(),
-  );
+  const stop =
+    e instanceof RalphStop
+      ? e
+      : new RalphStop(
+          'Непредвиденная ошибка — цикл остановлен',
+          (e.stderr || e.stack || e.message || String(e)).trim(),
+        );
+
+  console.error(`\n\x1b[31m⛔ ${stop.message}\x1b[0m`);
+  if (stop.hint) console.error(`   ${stop.hint}`);
+  process.exit(1);
 }
+
+if (require.main === module) {
+  try {
+    main();
+  } catch (e) {
+    abort(e);
+  }
+}
+
+// Экспорт — только для тестов (`.claude/ralph.test.js`): наружу цикл остаётся
+// одним исполняемым файлом.
+module.exports = {
+  RalphStop,
+  branchName,
+  buildPrompt,
+  closesIssue,
+  fieldKey,
+  filterQueue,
+  milestonePrefix,
+  phaseLabel,
+  pickMilestone,
+  validateConfig,
+};
