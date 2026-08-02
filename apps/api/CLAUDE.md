@@ -35,7 +35,7 @@ Prisma 7 подключена (стиль v7 — driver adapter, инструк�
 - **`prisma/schema.prisma`**: в `datasource db` только `provider = "postgresql"` (url живёт в конфиге); генератор `prisma-client` эмитит TypeScript в `src/generated/prisma` (папка в .gitignore). `npm run prisma:generate` — после каждой правки схемы; `npm run build` делает это сам перед `nest build`. Модели: `Commune` (справочник по `docs/research/data-model.md` § 3, миграция `init_commune`).
 - **`PrismaService`** (`src/prisma/`) наследует сгенерированный `PrismaClient` поверх `@prisma/adapter-pg`, disconnect в `onModuleDestroy` (срабатывает через `enableShutdownHooks`); **`PrismaModule`** глобальный и подключён в `AppModule`.
 
-Модули: `CommunesModule` — публичный поиск `GET /communes?q=` (префикс названия или точный код INSEE, только действующие коды, лимит `COMMUNE_SEARCH_LIMIT` из contracts; до фазы 3 — по «сырому» `name`, нормализация регистра и диакритики придёт с `nameNormalized`).
+Модули: `CommunesModule` — публичный поиск `GET /communes?q=` (префикс названия или точный код INSEE, только действующие коды, лимит `COMMUNE_SEARCH_LIMIT` из contracts; до фазы 3 — по «сырому» `name`, нормализация регистра и диакритики придёт с `nameNormalized`). Принятое до фазы 3 ограничение: `startsWith` Prisma не экранирует LIKE-символы `%` и `_` — при реализации поиска по `nameNormalized` ввод экранировать (комментарий в `communes.service.ts`).
 
 Уже подключено в скелете:
 
@@ -50,7 +50,7 @@ Prisma 7 подключена (стиль v7 — driver adapter, инструк�
 
 - Интеграционные спеки — `*.int-spec.ts` рядом с кодом в `src/`. Юнит-конфиг в `package.json` их не видит (суффикс не подпадает под `.*\.spec\.ts$`), поэтому pre-commit хук и корневой `npm test` остаются быстрыми и без Docker-требования.
 - `jest.int.config.js`: `testRegex '.*\.int-spec\.ts$'`, `maxWorkers: 1` — обязателен, пока тесты делят одну базу; если прогон станет медленным — база-на-воркера через `JEST_WORKER_ID`, не testcontainers.
-- База — `${DB_NAME}_test` на том же docker-compose Postgres (`npm run db:up` из корня). `test/jest.int.global-setup.js` создаёт её при отсутствии (клиентом `pg`) и прогоняет `prisma migrate deploy` с переопределённым `DB_NAME`; `test/jest.int.env.js` тем же переопределением направляет туда `PrismaService` в тестах.
+- База — `${DB_NAME}_test` на том же docker-compose Postgres (`npm run db:up` из корня). `test/jest.int.global-setup.js` создаёт её при отсутствии (клиентом `pg`) и прогоняет `prisma migrate deploy` с переопределённым `DB_NAME`; `test/jest.int.env.js` тем же переопределением направляет туда `PrismaService` в тестах. Имя тестовой базы оба вычисляют общим хелпером `test/test-db-name.js` — setup и тесты обязаны смотреть на одну базу.
 - Между тестами — `TRUNCATE` затронутых таблиц в `beforeEach`, не пересоздание схемы.
 - `*.int-spec.ts` исключены из продакшен-сборки в `tsconfig.build.json`, как и `*.spec.ts`.
 - В CI понадобится сервисный Postgres 18 — зафиксировать при настройке CI.
@@ -61,7 +61,7 @@ Prisma 7 подключена (стиль v7 — driver adapter, инструк�
 
 ## Правила проекта
 
-- Глобальный `ValidationPipe` с `whitelist + forbidNonWhitelisted`: у каждого эндпоинта, принимающего данные, должен быть DTO с декораторами class-validator, иначе любое тело запроса будет отклонено.
+- Глобальный `ValidationPipe` с `whitelist + forbidNonWhitelisted`: у каждого эндпоинта, принимающего данные, должен быть DTO с декораторами class-validator, иначе любое тело запроса будет отклонено. Пайп создаётся фабрикой `createGlobalValidationPipe` (`src/config/validation-pipe.ts`) — её же использовать в интеграционных тестах, конфигурацию не копировать.
 - Проверка принадлежности объекта пользователю — **в условии запроса к базе** (`where: { ..., user }`), не после выборки. Чужой и несуществующий объект дают одинаковый ответ (404, не 403).
 - Изменения схемы — только через `prisma migrate` (файлы миграций в git); `prisma db push` — только для локальных экспериментов, в прод никогда.
 - Файлы пользователей (фото ущерба, justificatifs) — в приватном S3-совместимом хранилище, наружу только короткие подписанные URL; публичных бакетов нет.

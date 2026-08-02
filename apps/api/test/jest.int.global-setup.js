@@ -3,6 +3,7 @@
 const { execSync } = require('node:child_process');
 const path = require('node:path');
 const { Client } = require('pg');
+const testDbName = require('./test-db-name');
 
 /**
  * Runs once before the integration suite: creates the `${DB_NAME}_test`
@@ -17,7 +18,7 @@ module.exports = async () => {
     // .env is absent — variables come from the environment (e.g. CI).
   }
 
-  const testDbName = `${process.env.DB_NAME}_test`;
+  const dbName = testDbName(process.env.DB_NAME);
 
   const client = new Client({
     host: process.env.DB_HOST,
@@ -30,12 +31,12 @@ module.exports = async () => {
   try {
     const existing = await client.query(
       'SELECT 1 FROM pg_database WHERE datname = $1',
-      [testDbName],
+      [dbName],
     );
     if (existing.rowCount === 0) {
       // CREATE DATABASE cannot be parameterized; the name is derived from
       // our own DB_NAME, not from user input.
-      await client.query(`CREATE DATABASE "${testDbName}"`);
+      await client.query(`CREATE DATABASE "${dbName}"`);
     }
   } finally {
     await client.end();
@@ -43,7 +44,7 @@ module.exports = async () => {
 
   execSync('npx prisma migrate deploy', {
     cwd: path.join(__dirname, '..'),
-    env: { ...process.env, DB_NAME: testDbName },
+    env: { ...process.env, DB_NAME: dbName },
     stdio: 'inherit',
   });
 };

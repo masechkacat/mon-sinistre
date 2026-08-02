@@ -1,4 +1,3 @@
-import { ValidationPipe } from '@nestjs/common';
 import {
   FastifyAdapter,
   NestFastifyApplication,
@@ -6,6 +5,7 @@ import {
 import { Test } from '@nestjs/testing';
 import { COMMUNE_SEARCH_LIMIT, Commune } from '@mon-sinistre/contracts';
 import { AppModule } from 'src/app.module';
+import { createGlobalValidationPipe } from 'src/config/validation-pipe';
 import { PrismaService } from 'src/prisma/prisma.service';
 
 const SOURCE = {
@@ -47,14 +47,8 @@ describe('GET /communes (integration)', () => {
     app = moduleRef.createNestApplication<NestFastifyApplication>(
       new FastifyAdapter(),
     );
-    // Same global pipe as main.ts — the validation behaviour under test.
-    app.useGlobalPipes(
-      new ValidationPipe({
-        transform: true,
-        whitelist: true,
-        forbidNonWhitelisted: true,
-      }),
-    );
+    // The exact pipe main.ts installs — the validation behaviour under test.
+    app.useGlobalPipes(createGlobalValidationPipe());
     await app.init();
     await app.getHttpAdapter().getInstance().ready();
 

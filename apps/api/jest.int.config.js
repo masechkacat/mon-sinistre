@@ -14,7 +14,9 @@ module.exports = {
   rootDir: 'src',
   setupFiles: ['reflect-metadata', '<rootDir>/../test/jest.int.env.js'],
   testRegex: '.*\\.int-spec\\.ts$',
-  transform: { '^.+\\.(t|j)s$': 'ts-jest' },
+  // Only .ts: the setup files in test/ are plain CommonJS run by Node itself,
+  // ts-jest warns if asked to compile them.
+  transform: { '^.+\\.ts$': 'ts-jest' },
   moduleNameMapper: {
     '^@mon-sinistre/contracts$': '<rootDir>/../../../packages/contracts/src',
     '^src/(.*)$': '<rootDir>/$1',

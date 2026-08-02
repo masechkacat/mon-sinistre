@@ -10,15 +10,28 @@ try {
   // .env is absent — variables are expected in the environment.
 }
 
+// Fail fast with the variable's name instead of letting the CLI hit the
+// database with a silently-built invalid URL (the runtime counterpart,
+// PrismaService, gets the same behaviour from ConfigService.getOrThrow).
+function required(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(
+      `${name} is not set — create apps/api/.env (cp .env.example .env) or provide the DB_* variables in the environment.`,
+    );
+  }
+  return value;
+}
+
 export default defineConfig({
   schema: 'prisma/schema.prisma',
   datasource: {
     url: buildDatabaseUrl({
       host: process.env.DB_HOST ?? 'localhost',
       port: process.env.DB_PORT ?? 5432,
-      user: process.env.DB_USER ?? '',
-      password: process.env.DB_PASSWORD ?? '',
-      database: process.env.DB_NAME ?? '',
+      user: required('DB_USER'),
+      password: required('DB_PASSWORD'),
+      database: required('DB_NAME'),
     }),
   },
 });

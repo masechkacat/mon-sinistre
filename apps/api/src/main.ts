@@ -1,4 +1,4 @@
-import { Logger, ValidationPipe } from '@nestjs/common';
+import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import {
@@ -9,6 +9,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from '@fastify/helmet';
 import fastifyCookie from '@fastify/cookie';
 import { AppModule } from './app.module';
+import { createGlobalValidationPipe } from './config/validation-pipe';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestFastifyApplication>(
@@ -34,15 +35,7 @@ async function bootstrap() {
     credentials: true,
   });
 
-  // whitelist strips properties absent from the DTO; forbidNonWhitelisted
-  // rejects them outright so unexpected input fails loudly rather than silently.
-  app.useGlobalPipes(
-    new ValidationPipe({
-      transform: true,
-      whitelist: true,
-      forbidNonWhitelisted: true,
-    }),
-  );
+  app.useGlobalPipes(createGlobalValidationPipe());
 
   const swaggerConfig = new DocumentBuilder()
     .setTitle('Mon Sinistre API')
