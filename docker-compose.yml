@@ -1,6 +1,6 @@
 services:
   db:
-    image: postgres:17-alpine
+    image: postgres:18-alpine
     container_name: mon-sinistre-db
     restart: unless-stopped
     environment:
@@ -10,7 +10,10 @@ services:
     ports:
       - '${DB_PORT:-5432}:5432'
     volumes:
-      - mon-sinistre-db-data:/var/lib/postgresql/data
+      # C postgres:18 том монтируется в /var/lib/postgresql (PGDATA — в
+      # подкаталоге версии); старый путь /var/lib/postgresql/data оставил бы
+      # данные вне тома.
+      - mon-sinistre-db-data:/var/lib/postgresql
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U ${DB_USER} -d ${DB_NAME}']
       interval: 10s
