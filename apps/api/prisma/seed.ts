@@ -41,6 +41,9 @@ async function main(): Promise<void> {
   });
 
   try {
+    // Fail fast on a broken DB config before downloading the ~4 MB
+    // referential — without this the first query runs after the fetch.
+    await prisma.$connect();
     console.log('Importing the commune referential from geo.api.gouv.fr…');
     const importService = new CommuneImportService(prisma, new GeoApiClient());
     const { processed, total } = await importService.run();
