@@ -8,3 +8,20 @@ generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
 }
+
+/// Référentiel des communes (COG) — docs/research/data-model.md § 3.
+/// Identity by code INSEE, history through the successor link: obsolete codes
+/// are never deleted, they keep effectiveTo + successorCodeInsee instead.
+model Commune {
+  codeInsee          String    @id
+  name               String
+  departementCode    String
+  departementName    String
+  /// null = the code exists in the current COG
+  effectiveTo        DateTime? @db.Date
+  successorCodeInsee String?
+  successor          Commune?  @relation("CommuneSuccessor", fields: [successorCodeInsee], references: [codeInsee])
+  predecessors       Commune[] @relation("CommuneSuccessor")
+  sourceUrl          String
+  sourceVerifiedAt   DateTime  @db.Date
+}

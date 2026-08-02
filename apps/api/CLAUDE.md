@@ -36,6 +36,7 @@ Prisma 7 подключена (стиль v7 заметно отличается
 - **`prisma/schema.prisma`**: в `datasource db` только `provider = "postgresql"` (url живёт в конфиге); генератор — `provider = "prisma-client"` (не `prisma-client-js`) с `output = "../src/generated/prisma"`. Папка `src/generated/` в .gitignore и вне eslint/coverage; `npm run prisma:generate` — после каждой правки схемы, в скрипте `build` он выполняется автоматически перед `nest build`.
 - **Driver adapter** (стандартный путь v7): `@prisma/adapter-pg`, `new PrismaClient({ adapter: new PrismaPg({ connectionString }) })` — см. `src/prisma/prisma.service.ts`.
 - **`PrismaModule`** (`src/prisma/`) — `@Global()`, экспортирует `PrismaService`; сервис наследует сгенерированный `PrismaClient`, делает `$connect` в `onModuleInit` (недоступная база валит bootstrap, а не первый запрос) и disconnect в `onModuleDestroy` (срабатывает через `enableShutdownHooks`).
+- **Модели**: `Commune` по `../../docs/research/data-model.md` § 3 (codeInsee PK, версионирование через `effectiveTo`/`successorCodeInsee`, `sourceUrl`/`sourceVerifiedAt`); миграции — в `prisma/migrations/`.
 
 Уже подключено в скелете:
 
