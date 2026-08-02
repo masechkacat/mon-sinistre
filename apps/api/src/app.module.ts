@@ -5,13 +5,10 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { validateEnv } from './config/env.validation';
 import { HealthController } from './health/health.controller';
+import { PrismaModule } from './prisma/prisma.module';
 
 /**
  * Root module.
- *
- * Prisma is deliberately not wired in yet: the application starts without a
- * database so the skeleton can run before any model exists. Add PrismaModule
- * here once the first models and migrations land.
  *
  * ThrottlerGuard is global; auth endpoints must get stricter per-route
  * limits via @Throttle() when the auth module lands.
@@ -21,6 +18,7 @@ import { HealthController } from './health/health.controller';
     ConfigModule.forRoot({ isGlobal: true, validate: validateEnv }),
     ScheduleModule.forRoot(),
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 100 }]),
+    PrismaModule,
   ],
   controllers: [HealthController],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],

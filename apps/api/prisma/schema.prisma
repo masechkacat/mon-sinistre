@@ -1,0 +1,11 @@
+// URL базы живёт в prisma.config.ts (собирается из DB_*), не здесь.
+datasource db {
+  provider = "postgresql"
+}
+
+// Генератор Prisma 7 "prisma-client" эмитит TypeScript в src/generated/prisma
+// (вне node_modules); папка в .gitignore, перегенерация — npm run prisma:generate.
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
