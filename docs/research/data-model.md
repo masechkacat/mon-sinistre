@@ -270,6 +270,12 @@ Auth уже решён (api/CLAUDE.md): Passport local + JWT, refresh с рот�
   менять его подписку); ответ формы одинаков для нового и существующего адреса
   (анти-enumeration, созвучно правилу «чужой и несуществующий неразличимы»);
   email нормализуется (lowercase, trim) до проверки уникальности.
+  **Состав полей неполон для PRD veille** (запись в `docs/decisions.md` от
+  02.08.2026): не хватает срока жизни ссылки подтверждения (7 дней), счётчика
+  писем на адрес в сутки и места для отложенного состава коммун — `VeilleCommune`
+  хранит только действующий. Поля добавляются research'ем соответствующих фич
+  (`veille-subscription-lifecycle`, `veille-commune-change`), этот параграф
+  правится в том же коммите, что и миграция.
 - `VeilleCommune`: veilleId → Veille (cascade), codeInsee → Commune;
   PK составной, индекс `(codeInsee)` — fan-out уведомлений в день arrêté.
 - `VeilleNotification`: veilleId, arreteId, sentAt; `unique(veilleId, arreteId)` —
