@@ -25,6 +25,10 @@ function required(name: string): string {
 
 export default defineConfig({
   schema: 'prisma/schema.prisma',
+  migrations: {
+    // npm run seed → one-off idempotent referential import (communes COG).
+    seed: 'ts-node prisma/seed.ts',
+  },
   datasource: {
     url: buildDatabaseUrl({
       // All five are required, exactly like the runtime's getOrThrow — the CLI
