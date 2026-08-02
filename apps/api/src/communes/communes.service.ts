@@ -1,18 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { COMMUNE_SEARCH_LIMIT, Commune } from '@mon-sinistre/contracts';
+import { escapeLikePattern } from 'src/prisma/escape-like-pattern';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { normalizeCommuneName } from './normalize-commune-name';
-
-/**
- * Prisma's `startsWith` passes the value straight into a LIKE pattern, so `%`
- * and `_` typed by a user would act as wildcards (`q=__` would match every
- * commune). Postgres reads a backslash as the default LIKE escape character,
- * and the pattern travels as a bind parameter, so escaping it here keeps the
- * query typed — no `$queryRaw` needed. The backslash itself goes first, or it
- * would escape the escapes added after it.
- */
-const escapeLikePattern = (value: string): string =>
-  value.replace(/[\\%_]/g, '\\$&');
 
 @Injectable()
 export class CommunesService {
@@ -35,6 +25,9 @@ export class CommunesService {
    * stored as the COG delivers them (2A004), so a phone keyboard's "2a004"
    * would otherwise find nothing — but the rest of normalization must not
    * touch a code.
+   *
+   * The normalized prefix goes through `escapeLikePattern`: Prisma feeds
+   * `startsWith` straight into a LIKE pattern and does not escape `%` or `_`.
    */
   search(q: string): Promise<Commune[]> {
     return this.prisma.commune.findMany({

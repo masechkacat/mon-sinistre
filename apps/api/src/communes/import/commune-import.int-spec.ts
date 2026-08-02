@@ -1,19 +1,10 @@
-import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from 'src/generated/prisma/client';
-import { buildDatabaseUrl } from 'src/prisma/database-url';
+import { createIntTestPrismaClient } from 'src/prisma/prisma-client.int-helper';
 import {
   CommuneImportService,
   CommuneImportSource,
 } from './commune-import.service';
 import { GEO_API_COMMUNES_URL, GeoApiCommune } from './geo-api.client';
-
-const requiredEnv = (name: string): string => {
-  const value = process.env[name];
-  if (!value) {
-    throw new Error(`${name} must be set for integration tests`);
-  }
-  return value;
-};
 
 const geoCommune = (
   code: string,
@@ -39,17 +30,7 @@ describe('CommuneImportService (integration)', () => {
   beforeAll(() => {
     // No Nest context on purpose — the seed script will wire the service the
     // same way (docs/research/commune-referential.md, «Архитектура seed»).
-    prisma = new PrismaClient({
-      adapter: new PrismaPg({
-        connectionString: buildDatabaseUrl({
-          host: requiredEnv('DB_HOST'),
-          port: requiredEnv('DB_PORT'),
-          user: requiredEnv('DB_USER'),
-          password: requiredEnv('DB_PASSWORD'),
-          database: requiredEnv('DB_NAME'),
-        }),
-      }),
-    });
+    prisma = createIntTestPrismaClient();
   });
 
   afterAll(async () => {

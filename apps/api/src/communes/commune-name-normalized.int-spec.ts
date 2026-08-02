@@ -1,40 +1,24 @@
-import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from 'src/generated/prisma/client';
-import { buildDatabaseUrl } from 'src/prisma/database-url';
+import { createIntTestPrismaClient } from 'src/prisma/prisma-client.int-helper';
 import { normalizeCommuneName } from './normalize-commune-name';
-
-const requiredEnv = (name: string): string => {
-  const value = process.env[name];
-  if (!value) {
-    throw new Error(`${name} must be set for integration tests`);
-  }
-  return value;
-};
 
 /**
  * The migration that carries the search key, checked against the real schema:
  * the column is added nullable (the backfill is a rerun of the idempotent
  * import, not SQL in the migration — docs/research/commune-referential.md),
- * and the prefix index carries the text_pattern_ops operator class. Prisma
- * does not read that class back from the database, so a later `migrate dev`
- * keeps proposing an equivalent DROP+CREATE for this index — this suite is
- * what notices if such a block ever lands as a plain DROP.
+ * and it is declared `COLLATE "C"` so that a plain btree serves both the
+ * prefix LIKE and the ORDER BY of the search.
+ *
+ * Prisma expresses neither the collation nor an operator class in the schema
+ * and does not read them back from the database, so `migrate dev` will never
+ * report their loss as drift: this suite is the only thing that notices if a
+ * later migration recreates the column or the index without them.
  */
 describe('Commune.nameNormalized migration (integration)', () => {
   let prisma: PrismaClient;
 
   beforeAll(() => {
-    prisma = new PrismaClient({
-      adapter: new PrismaPg({
-        connectionString: buildDatabaseUrl({
-          host: requiredEnv('DB_HOST'),
-          port: requiredEnv('DB_PORT'),
-          user: requiredEnv('DB_USER'),
-          password: requiredEnv('DB_PASSWORD'),
-          database: requiredEnv('DB_NAME'),
-        }),
-      }),
-    });
+    prisma = createIntTestPrismaClient();
   });
 
   afterAll(async () => {
