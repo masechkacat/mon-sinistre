@@ -1,3 +1,5 @@
+import type { FetchFn } from 'src/common/fetch-fn';
+
 /**
  * Client for the geo.api.gouv.fr commune referential — the single source the
  * COG import reads from (decision: docs/research/commune-referential.md).
@@ -32,8 +34,6 @@ export const MIN_EXPECTED_COMMUNES = 30_000;
 
 /** One ~4 MB response for the whole country; generous timeout for slow links. */
 export const GEO_API_TIMEOUT_MS = 60_000;
-
-export type FetchFn = typeof globalThis.fetch;
 
 const isNonEmptyString = (value: unknown): value is string =>
   typeof value === 'string' && value.length > 0;
@@ -79,7 +79,6 @@ function assertGeoApiCommune(
 }
 
 export class GeoApiClient {
-  /** fetchFn is injectable so tests mock HTTP without nock/msw. */
   constructor(private readonly fetchFn: FetchFn = globalThis.fetch) {}
 
   /**

@@ -1,3 +1,4 @@
+import type { FetchFn } from 'src/common/fetch-fn';
 import { MailDeliveryError } from 'src/mail/mail-delivery.error';
 import type { MailMessage } from 'src/mail/mail-message';
 import type { MailTransport } from 'src/mail/mail-transport';
@@ -25,8 +26,6 @@ export interface ScalewayMailConfig {
   readonly projectId: string;
 }
 
-export type FetchFn = typeof globalThis.fetch;
-
 /**
  * The transport that actually sends: Scaleway Transactional Email, region
  * fr-par, HTTP API v1alpha1 (docs/research/emails.md).
@@ -44,10 +43,6 @@ export type FetchFn = typeof globalThis.fetch;
  */
 export class ScalewayMailTransport implements MailTransport {
   /**
-   * fetchFn is injectable so tests mock HTTP without nock or msw — the same
-   * shape as GeoApiClient, and the reason the module needs no dependency for
-   * sending at all.
-   *
    * Nothing is logged here: MailService logs a failed send once, and it is the
    * only place that can strip a recipient address a transport let slip
    * (docs/decisions.md, 03.08.2026).
