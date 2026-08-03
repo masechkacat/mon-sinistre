@@ -1,4 +1,10 @@
-import { Controller, Get, Logger, NotFoundException } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  HttpException,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import {
   FastifyAdapter,
   NestFastifyApplication,
@@ -50,6 +56,13 @@ class BoomController {
   @Get('not-found')
   notFound(): never {
     throw new NotFoundException();
+  }
+
+  @Get('string-body')
+  stringBody(): never {
+    // The shape a hand-written throw takes: the exception carries a string,
+    // not an object, and the answer has to come out as JSON all the same.
+    throw new HttpException('Interdit', 403);
   }
 }
 
@@ -122,6 +135,13 @@ describe('AllExceptionsFilter (integration)', () => {
 
     expect(res.statusCode).toBe(409);
     expect(res.body).not.toContain(ADDRESS);
+  });
+
+  it('answers an HttpException built with a string as JSON', async () => {
+    const res = await get('/boom/string-body');
+
+    expect(res.statusCode).toBe(403);
+    expect(res.json()).toEqual({ statusCode: 403, message: 'Interdit' });
   });
 
   it('answers 500 for a Prisma code with no answer of its own, logging code and model', async () => {

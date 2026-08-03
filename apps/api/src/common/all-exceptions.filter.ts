@@ -50,6 +50,26 @@ interface HttpErrorLike {
   readonly message: string;
 }
 
+/**
+ * The body of an HttpException, in the shape Nest's own filter sends it.
+ *
+ * `getResponse()` hands back whatever the exception was built with: an object
+ * for `new NotFoundException()` and every other built-in class, but a bare
+ * string for `new HttpException('Interdit', 403)`. Nest wraps that string in
+ * the usual `{ statusCode, message }`; passing it on as it comes would answer
+ * such an endpoint with a JSON string, and a client reading `message` off the
+ * body would find nothing there.
+ */
+const httpExceptionBody = (
+  exception: HttpException,
+  status: number,
+): unknown => {
+  const response = exception.getResponse();
+  return typeof response === 'object' && response !== null
+    ? response
+    : { statusCode: status, message: response };
+};
+
 const asHttpError = (exception: unknown): HttpErrorLike | undefined => {
   if (typeof exception !== 'object' || exception === null) {
     return undefined;
@@ -87,7 +107,15 @@ const framesOf = (exception: unknown): string | undefined => {
   if (!(exception instanceof Error) || !exception.stack) {
     return undefined;
   }
-  const header = `${exception.name}: ${exception.message}`;
+  // An error with no message has no ": " in its header either — V8 writes the
+  // name alone. Spelling the separator out regardless would fail the match
+  // below and cost the frames of exactly the error that has nothing else to
+  // show. Under jest this is invisible: source-map-support rewrites the stack
+  // and puts the separator back, so the case is recorded with a stack written
+  // out by hand in the spec.
+  const header = exception.message
+    ? `${exception.name}: ${exception.message}`
+    : exception.name;
   if (!exception.stack.startsWith(header)) {
     return undefined;
   }
@@ -148,13 +176,17 @@ export class AllExceptionsFilter implements ExceptionFilter {
       this.logFailure(exception, status, request);
     }
 
-    // The status such an error names is honoured; its message is passed on
-    // only below 500. Nest hands it over at any status — the one place this
-    // filter is deliberately stricter, because a server-side failure has
-    // nothing to tell a client that is worth the risk of what it might quote.
+    // An HttpException answers with its own body at any status, exactly as it
+    // did before this filter: what a 500 of ours says is written by whoever
+    // threw it. The stricter rule below is about the other kind — an error that
+    // merely carries a statusCode: its status is honoured, its message passed
+    // on only under 500. Nest hands that message over at any status, and this
+    // is the one place the filter deliberately does not, because a foreign
+    // server-side failure has nothing to tell a client that is worth the risk
+    // of what it might quote.
     const body =
       answer instanceof HttpException
-        ? answer.getResponse()
+        ? httpExceptionBody(answer, status)
         : status < FIRST_SERVER_STATUS && httpError
           ? httpError
           : internalErrorBody(status);

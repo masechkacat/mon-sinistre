@@ -1,8 +1,10 @@
 import {
   type ArgumentsHost,
   BadRequestException,
+  HttpException,
   Logger,
   NotFoundException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 
 import { Prisma } from 'src/generated/prisma/client';
@@ -132,6 +134,36 @@ describe('AllExceptionsFilter', () => {
         statusCode: 503,
         message: 'Internal server error',
       });
+    });
+
+    it('wraps the bare string of an HttpException built with one', () => {
+      // getResponse() gives back what the exception was built with, and for
+      // `new HttpException(<string>, status)` that is the string itself. Nest
+      // wraps it; sending it raw would answer a JSON string, and a client
+      // reading `message` off the body would find nothing.
+      const { host, reply } = hostFor();
+
+      filter.catch(new HttpException('Interdit', 403), host);
+
+      expect(reply.status).toHaveBeenCalledWith(403);
+      expect(reply.send).toHaveBeenCalledWith({
+        statusCode: 403,
+        message: 'Interdit',
+      });
+    });
+
+    it('lets a 5xx HttpException answer with the body it was given', () => {
+      // The stricter 5xx rule is about foreign errors carrying a statusCode.
+      // What one of ours says at 500 was written by whoever threw it, and this
+      // filter does not second-guess it — nor does Nest.
+      const { host, reply } = hostFor();
+
+      filter.catch(new ServiceUnavailableException('maintenance'), host);
+
+      expect(reply.status).toHaveBeenCalledWith(503);
+      expect(reply.send).toHaveBeenCalledWith(
+        expect.objectContaining({ message: 'maintenance' }),
+      );
     });
 
     it('answers 500 for something thrown that is not an Error at all', () => {
@@ -283,6 +315,21 @@ describe('AllExceptionsFilter', () => {
       filter.catch(new Error(`boom\n    at ${ADDRESS}`), hostFor().host);
 
       expect(loggedText(error)).not.toContain(ADDRESS);
+    });
+
+    it('logs the frames of an error that carries no message', () => {
+      // The stack is written out by hand in the format V8 produces, because
+      // jest does not run in it: source-map-support rebuilds every stack it
+      // touches and puts a ": " after the name even when there is no message,
+      // so a spec throwing a real `new Error()` would pass either way. In
+      // production the header is the bare name — and an error with nothing but
+      // a class name is the one whose frames are all there is to go on.
+      const bare = new Error();
+      bare.stack = 'Error\n    at quelquePart (/app/dist/main.js:1:1)';
+
+      filter.catch(bare, hostFor().host);
+
+      expect(loggedText(error)).toContain('at quelquePart');
     });
 
     it('logs no stack rather than an unrecognised one', () => {
