@@ -21,6 +21,33 @@ const UNSUBSCRIBE_URL = 'https://app.example.test/desabonnement/jeton-123';
  */
 const BODY_SECRET = 'confidentielle';
 
+/**
+ * A word the provider puts in a field of its answer that is not on the
+ * allowlist. Same role as BODY_SECRET, on the other side: nothing but the
+ * fields enumerated by the transport may reach an error or a log.
+ */
+const OFF_ALLOWLIST = 'hors-liste';
+
+/**
+ * A failed answer of the API in the shape it documents: an error code in
+ * "type", and around it fields that are none of our business — "to" names the
+ * recipient, the rest quotes back what was sent.
+ */
+const REFUSED = {
+  type: 'denied_authentication',
+  to: RECIPIENT,
+  message: `${OFF_ALLOWLIST} : ${RECIPIENT}`,
+  details: [
+    // A "type" nested one level down as well: the allowlist is a list of fields
+    // of the answer, not a name to go looking for wherever it occurs.
+    {
+      argument: 'text',
+      type: OFF_ALLOWLIST,
+      reason: `${OFF_ALLOWLIST} ${BODY_SECRET}`,
+    },
+  ],
+};
+
 const CONFIG: ScalewayMailConfig = {
   secretKey: 'scw-secret-key',
   projectId: '11111111-2222-3333-4444-555555555555',
@@ -54,6 +81,35 @@ const respondingWith = (body: unknown, status = 200): FetchMock =>
       }),
     ),
   );
+
+/**
+ * A failed answer whose body is watched: whether it was read, and whether it
+ * was released. Both spies answer questions the text of an error cannot — a
+ * body pulled into memory and then dropped leaves the same report as a body
+ * never read.
+ */
+const unreadableAnswer = (
+  status: number,
+  headers: Record<string, string>,
+): { fetchFn: FetchMock; json: jest.Mock; cancel: jest.Mock } => {
+  const json = jest.fn(() => Promise.resolve({ type: 'invalid_arguments' }));
+  const cancel = jest.fn(() => Promise.resolve());
+  const response = {
+    ok: false,
+    status,
+    headers: new Headers(headers),
+    json,
+    body: { cancel },
+  } as unknown as Response;
+
+  return {
+    fetchFn: jest.fn<Promise<Response>, [string, RequestInit]>(() =>
+      Promise.resolve(response),
+    ),
+    json,
+    cancel,
+  };
+};
 
 const failingWith = (error: Error): FetchMock =>
   jest.fn<Promise<Response>, [string, RequestInit]>(() =>
@@ -106,6 +162,15 @@ const reportOf = (thrown: unknown): string => {
 
 const transport = (fetchFn: FetchMock): ScalewayMailTransport =>
   new ScalewayMailTransport(CONFIG, fetchFn as unknown as typeof fetch);
+
+/** What a send threw — and an error saying so if it did not throw at all. */
+const failureOf = (fetchFn: FetchMock): Promise<unknown> =>
+  transport(fetchFn)
+    .send(MESSAGE)
+    .then(
+      () => new Error('the send was expected to fail'),
+      (thrown: unknown) => thrown,
+    );
 
 describe('ScalewayMailTransport', () => {
   it('posts the message to the fr-par endpoint, authenticated and with a timeout', async () => {
@@ -200,6 +265,95 @@ describe('ScalewayMailTransport', () => {
     await expect(transport(fetchFn).send(MESSAGE)).rejects.toThrow('429');
   });
 
+  it('names the reason the provider gave, not only the status', async () => {
+    // A 400 of TEM is "the domain is not verified", "the sender does not match
+    // the domain", "the quota is spent" or "the key is wrong", and by the
+    // status alone an operator cannot tell one from another.
+    const fetchFn = respondingWith(REFUSED, 403);
+
+    const failure = await failureOf(fetchFn);
+
+    expect(failure).toBeInstanceOf(MailDeliveryError);
+    expect(reportOf(failure)).toContain('403');
+    expect(reportOf(failure)).toContain(REFUSED.type);
+  });
+
+  it('reads no field of a failed answer beyond the allowlist', async () => {
+    // Enumerated fields, never "everything except to": a field the provider
+    // adds tomorrow arrives unknown, and a deny-list would let it through.
+    const fetchFn = respondingWith(REFUSED, 400);
+
+    const report = reportOf(await failureOf(fetchFn));
+
+    expect(report).toContain('400');
+    expect(report).not.toContain(OFF_ALLOWLIST);
+    expect(report).not.toContain(BODY_SECRET);
+    expect(report.toLowerCase()).not.toContain(RECIPIENT);
+  });
+
+  it('drops a reason that does not look like a code of the API', async () => {
+    // The allowlisted field is an error code, and a code has no room for an
+    // address in it. Should the provider one day answer a sentence there, the
+    // reason is lost rather than the address leaked.
+    const fetchFn = respondingWith(
+      { type: `no mailbox for ${RECIPIENT}` },
+      550,
+    );
+
+    const report = reportOf(await failureOf(fetchFn)).toLowerCase();
+
+    expect(report).toContain('550');
+    expect(report).not.toContain(RECIPIENT);
+    expect(report).not.toContain('destinataire');
+  });
+
+  it('still reports the status when the failed answer is not valid JSON', async () => {
+    // A proxy page, a truncated body, a gateway notice: the status is what the
+    // operator needs, and it has already arrived.
+    const fetchFn = respondingWith(`{"type":"denied_auth`, 502);
+
+    const failure = await failureOf(fetchFn);
+
+    expect(failure).toBeInstanceOf(MailDeliveryError);
+    expect(reportOf(failure)).toContain('502');
+  });
+
+  it.each([
+    [
+      'is not announced as JSON',
+      502,
+      // A captive portal, a proxy page, a gateway notice: nothing of the
+      // allowlist to find in it, and no bound at all on its size.
+      { 'content-type': 'text/html; charset=utf-8' },
+    ],
+    [
+      'is of another order of magnitude',
+      400,
+      // An error of this API is a few hundred bytes. A megabyte announced as
+      // JSON is something else, and a failing mailing would buffer it once per
+      // recipient — a reason is worth less than that.
+      { 'content-type': 'application/json', 'content-length': '1048576' },
+    ],
+  ])(
+    'buffers nothing of a failed answer that %s',
+    async (_case, status, headers) => {
+      const { fetchFn, json, cancel } = unreadableAnswer(status, headers);
+
+      expect(reportOf(await failureOf(fetchFn))).toContain(String(status));
+      // Not read at all — asserting on the report alone would pass just as well
+      // on a megabyte pulled into memory and then thrown away.
+      expect(json).not.toHaveBeenCalled();
+      // And the connection freed rather than left to the garbage collector.
+      expect(cancel).toHaveBeenCalled();
+    },
+  );
+
+  it('still reports the status when a failed answer is JSON but not an object', async () => {
+    const fetchFn = respondingWith('"denied"', 401);
+
+    expect(reportOf(await failureOf(fetchFn))).toContain('401');
+  });
+
   it('reports a timeout as a delivery failure, not as a send', async () => {
     const fetchFn = failingWith(timeoutError());
 
@@ -249,12 +403,7 @@ describe('ScalewayMailTransport', () => {
       Promise.resolve(stalled),
     );
 
-    const failure = await transport(fetchFn)
-      .send(MESSAGE)
-      .then(
-        () => new Error('the send was expected to fail'),
-        (thrown: unknown) => thrown,
-      );
+    const failure = await failureOf(fetchFn);
 
     expect(failure).toBeInstanceOf(MailDeliveryError);
     expect(reportOf(failure)).not.toMatch(/JSON/);
@@ -295,7 +444,7 @@ describe('ScalewayMailTransport', () => {
   });
 
   it.each([
-    ['an HTTP error', () => respondingWith({ to: RECIPIENT }, 500)],
+    ['an HTTP error', () => respondingWith(REFUSED, 500)],
     ['a timeout', () => failingWith(timeoutError())],
     ['an invalid answer', () => respondingWith(`{"to":"${RECIPIENT}"`)],
   ])(
@@ -304,14 +453,7 @@ describe('ScalewayMailTransport', () => {
       // The answer of the provider carries the recipient in its "to" field, so
       // it never goes into an error whole: the text of the error reaches the
       // logs and, later, whatever collects them.
-      const failure = await transport(fetchOf())
-        .send(MESSAGE)
-        .then(
-          () => new Error('the send was expected to fail'),
-          (thrown: unknown) => thrown,
-        );
-
-      const report = reportOf(failure).toLowerCase();
+      const report = reportOf(await failureOf(fetchOf())).toLowerCase();
       expect(report).not.toContain(RECIPIENT);
       expect(report).not.toContain('destinataire');
       expect(report).not.toContain(BODY_SECRET);
@@ -337,7 +479,7 @@ describe('a failure of ScalewayMailTransport in the log of MailService', () => {
   it('is written at the error level, without the address and without the body', async () => {
     const service = new MailService(
       new MailComposer(configStub),
-      transport(respondingWith({ to: RECIPIENT }, 503)),
+      transport(respondingWith(REFUSED, 503)),
     );
 
     await expect(
@@ -354,8 +496,10 @@ describe('a failure of ScalewayMailTransport in the log of MailService', () => {
 
     expect(logs.levels()).toEqual(['error']);
     // The failure is named at all — otherwise the assertions below would pass
-    // on an empty log for the wrong reason.
+    // on an empty log for the wrong reason — and it is named with its reason:
+    // the log is where an operator reads why the provider refused.
     expect(logs.text()).toContain('503');
-    logs.expectNoTraceOf(RECIPIENT, BODY_SECRET);
+    expect(logs.text()).toContain(REFUSED.type);
+    logs.expectNoTraceOf(RECIPIENT, BODY_SECRET, OFF_ALLOWLIST);
   });
 });

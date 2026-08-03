@@ -83,14 +83,13 @@ export class ScalewayMailTransport implements MailTransport {
     }
 
     if (!response.ok) {
-      // The status and nothing else: the body of an answer carries the
-      // recipient address, and this text reaches the logs. It is dropped
-      // explicitly rather than left to the garbage collector, which would hold
-      // the connection open — a mailing hitting a quota wall does this once per
-      // recipient.
-      await discard(response);
+      // The status, and the reason the provider gave for it — by an allowlist
+      // of fields, never the body whole: that body names the recipient in "to",
+      // and this text reaches the logs.
+      const reason = await reasonOf(response);
       throw new MailDeliveryError(
-        `Scaleway TEM responded with HTTP ${response.status}`,
+        `Scaleway TEM responded with HTTP ${response.status}` +
+          (reason === undefined ? '' : ` (${reason})`),
       );
     }
 
@@ -120,6 +119,106 @@ const payloadOf = (
     value,
   })),
 });
+
+/**
+ * The fields of a failed answer that are read at all — enumerated, never
+ * "everything except `to`": a field the provider adds tomorrow arrives unknown,
+ * and a deny-list hands it to the logs by default.
+ *
+ * `type` is the error code of the Scaleway API — the one field that tells an
+ * operator which failure a status covers (docs/decisions.md, 03.08.2026).
+ */
+const REPORTABLE_ERROR_FIELDS = ['type'] as const;
+
+/**
+ * The shape a reported value must have to be reported: a short code, the way an
+ * API writes them. An address cannot pass it — an address has an `@` — so a
+ * provider that one day answers `{"type": "no mailbox for x@y.test"}` loses the
+ * reason instead of leaking the recipient. Allowlisting a field is a bet on
+ * what the provider puts in it, and this is the bet made explicit.
+ */
+const ERROR_CODE = /^[a-z0-9_.-]{1,64}$/i;
+
+/**
+ * The size a failed answer may *announce* and still be read. An error of this
+ * API is a few hundred bytes; anything of another order is not one, and a
+ * failing send reads it once per recipient — a mailing that hits a quota wall
+ * would buffer it as many times.
+ *
+ * A declared size, not a measured one: an answer that sends no Content-Length
+ * is read whole, however long it turns out to be. A real bound lives in reading
+ * response.body with a counter, and is not what this is.
+ */
+const MAX_ANNOUNCED_ERROR_BODY_BYTES = 16_384;
+
+/**
+ * Whether the answer is worth reading at all. A proxy page, a captive portal
+ * and a gateway notice announce themselves as HTML, and a body that announces
+ * another order of magnitude is not an error of this API whatever it says: in
+ * both cases there is nothing on the allowlist to find, and the status alone is
+ * the report.
+ *
+ * The two refusals are not equally firm. The content type is stated by every
+ * answer, so the first one holds; the length is missing from a chunked answer,
+ * and a chunked answer calling itself JSON passes here on size. TEM declares
+ * the length, and the type is what keeps a stranger's page out — the gap costs
+ * the memory of one request, never an address in a log (docs/decisions.md,
+ * 03.08.2026).
+ */
+const looksLikeAnApiError = (response: Response): boolean => {
+  const type = response.headers.get('content-type') ?? '';
+  // Absent means "nothing announced", not "nothing to read": the check below
+  // then passes on size. A malformed value is NaN and fails every comparison,
+  // which refuses the body — the safe direction of the two.
+  const announced = Number(response.headers.get('content-length') ?? '0');
+  return (
+    type.toLowerCase().includes('application/json') &&
+    announced <= MAX_ANNOUNCED_ERROR_BODY_BYTES
+  );
+};
+
+/**
+ * Why the provider refused, in as many words as it is safe to repeat. Undefined
+ * whenever the answer does not carry a code we recognise: a body that is not
+ * JSON, not an object, or has nothing on the allowlist. The status is then all
+ * the report carries, which is what phase 2 already gave — reading the body may
+ * add a reason, never take the failure away.
+ *
+ * A body that is not read is dropped explicitly rather than left to the garbage
+ * collector, which would hold the connection open until it got there.
+ */
+const reasonOf = async (response: Response): Promise<string | undefined> => {
+  if (!looksLikeAnApiError(response)) {
+    await discard(response);
+    return undefined;
+  }
+
+  let body: unknown;
+  try {
+    body = await response.json();
+  } catch {
+    // A truncated body, or a provider that sent its headers and went quiet.
+    // Nothing of it is reported: the text of a parse error quotes the answer,
+    // and the answer names the recipient. Cancelling what is left of the body
+    // is a no-op once it has been read to the end, and frees the connection of
+    // a read that stopped halfway.
+    await discard(response);
+    return undefined;
+  }
+
+  if (typeof body !== 'object' || body === null || Array.isArray(body)) {
+    return undefined;
+  }
+
+  const reported = REPORTABLE_ERROR_FIELDS.map(
+    (field) => (body as Record<string, unknown>)[field],
+  ).filter(
+    (value): value is string =>
+      typeof value === 'string' && ERROR_CODE.test(value),
+  );
+
+  return reported.length === 0 ? undefined : reported.join(', ');
+};
 
 /**
  * A 2xx is not by itself proof that the message was taken in charge: a captive
