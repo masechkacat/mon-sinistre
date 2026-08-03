@@ -258,6 +258,11 @@ describe('MailModule', () => {
    * Installed before the module is built on purpose: the provider transport
    * takes globalThis.fetch as the default value of a constructor parameter, so
    * a spy set up after the factory ran would watch a function nobody calls.
+   *
+   * Undone by restoreMocks of the jest configuration, not by an afterEach of
+   * this file: a spy on a global that outlives its test is a failure reported
+   * in some other suite, and the guarantee must not depend on which helper this
+   * file happens to import.
    */
   const watchNetwork = (): jest.SpiedFunction<typeof globalThis.fetch> =>
     jest.spyOn(globalThis, 'fetch');
@@ -274,55 +279,75 @@ describe('MailModule', () => {
     }
   };
 
-  it('gives the single sending point to a feature that does not import it', async () => {
-    const moduleRef = await moduleWith({ transport: new RecordingTransport() });
+  /**
+   * The module of a test, closed even when its assertions fail — the same
+   * reason withOutboxDir exists: a failing test is the one that leaves a Nest
+   * application, and its shutdown hooks, behind for the rest of the run.
+   */
+  const withModule = async (
+    options: Parameters<typeof moduleWith>[0],
+    body: (moduleRef: TestingModule) => Promise<void>,
+  ): Promise<void> => {
+    const moduleRef = await moduleWith(options);
+    try {
+      await body(moduleRef);
+    } finally {
+      await moduleRef.close();
+    }
+  };
 
-    expect(moduleRef.get(FeatureNeedingMail).mail).toBeInstanceOf(MailService);
-    await moduleRef.close();
+  it('gives the single sending point to a feature that does not import it', async () => {
+    await withModule({ transport: new RecordingTransport() }, (moduleRef) => {
+      expect(moduleRef.get(FeatureNeedingMail).mail).toBeInstanceOf(
+        MailService,
+      );
+      return Promise.resolve();
+    });
   });
 
   it('lets a caller substitute the transport through the token, without touching the environment', async () => {
     const transport = new RecordingTransport();
-    const moduleRef = await moduleWith({ transport });
 
-    await moduleRef.get(MailService).send(input());
+    await withModule({ transport }, async (moduleRef) => {
+      await moduleRef.get(MailService).send(input());
 
-    expect(transport.sent).toHaveLength(1);
-    await moduleRef.close();
+      expect(transport.sent).toHaveLength(1);
+    });
   });
 
   it('keeps mail local by default, without a key and without an account', async () => {
     // Neither MAIL_TRANSPORT nor a credential in the configuration: what a
     // developer gets on a fresh checkout is the local outbox, and the provider
     // is not built — building it would have asked for keys that are not there.
-    const moduleRef = await moduleWith();
-
-    expect(moduleRef.get(MAIL_TRANSPORT)).toBeInstanceOf(FileMailTransport);
-    await moduleRef.close();
+    await withModule({}, (moduleRef) => {
+      expect(moduleRef.get(MAIL_TRANSPORT)).toBeInstanceOf(FileMailTransport);
+      return Promise.resolve();
+    });
   });
 
   it('writes a message to the configured outbox in local mode, and calls no provider', async () => {
     await withOutboxDir(async (dir) => {
       const fetchSpy = watchNetwork();
-      const moduleRef = await moduleWith({
-        values: { MAIL_TRANSPORT: 'file', MAIL_OUTBOX_DIR: dir },
-      });
 
-      await moduleRef.get(MailService).send(input());
+      await withModule(
+        { values: { MAIL_TRANSPORT: 'file', MAIL_OUTBOX_DIR: dir } },
+        async (moduleRef) => {
+          await moduleRef.get(MailService).send(input());
 
-      // The pair of files lands where the configuration says, and nothing
-      // leaves the machine — the guarantee of local development, held by the
-      // factory rather than by a branch inside MailService.
-      expect((await readdir(dir)).sort().map(extensionOf)).toEqual([
-        '.html',
-        '.txt',
-      ]);
-      expect(fetchSpy).not.toHaveBeenCalled();
-      // The only path where a real transport logs through the real service:
-      // whatever the local mode writes to disk, the address stays out of the
-      // log of the application (apps/api/CLAUDE.md, "Правила проекта").
-      expectNoRecipientLogged();
-      await moduleRef.close();
+          // The pair of files lands where the configuration says, and nothing
+          // leaves the machine — the guarantee of local development, held by
+          // the factory rather than by a branch inside MailService.
+          expect((await readdir(dir)).sort().map(extensionOf)).toEqual([
+            '.html',
+            '.txt',
+          ]);
+          expect(fetchSpy).not.toHaveBeenCalled();
+          // The only path where a real transport logs through the real service:
+          // whatever the local mode writes to disk, the address stays out of
+          // the log of the application (apps/api/CLAUDE.md, "Правила проекта").
+          expectNoRecipientLogged();
+        },
+      );
     });
   });
 
@@ -333,29 +358,34 @@ describe('MailModule', () => {
         headers: { 'content-type': 'application/json' },
       }),
     );
-    const moduleRef = await moduleWith({
-      values: {
-        MAIL_TRANSPORT: 'scaleway',
-        SCW_SECRET_KEY: SECRET_KEY,
-        SCW_PROJECT_ID: PROJECT_ID,
+
+    await withModule(
+      {
+        values: {
+          MAIL_TRANSPORT: 'scaleway',
+          SCW_SECRET_KEY: SECRET_KEY,
+          SCW_PROJECT_ID: PROJECT_ID,
+        },
       },
-    });
+      async (moduleRef) => {
+        expect(moduleRef.get(MAIL_TRANSPORT)).toBeInstanceOf(
+          ScalewayMailTransport,
+        );
+        await moduleRef.get(MailService).send(input());
 
-    expect(moduleRef.get(MAIL_TRANSPORT)).toBeInstanceOf(ScalewayMailTransport);
-    await moduleRef.get(MailService).send(input());
-
-    // Not only the class: the credentials of the configuration are what the
-    // transport was built with, and a factory handing it empty ones would send
-    // unauthenticated requests that fail only against the live service.
-    expect(fetchSpy).toHaveBeenCalledTimes(1);
-    const [url, init] = fetchSpy.mock.calls[0] ?? [];
-    expect(url).toBe(SCALEWAY_TEM_URL);
-    expect((init?.headers as Record<string, string>)['X-Auth-Token']).toBe(
-      SECRET_KEY,
+        // Not only the class: the credentials of the configuration are what the
+        // transport was built with, and a factory handing it empty ones would
+        // send unauthenticated requests that fail only against the live service.
+        expect(fetchSpy).toHaveBeenCalledTimes(1);
+        const [url, init] = fetchSpy.mock.calls[0] ?? [];
+        expect(url).toBe(SCALEWAY_TEM_URL);
+        expect((init?.headers as Record<string, string>)['X-Auth-Token']).toBe(
+          SECRET_KEY,
+        );
+        expect(typeof init?.body).toBe('string');
+        expect(init?.body as string).toContain(PROJECT_ID);
+      },
     );
-    expect(typeof init?.body).toBe('string');
-    expect(init?.body as string).toContain(PROJECT_ID);
-    await moduleRef.close();
   });
 
   it('refuses to start when the provider is selected and its credentials are missing', async () => {

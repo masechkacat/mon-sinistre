@@ -1,12 +1,12 @@
 import { Global, Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
+import { FileMailTransport } from 'src/mail/file-mail.transport';
+import { MailComposer } from 'src/mail/mail-composer';
 import {
   SENDING_TRANSPORT,
   type MailTransportName,
-} from 'src/config/env.validation';
-import { FileMailTransport } from 'src/mail/file-mail.transport';
-import { MailComposer } from 'src/mail/mail-composer';
+} from 'src/mail/mail-transport-name';
 import { MAIL_TRANSPORT, type MailTransport } from 'src/mail/mail-transport';
 import { MailService } from 'src/mail/mail.service';
 import { ScalewayMailTransport } from 'src/mail/scaleway-mail.transport';
@@ -31,10 +31,13 @@ const transportFor = (config: ConfigService): MailTransport => {
   }
 
   return new ScalewayMailTransport({
-    // getOrThrow, not a fallback to "": the schema already requires both when
-    // this transport is selected, and an empty credential would build an
-    // application that starts healthy and has every message refused by the
-    // provider. What it reports is the name of the key, never its value.
+    // An empty credential is refused by the schema (@IsNotEmpty under
+    // @ValidateIf), which is where that guarantee lives: getOrThrow only
+    // objects to a key that is absent, an empty string passes it. It is here
+    // as the second line — a key the schema never saw stops the bootstrap
+    // instead of building an application that starts healthy and has every
+    // message refused by the provider. What it reports is the name of the key,
+    // never its value.
     secretKey: config.getOrThrow<string>('SCW_SECRET_KEY'),
     projectId: config.getOrThrow<string>('SCW_PROJECT_ID'),
   });

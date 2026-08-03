@@ -20,6 +20,12 @@ import {
   type ValidationArguments,
 } from 'class-validator';
 
+import {
+  MAIL_TRANSPORT_NAMES,
+  SENDING_TRANSPORT,
+  type MailTransportName,
+} from 'src/mail/mail-transport-name';
+
 /**
  * Scheme and host, nothing after them. The mail skeleton joins paths onto this
  * value with the URL parser, which drops any path prefix of the base: a
@@ -29,23 +35,6 @@ import {
  * mistake is visible.
  */
 const ORIGIN_ONLY = /^https?:\/\/[^/?#]+\/?$/;
-
-/**
- * The transports src/mail implements, and the one list of their names: the
- * factory that picks a transport reads MAIL_TRANSPORT from the configuration
- * this schema has already checked, so a value it does not know cannot reach it.
- */
-export const MAIL_TRANSPORT_NAMES = ['file', 'scaleway'] as const;
-
-export type MailTransportName = (typeof MAIL_TRANSPORT_NAMES)[number];
-
-/**
- * The transport that actually sends; the other one writes files locally. The
- * factory of src/mail picks by comparing MAIL_TRANSPORT with this constant, so
- * the rules that turn on the provider here — its credentials, the domain, the
- * production guard — turn on exactly the transport the module then builds.
- */
-export const SENDING_TRANSPORT: MailTransportName = 'scaleway';
 
 const NODE_ENV_NAMES = ['development', 'test', 'production'] as const;
 

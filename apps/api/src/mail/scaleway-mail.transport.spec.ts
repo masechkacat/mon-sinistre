@@ -159,6 +159,20 @@ describe('ScalewayMailTransport', () => {
     expect(payload.text).toBe(MESSAGE.text);
     expect(payload.html).toBe(MESSAGE.html);
     expect(payload.project_id).toBe(CONFIG.projectId);
+    // The whole set of fields, not only that each of these is right: the
+    // promise made in docs/decisions.md is that the provider receives the
+    // message and nothing else — no identifier of a user, of a commune or of a
+    // sinistre. A field added later "for debugging" would pass every assertion
+    // above and break exactly that promise (RGPD, ограничение PRD).
+    expect(Object.keys(payload).sort()).toEqual([
+      'additional_headers',
+      'from',
+      'html',
+      'project_id',
+      'subject',
+      'text',
+      'to',
+    ]);
     // TEM has no click- or open-tracking at all, which is why it was chosen:
     // there is no option to switch on by accident, and none to ask for here.
     // Every key, not only the top-level ones: an option of a provider that
