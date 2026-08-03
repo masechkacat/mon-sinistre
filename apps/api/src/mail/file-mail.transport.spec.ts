@@ -1,4 +1,3 @@
-import { Logger } from '@nestjs/common';
 import type { ConfigService } from '@nestjs/config';
 
 import {
@@ -6,6 +5,7 @@ import {
   type MailOutbox,
 } from 'src/mail/file-mail.transport';
 import { mailLinksOf } from 'src/mail/mail-links.test-helper';
+import { captureLogs } from 'src/mail/mail-log.test-helper';
 import { MailComposer } from 'src/mail/mail-composer';
 import { MailDeliveryError } from 'src/mail/mail-delivery.error';
 import type { ComposeMailInput, MailMessage } from 'src/mail/mail-message';
@@ -72,23 +72,7 @@ const fileNamed = (outbox: OutboxSpy, extension: string): [string, string] => {
   return found[0] as [string, string];
 };
 
-const LEVELS = ['log', 'error', 'warn', 'debug', 'verbose', 'fatal'] as const;
-let written: string[];
-
-beforeEach(() => {
-  written = [];
-  for (const level of LEVELS) {
-    jest
-      .spyOn(Logger.prototype, level)
-      .mockImplementation((...args: unknown[]) => {
-        written.push(JSON.stringify(args));
-      });
-  }
-});
-
-afterEach(() => {
-  jest.restoreAllMocks();
-});
+const logs = captureLogs();
 
 describe('FileMailTransport', () => {
   it('writes the message to its channel without reaching the network', async () => {
@@ -257,13 +241,11 @@ describe('FileMailTransport', () => {
 
     await transportWith(outbox).send(message());
 
-    const logged = written.join('\n');
     // A developer must be able to find the file from the log; the address is
     // the one thing that may not be in it — this is the log of the running
-    // application, the same one phase 2 will read.
-    expect(logged).toContain(SUBJECT);
-    expect(logged).toContain('votre-commune-est-concernee');
-    expect(logged).not.toContain(RECIPIENT);
-    expect(logged).not.toContain('destinataire');
+    // application, the same one the provider transport writes to.
+    expect(logs.text()).toContain(SUBJECT);
+    expect(logs.text()).toContain('votre-commune-est-concernee');
+    logs.expectNoTraceOf(RECIPIENT);
   });
 });

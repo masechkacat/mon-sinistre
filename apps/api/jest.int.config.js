@@ -14,6 +14,10 @@ module.exports = {
   rootDir: 'src',
   setupFiles: ['reflect-metadata', '<rootDir>/../test/jest.int.env.js'],
   testRegex: '.*\\.int-spec\\.ts$',
+  // As in the unit config: a spy on a global (fetch, Logger) is undone after
+  // the test that set it, whatever that test did afterwards. A spy surviving
+  // into the next suite is a failure nobody reads as one.
+  restoreMocks: true,
   // Only .ts: the setup files in test/ are plain CommonJS run by Node itself,
   // ts-jest warns if asked to compile them.
   transform: { '^.+\\.ts$': 'ts-jest' },
