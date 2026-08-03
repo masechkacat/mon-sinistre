@@ -24,11 +24,9 @@ export const GEO_API_COMMUNES_URL =
   'https://geo.api.gouv.fr/communes?fields=code,nom,codeDepartement,departement&format=json';
 
 /**
- * Completeness floor: the live COG counts ~35 000 communes (34 969 on
- * 2026-08-02). A shorter — yet valid — JSON array means a truncated response
- * or an API format change, and must fail the import rather than silently
- * shrink the referential. An import constant, not a legal deadline: it does
- * not belong in DeadlineRule.
+ * The live COG counts ~35 000 communes. A shorter — yet valid — JSON array
+ * means a truncated response or a format change, and must fail the import
+ * rather than silently shrink the referential.
  */
 export const MIN_EXPECTED_COMMUNES = 30_000;
 
@@ -81,12 +79,8 @@ function assertGeoApiCommune(
 export class GeoApiClient {
   constructor(private readonly fetchFn: FetchFn = globalThis.fetch) {}
 
-  /**
-   * One request for the whole referential: the response is a single JSON
-   * array without pagination (verified live on 2026-08-02), so a truncated
-   * transfer yields invalid JSON and fails here rather than importing a
-   * partial list.
-   */
+  /** One request for the whole referential: a single JSON array without
+   * pagination, so a truncated transfer yields invalid JSON and fails here. */
   async fetchCommunes(): Promise<GeoApiCommune[]> {
     const response = await this.fetchFn(GEO_API_COMMUNES_URL, {
       signal: AbortSignal.timeout(GEO_API_TIMEOUT_MS),
@@ -98,8 +92,7 @@ export class GeoApiClient {
     try {
       payload = await response.json();
     } catch (error) {
-      // String(error) stays in the message: the seed logs message only,
-      // while `cause` keeps the original error for programmatic consumers.
+      // The seed logs the message only; `cause` keeps the original error.
       throw new Error(
         'geo.api.gouv.fr response is not valid JSON — likely a truncated ' +
           `transfer: ${String(error)}`,

@@ -223,7 +223,7 @@ describe('ScalewayMailTransport', () => {
     expect(payload.html).toBe(MESSAGE.html);
     expect(payload.project_id).toBe(CONFIG.projectId);
     // The whole set of fields, not only that each of these is right: the
-    // promise made in docs/decisions.md is that the provider receives the
+    // promise is that the provider receives the
     // message and nothing else — no identifier of a user, of a commune or of a
     // sinistre. A field added later "for debugging" would pass every assertion
     // above and break exactly that promise (RGPD, ограничение PRD).
@@ -411,7 +411,7 @@ describe('ScalewayMailTransport', () => {
   it('accepts an answer that says nothing about "emails"', async () => {
     // Deliberate leniency: the shape of a successful answer is not verified
     // against the live service, and refusing here would report messages that
-    // did leave as failures. Documented in docs/decisions.md — a stricter
+    // did leave as failures — a stricter
     // check would have to change that record first.
     const fetchFn = respondingWith({});
 

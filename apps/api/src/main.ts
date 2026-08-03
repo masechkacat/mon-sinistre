@@ -23,16 +23,14 @@ async function bootstrap() {
   const config =
     app.get<ConfigService<EnvironmentVariables, true>>(ConfigService);
 
-  // Without shutdown hooks SIGTERM kills the process abruptly: scheduled
-  // jobs keep running mid-tick and lifecycle hooks (onModuleDestroy,
-  // onApplicationShutdown) never fire — including Prisma's disconnect
-  // once PrismaModule lands.
+  // Without these SIGTERM kills the process abruptly: scheduled jobs keep
+  // running mid-tick and onModuleDestroy never fires, Prisma's disconnect
+  // included.
   app.enableShutdownHooks();
 
   await app.register(helmet, { contentSecurityPolicy: false });
-  // Read into a binding rather than inline: the option this goes into accepts
-  // a union of half a dozen types, and inferring the lookup against it lands on
-  // unknown. Named first, it is the string the schema declares.
+  // A binding, not inline: the option accepts a union of half a dozen types and
+  // inferring the lookup against it lands on unknown.
   const cookieSecret = config.get('COOKIE_SECRET', { infer: true });
   await app.register(fastifyCookie, { secret: cookieSecret });
 
@@ -59,9 +57,7 @@ async function bootstrap() {
     SwaggerModule.createDocument(app, swaggerConfig),
   );
 
-  // No fallback here: the schema carries the defaults, so these are values,
-  // not maybes — and there is one place to read what happens when .env says
-  // nothing.
+  // No fallback: the schema carries the defaults.
   const port = config.get('PORT', { infer: true });
   const host = config.get('HOST', { infer: true });
 

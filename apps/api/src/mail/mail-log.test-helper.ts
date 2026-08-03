@@ -1,20 +1,11 @@
 import { LOG_LEVELS, Logger, type LogLevel } from '@nestjs/common';
 
 /**
- * Everything a Logger of the mail module wrote during a test. Shared by the
- * tests of the service and of the provider transport, because both ask the same
- * question — "did an address reach the log?" — and two spellings of it would
- * answer two ways: the day one of them learns to look inside an AggregateError,
- * the other keeps missing that leak (apps/api/CLAUDE.md).
- *
- * Installs the spies itself, for every test of the suite that calls it and not
- * only for those that read the log: the mail module is loud on its failure
- * paths, and a test run is not the place to print those stacks.
+ * Everything a Logger of the mail module wrote during a test — shared, because
+ * two spellings of "did an address reach the log?" would answer two ways.
  *
  * The levels watched are LOG_LEVELS of Nest, never a list written out here: a
- * level this file did not know about is a level nothing is watching, and the
- * leak it carries would pass the tests unseen. Taking the list from the source
- * of the Logger turns that into a compile error instead.
+ * level this file did not know about is a level nothing is watching.
  */
 
 export interface CapturedLogs {
@@ -23,12 +14,9 @@ export interface CapturedLogs {
   /** Every call serialized, as one text to search. */
   text(): string;
   /**
-   * Fails if the log names any of these. An address is also looked for by its
-   * local part alone: a log that kept "destinataire" of
-   * "destinataire@example.test" still names the person. Compared in one casing,
-   * because an address in another one names them just as well — the domain is
-   * case-insensitive by RFC 5321, and a provider may answer in a casing of its
-   * own.
+   * Fails if the log names any of these, by local part too: a log that kept
+   * "destinataire" of "destinataire@example.test" still names the person.
+   * Case-insensitive — a provider may answer in a casing of its own.
    */
   expectNoTraceOf(...secrets: string[]): void;
 }
@@ -70,11 +58,8 @@ export const captureLogs = (): CapturedLogs => {
   };
 };
 
-/**
- * Every argument of a Logger call, serialized. Checking the first one is not
- * enough: an address leaks just as easily through the context parameter or from
- * inside a thrown error (docs/research/emails.md).
- */
+/** Every argument, not just the first: an address leaks just as easily through
+ * the context parameter or from inside a thrown error. */
 const serialize = (args: unknown[]): string =>
   JSON.stringify(args, (_key, value: unknown) =>
     value instanceof Error

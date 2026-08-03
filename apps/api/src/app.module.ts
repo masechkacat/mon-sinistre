@@ -11,15 +11,10 @@ import { MailModule } from './mail/mail.module';
 import { PrismaModule } from './prisma/prisma.module';
 
 /**
- * Root module.
- *
- * ThrottlerGuard is global; auth endpoints must get stricter per-route
- * limits via @Throttle() when the auth module lands.
- *
- * AllExceptionsFilter is registered here rather than in main.ts so that it is
- * built by the container — it is what lets it take dependencies later, and it
- * puts the filter in the integration tests too, which bootstrap AppModule and
- * never run main.ts.
+ * ThrottlerGuard is global; auth endpoints need stricter per-route limits via
+ * @Throttle(). AllExceptionsFilter is registered here rather than in main.ts so
+ * it reaches the integration tests, which bootstrap AppModule and never run
+ * main.ts.
  */
 @Module({
   imports: [

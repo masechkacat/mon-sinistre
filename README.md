@@ -19,7 +19,7 @@ catastrophe naturelle в Journal Officiel и ведёт пострадавшег
 apps/api        NestJS + Fastify + Prisma + PostgreSQL
 apps/web        Next.js + shadcn/ui
 packages/contracts  типы и enum'ы, общие для API и клиента
-docs            ТЗ, журнал решений, PRD/планы/research фич
+docs            ТЗ, PRD/планы/research фич
 ```
 
 Монорепозиторий на npm workspaces. Общие типы вынесены в `@mon-sinistre/contracts`,

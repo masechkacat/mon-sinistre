@@ -8,7 +8,7 @@ import {
 } from './enums';
 import { IsoDate, IsoDateTime } from './iso-date';
 
-/** Provenance of a reference-data statement. See specification § 7. */
+/** Provenance of a reference-data statement. */
 export interface SourceReference {
   /** Where the requirement can be verified by the user. */
   url: string;
@@ -18,7 +18,7 @@ export interface SourceReference {
   possiblyOutdated: boolean;
 }
 
-/** A French commune, mirrored from the INSEE referential. See specification § 4. */
+/** A French commune, mirrored from the INSEE referential. */
 export interface Commune {
   /** INSEE code, e.g. `30189`, `2A004`, `97101`. Not the postal code. */
   codeInsee: string;
@@ -30,7 +30,7 @@ export interface Commune {
 
 /**
  * An arrêté portant reconnaissance de l'état de catastrophe naturelle, as
- * detected by the Journal Officiel monitor. See specification §§ 2, 5.
+ * detected by the Journal Officiel monitor.
  */
 export interface Arrete {
   id: string;
@@ -40,7 +40,7 @@ export interface Arrete {
   /**
    * Publication date in the Journal Officiel — the date legal deadlines run
    * from. Always taken from the JORF XML itself, never from file arrival or
-   * third-party databases. See § 5.
+   * third-party databases.
    */
   publishedAt: IsoDate;
   /** JORF issue, e.g. `JORF n°0137 du 13 juin 2026`. */
@@ -48,7 +48,7 @@ export interface Arrete {
   legifranceUrl: string;
 }
 
-/** One commune line of an arrêté annex. See specification §§ 2, 4. */
+/** One commune line of an arrêté annex. */
 export interface ArreteEntry {
   id: string;
   arreteId: string;
@@ -56,7 +56,7 @@ export interface ArreteEntry {
   /**
    * Commune label as printed in the annex. Historical context (arrêté screen,
    * annexe attachment) is always displayed from this field, never from the
-   * current referential name. See `docs/research/data-model.md` § 3.
+   * current referential name.
    */
   communeLabelRaw: string;
   /** Risk label as printed in the annex, e.g. `Inondations et coulées de boue`. */
@@ -71,7 +71,7 @@ export interface ArreteEntry {
 
 /**
  * A watch subscription: an email address notified on the day an arrêté names
- * one of its communes. Account-less, double opt-in. See specification § 3.1.
+ * one of its communes. Account-less, double opt-in.
  */
 export interface Veille {
   id: string;
@@ -83,7 +83,7 @@ export interface Veille {
   createdAt: IsoDateTime;
 }
 
-/** One insurance claim being accompanied. See specification §§ 3.2, 4. */
+/** One insurance claim being accompanied. */
 export interface Sinistre {
   id: string;
   communeCode: string;
@@ -96,7 +96,7 @@ export interface Sinistre {
    * no matching arrêté has been published. Linking a RECONNU entry sets the
    * declaration deadline; linking a REFUSE entry moves the sinistre to
    * ARRETE_REFUSE. After a refusal the link may be replaced by a recognising
-   * entry from a later arrêté (repeat demande). See § 3.2.
+   * entry from a later arrêté (repeat demande).
    */
   arreteEntryId: string | null;
   /** Date the user declared the damage to their insurer; anchors post-declaration steps. */
@@ -105,7 +105,7 @@ export interface Sinistre {
   createdAt: IsoDateTime;
 }
 
-/** Reference template a sinistre plan is built from. See specification § 4. */
+/** Reference template a sinistre plan is built from. */
 export interface StepTemplate {
   id: string;
   name: string;
@@ -118,7 +118,7 @@ export interface StepTemplate {
   source: SourceReference;
 }
 
-/** A step within a sinistre. See specification § 4. */
+/** A step within a sinistre. */
 export interface Step {
   id: string;
   sinistreId: string;
@@ -150,7 +150,7 @@ export interface FileRef {
 
 /**
  * One damaged item in the sinistre inventory. A fully filled item carries
- * everything a claim dossier (or its future PDF export) needs. See § 4.
+ * everything a claim dossier (or its future PDF export) needs.
  */
 export interface InventoryItem {
   id: string;
@@ -173,7 +173,7 @@ export interface InventoryItem {
 /**
  * A legal deadline from the reference data, e.g. the 30-day declaration window.
  * Every legal number in the application lives here with its source — there are
- * no hard-coded legal durations. See specification §§ 2, 4.
+ * no hard-coded legal durations.
  */
 export interface DeadlineRule {
   /** Stable code, e.g. `DECLARATION_ASSUREUR`. */

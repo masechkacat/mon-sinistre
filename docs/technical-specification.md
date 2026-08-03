@@ -2,13 +2,6 @@
 
 ## Mon Sinistre. Assistant catastrophe naturelle
 
-> Имя продукта и npm-scope — **Mon Sinistre** / `@mon-sinistre/*`. Прежняя редакция этого ТЗ
-> (цикл продления прав MDPH, проект «Jalons») удалена 30.07.2026 по решению владельца
-> проекта; она доступна в git-истории, причины пивота — в `docs/decisions.md`
-> (запись «пивот» от 30.07.2026).
-
----
-
 ## 1. О проекте
 
 Mon Sinistre — **assistant catastrophe naturelle**: веб-приложение, которое ведёт пострадавшего
@@ -100,8 +93,7 @@ FAIT/NON_APPLICABLE», копия плана в синистре (изменен
   (узнать в мэрии о повторной demande, продолжать хранить доказательства, проверить
   покрытие договора вне режима CatNat); срок оспаривания — из справочника сроков с якорем
   `DATE_PUBLICATION_ARRETE`. Если повторная demande признана новым arrêté, синистр
-  перепривязывается к признавшему entry и переходит в `ARRETE_PUBLIE`
-  (решение от 30.07.2026 — `docs/decisions.md`).
+  перепривязывается к признавшему entry и переходит в `ARRETE_PUBLIE`.
 - **Step** — шаг плана синистра; якоря (`StepAnchor`): `DATE_SINISTRE`,
   `DATE_PUBLICATION_ARRETE`, `DATE_DECLARATION`. Шаги с якорем на ещё не наступившую
   опорную дату существуют без plannedDate и получают её при появлении даты.
@@ -116,8 +108,7 @@ FAIT/NON_APPLICABLE», копия плана в синистре (изменен
 ## 5. Монитор Journal Officiel
 
 Источник — открытые данные DILA (`echanges.dila.gouv.fr/OPENDATA/JORF/`), проверено
-прототипом 30.07.2026 (доказательная база — `docs/decisions.md`, запись «пивот»
-от 30.07.2026):
+прототипом:
 
 - cron дважды в сутки: скачать новые тарболы, распаковать, найти тексты
   «portant reconnaissance de l'état de catastrophe naturelle»;

@@ -43,7 +43,7 @@ describe('normalizeCommuneName', () => {
 
   it.each([
     // …but their typographic variants are unified: phone keyboards substitute
-    // ’ for the ' the COG stores (docs/decisions.md, 2026-08-02).
+    // ’ for the ' the COG stores.
     ['L’Isle-Adam', "l'isle-adam"],
     ['L’Haÿ-les-Roses', "l'hay-les-roses"],
     ['LʼAigle', "l'aigle"],
