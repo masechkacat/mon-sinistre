@@ -130,10 +130,17 @@ describe('validateEnv', () => {
     expect(() => validateEnv({ ...validEnv, HOST: '' })).toThrow(/HOST/);
   });
 
-  it('rejects an out-of-range port', () => {
-    expect(() => validateEnv({ ...validEnv, DB_PORT: '70000' })).toThrow(
+  it.each([
+    ['above the range', '70000'],
+    // Zero is a valid port to the kernel and means "pick any free one" — an
+    // API nobody can find the address of, started without a word of warning.
+    ['zero', '0'],
+    ['not a number at all', 'cinq-mille'],
+  ])('rejects a port %s, whichever port it is', (_case, value) => {
+    expect(() => validateEnv({ ...validEnv, DB_PORT: value })).toThrow(
       /DB_PORT/,
     );
+    expect(() => validateEnv({ ...validEnv, PORT: value })).toThrow(/PORT/);
   });
 });
 
