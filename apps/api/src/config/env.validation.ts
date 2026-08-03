@@ -1,10 +1,12 @@
 import { plainToInstance, Transform, Type } from 'class-transformer';
 import {
   IsBoolean,
+  IsEmail,
   IsInt,
   IsNotEmpty,
   IsOptional,
   IsString,
+  IsUrl,
   Max,
   Min,
   MinLength,
@@ -17,7 +19,8 @@ import {
  * the application immediately instead of failing on first use.
  *
  * SMTP variables stay optional until the mail module lands — tighten them
- * when it does. New environment variables must be added here and to
+ * when it does; MAIL_FROM is already required, the mail skeleton composes no
+ * message without it. New environment variables must be added here and to
  * .env.example in the same commit.
  */
 class EnvironmentVariables {
@@ -56,9 +59,19 @@ class EnvironmentVariables {
   @IsString()
   HOST?: string;
 
-  @IsOptional()
-  @IsString()
-  FRONTEND_URL?: string;
+  /**
+   * Required, and an absolute address: the mail skeleton builds every link of
+   * every email from it, including the unsubscribe link each message must
+   * carry. require_tld is off on purpose — http://localhost:3000 of
+   * .env.example would otherwise fail and break local development.
+   */
+  @IsNotEmpty()
+  @IsUrl({
+    require_tld: false,
+    require_protocol: true,
+    protocols: ['http', 'https'],
+  })
+  FRONTEND_URL: string;
 
   // --- секреты ---
   @IsString()
@@ -93,7 +106,19 @@ class EnvironmentVariables {
   @IsBoolean()
   HTTPS_ENABLED?: boolean;
 
-  // --- почта (необязательна, пока нет модуля рассылки) ---
+  // --- почта ---
+  /**
+   * Required: the mail skeleton refuses to compose a message without a sender
+   * address, and the refusal would otherwise surface at the first send — in a
+   * nightly job, with nobody watching.
+   */
+  @IsNotEmpty()
+  @IsEmail()
+  MAIL_FROM: string;
+
+  // SMTP variables are left over from the skeleton and unused; the transport
+  // variables of the provider arrive in phase 2 of the emails feature, which
+  // removes these.
   @IsOptional()
   @IsString()
   SMTP_HOST?: string;
@@ -112,10 +137,6 @@ class EnvironmentVariables {
   @IsOptional()
   @IsString()
   SMTP_PASSWORD?: string;
-
-  @IsOptional()
-  @IsString()
-  MAIL_FROM?: string;
 }
 
 export function validateEnv(
