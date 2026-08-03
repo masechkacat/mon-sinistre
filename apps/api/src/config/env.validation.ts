@@ -39,8 +39,13 @@ export const MAIL_TRANSPORT_NAMES = ['file', 'scaleway'] as const;
 
 export type MailTransportName = (typeof MAIL_TRANSPORT_NAMES)[number];
 
-/** The transport that actually sends; the other one writes files locally. */
-const SENDING_TRANSPORT: MailTransportName = 'scaleway';
+/**
+ * The transport that actually sends; the other one writes files locally. The
+ * factory of src/mail picks by comparing MAIL_TRANSPORT with this constant, so
+ * the rules that turn on the provider here — its credentials, the domain, the
+ * production guard — turn on exactly the transport the module then builds.
+ */
+export const SENDING_TRANSPORT: MailTransportName = 'scaleway';
 
 const NODE_ENV_NAMES = ['development', 'test', 'production'] as const;
 

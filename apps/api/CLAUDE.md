@@ -62,8 +62,8 @@ npm run seed             # импорт справочника коммун COG,
     `docs/decisions.md`, 03.08.2026): из него каркас писем собирает все ссылки.
   - `MAIL_FROM` обязателен и проверяется как адрес: без отправителя письмо не
     собирается ни одним транспортом (`docs/decisions.md`, 03.08.2026).
-  - `MAIL_TRANSPORT` (`file` | `scaleway`, по умолчанию `file`) объявляет
-    транспорт письма — читать его в `useFactory` пока некому
+  - `MAIL_TRANSPORT` (`file` | `scaleway`, по умолчанию `file`) выбирает
+    транспорт письма; читает его один `useFactory` модуля почты
     (`src/mail/CLAUDE.md`); `MAIL_SENDER_DOMAIN`, `SCW_SECRET_KEY` и
     `SCW_PROJECT_ID` обязательны **только** при `scaleway` (`@ValidateIf`):
     свежий клон отправляет письма локально, без аккаунта у провайдера.

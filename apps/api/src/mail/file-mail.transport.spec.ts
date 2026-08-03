@@ -260,7 +260,7 @@ describe('FileMailTransport', () => {
     const logged = written.join('\n');
     // A developer must be able to find the file from the log; the address is
     // the one thing that may not be in it — this is the log of the running
-    // application, the same one phase 2 will read.
+    // application, the same one the provider transport writes to.
     expect(logged).toContain(SUBJECT);
     expect(logged).toContain('votre-commune-est-concernee');
     expect(logged).not.toContain(RECIPIENT);

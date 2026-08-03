@@ -28,8 +28,8 @@ const nodeOutbox: MailOutbox = {
 /**
  * Relative to the working directory of the API, which npm sets to apps/api —
  * the directory is in the root .gitignore, because real addresses end up in
- * those files. Configuring it (MAIL_OUTBOX_DIR) arrives with the choice of
- * transport in phase 2 (docs/research/emails.md).
+ * those files. MAIL_OUTBOX_DIR overrides it; the factory of the module passes
+ * that value through unchanged, so this stays the only spelling of the default.
  */
 export const DEFAULT_MAIL_OUTBOX_DIR = '.mail-outbox';
 

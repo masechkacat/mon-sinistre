@@ -1,3 +1,7 @@
+import { mkdtemp, readdir, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import { Injectable, Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { Test, type TestingModule } from '@nestjs/testing';
@@ -11,17 +15,39 @@ import type { ComposeMailInput, MailMessage } from 'src/mail/mail-message';
 import { MAIL_TRANSPORT, type MailTransport } from 'src/mail/mail-transport';
 import { MailModule } from 'src/mail/mail.module';
 import { MailService } from 'src/mail/mail.service';
+import {
+  SCALEWAY_TEM_URL,
+  ScalewayMailTransport,
+} from 'src/mail/scaleway-mail.transport';
 
 const RECIPIENT = 'destinataire@example.test';
 const FRONTEND_URL = 'https://app.example.test';
 const MAIL_FROM = 'no-reply@example.test';
+const SECRET_KEY = 'scw-secret-key';
+const PROJECT_ID = '11111111-2222-3333-4444-555555555555';
 
 // A stub rather than the real configuration: the test must not depend on
-// whatever FRONTEND_URL the developer has exported.
+// whatever FRONTEND_URL the developer has exported, and choosing a transport
+// must be observable without setting process.env (docs/plan/emails.md).
 const VALUES: Record<string, string> = { FRONTEND_URL, MAIL_FROM };
-const configStub = {
-  get: (key: string): string | undefined => VALUES[key],
-} as unknown as ConfigService;
+
+const configWith = (values: Record<string, string> = {}): ConfigService => {
+  const all: Record<string, string> = { ...VALUES, ...values };
+  return {
+    get: (key: string): string | undefined => all[key],
+    // Same failure as the real ConfigService: the name of the missing key and
+    // nothing of its value, which is a secret for two of the three keys read.
+    getOrThrow: (key: string): string => {
+      const value = all[key];
+      if (value === undefined) {
+        throw new Error(`Configuration key "${key}" does not exist`);
+      }
+      return value;
+    },
+  } as unknown as ConfigService;
+};
+
+const configStub = configWith();
 
 const input = (
   overrides: Partial<ComposeMailInput> = {},
@@ -205,27 +231,51 @@ class FeatureModule {}
 
 describe('MailModule', () => {
   const moduleWith = async (
-    transport?: MailTransport,
+    options: {
+      values?: Record<string, string>;
+      transport?: MailTransport;
+    } = {},
   ): Promise<TestingModule> => {
-    const builder = Test.createTestingModule({
+    const withConfig = Test.createTestingModule({
       imports: [
         ConfigModule.forRoot({ isGlobal: true, ignoreEnvFile: true }),
         MailModule,
         FeatureModule,
       ],
-    }).overrideProvider(ConfigService);
-    const withConfig = builder.useValue(configStub);
+    })
+      .overrideProvider(ConfigService)
+      .useValue(configWith(options.values));
 
-    return transport
+    return options.transport
       ? withConfig
           .overrideProvider(MAIL_TRANSPORT)
-          .useValue(transport)
+          .useValue(options.transport)
           .compile()
       : withConfig.compile();
   };
 
+  /**
+   * Installed before the module is built on purpose: the provider transport
+   * takes globalThis.fetch as the default value of a constructor parameter, so
+   * a spy set up after the factory ran would watch a function nobody calls.
+   */
+  const watchNetwork = (): jest.SpiedFunction<typeof globalThis.fetch> =>
+    jest.spyOn(globalThis, 'fetch');
+
+  /** A temporary outbox, removed even when the assertions of a test fail. */
+  const withOutboxDir = async (
+    body: (dir: string) => Promise<void>,
+  ): Promise<void> => {
+    const dir = await mkdtemp(join(tmpdir(), 'mail-outbox-'));
+    try {
+      await body(dir);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  };
+
   it('gives the single sending point to a feature that does not import it', async () => {
-    const moduleRef = await moduleWith(new RecordingTransport());
+    const moduleRef = await moduleWith({ transport: new RecordingTransport() });
 
     expect(moduleRef.get(FeatureNeedingMail).mail).toBeInstanceOf(MailService);
     await moduleRef.close();
@@ -233,7 +283,7 @@ describe('MailModule', () => {
 
   it('lets a caller substitute the transport through the token, without touching the environment', async () => {
     const transport = new RecordingTransport();
-    const moduleRef = await moduleWith(transport);
+    const moduleRef = await moduleWith({ transport });
 
     await moduleRef.get(MailService).send(input());
 
@@ -242,14 +292,80 @@ describe('MailModule', () => {
   });
 
   it('keeps mail local by default, without a key and without an account', async () => {
-    // No transport substituted: what a developer gets on a fresh checkout is
-    // the local outbox, not a message on its way to a real address. The class
-    // stands in for the behaviour here because the factory takes no arguments
-    // yet; once it reads MAIL_OUTBOX_DIR in phase 2, this becomes an assertion
-    // on what a send actually writes (docs/plan/emails.md).
+    // Neither MAIL_TRANSPORT nor a credential in the configuration: what a
+    // developer gets on a fresh checkout is the local outbox, and the provider
+    // is not built — building it would have asked for keys that are not there.
     const moduleRef = await moduleWith();
 
     expect(moduleRef.get(MAIL_TRANSPORT)).toBeInstanceOf(FileMailTransport);
     await moduleRef.close();
   });
+
+  it('writes a message to the configured outbox in local mode, and calls no provider', async () => {
+    await withOutboxDir(async (dir) => {
+      const fetchSpy = watchNetwork();
+      const moduleRef = await moduleWith({
+        values: { MAIL_TRANSPORT: 'file', MAIL_OUTBOX_DIR: dir },
+      });
+
+      await moduleRef.get(MailService).send(input());
+
+      // The pair of files lands where the configuration says, and nothing
+      // leaves the machine — the guarantee of local development, held by the
+      // factory rather than by a branch inside MailService.
+      expect((await readdir(dir)).sort().map(extensionOf)).toEqual([
+        '.html',
+        '.txt',
+      ]);
+      expect(fetchSpy).not.toHaveBeenCalled();
+      // The only path where a real transport logs through the real service:
+      // whatever the local mode writes to disk, the address stays out of the
+      // log of the application (apps/api/CLAUDE.md, "Правила проекта").
+      expectNoRecipientLogged();
+      await moduleRef.close();
+    });
+  });
+
+  it('sends through the provider when the configuration selects it', async () => {
+    const fetchSpy = watchNetwork().mockResolvedValue(
+      new Response(JSON.stringify({ emails: [{ id: 'abc' }] }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+    const moduleRef = await moduleWith({
+      values: {
+        MAIL_TRANSPORT: 'scaleway',
+        SCW_SECRET_KEY: SECRET_KEY,
+        SCW_PROJECT_ID: PROJECT_ID,
+      },
+    });
+
+    expect(moduleRef.get(MAIL_TRANSPORT)).toBeInstanceOf(ScalewayMailTransport);
+    await moduleRef.get(MailService).send(input());
+
+    // Not only the class: the credentials of the configuration are what the
+    // transport was built with, and a factory handing it empty ones would send
+    // unauthenticated requests that fail only against the live service.
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchSpy.mock.calls[0] ?? [];
+    expect(url).toBe(SCALEWAY_TEM_URL);
+    expect((init?.headers as Record<string, string>)['X-Auth-Token']).toBe(
+      SECRET_KEY,
+    );
+    expect(typeof init?.body).toBe('string');
+    expect(init?.body as string).toContain(PROJECT_ID);
+    await moduleRef.close();
+  });
+
+  it('refuses to start when the provider is selected and its credentials are missing', async () => {
+    // The schema of the environment already requires them, but the factory is
+    // the last place that can tell: a transport built with an empty key starts
+    // an application that looks healthy and delivers nothing.
+    await expect(
+      moduleWith({ values: { MAIL_TRANSPORT: 'scaleway' } }),
+    ).rejects.toThrow('SCW_SECRET_KEY');
+  });
 });
+
+const extensionOf = (file: string): string => file.slice(file.lastIndexOf('.'));
