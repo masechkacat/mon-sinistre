@@ -6,6 +6,7 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { CommunesModule } from './communes/communes.module';
 import { validateEnv } from './config/env.validation';
 import { HealthController } from './health/health.controller';
+import { MailModule } from './mail/mail.module';
 import { PrismaModule } from './prisma/prisma.module';
 
 /**
@@ -20,6 +21,7 @@ import { PrismaModule } from './prisma/prisma.module';
     ScheduleModule.forRoot(),
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 100 }]),
     PrismaModule,
+    MailModule,
     CommunesModule,
   ],
   controllers: [HealthController],

@@ -19,6 +19,9 @@ out/
 # tests & coverage
 coverage/
 
+# письма локального режима — в файлах лежат реальные адреса получателей
+.mail-outbox/
+
 # logs
 *.log
 npm-debug.log*

@@ -1,10 +1,13 @@
 import { plainToInstance, Transform, Type } from 'class-transformer';
 import {
   IsBoolean,
+  IsEmail,
   IsInt,
   IsNotEmpty,
   IsOptional,
   IsString,
+  IsUrl,
+  Matches,
   Max,
   Min,
   MinLength,
@@ -12,12 +15,23 @@ import {
 } from 'class-validator';
 
 /**
+ * Scheme and host, nothing after them. The mail skeleton joins paths onto this
+ * value with the URL parser, which drops any path prefix of the base: a
+ * FRONTEND_URL of "https://example.fr/app" would silently produce links to
+ * https://example.fr/… — right host, wrong site, and nothing to notice it by
+ * until a reader clicks. Refusing it at bootstrap is the only place the
+ * mistake is visible.
+ */
+const ORIGIN_ONLY = /^https?:\/\/[^/?#]+\/?$/;
+
+/**
  * Schema for every variable in .env.example. Validation runs once at
  * bootstrap (ConfigModule `validate`), so a missing or malformed value stops
  * the application immediately instead of failing on first use.
  *
  * SMTP variables stay optional until the mail module lands — tighten them
- * when it does. New environment variables must be added here and to
+ * when it does; MAIL_FROM is already required, the mail skeleton composes no
+ * message without it. New environment variables must be added here and to
  * .env.example in the same commit.
  */
 class EnvironmentVariables {
@@ -56,9 +70,23 @@ class EnvironmentVariables {
   @IsString()
   HOST?: string;
 
-  @IsOptional()
-  @IsString()
-  FRONTEND_URL?: string;
+  /**
+   * Required, and an absolute address: the mail skeleton builds every link of
+   * every email from it, including the unsubscribe link each message must
+   * carry. require_tld is off on purpose — http://localhost:3000 of
+   * .env.example would otherwise fail and break local development.
+   */
+  @IsNotEmpty()
+  @IsUrl({
+    require_tld: false,
+    require_protocol: true,
+    protocols: ['http', 'https'],
+  })
+  @Matches(ORIGIN_ONLY, {
+    message:
+      'FRONTEND_URL must carry a scheme and a host only, with no path prefix',
+  })
+  FRONTEND_URL: string;
 
   // --- секреты ---
   @IsString()
@@ -93,7 +121,19 @@ class EnvironmentVariables {
   @IsBoolean()
   HTTPS_ENABLED?: boolean;
 
-  // --- почта (необязательна, пока нет модуля рассылки) ---
+  // --- почта ---
+  /**
+   * Required: the mail skeleton refuses to compose a message without a sender
+   * address, and the refusal would otherwise surface at the first send — in a
+   * nightly job, with nobody watching.
+   */
+  @IsNotEmpty()
+  @IsEmail()
+  MAIL_FROM: string;
+
+  // SMTP variables are left over from the skeleton and unused; the transport
+  // variables of the provider arrive in phase 2 of the emails feature, which
+  // removes these.
   @IsOptional()
   @IsString()
   SMTP_HOST?: string;
@@ -112,10 +152,6 @@ class EnvironmentVariables {
   @IsOptional()
   @IsString()
   SMTP_PASSWORD?: string;
-
-  @IsOptional()
-  @IsString()
-  MAIL_FROM?: string;
 }
 
 export function validateEnv(
