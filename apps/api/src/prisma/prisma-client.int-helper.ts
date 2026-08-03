@@ -1,14 +1,6 @@
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from 'src/generated/prisma/client';
-import { buildDatabaseUrl } from 'src/prisma/database-url';
-
-const requiredEnv = (name: string): string => {
-  const value = process.env[name];
-  if (!value) {
-    throw new Error(`${name} must be set for integration tests`);
-  }
-  return value;
-};
+import { databaseUrlFromEnv } from 'src/prisma/database-url-from-env';
 
 /**
  * A Prisma client for integration specs that do not bootstrap Nest — the
@@ -30,13 +22,5 @@ const requiredEnv = (name: string): string => {
  */
 export const createIntTestPrismaClient = (): PrismaClient =>
   new PrismaClient({
-    adapter: new PrismaPg({
-      connectionString: buildDatabaseUrl({
-        host: requiredEnv('DB_HOST'),
-        port: requiredEnv('DB_PORT'),
-        user: requiredEnv('DB_USER'),
-        password: requiredEnv('DB_PASSWORD'),
-        database: requiredEnv('DB_NAME'),
-      }),
-    }),
+    adapter: new PrismaPg({ connectionString: databaseUrlFromEnv() }),
   });

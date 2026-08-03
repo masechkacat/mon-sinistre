@@ -21,10 +21,14 @@
 ## `DATABASE_URL` не существует
 
 Connection string собирает `database-url.ts` из
-`DB_HOST/DB_PORT/DB_USER/DB_PASSWORD/DB_NAME` — в `prisma.config.ts` из
-`process.env`, в `PrismaService` из `ConfigService`. Так docker-compose, CLI
+`DB_HOST/DB_PORT/DB_USER/DB_PASSWORD/DB_NAME`. Так docker-compose, CLI
 миграций, рантайм и интеграционные тесты гарантированно смотрят на одну базу
 (`docs/decisions.md`, 30.07.2026).
+
+Значения приходят двумя путями, и пути не равноправны: внутри Nest — только из
+`ConfigService`, снаружи (конфигурация CLI, seed, клиент интеграционных тестов)
+— через `database-url-from-env.ts`. В коде приложения эту функцию не вызывать:
+она читает `process.env` и тем самым обходит проверку схемы окружения.
 
 ## Схема и клиент
 
