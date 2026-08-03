@@ -59,8 +59,11 @@ async function bootstrap() {
     SwaggerModule.createDocument(app, swaggerConfig),
   );
 
-  const port = config.get('PORT', { infer: true }) ?? 3001;
-  const host = config.get('HOST', { infer: true }) ?? '0.0.0.0';
+  // No fallback here: the schema carries the defaults, so these are values,
+  // not maybes — and there is one place to read what happens when .env says
+  // nothing.
+  const port = config.get('PORT', { infer: true });
+  const host = config.get('HOST', { infer: true });
 
   await app.listen(port, host);
 

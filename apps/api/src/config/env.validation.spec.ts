@@ -109,6 +109,27 @@ describe('validateEnv', () => {
     ).toThrow(/MAIL_FROM/);
   });
 
+  it('listens on the port and host of the schema when .env names neither', () => {
+    // The values themselves, not the constants that hold them: what this
+    // guards is that a fresh clone comes up where the README says it does.
+    const env = validateEnv(validEnv);
+    expect(env.PORT).toBe(3001);
+    expect(env.HOST).toBe('0.0.0.0');
+  });
+
+  it('prefers what .env names to the default', () => {
+    const env = validateEnv({ ...validEnv, PORT: '4000', HOST: '127.0.0.1' });
+    expect(env.PORT).toBe(4000);
+    expect(env.HOST).toBe('127.0.0.1');
+  });
+
+  it('refuses a port or a host set to nothing — empty is not unset', () => {
+    // A variable written and left blank is a mistake, not an omission: reading
+    // it as unset would hide the typo behind a default that happens to work.
+    expect(() => validateEnv({ ...validEnv, PORT: '' })).toThrow(/PORT/);
+    expect(() => validateEnv({ ...validEnv, HOST: '' })).toThrow(/HOST/);
+  });
+
   it('rejects an out-of-range port', () => {
     expect(() => validateEnv({ ...validEnv, DB_PORT: '70000' })).toThrow(
       /DB_PORT/,

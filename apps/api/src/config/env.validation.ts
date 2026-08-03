@@ -38,6 +38,19 @@ const ORIGIN_ONLY = /^https?:\/\/[^/?#]+\/?$/;
 
 const NODE_ENV_NAMES = ['development', 'test', 'production'] as const;
 
+/**
+ * Where the application listens when nothing says otherwise. They live here
+ * rather than at the call site of app.listen(), because this is the file that
+ * answers "what is this variable and what happens if I leave it out" — and one
+ * default written in two places is one of them going stale.
+ *
+ * Outside code there are two more spellings of each, and they are meant to be
+ * there: the line of .env.example and the port published by docker-compose.
+ * Those are the ones to change together with these.
+ */
+const DEFAULT_PORT = 3001;
+const DEFAULT_HOST = '0.0.0.0';
+
 const sendsForReal = (env: EnvironmentVariables): boolean =>
   env.MAIL_TRANSPORT === SENDING_TRANSPORT;
 
@@ -156,16 +169,20 @@ export class EnvironmentVariables {
   DB_NAME: string;
 
   // --- приложение ---
-  @IsOptional()
+  /**
+   * Both carry their default here, so ConfigService always hands back a value
+   * and no caller substitutes its own. They are not optional to the
+   * application — only to whoever writes the .env.
+   */
   @Type(() => Number)
   @IsInt()
   @Min(1)
   @Max(65535)
-  PORT?: number;
+  PORT: number = DEFAULT_PORT;
 
-  @IsOptional()
+  @IsNotEmpty()
   @IsString()
-  HOST?: string;
+  HOST: string = DEFAULT_HOST;
 
   /**
    * Required, and an absolute address: the mail skeleton builds every link of
