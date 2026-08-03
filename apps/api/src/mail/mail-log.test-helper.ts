@@ -1,4 +1,4 @@
-import { Logger } from '@nestjs/common';
+import { LOG_LEVELS, Logger, type LogLevel } from '@nestjs/common';
 
 /**
  * Everything a Logger of the mail module wrote during a test. Shared by the
@@ -10,11 +10,12 @@ import { Logger } from '@nestjs/common';
  * Installs the spies itself, for every test of the suite that calls it and not
  * only for those that read the log: the mail module is loud on its failure
  * paths, and a test run is not the place to print those stacks.
+ *
+ * The levels watched are LOG_LEVELS of Nest, never a list written out here: a
+ * level this file did not know about is a level nothing is watching, and the
+ * leak it carries would pass the tests unseen. Taking the list from the source
+ * of the Logger turns that into a compile error instead.
  */
-
-const LEVELS = ['log', 'error', 'warn', 'debug', 'verbose', 'fatal'] as const;
-
-type LogLevel = (typeof LEVELS)[number];
 
 export interface CapturedLogs {
   /** The level of every call, in order — an empty log is then visible as such. */
@@ -37,7 +38,7 @@ export const captureLogs = (): CapturedLogs => {
 
   beforeEach(() => {
     written = [];
-    for (const level of LEVELS) {
+    for (const level of LOG_LEVELS) {
       jest
         .spyOn(Logger.prototype, level)
         .mockImplementation((...args: unknown[]) => {
