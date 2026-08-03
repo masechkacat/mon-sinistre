@@ -2,7 +2,7 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { CommuneImportService } from '../src/communes/import/commune-import.service';
 import { GeoApiClient } from '../src/communes/import/geo-api.client';
 import { PrismaClient } from '../src/generated/prisma/client';
-import { buildDatabaseUrl } from '../src/prisma/database-url';
+import { databaseUrlFromEnv } from '../src/prisma/database-url-from-env';
 
 // No Nest application context on purpose: the seed depends only on DB_* and
 // the network, while bootstrapping AppModule would demand the full validated
@@ -17,27 +17,9 @@ try {
   // .env is absent — variables come from the environment (e.g. CI).
 }
 
-function required(name: string): string {
-  const value = process.env[name];
-  if (!value) {
-    throw new Error(
-      `${name} is not set — create apps/api/.env (cp .env.example .env) or provide the DB_* variables in the environment.`,
-    );
-  }
-  return value;
-}
-
 async function main(): Promise<void> {
   const prisma = new PrismaClient({
-    adapter: new PrismaPg({
-      connectionString: buildDatabaseUrl({
-        host: required('DB_HOST'),
-        port: required('DB_PORT'),
-        user: required('DB_USER'),
-        password: required('DB_PASSWORD'),
-        database: required('DB_NAME'),
-      }),
-    }),
+    adapter: new PrismaPg({ connectionString: databaseUrlFromEnv() }),
   });
 
   try {
