@@ -66,6 +66,46 @@ function SendsForRealInProduction() {
   };
 }
 
+/** Domains are case-insensitive; the part after the last @ is the domain. */
+const domainOf = (address: string): string =>
+  address.slice(address.lastIndexOf('@') + 1).toLowerCase();
+
+/**
+ * Refuses a sender address outside the domain configured as verified at the
+ * provider — insurance against a typo in MAIL_FROM, which otherwise costs
+ * nothing at bootstrap and every message afterwards: the provider refuses mail
+ * from a domain it has not verified, one send at a time, while the application
+ * stays perfectly healthy. The real protection from someone else's domain is
+ * the provider's; this is the check that makes our own mistake visible.
+ *
+ * Exact equality, because that is what the provider verifies: a subdomain is a
+ * separate domain to it. Nothing to compare against means nothing to refuse —
+ * a fresh clone writes its messages to files and names no domain of ours.
+ */
+function AtSenderDomain() {
+  return (object: object, propertyName: string): void => {
+    registerDecorator({
+      name: 'atSenderDomain',
+      target: object.constructor,
+      propertyName,
+      validator: {
+        validate: (value: unknown, args: ValidationArguments): boolean => {
+          const domain = (
+            args.object as EnvironmentVariables
+          ).MAIL_SENDER_DOMAIN?.trim();
+          return (
+            !domain ||
+            (typeof value === 'string' &&
+              domainOf(value) === domain.toLowerCase())
+          );
+        },
+        defaultMessage: () =>
+          'MAIL_FROM must be an address at MAIL_SENDER_DOMAIN: the provider refuses a sender outside the domain verified with it, and a subdomain is not that domain',
+      },
+    });
+  };
+}
+
 /**
  * Schema for every variable in .env.example. Validation runs once at
  * bootstrap (ConfigModule `validate`), so a missing or malformed value stops
@@ -176,10 +216,12 @@ class EnvironmentVariables {
   /**
    * Required: the mail skeleton refuses to compose a message without a sender
    * address, and the refusal would otherwise surface at the first send — in a
-   * nightly job, with nobody watching.
+   * nightly job, with nobody watching. The address lives here and only here:
+   * changing it is an edit of .env, never of code.
    */
   @IsNotEmpty()
   @IsEmail()
+  @AtSenderDomain()
   MAIL_FROM: string;
 
   /**
@@ -202,12 +244,21 @@ class EnvironmentVariables {
   MAIL_OUTBOX_DIR?: string;
 
   /**
-   * The domain verified at the provider (SPF, DKIM, DMARC). Phase 3 checks
-   * MAIL_FROM against it at bootstrap — a typo in the sender address otherwise
-   * surfaces as mail silently refused by the provider. A domain, not a URL:
-   * that is what phase 3 compares the part after the @ with.
+   * The domain verified at the provider (SPF, DKIM, DMARC). MAIL_FROM is
+   * checked against it at bootstrap (see AtSenderDomain above) — a typo in the
+   * sender address otherwise surfaces as mail silently refused by the
+   * provider. A domain, not a URL: that is what the part after the @ is
+   * compared with.
+   *
+   * Required of the sending transport, and checked for shape wherever it is
+   * written: the check above reads it under every transport, so a URL left
+   * here would stop the application with "MAIL_FROM is wrong" while MAIL_FROM
+   * is right — and the operator would go inspect the wrong line.
    */
-  @ValidateIf(sendsForReal)
+  @ValidateIf(
+    (env: EnvironmentVariables) =>
+      sendsForReal(env) || Boolean(env.MAIL_SENDER_DOMAIN?.trim()),
+  )
   @IsNotEmpty()
   @IsFQDN()
   MAIL_SENDER_DOMAIN?: string;

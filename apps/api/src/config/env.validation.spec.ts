@@ -177,8 +177,9 @@ describe('validateEnv, mail transport', () => {
   );
 
   it.each([
-    // Phase 3 compares the part of MAIL_FROM after the @ with this value, so a
-    // URL here would fail every sender address rather than the wrong ones.
+    // The check below compares the part of MAIL_FROM after the @ with this
+    // value, so a URL here would fail every sender address rather than the
+    // wrong ones.
     ['MAIL_SENDER_DOMAIN', 'https://mon-sinistre.test'],
     // The secret key pasted into the project id, the classic swap of the two.
     ['SCW_PROJECT_ID', 'scw-secret'],
@@ -186,6 +187,19 @@ describe('validateEnv, mail transport', () => {
     expect(() => validateEnv({ ...providerEnv, [name]: value })).toThrow(
       new RegExp(name),
     );
+  });
+
+  it('blames a malformed sender domain on itself, not on MAIL_FROM', () => {
+    // The sender check reads this value whatever the transport, so its format
+    // is checked whenever it is written: otherwise a URL here stops the
+    // application with "MAIL_FROM is wrong" while MAIL_FROM is right, and the
+    // operator inspects the wrong line.
+    expect(() =>
+      validateEnv({
+        ...validEnv,
+        MAIL_SENDER_DOMAIN: 'https://mon-sinistre.test',
+      }),
+    ).toThrow(/MAIL_SENDER_DOMAIN/);
   });
 
   it('does not name the provider secret in the error it throws', () => {
@@ -200,6 +214,80 @@ describe('validateEnv, mail transport', () => {
       attempt();
     } catch (error) {
       expect((error as Error).message).not.toContain('tell-no-one');
+    }
+  });
+
+  it.each([
+    ['at another domain entirely', 'no-reply@ailleurs.test'],
+    // A subdomain is verified at the provider separately, so mail sent from
+    // one is refused there just as loudly as mail from a stranger's domain.
+    [
+      'at a subdomain of the verified domain',
+      'no-reply@mail.mon-sinistre.test',
+    ],
+    ['one typo away from the verified domain', 'no-reply@mon-sinsitre.test'],
+  ])('refuses a sender address %s', (_case, from) => {
+    // The insurance this check buys: a typo in MAIL_FROM otherwise surfaces as
+    // mail the provider silently refuses, message by message, with the
+    // application perfectly healthy.
+    expect(() => validateEnv({ ...providerEnv, MAIL_FROM: from })).toThrow(
+      /MAIL_FROM/,
+    );
+  });
+
+  it('compares the sender domain regardless of case', () => {
+    // Domains are case-insensitive, and either value may be typed in any case.
+    expect(() =>
+      validateEnv({
+        ...providerEnv,
+        MAIL_FROM: 'No-Reply@MON-SINISTRE.TEST',
+        MAIL_SENDER_DOMAIN: 'Mon-Sinistre.test',
+      }),
+    ).not.toThrow();
+  });
+
+  it('checks the sender domain under the local transport too', () => {
+    // A typo is made where the value is written, not where it is sent from:
+    // catching it in development is the whole point of a bootstrap check.
+    expect(() =>
+      validateEnv({
+        ...validEnv,
+        MAIL_SENDER_DOMAIN: 'mon-sinistre.test',
+        MAIL_FROM: 'no-reply@ailleurs.test',
+      }),
+    ).toThrow(/MAIL_FROM/);
+  });
+
+  it.each([
+    ['left out', undefined],
+    // What a half-edited .env carries, and it is still "no domain of ours".
+    ['written empty', ''],
+    ['written blank', '   '],
+  ])('accepts any sender address with the domain %s', (_case, domain) => {
+    // Nothing to compare against: a fresh clone writes its messages to files,
+    // and no domain of ours is involved.
+    const env: Record<string, unknown> = {
+      ...validEnv,
+      MAIL_FROM: 'no-reply@ailleurs.test',
+    };
+    if (domain !== undefined) {
+      env.MAIL_SENDER_DOMAIN = domain;
+    }
+    expect(() => validateEnv(env)).not.toThrow();
+  });
+
+  it('names both variables and neither value when it refuses', () => {
+    const attempt = () =>
+      validateEnv({ ...providerEnv, MAIL_FROM: 'no-reply@ailleurs.test' });
+    expect(attempt).toThrow(/MAIL_FROM/);
+    try {
+      attempt();
+    } catch (error) {
+      // Which two values disagree is the whole content of the message: the
+      // address itself must not appear in it, here or in any log that picks
+      // the bootstrap failure up.
+      expect((error as Error).message).toContain('MAIL_SENDER_DOMAIN');
+      expect((error as Error).message).not.toContain('ailleurs.test');
     }
   });
 
