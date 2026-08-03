@@ -14,14 +14,15 @@ JWT), Swagger на `/docs`.
 
 ## Команды (из apps/api)
 
+Запуск, юнит-тесты и линт — из корня (`npm run dev:api` делегирует в
+`start:dev`, который читает `.env` через `--env-file`). Здесь только то, чего в
+корне нет:
+
 ```bash
-npm run start:dev        # watch-режим, читает .env через --env-file
-npm test                 # jest, все *.spec.ts в src/ (юнит, без Docker)
 npm test -- steps        # один тест по подстроке пути
 npm run test:int         # интеграционные тесты (*.int-spec.ts) против реального Postgres — нужен npm run db:up
 npm run test:cov         # с покрытием
-npm run lint             # eslint, только проверка (используется pre-commit хуком)
-npm run lint:fix         # eslint с автопочинкой
+npm run lint:fix         # eslint с автопочинкой (pre-commit запускает lint без --fix)
 npm run prisma:generate  # перегенерировать клиент после правки schema.prisma
 npm run migration:dev    # prisma migrate dev — создать/применить миграцию локально
 npm run migration:deploy # prisma migrate deploy — применить миграции (прод/CI)

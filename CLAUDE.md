@@ -55,11 +55,9 @@ npm run dev:web          # Next.js, http://localhost:3000
 npm run dev:contracts    # tsc --watch для contracts (при параллельной правке типов)
 npm run build            # contracts → api → web
 npm test                 # jest в apps/api (доменные тесты есть только там)
-npm run test:tooling     # node --test по .claude/ — обвязка вне workspace'ов
+npm run test:tooling     # node --test по .claude/ (почему отдельно — абзац ниже)
 npm run lint             # eslint по всем workspace'ам
 ```
-
-Один тест: `npm test --workspace @mon-sinistre/api -- env.validation` (jest ищет `*.spec.ts` по подстроке пути).
 
 `.claude/` не входит в workspaces, поэтому ни eslint, ни jest его не видят — для скриптов обвязки заведён отдельный `test:tooling` на встроенном `node --test` (без зависимостей, Node ≥ 24 уже требуется). Новый файл рядом с `.claude/*.test.js` подхватывается сам.
 
