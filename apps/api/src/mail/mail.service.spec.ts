@@ -1,9 +1,10 @@
-import { Injectable, Logger, Module } from '@nestjs/common';
+import { Injectable, Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { Test, type TestingModule } from '@nestjs/testing';
 
 import { FileMailTransport } from 'src/mail/file-mail.transport';
 import { MailComposer } from 'src/mail/mail-composer';
+import { captureLogs } from 'src/mail/mail-log.test-helper';
 import { MailCompositionError } from 'src/mail/mail-composition.error';
 import { MailDeliveryError } from 'src/mail/mail-delivery.error';
 import type { ComposeMailInput, MailMessage } from 'src/mail/mail-message';
@@ -81,61 +82,12 @@ class ShoutingTransport implements MailTransport {
 const serviceWith = (transport: MailTransport): MailService =>
   new MailService(new MailComposer(configStub), transport);
 
-const LEVELS = ['log', 'error', 'warn', 'debug', 'verbose', 'fatal'] as const;
+const logs = captureLogs();
 
-type LogEntry = {
-  readonly level: (typeof LEVELS)[number];
-  readonly text: string;
-};
-
-let written: LogEntry[];
-
-// Installed for every test, not only for those that read it: the Logger of
-// this service is loud on the failure paths, and a test run is not the place
-// to print those stacks.
-beforeEach(() => {
-  written = [];
-  for (const level of LEVELS) {
-    jest
-      .spyOn(Logger.prototype, level)
-      .mockImplementation((...args: unknown[]) => {
-        written.push({ level, text: serialize(args) });
-      });
-  }
-});
-
-afterEach(() => {
-  jest.restoreAllMocks();
-});
-
-/**
- * Every argument of a Logger call, serialized. Checking the first one is not
- * enough: an address leaks just as easily through the context parameter or from
- * inside a thrown error (docs/research/emails.md).
- */
-const serialize = (args: unknown[]): string =>
-  JSON.stringify(args, (_key, value: unknown) =>
-    value instanceof Error
-      ? {
-          name: value.name,
-          message: value.message,
-          stack: value.stack,
-          cause: value.cause,
-        }
-      : value,
-  );
-
-const loggedText = (): string => written.map((entry) => entry.text).join('\n');
-const loggedLevels = (): string[] => written.map((entry) => entry.level);
-
-/**
- * The address and its local part alike: a log that kept "destinataire" of
- * "destinataire@example.test" would still name the person. Compared in one
- * casing, because an address in another one names them just as well.
- */
+const loggedText = (): string => logs.text();
+const loggedLevels = (): string[] => logs.levels();
 const expectNoRecipientLogged = (): void => {
-  expect(loggedText().toLowerCase()).not.toContain(RECIPIENT);
-  expect(loggedText().toLowerCase()).not.toContain('destinataire');
+  logs.expectNoTraceOf(RECIPIENT);
 };
 
 describe('MailService', () => {
