@@ -74,17 +74,27 @@ describe('validateEnv', () => {
     ['a bare host', 'localhost:3000'],
     ['a path', '/app'],
     ['an unsupported protocol', 'ftp://example.test'],
+    // The mail skeleton joins paths with the URL parser, which drops the path
+    // prefix of the base: links would point at the right host and the wrong
+    // site, and only a reader clicking one would find out.
+    ['a host with a path prefix', 'https://example.test/app'],
+    ['a host with a query string', 'https://example.test/?lang=fr'],
   ])('rejects FRONTEND_URL given as %s', (_case, value) => {
     expect(() => validateEnv({ ...validEnv, FRONTEND_URL: value })).toThrow(
       /FRONTEND_URL/,
     );
   });
 
-  it('accepts a host without a TLD, as used locally and in Docker', () => {
+  it.each([
+    ['a host without a TLD, as used locally and in Docker', 'http://web:3000'],
+    // The trailing slash is the same origin written differently, and it is
+    // what a copy from a browser address bar gives.
+    ['a trailing slash', 'https://example.test/'],
+  ])('accepts FRONTEND_URL with %s', (_case, value) => {
     // http://localhost:3000 is the value of .env.example: a strict URL check
     // would reject it and break local development.
     expect(() =>
-      validateEnv({ ...validEnv, FRONTEND_URL: 'http://web:3000' }),
+      validateEnv({ ...validEnv, FRONTEND_URL: value }),
     ).not.toThrow();
   });
 

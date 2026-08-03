@@ -5,6 +5,7 @@
     "dist",
     "**/*.spec.ts",
     "**/*.int-spec.ts",
-    "**/*.int-helper.ts"
+    "**/*.int-helper.ts",
+    "**/*.test-helper.ts"
   ]
 }

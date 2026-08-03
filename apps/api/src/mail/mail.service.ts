@@ -104,11 +104,24 @@ const reportOf = (thrown: unknown): string => {
 
 const ADDRESS_REMOVED = '[address removed]';
 
+/** Every character a regular expression would otherwise read as syntax. */
+const escapeRegExp = (value: string): string =>
+  value.replaceAll(/[\\^$.*+?()[\]{}|]/g, String.raw`\$&`);
+
 /**
  * The last gate before an address could reach a log. Transports and the
  * composer owe an error free of it, but the guarantee features rely on must not
  * rest on every future transport getting that right: this service is the only
  * place able to enforce it, and it knows the address it just handed over.
+ *
+ * Case-insensitive: the domain of an address is case-insensitive by RFC 5321,
+ * so a provider is free to answer about "Destinataire@Example.test" whatever
+ * was sent to it, and an exact match would hand that straight to the logs.
  */
 const withoutAddress = (report: string, recipient: string): string =>
-  recipient === '' ? report : report.replaceAll(recipient, ADDRESS_REMOVED);
+  recipient === ''
+    ? report
+    : report.replace(
+        new RegExp(escapeRegExp(recipient), 'gi'),
+        ADDRESS_REMOVED,
+      );

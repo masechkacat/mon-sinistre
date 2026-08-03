@@ -28,13 +28,24 @@ export class MailComposer {
     const baseUrl = this.required('FRONTEND_URL');
     const senderEmail = this.required('MAIL_FROM');
 
-    // One recipient, on one line. The address is carried as a header too — the
-    // local transport of this phase writes it as "To:" into a file — so a break
-    // there would forge a header below it, and a second address would let two
-    // subscribers see each other (RGPD: one message per address).
-    if (input.to.trim() === '' || /[\r\n,;]/.test(input.to)) {
+    // Validated at bootstrap as well (env.validation.ts), and checked again
+    // here because this is what ends up in a "From:" header: the guarantee
+    // belongs to the place that writes the header, not to the one that
+    // happens to have validated the value earlier.
+    if (!isBareAddress(senderEmail)) {
       throw new MailCompositionError(
-        'the recipient must be a single address on a single line',
+        'MAIL_FROM must be a single bare address, such as "no-reply@…"',
+      );
+    }
+
+    // One recipient, a bare address on one line. It is carried as a header —
+    // the local transport of this phase writes it as "To:" into a file — so a
+    // break would forge a header below it, a second address would let two
+    // subscribers see each other (RGPD: one message per address), and anything
+    // that is not an address at all would only fail at the provider.
+    if (!isBareAddress(input.to)) {
+      throw new MailCompositionError(
+        'the recipient must be a single bare address on a single line',
       );
     }
 
@@ -80,6 +91,18 @@ export class MailComposer {
     return value;
   }
 }
+
+/**
+ * An address and nothing around it: no display name, no angle brackets, no
+ * second address, no blank of any kind. Deliberately narrower than the address
+ * grammar of RFC 5322 — a header this skeleton writes carries one plain
+ * address, and every form the grammar also allows is a form a caller has no
+ * reason to hand over. Whether the domain exists is not a question a composer
+ * can answer; whether the value is shaped like an address is.
+ */
+const BARE_ADDRESS = /^[^\s@,;<>"]+@[^\s@,;<>"]+$/;
+
+const isBareAddress = (value: string): boolean => BARE_ADDRESS.test(value);
 
 /**
  * Every message carries the same footer: why it arrived, what the service

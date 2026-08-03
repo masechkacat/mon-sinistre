@@ -38,11 +38,13 @@ describe('fr dictionary', () => {
     expect(text).not.toMatch(/undefined|null|NaN/);
   });
 
-  // French typography: no ordinary space before : ; ! ? — the punctuation would
-  // wrap to the next line on its own. A literal U+00A0 (or U+202F) is expected,
-  // never &nbsp;, because the same strings render into the text version.
+  // French typography: no ordinary space before : ; ! ? » and none after « —
+  // the punctuation would wrap to the next line on its own, leaving a quote
+  // mark orphaned at the end of a line. A literal U+00A0 (or U+202F) is
+  // expected, never &nbsp;, because the same strings render into the text
+  // version.
   it.each(LEAVES)('$path keeps its punctuation attached', ({ text }) => {
-    expect(text).not.toMatch(/ [:;!?»]/);
+    expect(text).not.toMatch(/ [:;!?»]|« /);
   });
 
   // Both the text and the HTML version are rendered from these strings, and the

@@ -5,6 +5,7 @@ import {
   FileMailTransport,
   type MailOutbox,
 } from 'src/mail/file-mail.transport';
+import { mailLinksOf } from 'src/mail/mail-links.test-helper';
 import { MailComposer } from 'src/mail/mail-composer';
 import { MailDeliveryError } from 'src/mail/mail-delivery.error';
 import type { ComposeMailInput, MailMessage } from 'src/mail/mail-message';
@@ -64,17 +65,6 @@ const frozenClock = (): Date => FROZEN;
 
 const transportWith = (outbox: MailOutbox): FileMailTransport =>
   new FileMailTransport(OUTBOX_DIR, outbox, frozenClock);
-
-/**
- * The set of addresses a file names — a set, because the .txt file carries the
- * unsubscribe address twice on purpose: once as a header, once in the footer.
- */
-const linksOf = (contents: string): string[] =>
-  [
-    ...new Set(
-      [...contents.matchAll(/https?:\/\/[^\s"<>]+/g)].map(([url]) => url),
-    ),
-  ].sort();
 
 const fileNamed = (outbox: OutboxSpy, extension: string): [string, string] => {
   const found = [...outbox.files].filter(([path]) => path.endsWith(extension));
@@ -153,8 +143,8 @@ describe('FileMailTransport', () => {
     // The two files show the same addresses — the developer checking the
     // clickable version is checking the one that will be sent.
     const [, text] = fileNamed(outbox, '.txt');
-    expect(linksOf(contents)).toEqual(linksOf(text));
-    expect(linksOf(contents)).toContain(`${FRONTEND_URL}/sinistres/abc`);
+    expect(mailLinksOf(contents)).toEqual(mailLinksOf(text));
+    expect(mailLinksOf(contents)).toContain(`${FRONTEND_URL}/sinistres/abc`);
   });
 
   it('names both files after the time and the subject, in the outbox directory', async () => {

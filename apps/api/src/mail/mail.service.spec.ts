@@ -67,6 +67,17 @@ class LeakingTransport implements MailTransport {
   }
 }
 
+class ShoutingTransport implements MailTransport {
+  // The same leak, in the case a provider answers about the address in a
+  // casing of its own: the domain is case-insensitive by RFC 5321, so this is
+  // the same person as the address that was handed over.
+  send(message: MailMessage): Promise<void> {
+    return Promise.reject(
+      new Error(`550 unknown mailbox ${message.to.toUpperCase()}`),
+    );
+  }
+}
+
 const serviceWith = (transport: MailTransport): MailService =>
   new MailService(new MailComposer(configStub), transport);
 
@@ -119,11 +130,12 @@ const loggedLevels = (): string[] => written.map((entry) => entry.level);
 
 /**
  * The address and its local part alike: a log that kept "destinataire" of
- * "destinataire@example.test" would still name the person.
+ * "destinataire@example.test" would still name the person. Compared in one
+ * casing, because an address in another one names them just as well.
  */
 const expectNoRecipientLogged = (): void => {
-  expect(loggedText()).not.toContain(RECIPIENT);
-  expect(loggedText()).not.toContain('destinataire');
+  expect(loggedText().toLowerCase()).not.toContain(RECIPIENT);
+  expect(loggedText().toLowerCase()).not.toContain('destinataire');
 };
 
 describe('MailService', () => {
@@ -210,6 +222,18 @@ describe('MailService', () => {
     // service is the only place able to enforce it, and it knows the address.
     expect(loggedLevels()).toEqual(['error']);
     expect(loggedText()).toContain('ENOENT');
+    expectNoRecipientLogged();
+  });
+
+  it('strips the recipient address whatever casing it comes back in', async () => {
+    await expect(
+      serviceWith(new ShoutingTransport()).send(input()),
+    ).rejects.toThrow(MailDeliveryError);
+
+    // An exact match would have let "DESTINATAIRE@EXAMPLE.TEST" through, and
+    // the domain of an address is case-insensitive by RFC 5321: whichever
+    // casing a provider answers in, it is the same person.
+    expect(loggedText()).toContain('550 unknown mailbox');
     expectNoRecipientLogged();
   });
 });

@@ -1,6 +1,7 @@
 import { ConfigService } from '@nestjs/config';
 
 import { fr } from 'src/i18n/fr';
+import { mailLinksOf } from 'src/mail/mail-links.test-helper';
 import { MailCompositionError } from 'src/mail/mail-composition.error';
 import { MailComposer } from 'src/mail/mail-composer';
 import type { ComposeMailInput } from 'src/mail/mail-message';
@@ -44,21 +45,6 @@ const input = (
   ...overrides,
 });
 
-const URL_IN_TEXT = /https?:\/\/[^\s<>"]+/g;
-const HREF_IN_HTML = /href="([^"]+)"/g;
-
-const linksOf = (text: string): Set<string> =>
-  new Set(text.match(URL_IN_TEXT) ?? []);
-
-const hrefsOf = (html: string): Set<string> =>
-  new Set(
-    // &amp; in an attribute is the same address as & in the text version:
-    // comparing the two raw would report a difference that no reader sees.
-    Array.from(html.matchAll(HREF_IN_HTML), (match) =>
-      (match[1] ?? '').replace(/&amp;/g, '&'),
-    ),
-  );
-
 describe('MailComposer', () => {
   it('carries a subject, both sender parts and two non-empty bodies', () => {
     const message = composer().compose(input());
@@ -78,8 +64,8 @@ describe('MailComposer', () => {
 
     // Held by construction, not by discipline: a link is described once as a
     // block and both renderers must emit it (docs/research/emails.md).
-    expect(linksOf(message.text)).toEqual(hrefsOf(message.html));
-    expect(linksOf(message.text).size).toBeGreaterThan(0);
+    expect(mailLinksOf(message.text)).toEqual(mailLinksOf(message.html));
+    expect(mailLinksOf(message.text).size).toBeGreaterThan(0);
   });
 
   it('keeps the text version free of markup', () => {
@@ -235,6 +221,11 @@ describe('MailComposer', () => {
       'destinataire@example.test\nBcc: quelquun@example.test',
     ],
     ['holds a second address', 'destinataire@example.test, autre@example.test'],
+    // Forms an address grammar allows and this skeleton does not: a caller has
+    // no reason to decorate the one address a message carries, and the angle
+    // brackets would go into the header verbatim.
+    ['carries a display name', 'Nom Prénom <destinataire@example.test>'],
+    ['is not an address at all', 'destinataire'],
   ])('refuses to compose a message whose recipient %s', (_case, to) => {
     // The address becomes a header line, and one message carries one address:
     // two subscribers must never see each other.
@@ -253,12 +244,26 @@ describe('MailComposer', () => {
     expect(attempt).toThrow(/FRONTEND_URL/);
   });
 
-  it('refuses to compose a message without a sender address', () => {
-    const attempt = () => composerWith({ FRONTEND_URL }).compose(input());
+  it.each([
+    ['is missing', undefined],
+    ['is not an address', 'no-reply'],
+    // Bootstrap validation would have caught these; the composer checks all
+    // the same, because it is the one writing the "From:" header.
+    ['carries a display name', 'Mon Sinistre <no-reply@example.test>'],
+    ['holds a line break', 'no-reply@example.test\nBcc: quelquun@example.test'],
+  ])(
+    'refuses to compose a message when the sender address %s',
+    (_case, value) => {
+      const attempt = () =>
+        composerWith({
+          FRONTEND_URL,
+          ...(value ? { MAIL_FROM: value } : {}),
+        }).compose(input());
 
-    expect(attempt).toThrow(MailCompositionError);
-    expect(attempt).toThrow(/MAIL_FROM/);
-  });
+      expect(attempt).toThrow(MailCompositionError);
+      expect(attempt).toThrow(/MAIL_FROM/);
+    },
+  );
 
   it('never leaks the recipient address into the error of a failed composition', () => {
     // The message of an exception travels to the logs; the address must not.

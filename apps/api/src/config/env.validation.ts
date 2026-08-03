@@ -7,11 +7,22 @@ import {
   IsOptional,
   IsString,
   IsUrl,
+  Matches,
   Max,
   Min,
   MinLength,
   validateSync,
 } from 'class-validator';
+
+/**
+ * Scheme and host, nothing after them. The mail skeleton joins paths onto this
+ * value with the URL parser, which drops any path prefix of the base: a
+ * FRONTEND_URL of "https://example.fr/app" would silently produce links to
+ * https://example.fr/… — right host, wrong site, and nothing to notice it by
+ * until a reader clicks. Refusing it at bootstrap is the only place the
+ * mistake is visible.
+ */
+const ORIGIN_ONLY = /^https?:\/\/[^/?#]+\/?$/;
 
 /**
  * Schema for every variable in .env.example. Validation runs once at
@@ -70,6 +81,10 @@ class EnvironmentVariables {
     require_tld: false,
     require_protocol: true,
     protocols: ['http', 'https'],
+  })
+  @Matches(ORIGIN_ONLY, {
+    message:
+      'FRONTEND_URL must carry a scheme and a host only, with no path prefix',
   })
   FRONTEND_URL: string;
 
