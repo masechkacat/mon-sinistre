@@ -4,6 +4,8 @@ import { join } from 'node:path';
 
 import { Injectable, Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+
+import type { EnvironmentVariables } from 'src/config/env.validation';
 import { Test, type TestingModule } from '@nestjs/testing';
 
 import { FileMailTransport } from 'src/mail/file-mail.transport';
@@ -31,7 +33,9 @@ const PROJECT_ID = '11111111-2222-3333-4444-555555555555';
 // must be observable without setting process.env (docs/plan/emails.md).
 const VALUES: Record<string, string> = { FRONTEND_URL, MAIL_FROM };
 
-const configWith = (values: Record<string, string> = {}): ConfigService => {
+const configWith = (
+  values: Record<string, string> = {},
+): ConfigService<EnvironmentVariables, true> => {
   const all: Record<string, string> = { ...VALUES, ...values };
   return {
     get: (key: string): string | undefined => all[key],
@@ -44,7 +48,7 @@ const configWith = (values: Record<string, string> = {}): ConfigService => {
       }
       return value;
     },
-  } as unknown as ConfigService;
+  } as unknown as ConfigService<EnvironmentVariables, true>;
 };
 
 const configStub = configWith();

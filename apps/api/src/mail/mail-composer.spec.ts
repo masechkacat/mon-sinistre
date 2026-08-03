@@ -1,5 +1,6 @@
 import { ConfigService } from '@nestjs/config';
 
+import { EnvironmentVariables } from 'src/config/env.validation';
 import { fr } from 'src/i18n/fr';
 import { mailLinksOf } from 'src/mail/mail-links.test-helper';
 import { MailCompositionError } from 'src/mail/mail-composition.error';
@@ -11,10 +12,12 @@ const MAIL_FROM = 'no-reply@example.test';
 
 // A stub rather than a Nest context: the composer needs two values, and the
 // test must not depend on whatever FRONTEND_URL the developer has exported.
-const configOf = (values: Record<string, string | undefined>): ConfigService =>
+const configOf = (
+  values: Record<string, string | undefined>,
+): ConfigService<EnvironmentVariables, true> =>
   ({
     get: (key: string): string | undefined => values[key],
-  }) as unknown as ConfigService;
+  }) as unknown as ConfigService<EnvironmentVariables, true>;
 
 const composerWith = (values: Record<string, string | undefined>) =>
   new MailComposer(configOf(values));

@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
+import { EnvironmentVariables } from 'src/config/env.validation';
 import { fr } from 'src/i18n/fr';
 import { MailCompositionError } from 'src/mail/mail-composition.error';
 import type {
@@ -22,7 +23,9 @@ import { renderText } from 'src/mail/render-text';
  */
 @Injectable()
 export class MailComposer {
-  constructor(private readonly config: ConfigService) {}
+  constructor(
+    private readonly config: ConfigService<EnvironmentVariables, true>,
+  ) {}
 
   compose(input: ComposeMailInput): MailMessage {
     const baseUrl = this.required('FRONTEND_URL');
@@ -82,10 +85,17 @@ export class MailComposer {
   }
 
   private required(key: 'FRONTEND_URL' | 'MAIL_FROM'): string {
-    const value = this.config.get<string>(key)?.trim();
+    // The optional chain outlives the type on purpose: the type says the
+    // schema validated this, and a stub handing over undefined is exactly what
+    // the specs of this class are made of. Trusting the type here would turn
+    // their MailCompositionError into a TypeError.
+    const value = this.config.get(key, { infer: true })?.trim();
     if (!value) {
-      // Without a base every link would read "undefined/…", and a test
-      // asserting that the link is there would not notice.
+      // An absent value is no longer reachable through a running application —
+      // the schema requires both — but a value of nothing but blanks passes
+      // @IsNotEmpty there and trims to empty here. Without a base every link
+      // would read "undefined/…", and a test asserting that the link is there
+      // would not notice.
       throw new MailCompositionError(`${key} is not configured`);
     }
     return value;

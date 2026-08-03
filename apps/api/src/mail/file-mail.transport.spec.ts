@@ -1,5 +1,7 @@
 import type { ConfigService } from '@nestjs/config';
 
+import type { EnvironmentVariables } from 'src/config/env.validation';
+
 import {
   FileMailTransport,
   type MailOutbox,
@@ -19,7 +21,7 @@ const SUBJECT = 'Votre commune est concernée par un arrêté';
 const VALUES: Record<string, string> = { FRONTEND_URL, MAIL_FROM };
 const configStub = {
   get: (key: string): string | undefined => VALUES[key],
-} as unknown as ConfigService;
+} as unknown as ConfigService<EnvironmentVariables, true>;
 
 const message = (overrides: Partial<ComposeMailInput> = {}): MailMessage =>
   new MailComposer(configStub).compose({
