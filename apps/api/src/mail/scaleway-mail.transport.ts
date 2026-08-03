@@ -140,25 +140,40 @@ const REPORTABLE_ERROR_FIELDS = ['type'] as const;
 const ERROR_CODE = /^[a-z0-9_.-]{1,64}$/i;
 
 /**
- * How much of a failed answer may be pulled into memory. An error of this API
- * is a few hundred bytes; anything of another order is not one, and a failing
- * send does this once per recipient — a mailing that hits a quota wall would
- * buffer it as many times.
+ * The size a failed answer may *announce* and still be read. An error of this
+ * API is a few hundred bytes; anything of another order is not one, and a
+ * failing send reads it once per recipient — a mailing that hits a quota wall
+ * would buffer it as many times.
+ *
+ * A declared size, not a measured one: an answer that sends no Content-Length
+ * is read whole, however long it turns out to be. A real bound lives in reading
+ * response.body with a counter, and is not what this is.
  */
-const MAX_ERROR_BODY_BYTES = 16_384;
+const MAX_ANNOUNCED_ERROR_BODY_BYTES = 16_384;
 
 /**
  * Whether the answer is worth reading at all. A proxy page, a captive portal
- * and a gateway notice announce themselves as HTML, and a body of another order
- * of magnitude is not an error of this API whatever it says: in both cases
- * there is nothing on the allowlist to find, and the status alone is the report.
+ * and a gateway notice announce themselves as HTML, and a body that announces
+ * another order of magnitude is not an error of this API whatever it says: in
+ * both cases there is nothing on the allowlist to find, and the status alone is
+ * the report.
+ *
+ * The two refusals are not equally firm. The content type is stated by every
+ * answer, so the first one holds; the length is missing from a chunked answer,
+ * and a chunked answer calling itself JSON passes here on size. TEM declares
+ * the length, and the type is what keeps a stranger's page out — the gap costs
+ * the memory of one request, never an address in a log (docs/decisions.md,
+ * 03.08.2026).
  */
 const looksLikeAnApiError = (response: Response): boolean => {
   const type = response.headers.get('content-type') ?? '';
-  const declared = Number(response.headers.get('content-length') ?? '0');
+  // Absent means "nothing announced", not "nothing to read": the check below
+  // then passes on size. A malformed value is NaN and fails every comparison,
+  // which refuses the body — the safe direction of the two.
+  const announced = Number(response.headers.get('content-length') ?? '0');
   return (
     type.toLowerCase().includes('application/json') &&
-    declared <= MAX_ERROR_BODY_BYTES
+    announced <= MAX_ANNOUNCED_ERROR_BODY_BYTES
   );
 };
 
