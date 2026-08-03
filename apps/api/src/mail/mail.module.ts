@@ -3,7 +3,10 @@ import { ConfigService } from '@nestjs/config';
 
 import type { EnvironmentVariables } from 'src/config/env.validation';
 import { FileMailTransport } from 'src/mail/file-mail.transport';
-import { MailComposer } from 'src/mail/mail-composer';
+import {
+  MailComposer,
+  type MailComposerOptions,
+} from 'src/mail/mail-composer';
 // Only the constant: the type of MAIL_TRANSPORT now comes from the schema,
 // which declares the variable with it — the call site no longer asserts what
 // the value is, it is told.
@@ -23,6 +26,17 @@ import { ScalewayMailTransport } from 'src/mail/scaleway-mail.transport';
  * files — is refused by that same schema, not by this factory, which has no way
  * of telling a production from a laptop.
  */
+/**
+ * The skeleton is handed its two values, like every transport below: reading
+ * the environment happens here and nowhere else in the module.
+ */
+const composerOptionsFrom = (
+  config: ConfigService<EnvironmentVariables, true>,
+): MailComposerOptions => ({
+  baseUrl: config.get('FRONTEND_URL', { infer: true }),
+  senderEmail: config.get('MAIL_FROM', { infer: true }),
+});
+
 const transportFor = (
   config: ConfigService<EnvironmentVariables, true>,
 ): MailTransport => {
@@ -68,7 +82,12 @@ const transportFor = (
 @Global()
 @Module({
   providers: [
-    MailComposer,
+    {
+      provide: MailComposer,
+      inject: [ConfigService],
+      useFactory: (config: ConfigService<EnvironmentVariables, true>) =>
+        new MailComposer(composerOptionsFrom(config)),
+    },
     MailService,
     {
       provide: MAIL_TRANSPORT,

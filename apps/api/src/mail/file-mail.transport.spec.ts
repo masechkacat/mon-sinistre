@@ -1,5 +1,3 @@
-import { configFor } from 'src/config/config.test-helper';
-
 import {
   FileMailTransport,
   type MailOutbox,
@@ -16,10 +14,10 @@ const MAIL_FROM = 'no-reply@example.test';
 const OUTBOX_DIR = '/tmp/outbox-de-test';
 const SUBJECT = 'Votre commune est concernée par un arrêté';
 
-const configStub = configFor({ FRONTEND_URL, MAIL_FROM });
+const composerOptions = { baseUrl: FRONTEND_URL, senderEmail: MAIL_FROM };
 
 const message = (overrides: Partial<ComposeMailInput> = {}): MailMessage =>
-  new MailComposer(configStub).compose({
+  new MailComposer(composerOptions).compose({
     to: RECIPIENT,
     subject: SUBJECT,
     reason: 'vous suivez la commune de Nîmes',

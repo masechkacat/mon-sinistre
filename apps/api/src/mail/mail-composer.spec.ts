@@ -1,20 +1,23 @@
-import { configFor } from 'src/config/config.test-helper';
 import { fr } from 'src/i18n/fr';
 import { mailLinksOf } from 'src/mail/mail-links.test-helper';
 import { MailCompositionError } from 'src/mail/mail-composition.error';
-import { MailComposer } from 'src/mail/mail-composer';
+import {
+  MailComposer,
+  type MailComposerOptions,
+} from 'src/mail/mail-composer';
 import type { ComposeMailInput } from 'src/mail/mail-message';
 
 const FRONTEND_URL = 'https://app.example.test';
 const MAIL_FROM = 'no-reply@example.test';
 
-// The shared stub rather than a Nest context: the composer needs two values,
-// and the test must not depend on whatever FRONTEND_URL the developer has
-// exported. An override of undefined is how a case says "not set".
-const composerWith = (values: Record<string, string | undefined>) =>
-  new MailComposer(configFor(values));
+// The two values, handed over directly: the composer takes no configuration
+// service, so the test neither builds one nor depends on whatever FRONTEND_URL
+// the developer has exported. A value left empty is how a case says "not set".
+const composerWith = (options: MailComposerOptions) =>
+  new MailComposer(options);
 
-const composer = () => composerWith({ FRONTEND_URL, MAIL_FROM });
+const composer = () =>
+  composerWith({ baseUrl: FRONTEND_URL, senderEmail: MAIL_FROM });
 
 // Subject and both bodies must stay above 10 characters — shorter ones are
 // rejected by the provider of phase 2 (docs/research/emails.md).
@@ -232,7 +235,7 @@ describe('MailComposer', () => {
 
   it('refuses to compose a message when the link cannot be made absolute', () => {
     const attempt = () =>
-      composerWith({ FRONTEND_URL: undefined, MAIL_FROM }).compose(input());
+      composerWith({ baseUrl: '', senderEmail: MAIL_FROM }).compose(input());
 
     // Without the base the link would read "undefined/desabonnement/…" and the
     // "the link is there" assertions above would happily pass.
@@ -241,7 +244,7 @@ describe('MailComposer', () => {
   });
 
   it.each([
-    ['is missing', undefined],
+    ['is missing', ''],
     ['is not an address', 'no-reply'],
     // Bootstrap validation would have caught these; the composer checks all
     // the same, because it is the one writing the "From:" header.
@@ -251,7 +254,10 @@ describe('MailComposer', () => {
     'refuses to compose a message when the sender address %s',
     (_case, value) => {
       const attempt = () =>
-        composerWith({ FRONTEND_URL, MAIL_FROM: value }).compose(input());
+        composerWith({
+          baseUrl: FRONTEND_URL,
+          senderEmail: value,
+        }).compose(input());
 
       expect(attempt).toThrow(MailCompositionError);
       expect(attempt).toThrow(/MAIL_FROM/);
