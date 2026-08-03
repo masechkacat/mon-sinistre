@@ -1,6 +1,4 @@
-import type { ConfigService } from '@nestjs/config';
-
-import type { EnvironmentVariables } from 'src/config/env.validation';
+import { configFor } from 'src/config/config.test-helper';
 
 import { MailComposer } from 'src/mail/mail-composer';
 import { captureLogs } from 'src/mail/mail-log.test-helper';
@@ -471,10 +469,10 @@ describe('ScalewayMailTransport', () => {
  */
 describe('a failure of ScalewayMailTransport in the log of MailService', () => {
   const FRONTEND_URL = 'https://app.example.test';
-  const configStub = {
-    get: (key: string): string | undefined =>
-      ({ FRONTEND_URL, MAIL_FROM: 'no-reply@example.test' })[key],
-  } as unknown as ConfigService<EnvironmentVariables, true>;
+  const configStub = configFor({
+    FRONTEND_URL,
+    MAIL_FROM: 'no-reply@example.test',
+  });
 
   const logs = captureLogs();
 

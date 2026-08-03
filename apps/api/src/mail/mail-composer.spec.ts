@@ -1,6 +1,4 @@
-import { ConfigService } from '@nestjs/config';
-
-import { EnvironmentVariables } from 'src/config/env.validation';
+import { configFor } from 'src/config/config.test-helper';
 import { fr } from 'src/i18n/fr';
 import { mailLinksOf } from 'src/mail/mail-links.test-helper';
 import { MailCompositionError } from 'src/mail/mail-composition.error';
@@ -10,17 +8,11 @@ import type { ComposeMailInput } from 'src/mail/mail-message';
 const FRONTEND_URL = 'https://app.example.test';
 const MAIL_FROM = 'no-reply@example.test';
 
-// A stub rather than a Nest context: the composer needs two values, and the
-// test must not depend on whatever FRONTEND_URL the developer has exported.
-const configOf = (
-  values: Record<string, string | undefined>,
-): ConfigService<EnvironmentVariables, true> =>
-  ({
-    get: (key: string): string | undefined => values[key],
-  }) as unknown as ConfigService<EnvironmentVariables, true>;
-
+// The shared stub rather than a Nest context: the composer needs two values,
+// and the test must not depend on whatever FRONTEND_URL the developer has
+// exported. An override of undefined is how a case says "not set".
 const composerWith = (values: Record<string, string | undefined>) =>
-  new MailComposer(configOf(values));
+  new MailComposer(configFor(values));
 
 const composer = () => composerWith({ FRONTEND_URL, MAIL_FROM });
 
@@ -239,7 +231,8 @@ describe('MailComposer', () => {
   });
 
   it('refuses to compose a message when the link cannot be made absolute', () => {
-    const attempt = () => composerWith({ MAIL_FROM }).compose(input());
+    const attempt = () =>
+      composerWith({ FRONTEND_URL: undefined, MAIL_FROM }).compose(input());
 
     // Without the base the link would read "undefined/desabonnement/…" and the
     // "the link is there" assertions above would happily pass.
@@ -258,10 +251,7 @@ describe('MailComposer', () => {
     'refuses to compose a message when the sender address %s',
     (_case, value) => {
       const attempt = () =>
-        composerWith({
-          FRONTEND_URL,
-          ...(value ? { MAIL_FROM: value } : {}),
-        }).compose(input());
+        composerWith({ FRONTEND_URL, MAIL_FROM: value }).compose(input());
 
       expect(attempt).toThrow(MailCompositionError);
       expect(attempt).toThrow(/MAIL_FROM/);

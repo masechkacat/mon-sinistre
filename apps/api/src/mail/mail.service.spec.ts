@@ -4,14 +4,10 @@ import { join } from 'node:path';
 
 import { Injectable, Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-
-import type { EnvironmentVariables } from 'src/config/env.validation';
 import { Test, type TestingModule } from '@nestjs/testing';
 
-import {
-  DEFAULT_MAIL_OUTBOX_DIR,
-  FileMailTransport,
-} from 'src/mail/file-mail.transport';
+import { configFor } from 'src/config/config.test-helper';
+import { FileMailTransport } from 'src/mail/file-mail.transport';
 import { MailComposer } from 'src/mail/mail-composer';
 import { captureLogs } from 'src/mail/mail-log.test-helper';
 import { MailCompositionError } from 'src/mail/mail-composition.error';
@@ -31,35 +27,11 @@ const MAIL_FROM = 'no-reply@example.test';
 const SECRET_KEY = 'scw-secret-key';
 const PROJECT_ID = '11111111-2222-3333-4444-555555555555';
 
-// A stub rather than the real configuration: the test must not depend on
-// whatever FRONTEND_URL the developer has exported, and choosing a transport
+// The shared stub rather than the real configuration: the test must not depend
+// on whatever FRONTEND_URL the developer has exported, and choosing a transport
 // must be observable without setting process.env (docs/plan/emails.md).
-// MAIL_OUTBOX_DIR is here because the schema always supplies it: a stub that
-// left it out would model an application that can no longer exist, and the
-// transport it builds would be handed nothing.
-const VALUES: Record<string, string> = {
-  FRONTEND_URL,
-  MAIL_FROM,
-  MAIL_OUTBOX_DIR: DEFAULT_MAIL_OUTBOX_DIR,
-};
-
-const configWith = (
-  values: Record<string, string> = {},
-): ConfigService<EnvironmentVariables, true> => {
-  const all: Record<string, string> = { ...VALUES, ...values };
-  return {
-    get: (key: string): string | undefined => all[key],
-    // Same failure as the real ConfigService: the name of the missing key and
-    // nothing of its value, which is a secret for two of the three keys read.
-    getOrThrow: (key: string): string => {
-      const value = all[key];
-      if (value === undefined) {
-        throw new Error(`Configuration key "${key}" does not exist`);
-      }
-      return value;
-    },
-  } as unknown as ConfigService<EnvironmentVariables, true>;
-};
+const configWith = (values: Record<string, string | undefined> = {}) =>
+  configFor({ FRONTEND_URL, MAIL_FROM, ...values });
 
 const configStub = configWith();
 

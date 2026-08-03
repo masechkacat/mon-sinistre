@@ -1,6 +1,4 @@
-import type { ConfigService } from '@nestjs/config';
-
-import type { EnvironmentVariables } from 'src/config/env.validation';
+import { configFor } from 'src/config/config.test-helper';
 
 import {
   FileMailTransport,
@@ -18,10 +16,7 @@ const MAIL_FROM = 'no-reply@example.test';
 const OUTBOX_DIR = '/tmp/outbox-de-test';
 const SUBJECT = 'Votre commune est concernée par un arrêté';
 
-const VALUES: Record<string, string> = { FRONTEND_URL, MAIL_FROM };
-const configStub = {
-  get: (key: string): string | undefined => VALUES[key],
-} as unknown as ConfigService<EnvironmentVariables, true>;
+const configStub = configFor({ FRONTEND_URL, MAIL_FROM });
 
 const message = (overrides: Partial<ComposeMailInput> = {}): MailMessage =>
   new MailComposer(configStub).compose({
