@@ -113,8 +113,14 @@ function AtSenderDomain() {
  *
  * New environment variables must be added here and to .env.example in the same
  * commit.
+ *
+ * Exported as a type as well as validated: it is what ConfigService is
+ * parameterised with, so reading a variable under a name this class does not
+ * declare stops the compiler rather than returning undefined at runtime. The
+ * schema is therefore the single source of both the names and their types —
+ * nothing else in the API spells an environment variable out.
  */
-class EnvironmentVariables {
+export class EnvironmentVariables {
   // --- окружение ---
   /**
    * Set by whatever starts the process, not by .env as a rule — it is declared
