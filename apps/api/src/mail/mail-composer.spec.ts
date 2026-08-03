@@ -228,6 +228,22 @@ describe('MailComposer', () => {
     expect(attempt).toThrow(/subject/i);
   });
 
+  it.each([
+    ['is empty', '   '],
+    [
+      'holds a line break',
+      'destinataire@example.test\nBcc: quelquun@example.test',
+    ],
+    ['holds a second address', 'destinataire@example.test, autre@example.test'],
+  ])('refuses to compose a message whose recipient %s', (_case, to) => {
+    // The address becomes a header line, and one message carries one address:
+    // two subscribers must never see each other.
+    const attempt = () => composer().compose(input({ to }));
+
+    expect(attempt).toThrow(MailCompositionError);
+    expect(attempt).toThrow(/recipient/i);
+  });
+
   it('refuses to compose a message when the link cannot be made absolute', () => {
     const attempt = () => composerWith({ MAIL_FROM }).compose(input());
 

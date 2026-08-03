@@ -28,6 +28,16 @@ export class MailComposer {
     const baseUrl = this.required('FRONTEND_URL');
     const senderEmail = this.required('MAIL_FROM');
 
+    // One recipient, on one line. The address is carried as a header too — the
+    // local transport of this phase writes it as "To:" into a file — so a break
+    // there would forge a header below it, and a second address would let two
+    // subscribers see each other (RGPD: one message per address).
+    if (input.to.trim() === '' || /[\r\n,;]/.test(input.to)) {
+      throw new MailCompositionError(
+        'the recipient must be a single address on a single line',
+      );
+    }
+
     // A subject is one line: it is carried as a header everywhere it goes, and
     // the local transport of this phase writes it as "Subject:" into a file —
     // a line break there would forge a header below it.
