@@ -1,9 +1,9 @@
 import { Global, Module } from '@nestjs/common';
 
+import { FileMailTransport } from 'src/mail/file-mail.transport';
 import { MailComposer } from 'src/mail/mail-composer';
 import { MAIL_TRANSPORT, type MailTransport } from 'src/mail/mail-transport';
 import { MailService } from 'src/mail/mail.service';
-import { UnconfiguredMailTransport } from 'src/mail/unconfigured-mail.transport';
 
 /**
  * Global, like PrismaModule: sending mail is a cross-cutting dependency of the
@@ -22,10 +22,11 @@ import { UnconfiguredMailTransport } from 'src/mail/unconfigured-mail.transport'
     {
       provide: MAIL_TRANSPORT,
       // The only place that decides which transport is used; MailService never
-      // reads the environment. Choosing by MAIL_TRANSPORT arrives with the
-      // provider (phase 2) and the local transport with the next task of this
-      // phase — until then a message fails loudly rather than disappearing.
-      useFactory: (): MailTransport => new UnconfiguredMailTransport(),
+      // reads the environment. Local development is the default and needs no
+      // account and no key: a message is written to the outbox instead of
+      // being sent. Choosing by MAIL_TRANSPORT arrives with the provider of
+      // phase 2 (docs/research/emails.md).
+      useFactory: (): MailTransport => new FileMailTransport(),
     },
   ],
   exports: [MailService],

@@ -2,6 +2,7 @@ import { Injectable, Logger, Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { Test, type TestingModule } from '@nestjs/testing';
 
+import { FileMailTransport } from 'src/mail/file-mail.transport';
 import { MailComposer } from 'src/mail/mail-composer';
 import { MailCompositionError } from 'src/mail/mail-composition.error';
 import { MailDeliveryError } from 'src/mail/mail-delivery.error';
@@ -264,14 +265,15 @@ describe('MailModule', () => {
     await moduleRef.close();
   });
 
-  it('refuses to send while no transport is configured, instead of dropping the message', async () => {
-    // The stand-in of this task: the local transport is the next task of the
-    // phase (docs/plan/emails.md), and this expectation goes away with it.
+  it('keeps mail local by default, without a key and without an account', async () => {
+    // No transport substituted: what a developer gets on a fresh checkout is
+    // the local outbox, not a message on its way to a real address. The class
+    // stands in for the behaviour here because the factory takes no arguments
+    // yet; once it reads MAIL_OUTBOX_DIR in phase 2, this becomes an assertion
+    // on what a send actually writes (docs/plan/emails.md).
     const moduleRef = await moduleWith();
 
-    await expect(moduleRef.get(MailService).send(input())).rejects.toThrow(
-      MailDeliveryError,
-    );
+    expect(moduleRef.get(MAIL_TRANSPORT)).toBeInstanceOf(FileMailTransport);
     await moduleRef.close();
   });
 });
