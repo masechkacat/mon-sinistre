@@ -1,7 +1,7 @@
 {
   "feature": "emails",
-  "phases": [2],
-  "maxIterations": 5,
+  "phases": [3],
+  "maxIterations": 3,
   "stallLimit": 2,
   "maxBudgetUsd": 10,
   "maxTurns": 120,
