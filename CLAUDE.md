@@ -48,15 +48,15 @@ npm workspaces, три пакета:
 ## Команды (из корня)
 
 ```bash
-npm run db:up            # PostgreSQL 18 в Docker (нужен apps/api/.env)
+npm run db:up            # Postgres 18 в Docker, читает apps/api/.env
 npm run build:contracts  # обязательно перед первым запуском API и web
-npm run dev:api          # NestJS в watch-режиме, http://localhost:3001, /docs — OpenAPI
-npm run dev:web          # Next.js, http://localhost:3000
-npm run dev:contracts    # tsc --watch для contracts (при параллельной правке типов)
-npm run build            # contracts → api → web
-npm test                 # jest в apps/api (доменные тесты есть только там)
-npm run test:tooling     # node --test по .claude/ (почему отдельно — абзац ниже)
-npm run lint             # eslint по всем workspace'ам
+npm run dev:api          # http://localhost:3001, /docs — OpenAPI
+npm run dev:web          # http://localhost:3000
+npm run dev:contracts    # tsc --watch, при параллельной правке типов
+npm run build            # порядок обязателен: contracts → api → web
+npm test                 # доменные тесты есть только в apps/api
+npm run test:tooling     # .claude/ — почему отдельно, абзац ниже
+npm run lint             # по всем workspace'ам
 ```
 
 `.claude/` не входит в workspaces, поэтому ни eslint, ни jest его не видят — для скриптов обвязки заведён отдельный `test:tooling` на встроенном `node --test` (без зависимостей, Node ≥ 24 уже требуется). Новый файл рядом с `.claude/*.test.js` подхватывается сам.

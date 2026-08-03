@@ -20,13 +20,13 @@ JWT), Swagger на `/docs`.
 
 ```bash
 npm test -- steps        # один тест по подстроке пути
-npm run test:int         # интеграционные тесты (*.int-spec.ts) против реального Postgres — нужен npm run db:up
-npm run test:cov         # с покрытием
-npm run lint:fix         # eslint с автопочинкой (pre-commit запускает lint без --fix)
-npm run prisma:generate  # перегенерировать клиент после правки schema.prisma
-npm run migration:dev    # prisma migrate dev — создать/применить миграцию локально
-npm run migration:deploy # prisma migrate deploy — применить миграции (прод/CI)
-npm run seed             # prisma db seed — идемпотентный импорт справочника коммун COG
+npm run test:int         # *.int-spec.ts против реального Postgres — нужен npm run db:up
+npm run test:cov
+npm run lint:fix
+npm run prisma:generate  # после каждой правки schema.prisma
+npm run migration:dev    # prisma migrate dev — локально
+npm run migration:deploy # prisma migrate deploy — прод/CI
+npm run seed             # импорт справочника коммун COG, идемпотентен
 ```
 
 База данных поднимается из корня: `npm run db:up`. Перед запуском API нужен
