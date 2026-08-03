@@ -130,11 +130,16 @@ describe('AllExceptionsFilter (integration)', () => {
     expect(logged).toEqual([]);
   });
 
-  it('answers 409 for a unique constraint', async () => {
+  it('answers 500 for a unique constraint, logging code and model', async () => {
+    // Not a 409: the endpoint that owes one catches P2002 itself, because at
+    // an endpoint taking an email address 409 would say the address is
+    // already registered.
     const res = await get('/boom/duplicate');
 
-    expect(res.statusCode).toBe(409);
+    expect(res.statusCode).toBe(500);
     expect(res.body).not.toContain(ADDRESS);
+    expect(logged.join('\n')).toContain('P2002 on Commune');
+    expect(logged.join('\n')).not.toContain(ADDRESS);
   });
 
   it('answers an HttpException built with a string as JSON', async () => {

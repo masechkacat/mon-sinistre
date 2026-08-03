@@ -1,8 +1,4 @@
-import {
-  ConflictException,
-  HttpException,
-  NotFoundException,
-} from '@nestjs/common';
+import { HttpException, NotFoundException } from '@nestjs/common';
 import { Prisma } from 'src/generated/prisma/client';
 
 /**
@@ -15,36 +11,38 @@ import { Prisma } from 'src/generated/prisma/client';
 
 /**
  * The codes that describe the caller's mistake rather than a failure of ours.
- * Short on purpose — a code belongs here only when one answer is true for every
- * endpoint at once, and most are not.
+ *
+ * One entry, and adding a second is a decision, not a convenience: a code
+ * belongs here only when one answer is true for every endpoint at once, and
+ * almost none are. **P2002** — a unique constraint refused the write — is the
+ * one to argue about, because 409 looks obviously right and is not. At any
+ * endpoint that takes an email address a 409 tells the sender that the address
+ * is already registered, which for the veille is an account-enumeration oracle;
+ * mapping it here would make that the answer of every endpoint written
+ * afterwards, with a line of documentation as the only thing in the way. So it
+ * is absent, and a write that really owes the caller a 409 catches P2002 where
+ * the endpoint is in front of the author. Unmapped, it stays a 500 recorded by
+ * code and model like any other failure (`docs/decisions.md`, 03.08.2026).
+ *
+ * A Map rather than an object literal: the key comes off the error, and an
+ * object literal answers `constructor` with something that is not a mapping.
  */
-const HTTP_FOR_CODE: Record<string, () => HttpException> = {
+const HTTP_FOR_CODE = new Map<string, () => HttpException>([
   /**
    * The row the query addressed is not there — including the case where it
    * exists but belongs to someone else, because ownership is part of the where
    * clause (`../../CLAUDE.md`). 404 is exactly what that has to look like: a
    * 403 would confirm the object exists.
    */
-  P2025: () => new NotFoundException(),
-
-  /**
-   * A unique constraint refused the write.
-   *
-   * Care is needed at any endpoint that takes an email address: answering 409
-   * tells the sender that the address is already registered, and for the veille
-   * that is an account-enumeration oracle. Such an endpoint must catch P2002
-   * itself and answer as if the signup had succeeded — this mapping is the last
-   * resort for a write nobody handled, not permission to leave one unhandled.
-   */
-  P2002: () => new ConflictException(),
-};
+  ['P2025', () => new NotFoundException()],
+]);
 
 /** The answer this failure deserves, or nothing if it is a failure of ours. */
 export const httpExceptionForPrisma = (
   exception: unknown,
 ): HttpException | undefined =>
   exception instanceof Prisma.PrismaClientKnownRequestError
-    ? HTTP_FOR_CODE[exception.code]?.()
+    ? HTTP_FOR_CODE.get(exception.code)?.()
     : undefined;
 
 /**

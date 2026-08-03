@@ -193,18 +193,27 @@ describe('AllExceptionsFilter', () => {
       );
     });
 
-    it('answers 409 when a unique constraint refused the write', () => {
-      const { host, reply } = hostFor();
+    it('answers 500 when a unique constraint refused the write', () => {
+      // Deliberately not a 409: at an endpoint taking an email address that
+      // answer would say the address is already registered. A write that owes
+      // the caller a 409 catches P2002 itself; unhandled, it is a failure of
+      // ours like any other.
+      const { host, reply } = hostFor('/veille');
 
-      filter.catch(prismaError('P2002', { modelName: 'Commune' }), host);
+      filter.catch(prismaError('P2002', { modelName: 'Watcher' }), host);
 
-      expect(reply.status).toHaveBeenCalledWith(409);
+      expect(reply.status).toHaveBeenCalledWith(500);
+      expect(reply.send).toHaveBeenCalledWith({
+        statusCode: 500,
+        message: 'Internal server error',
+      });
     });
 
     it('says nothing of the row in either answer', () => {
       const { host, reply } = hostFor();
 
       filter.catch(prismaError('P2002', { modelName: 'Commune' }), host);
+      filter.catch(prismaError('P2025', { modelName: 'Commune' }), host);
 
       expect(JSON.stringify(reply.send.mock.calls)).not.toContain(ADDRESS);
     });
