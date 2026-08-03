@@ -9,6 +9,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from '@fastify/helmet';
 import fastifyCookie from '@fastify/cookie';
 import { AppModule } from './app.module';
+import type { EnvironmentVariables } from './config/env.validation';
 import { createGlobalValidationPipe } from './config/validation-pipe';
 
 async function bootstrap() {
@@ -17,7 +18,10 @@ async function bootstrap() {
     new FastifyAdapter(),
   );
 
-  const config = app.get(ConfigService);
+  // The container hands back the one ConfigService; the parameters say what it
+  // was validated against, so every name below is checked at compile time.
+  const config =
+    app.get<ConfigService<EnvironmentVariables, true>>(ConfigService);
 
   // Without shutdown hooks SIGTERM kills the process abruptly: scheduled
   // jobs keep running mid-tick and lifecycle hooks (onModuleDestroy,
@@ -26,12 +30,14 @@ async function bootstrap() {
   app.enableShutdownHooks();
 
   await app.register(helmet, { contentSecurityPolicy: false });
-  await app.register(fastifyCookie, {
-    secret: config.getOrThrow<string>('COOKIE_SECRET'),
-  });
+  // Read into a binding rather than inline: the option this goes into accepts
+  // a union of half a dozen types, and inferring the lookup against it lands on
+  // unknown. Named first, it is the string the schema declares.
+  const cookieSecret = config.get('COOKIE_SECRET', { infer: true });
+  await app.register(fastifyCookie, { secret: cookieSecret });
 
   app.enableCors({
-    origin: config.getOrThrow<string>('FRONTEND_URL'),
+    origin: config.get('FRONTEND_URL', { infer: true }),
     credentials: true,
   });
 
@@ -53,8 +59,8 @@ async function bootstrap() {
     SwaggerModule.createDocument(app, swaggerConfig),
   );
 
-  const port = config.get<number>('PORT') ?? 3001;
-  const host = config.get<string>('HOST') ?? '0.0.0.0';
+  const port = config.get('PORT', { infer: true }) ?? 3001;
+  const host = config.get('HOST', { infer: true }) ?? '0.0.0.0';
 
   await app.listen(port, host);
 
