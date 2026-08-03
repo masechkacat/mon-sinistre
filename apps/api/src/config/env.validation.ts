@@ -2,16 +2,22 @@ import { plainToInstance, Transform, Type } from 'class-transformer';
 import {
   IsBoolean,
   IsEmail,
+  IsFQDN,
+  IsIn,
   IsInt,
   IsNotEmpty,
   IsOptional,
   IsString,
   IsUrl,
+  IsUUID,
   Matches,
   Max,
   Min,
   MinLength,
+  registerDecorator,
+  ValidateIf,
   validateSync,
+  type ValidationArguments,
 } from 'class-validator';
 
 /**
@@ -25,16 +31,67 @@ import {
 const ORIGIN_ONLY = /^https?:\/\/[^/?#]+\/?$/;
 
 /**
+ * The transports src/mail implements, and the one list of their names: the
+ * factory that picks a transport reads MAIL_TRANSPORT from the configuration
+ * this schema has already checked, so a value it does not know cannot reach it.
+ */
+export const MAIL_TRANSPORT_NAMES = ['file', 'scaleway'] as const;
+
+export type MailTransportName = (typeof MAIL_TRANSPORT_NAMES)[number];
+
+/** The transport that actually sends; the other one writes files locally. */
+const SENDING_TRANSPORT: MailTransportName = 'scaleway';
+
+const NODE_ENV_NAMES = ['development', 'test', 'production'] as const;
+
+const sendsForReal = (env: EnvironmentVariables): boolean =>
+  env.MAIL_TRANSPORT === SENDING_TRANSPORT;
+
+/**
+ * Refuses a production start that would write emails to the local outbox
+ * instead of sending them. The application would come up perfectly healthy and
+ * every notification would land in a file: nobody is told an arrêté was
+ * published, and the reader finds out by missing the 30-day deadline. The
+ * transport left unset counts as local, because that is what the factory makes
+ * of it.
+ */
+function SendsForRealInProduction() {
+  return (object: object, propertyName: string): void => {
+    registerDecorator({
+      name: 'sendsForRealInProduction',
+      target: object.constructor,
+      propertyName,
+      validator: {
+        validate: (value: unknown, args: ValidationArguments): boolean =>
+          value !== 'production' ||
+          sendsForReal(args.object as EnvironmentVariables),
+        defaultMessage: () =>
+          `MAIL_TRANSPORT must be "${SENDING_TRANSPORT}" when NODE_ENV is production: the local transport writes messages to files and sends nothing`,
+      },
+    });
+  };
+}
+
+/**
  * Schema for every variable in .env.example. Validation runs once at
  * bootstrap (ConfigModule `validate`), so a missing or malformed value stops
  * the application immediately instead of failing on first use.
  *
- * SMTP variables stay optional until the mail module lands — tighten them
- * when it does; MAIL_FROM is already required, the mail skeleton composes no
- * message without it. New environment variables must be added here and to
- * .env.example in the same commit.
+ * New environment variables must be added here and to .env.example in the same
+ * commit.
  */
 class EnvironmentVariables {
+  // --- окружение ---
+  /**
+   * Set by whatever starts the process, not by .env as a rule — it is declared
+   * here because the mail guard below turns on it, and a typo such as "prod"
+   * would switch that guard off without a word.
+   */
+  @IsOptional()
+  @IsIn(NODE_ENV_NAMES)
+  @SendsForRealInProduction()
+  NODE_ENV?: (typeof NODE_ENV_NAMES)[number];
+
   // --- база данных ---
   @IsNotEmpty()
   @IsString()
@@ -131,27 +188,52 @@ class EnvironmentVariables {
   @IsEmail()
   MAIL_FROM: string;
 
-  // SMTP variables are left over from the skeleton and unused; the transport
-  // variables of the provider arrive in phase 2 of the emails feature, which
-  // removes these.
+  /**
+   * Which transport sends. Unset means the local one: a fresh clone runs, and
+   * develops against, an API that needs no provider account — production is
+   * held to the opposite by the guard on NODE_ENV above.
+   */
   @IsOptional()
-  @IsString()
-  SMTP_HOST?: string;
+  @IsIn(MAIL_TRANSPORT_NAMES)
+  MAIL_TRANSPORT?: MailTransportName;
 
+  /**
+   * Where the local transport writes; unset means .mail-outbox. Empty is not
+   * unset: it would resolve to the working directory, and the files carry real
+   * addresses in their To: header while only .mail-outbox is in .gitignore.
+   */
   @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  @Max(65535)
-  SMTP_PORT?: number;
-
-  @IsOptional()
+  @IsNotEmpty()
   @IsString()
-  SMTP_USER?: string;
+  MAIL_OUTBOX_DIR?: string;
 
-  @IsOptional()
+  /**
+   * The domain verified at the provider (SPF, DKIM, DMARC). Phase 3 checks
+   * MAIL_FROM against it at bootstrap — a typo in the sender address otherwise
+   * surfaces as mail silently refused by the provider. A domain, not a URL:
+   * that is what phase 3 compares the part after the @ with.
+   */
+  @ValidateIf(sendsForReal)
+  @IsNotEmpty()
+  @IsFQDN()
+  MAIL_SENDER_DOMAIN?: string;
+
+  /**
+   * Credentials of the provider, required only when it is the transport: they
+   * are what a local clone must not need. Missing here stops the application at
+   * bootstrap rather than at the first send — which happens in a nightly job,
+   * with nobody watching.
+   */
+  @ValidateIf(sendsForReal)
+  @IsNotEmpty()
   @IsString()
-  SMTP_PASSWORD?: string;
+  SCW_SECRET_KEY?: string;
+
+  /** A UUID at Scaleway; checked as one so the two values above cannot be swapped. */
+  @ValidateIf(sendsForReal)
+  @IsNotEmpty()
+  @IsUUID()
+  SCW_PROJECT_ID?: string;
 }
 
 export function validateEnv(
