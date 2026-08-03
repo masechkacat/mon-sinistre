@@ -169,6 +169,12 @@ describe('validateEnv, mail transport', () => {
     );
   });
 
+  it('writes to .mail-outbox when no directory is named', () => {
+    // The value, not the constant behind it: what this guards is that a fresh
+    // clone puts its messages where the .gitignore entry reaches them.
+    expect(validateEnv(validEnv).MAIL_OUTBOX_DIR).toBe('.mail-outbox');
+  });
+
   it('rejects an empty outbox directory', () => {
     // Empty is not unset: the messages would land in the working directory,
     // where the .gitignore entry for .mail-outbox does not reach them — and

@@ -20,6 +20,7 @@ import {
   type ValidationArguments,
 } from 'class-validator';
 
+import { DEFAULT_MAIL_OUTBOX_DIR } from 'src/mail/file-mail.transport';
 import {
   MAIL_TRANSPORT_NAMES,
   SENDING_TRANSPORT,
@@ -257,14 +258,19 @@ export class EnvironmentVariables {
   MAIL_TRANSPORT?: MailTransportName;
 
   /**
-   * Where the local transport writes; unset means .mail-outbox. Empty is not
-   * unset: it would resolve to the working directory, and the files carry real
-   * addresses in their To: header while only .mail-outbox is in .gitignore.
+   * Where the local transport writes. Unset means .mail-outbox, and the default
+   * is applied here rather than in the transport, so that the transport is
+   * always handed a directory. Empty is not unset: it would resolve to the
+   * working directory, and the files carry real addresses in their To: header
+   * while only .mail-outbox is in .gitignore.
+   *
+   * The name itself comes from src/mail, like the list of transport names
+   * above: the schema validates what the module declares, never the other way
+   * round.
    */
-  @IsOptional()
   @IsNotEmpty()
   @IsString()
-  MAIL_OUTBOX_DIR?: string;
+  MAIL_OUTBOX_DIR: string = DEFAULT_MAIL_OUTBOX_DIR;
 
   /**
    * The domain verified at the provider (SPF, DKIM, DMARC). MAIL_FROM is

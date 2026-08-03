@@ -27,9 +27,10 @@ const transportFor = (
   config: ConfigService<EnvironmentVariables, true>,
 ): MailTransport => {
   if (config.get('MAIL_TRANSPORT', { infer: true }) !== SENDING_TRANSPORT) {
-    // Where the outbox goes is the transport's own default when the variable is
-    // unset: two spellings of ".mail-outbox" would be one of them missing from
-    // .gitignore, and those files carry real addresses.
+    // Where the outbox goes always has a value by now — the schema supplies
+    // .mail-outbox when the variable is unset, and the single spelling of that
+    // name lives in the transport. Two spellings would be one of them missing
+    // from .gitignore, and those files carry real addresses.
     return new FileMailTransport(
       config.get('MAIL_OUTBOX_DIR', { infer: true }),
     );

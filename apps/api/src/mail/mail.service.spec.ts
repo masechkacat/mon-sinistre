@@ -8,7 +8,10 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import type { EnvironmentVariables } from 'src/config/env.validation';
 import { Test, type TestingModule } from '@nestjs/testing';
 
-import { FileMailTransport } from 'src/mail/file-mail.transport';
+import {
+  DEFAULT_MAIL_OUTBOX_DIR,
+  FileMailTransport,
+} from 'src/mail/file-mail.transport';
 import { MailComposer } from 'src/mail/mail-composer';
 import { captureLogs } from 'src/mail/mail-log.test-helper';
 import { MailCompositionError } from 'src/mail/mail-composition.error';
@@ -31,7 +34,14 @@ const PROJECT_ID = '11111111-2222-3333-4444-555555555555';
 // A stub rather than the real configuration: the test must not depend on
 // whatever FRONTEND_URL the developer has exported, and choosing a transport
 // must be observable without setting process.env (docs/plan/emails.md).
-const VALUES: Record<string, string> = { FRONTEND_URL, MAIL_FROM };
+// MAIL_OUTBOX_DIR is here because the schema always supplies it: a stub that
+// left it out would model an application that can no longer exist, and the
+// transport it builds would be handed nothing.
+const VALUES: Record<string, string> = {
+  FRONTEND_URL,
+  MAIL_FROM,
+  MAIL_OUTBOX_DIR: DEFAULT_MAIL_OUTBOX_DIR,
+};
 
 const configWith = (
   values: Record<string, string> = {},
