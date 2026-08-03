@@ -4,7 +4,8 @@
 
 > Имя продукта и npm-scope — **Mon Sinistre** / `@mon-sinistre/*`. Прежняя редакция этого ТЗ
 > (цикл продления прав MDPH, проект «Jalons») удалена 30.07.2026 по решению владельца
-> проекта; она доступна в git-истории, причины пивота — в `docs/pivot-catnat.md`.
+> проекта; она доступна в git-истории, причины пивота — в `docs/decisions.md`
+> (запись «пивот» от 30.07.2026).
 
 ---
 
@@ -115,7 +116,8 @@ FAIT/NON_APPLICABLE», копия плана в синистре (изменен
 ## 5. Монитор Journal Officiel
 
 Источник — открытые данные DILA (`echanges.dila.gouv.fr/OPENDATA/JORF/`), проверено
-прототипом 30.07.2026 (см. `docs/pivot-catnat.md`):
+прототипом 30.07.2026 (доказательная база — `docs/decisions.md`, запись «пивот»
+от 30.07.2026):
 
 - cron дважды в сутки: скачать новые тарболы, распаковать, найти тексты
   «portant reconnaissance de l'état de catastrophe naturelle»;

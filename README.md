@@ -19,7 +19,7 @@ catastrophe naturelle в Journal Officiel и ведёт пострадавшег
 apps/api        NestJS + Fastify + Prisma + PostgreSQL
 apps/web        Next.js + shadcn/ui
 packages/contracts  типы и enum'ы, общие для API и клиента
-docs            техническое задание
+docs            ТЗ, журнал решений, PRD/планы/research фич
 ```
 
 Монорепозиторий на npm workspaces. Общие типы вынесены в `@mon-sinistre/contracts`,
@@ -49,15 +49,13 @@ npm run dev:web                          # http://localhost:3000
 npm test
 ```
 
-Ядро, требующее покрытия в первую очередь (раздел 9 ТЗ), — парсер arrêté на
-фикстурах реальных XML из JORF, вычисление дедлайнов (30 дней от публикации,
-граничные случаи), состояния шагов и шаги с ещё не наступившим якорем,
-дедупликация по NOR, поводы для напоминаний.
+Состав обязательного покрытия — раздел 9 технического задания
+([`docs/technical-specification.md`](docs/technical-specification.md)).
 
 ## Pre-commit хук
 
-Перед каждым коммитом автоматически прогоняются `npm run lint` и `npm test`
-(хук в `.githooks/pre-commit`, без сторонних зависимостей). Git настраивается
+Перед каждым коммитом автоматически прогоняются `npm run lint`, `npm test` и
+`npm run test:tooling` (хук в `.githooks/pre-commit`, без сторонних зависимостей). Git настраивается
 на эту папку сам при `npm install` (скрипт `prepare` выставляет
 `core.hooksPath`). Обойти в исключительном случае: `git commit --no-verify`.
 
