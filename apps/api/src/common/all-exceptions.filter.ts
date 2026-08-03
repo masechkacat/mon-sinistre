@@ -7,6 +7,11 @@ import {
   Logger,
 } from '@nestjs/common';
 
+import {
+  httpExceptionForPrisma,
+  prismaErrorDetail,
+} from 'src/prisma/prisma-error';
+
 /**
  * The two methods this filter calls on the reply, and the two properties it
  * reads off the request. `fastify` is not a direct dependency of this package —
@@ -110,8 +115,9 @@ const nameOf = (exception: unknown): string =>
  * - **nothing of it reaches the log either, beyond its class and where it
  *   happened**. Prisma is the reason: its errors quote the values of the fields
  *   that failed, and in this product those are postal addresses, email
- *   addresses and inventory entries. Reading a Prisma error is what the next
- *   commit adds — by code and model name, not by message.
+ *   addresses and inventory entries. What a Prisma error is allowed to say is
+ *   decided in `src/prisma/prisma-error.ts` — its code and model name, never
+ *   its message.
  *
  * Client errors are not logged at all. A 4xx is a caller's mistake, its body
  * is built from what the caller sent, and there is nothing in it worth the risk
@@ -126,10 +132,16 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const request = http.getRequest<HttpRequest>();
     const reply = http.getResponse<HttpReply>();
 
-    const httpError = asHttpError(exception);
+    // A failed query that is really the caller's mistake answers as that
+    // mistake; everything below then treats it like any other HttpException,
+    // logging included — which is to say, not at all. The original is what
+    // gets logged when it stays a failure, so both are kept.
+    const answer = httpExceptionForPrisma(exception) ?? exception;
+
+    const httpError = asHttpError(answer);
     const status =
-      exception instanceof HttpException
-        ? exception.getStatus()
+      answer instanceof HttpException
+        ? answer.getStatus()
         : (httpError?.statusCode ?? HttpStatus.INTERNAL_SERVER_ERROR);
 
     if (status >= FIRST_SERVER_STATUS) {
@@ -141,8 +153,8 @@ export class AllExceptionsFilter implements ExceptionFilter {
     // filter is deliberately stricter, because a server-side failure has
     // nothing to tell a client that is worth the risk of what it might quote.
     const body =
-      exception instanceof HttpException
-        ? exception.getResponse()
+      answer instanceof HttpException
+        ? answer.getResponse()
         : status < FIRST_SERVER_STATUS && httpError
           ? httpError
           : internalErrorBody(status);
@@ -159,8 +171,13 @@ export class AllExceptionsFilter implements ExceptionFilter {
     // future endpoint could take an address the same way.
     const path = request.url.split('?')[0];
 
+    // The Prisma code and model when there is one: with the message off
+    // limits, it is the only thing that says which query failed and why.
+    const detail = prismaErrorDetail(exception);
+
     this.logger.error(
-      `${request.method} ${path} → ${status} ${nameOf(exception)}`,
+      `${request.method} ${path} → ${status} ${nameOf(exception)}` +
+        (detail ? ` ${detail}` : ''),
       framesOf(exception),
     );
   }

@@ -5,9 +5,21 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 
+import { Prisma } from 'src/generated/prisma/client';
+
 import { AllExceptionsFilter } from './all-exceptions.filter';
 
 const ADDRESS = 'destinataire@example.test';
+
+/** A failed query as the client throws it, message and meta included. */
+const prismaError = (
+  code: string,
+  meta?: Record<string, unknown>,
+): Prisma.PrismaClientKnownRequestError =>
+  new Prisma.PrismaClientKnownRequestError(
+    `Unique constraint failed on the fields: (\`email\`) = (${ADDRESS})`,
+    { code, clientVersion: '7.9.1', meta },
+  );
 
 const hostFor = (url = '/communes') => {
   const reply = {
@@ -132,6 +144,77 @@ describe('AllExceptionsFilter', () => {
         statusCode: 500,
         message: 'Internal server error',
       });
+    });
+  });
+
+  describe('a failed query', () => {
+    it('answers 404 when the row addressed is not there', () => {
+      // Ownership is part of the where clause, so "someone else's" arrives
+      // here as "not found" — and must leave as 404, never 403.
+      const { host, reply } = hostFor('/sinistres/42');
+
+      filter.catch(prismaError('P2025', { modelName: 'Sinistre' }), host);
+
+      expect(reply.status).toHaveBeenCalledWith(404);
+      expect(reply.send).toHaveBeenCalledWith(
+        expect.objectContaining({ statusCode: 404 }),
+      );
+    });
+
+    it('answers 409 when a unique constraint refused the write', () => {
+      const { host, reply } = hostFor();
+
+      filter.catch(prismaError('P2002', { modelName: 'Commune' }), host);
+
+      expect(reply.status).toHaveBeenCalledWith(409);
+    });
+
+    it('says nothing of the row in either answer', () => {
+      const { host, reply } = hostFor();
+
+      filter.catch(prismaError('P2002', { modelName: 'Commune' }), host);
+
+      expect(JSON.stringify(reply.send.mock.calls)).not.toContain(ADDRESS);
+    });
+
+    it('does not log a query that failed by the caller’s mistake', () => {
+      // It left as a 4xx, and 4xx are the caller's business, not an incident.
+      filter.catch(
+        prismaError('P2025', { modelName: 'Sinistre' }),
+        hostFor().host,
+      );
+
+      expect(error).not.toHaveBeenCalled();
+    });
+
+    it('answers 500 for a code with no answer true of every endpoint', () => {
+      // P2003 is a foreign key violation: whether that is the caller's fault
+      // depends on the endpoint, so the filter refuses to guess.
+      const { host, reply } = hostFor();
+
+      filter.catch(prismaError('P2003', { modelName: 'Commune' }), host);
+
+      expect(reply.status).toHaveBeenCalledWith(500);
+    });
+
+    it('logs the code and the model of a failure, and nothing else of it', () => {
+      // With the message off limits, these two are all that says which query
+      // failed and why — and both are schema, not data.
+      filter.catch(
+        prismaError('P2003', { modelName: 'Commune' }),
+        hostFor().host,
+      );
+
+      expect(loggedText(error)).toContain('P2003 on Commune');
+      expect(loggedText(error)).not.toContain(ADDRESS);
+      expect(loggedText(error)).not.toContain('email');
+    });
+
+    it('logs the code alone when the error names no model', () => {
+      filter.catch(prismaError('P2003'), hostFor().host);
+
+      expect(loggedText(error)).toContain('P2003');
+      expect(loggedText(error)).not.toContain(ADDRESS);
     });
   });
 
