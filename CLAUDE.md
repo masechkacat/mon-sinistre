@@ -52,59 +52,32 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 npm workspaces, три пакета:
 
 - `packages/contracts` (`@mon-sinistre/contracts`) — типы, enum'ы и константы, общие для API и клиента. Собирается **первым**: API импортирует его из `dist/`.
-- `apps/api` (`@mon-sinistre/api`) — NestJS + Fastify + Prisma + PostgreSQL, порт 3001.
-- `apps/web` (`@mon-sinistre/web`) — Next.js (App Router) + Tailwind 4, порт 3000. Contracts резолвится в его `dist/` (поле `main`), поэтому web тоже требует собранный contracts; `transpilePackages` нужен, чтобы dev-сервер подхватывал пересборку пакета.
+- `apps/api` (`@mon-sinistre/api`) — NestJS + Fastify + Prisma + PostgreSQL.
+- `apps/web` (`@mon-sinistre/web`) — Next.js (App Router) + Tailwind 4. Contracts резолвится в его `dist/` (поле `main`), поэтому web тоже требует собранный contracts; `transpilePackages` нужен, чтобы dev-сервер подхватывал пересборку пакета.
 
-У каждого приложения есть свой CLAUDE.md; у модулей `apps/api/src/` со своими
-правилами (`prisma`, `communes`, `mail`) — тоже.
+## Команды и проверки
 
-## Команды (из корня)
+Команды — скрипты корневого `package.json`. Что из них не выводится:
 
-```bash
-npm run db:up            # Postgres 18 в Docker, читает apps/api/.env
-npm run build:contracts  # обязательно перед первым запуском API и web
-npm run dev:api          # http://localhost:3001, /docs — OpenAPI
-npm run dev:web          # http://localhost:3000
-npm run dev:contracts    # tsc --watch, при параллельной правке типов
-npm run build            # порядок обязателен: contracts → api → web
-npm test                 # доменные тесты есть только в apps/api
-npm run test:tooling     # .claude/ — почему отдельно, абзац ниже
-npm run lint             # по всем workspace'ам
-```
-
-`.claude/` не входит в workspaces, поэтому ни eslint, ни jest его не видят — для скриптов обвязки заведён отдельный `test:tooling` на встроенном `node --test` (без зависимостей, Node ≥ 24 уже требуется). Новый файл рядом с `.claude/*.test.js` подхватывается сам.
-
-Pre-commit хук (`.githooks/pre-commit`, подключается через `core.hooksPath` скриптом `prepare` при `npm install`) прогоняет `npm run lint`, `npm test` и `npm run test:tooling` перед каждым коммитом. Хук не должен изменять файлы — скрипты `lint` запускаются без `--fix` (в `@mon-sinistre/api` для автопочинки есть отдельный `lint:fix`).
-
-Окружение: Node.js ≥ 24, Docker. Секреты — `cp apps/api/.env.example apps/api/.env`, значения генерируются `openssl rand -base64 48`.
+- `.claude/` не входит в workspaces, eslint и jest его **не видят** — для его
+  скриптов есть отдельный `npm run test:tooling` (встроенный `node --test`,
+  новый `.claude/*.test.js` подхватывается сам).
+- Pre-commit хук (`.githooks/`, подключается скриптом `prepare`) гоняет lint,
+  test и test:tooling и **не должен изменять файлы**: `lint` без `--fix`,
+  автопочинка — отдельным `lint:fix` в API.
 
 ## Ralph Loop — автономный прогон фазы
 
-```bash
-node .claude/ralph.js --dry-run   # проверить обвязку, не запуская агента
-node .claude/ralph.js             # прогнать фазу из .claude/ralph.config.json
-```
-
-Цикл берёт открытые issues milestone по возрастанию номера и на каждый запускает
-отдельную сессию `claude -p` с чистым контекстом. Сам сверяет ветку и коммит
-итерации, пушит, переводит issue в In Review, открывает PR после закрытия фазы.
-Ветка — `{фича}/phase-{N}`, milestone — `[{фича}] Фаза N: …` (формат задаёт скилл
-`issues`); фазы идут только последовательно, каждая от `origin/main`.
-
-Предполётно требуются `docs/prd|plan|research/{фича}.md` и чистое дерево. Правила
-итерации, условия останова, узкий `allowedTools` и причины каждой проверки —
-`.claude/ralph.md` и `.claude/ralph.js`; здесь не дублируются.
+`node .claude/ralph.js` (`--dry-run` — проверить обвязку, не запуская агента).
+Всё о цикле — правила итерации, предполётные проверки, условия останова,
+`allowedTools` — `.claude/ralph.md` и `.claude/ralph.js`.
 
 ## Коммиты и PR
 
-Живой номер в закрывающем трейлере — **ровно один**: тот, что относится к этому
-коммиту. GitHub ищет ключевые слова (`Closes`, `Fixes`, `Resolves` и формы) по
-всему тексту сообщения коммита, заголовка и тела PR и оформление не разбирает —
-кавычки и бэктики не спасают.
-
-Поэтому: примеры и объяснения трейлера — только с плейсхолдером (`Closes #<N>`);
-описывая инцидент, ключевое слово и живой номер рядом не ставить — писать
-«issue 12», а не трейлер с этим номером. Иначе закроется чужой issue.
+Живой номер после ключевого слова (`Closes`, `Fixes`, `Resolves` и формы) —
+**ровно один** на коммит: GitHub ищет эти слова по всему тексту коммита и PR, не
+разбирая оформления, и закрывает названный issue. Поэтому примеры — только с
+плейсхолдером (`Closes #<N>`), а описывая инцидент — «issue 12», не трейлер.
 
 ## Архитектура и доменная модель
 
