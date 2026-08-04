@@ -57,7 +57,6 @@ async function bootstrap() {
     SwaggerModule.createDocument(app, swaggerConfig),
   );
 
-  // No fallback: the schema carries the defaults.
   const port = config.get('PORT', { infer: true });
   const host = config.get('HOST', { infer: true });
 

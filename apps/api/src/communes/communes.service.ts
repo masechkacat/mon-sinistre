@@ -12,10 +12,6 @@ export class CommunesService {
    * The INSEE code branch upper-cases `q` instead of normalizing it: codes are
    * stored as the COG delivers them (2A004), and the rest of normalization must
    * not touch a code.
-   *
-   * The prefix goes through escapeLikePattern because Prisma feeds `startsWith`
-   * straight into a LIKE pattern; the sort runs on nameNormalized, whose
-   * `COLLATE "C"` is what keeps the order identical across Postgres images.
    */
   search(q: string): Promise<Commune[]> {
     return this.prisma.commune.findMany({
