@@ -1,6 +1,3 @@
-import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-
 import { fr } from 'src/i18n/fr';
 import { MailCompositionError } from 'src/mail/mail-composition.error';
 import type {
@@ -13,6 +10,20 @@ import { renderHtml } from 'src/mail/render-html';
 import { renderText } from 'src/mail/render-text';
 
 /**
+ * The two values the skeleton needs, and nothing else — the same shape the
+ * transports of this module are given (ScalewayMailConfig, the outbox directory
+ * of FileMailTransport). Reading the environment is the job of the one
+ * useFactory of MailModule; nothing here knows a variable name except to say
+ * which one an operator has to go and fix.
+ */
+export interface MailComposerOptions {
+  /** FRONTEND_URL: the base every link of every email is built on. */
+  readonly baseUrl: string;
+  /** MAIL_FROM: what ends up in the "From:" header. */
+  readonly senderEmail: string;
+}
+
+/**
  * The skeleton every email of the product goes through: subject, sender, both
  * bodies, the French footer and the link that stops the messages.
  *
@@ -20,13 +31,12 @@ import { renderText } from 'src/mail/render-text';
  * hand over paths, the base comes from FRONTEND_URL, and no feature joins the
  * two on its own (docs/plan/emails.md).
  */
-@Injectable()
 export class MailComposer {
-  constructor(private readonly config: ConfigService) {}
+  constructor(private readonly options: MailComposerOptions) {}
 
   compose(input: ComposeMailInput): MailMessage {
-    const baseUrl = this.required('FRONTEND_URL');
-    const senderEmail = this.required('MAIL_FROM');
+    const baseUrl = this.required(this.options.baseUrl, 'FRONTEND_URL');
+    const senderEmail = this.required(this.options.senderEmail, 'MAIL_FROM');
 
     // Validated at bootstrap as well (env.validation.ts), and checked again
     // here because this is what ends up in a "From:" header: the guarantee
@@ -81,14 +91,22 @@ export class MailComposer {
     };
   }
 
-  private required(key: 'FRONTEND_URL' | 'MAIL_FROM'): string {
-    const value = this.config.get<string>(key)?.trim();
-    if (!value) {
-      // Without a base every link would read "undefined/…", and a test
-      // asserting that the link is there would not notice.
-      throw new MailCompositionError(`${key} is not configured`);
+  /**
+   * The message names the environment variable, not the option: what the reader
+   * of the failure has to go and edit is a line of .env.
+   *
+   * The schema requires both, so nothing reaches here empty through a running
+   * application — but a value of nothing but blanks passes @IsNotEmpty there
+   * and trims to empty here. Without a base every link would read
+   * "undefined/…", and a test asserting that the link is there would not
+   * notice.
+   */
+  private required(value: string, variable: string): string {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      throw new MailCompositionError(`${variable} is not configured`);
     }
-    return value;
+    return trimmed;
   }
 }
 

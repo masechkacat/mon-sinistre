@@ -6,6 +6,7 @@ import { Injectable, Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { Test, type TestingModule } from '@nestjs/testing';
 
+import { configFor } from 'src/config/config.test-helper';
 import { FileMailTransport } from 'src/mail/file-mail.transport';
 import { MailComposer } from 'src/mail/mail-composer';
 import { captureLogs } from 'src/mail/mail-log.test-helper';
@@ -26,28 +27,14 @@ const MAIL_FROM = 'no-reply@example.test';
 const SECRET_KEY = 'scw-secret-key';
 const PROJECT_ID = '11111111-2222-3333-4444-555555555555';
 
-// A stub rather than the real configuration: the test must not depend on
-// whatever FRONTEND_URL the developer has exported, and choosing a transport
-// must be observable without setting process.env (docs/plan/emails.md).
-const VALUES: Record<string, string> = { FRONTEND_URL, MAIL_FROM };
+// The composer takes its two values directly; only the specs of MailModule
+// below still need a configuration service, because choosing a transport is
+// what they are about and it must be observable without setting process.env
+// (docs/plan/emails.md).
+const composerOptions = { baseUrl: FRONTEND_URL, senderEmail: MAIL_FROM };
 
-const configWith = (values: Record<string, string> = {}): ConfigService => {
-  const all: Record<string, string> = { ...VALUES, ...values };
-  return {
-    get: (key: string): string | undefined => all[key],
-    // Same failure as the real ConfigService: the name of the missing key and
-    // nothing of its value, which is a secret for two of the three keys read.
-    getOrThrow: (key: string): string => {
-      const value = all[key];
-      if (value === undefined) {
-        throw new Error(`Configuration key "${key}" does not exist`);
-      }
-      return value;
-    },
-  } as unknown as ConfigService;
-};
-
-const configStub = configWith();
+const configWith = (values: Record<string, string | undefined> = {}) =>
+  configFor({ FRONTEND_URL, MAIL_FROM, ...values });
 
 const input = (
   overrides: Partial<ComposeMailInput> = {},
@@ -106,7 +93,7 @@ class ShoutingTransport implements MailTransport {
 }
 
 const serviceWith = (transport: MailTransport): MailService =>
-  new MailService(new MailComposer(configStub), transport);
+  new MailService(new MailComposer(composerOptions), transport);
 
 const logs = captureLogs();
 

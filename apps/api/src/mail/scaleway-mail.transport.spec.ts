@@ -1,5 +1,3 @@
-import type { ConfigService } from '@nestjs/config';
-
 import { MailComposer } from 'src/mail/mail-composer';
 import { captureLogs } from 'src/mail/mail-log.test-helper';
 import { MailDeliveryError } from 'src/mail/mail-delivery.error';
@@ -469,16 +467,16 @@ describe('ScalewayMailTransport', () => {
  */
 describe('a failure of ScalewayMailTransport in the log of MailService', () => {
   const FRONTEND_URL = 'https://app.example.test';
-  const configStub = {
-    get: (key: string): string | undefined =>
-      ({ FRONTEND_URL, MAIL_FROM: 'no-reply@example.test' })[key],
-  } as unknown as ConfigService;
+  const composerOptions = {
+    baseUrl: FRONTEND_URL,
+    senderEmail: 'no-reply@example.test',
+  };
 
   const logs = captureLogs();
 
   it('is written at the error level, without the address and without the body', async () => {
     const service = new MailService(
-      new MailComposer(configStub),
+      new MailComposer(composerOptions),
       transport(respondingWith(REFUSED, 503)),
     );
 

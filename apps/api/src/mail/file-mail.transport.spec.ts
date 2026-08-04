@@ -1,5 +1,3 @@
-import type { ConfigService } from '@nestjs/config';
-
 import {
   FileMailTransport,
   type MailOutbox,
@@ -16,13 +14,10 @@ const MAIL_FROM = 'no-reply@example.test';
 const OUTBOX_DIR = '/tmp/outbox-de-test';
 const SUBJECT = 'Votre commune est concernée par un arrêté';
 
-const VALUES: Record<string, string> = { FRONTEND_URL, MAIL_FROM };
-const configStub = {
-  get: (key: string): string | undefined => VALUES[key],
-} as unknown as ConfigService;
+const composerOptions = { baseUrl: FRONTEND_URL, senderEmail: MAIL_FROM };
 
 const message = (overrides: Partial<ComposeMailInput> = {}): MailMessage =>
-  new MailComposer(configStub).compose({
+  new MailComposer(composerOptions).compose({
     to: RECIPIENT,
     subject: SUBJECT,
     reason: 'vous suivez la commune de Nîmes',

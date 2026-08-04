@@ -28,8 +28,15 @@ const nodeOutbox: MailOutbox = {
 /**
  * Relative to the working directory of the API, which npm sets to apps/api —
  * the directory is in the root .gitignore, because real addresses end up in
- * those files. MAIL_OUTBOX_DIR overrides it; the factory of the module passes
- * that value through unchanged, so this stays the only spelling of the default.
+ * those files.
+ *
+ * The only spelling of the name in code, and it stays in this module because
+ * this module is what the name is a fact about. Applying it is not done here,
+ * though: the schema of the environment declares it as the default of
+ * MAIL_OUTBOX_DIR, so a transport is always handed a directory and there is one
+ * place to read what happens when .env says nothing. A second default in the
+ * constructor below would be dead in production and alive only in tests — the
+ * kind that stops matching what runs.
  */
 export const DEFAULT_MAIL_OUTBOX_DIR = '.mail-outbox';
 
@@ -59,7 +66,7 @@ export class FileMailTransport implements MailTransport {
   private written = 0;
 
   constructor(
-    private readonly dir: string = DEFAULT_MAIL_OUTBOX_DIR,
+    private readonly dir: string,
     private readonly outbox: MailOutbox = nodeOutbox,
     private readonly now: () => Date = () => new Date(),
   ) {}

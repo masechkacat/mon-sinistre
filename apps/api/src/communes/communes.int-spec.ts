@@ -6,6 +6,10 @@ import { Test } from '@nestjs/testing';
 import { COMMUNE_SEARCH_LIMIT, Commune } from '@mon-sinistre/contracts';
 import { AppModule } from 'src/app.module';
 import { createGlobalValidationPipe } from 'src/config/validation-pipe';
+import {
+  MAX_QUERY_LENGTH,
+  MIN_QUERY_LENGTH,
+} from 'src/communes/dto/search-communes-query.dto';
 import { normalizeCommuneName } from 'src/communes/normalize-commune-name';
 import { PrismaService } from 'src/prisma/prisma.service';
 
@@ -193,8 +197,17 @@ describe('GET /communes (integration)', () => {
   it.each([
     ['missing q', undefined],
     ['empty q', ''],
-    ['single-character q', 'a'],
-    ['q longer than 64 characters', 'a'.repeat(65)],
+    // Both are one character off the bound, taken from the constants that set
+    // it: the case is "just outside what we accept", not "64", and a label
+    // spelling the number out goes stale the day the bound moves.
+    [
+      `q shorter than ${MIN_QUERY_LENGTH} characters`,
+      'a'.repeat(MIN_QUERY_LENGTH - 1),
+    ],
+    [
+      `q longer than ${MAX_QUERY_LENGTH} characters`,
+      'a'.repeat(MAX_QUERY_LENGTH + 1),
+    ],
   ])('rejects %s with a validation error', async (_label, q) => {
     const res = await search(q);
 

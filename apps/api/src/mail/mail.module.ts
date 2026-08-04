@@ -1,12 +1,16 @@
 import { Global, Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
+import type { EnvironmentVariables } from 'src/config/env.validation';
 import { FileMailTransport } from 'src/mail/file-mail.transport';
-import { MailComposer } from 'src/mail/mail-composer';
 import {
-  SENDING_TRANSPORT,
-  type MailTransportName,
-} from 'src/mail/mail-transport-name';
+  MailComposer,
+  type MailComposerOptions,
+} from 'src/mail/mail-composer';
+// Only the constant: the type of MAIL_TRANSPORT now comes from the schema,
+// which declares the variable with it — the call site no longer asserts what
+// the value is, it is told.
+import { SENDING_TRANSPORT } from 'src/mail/mail-transport-name';
 import { MAIL_TRANSPORT, type MailTransport } from 'src/mail/mail-transport';
 import { MailService } from 'src/mail/mail.service';
 import { ScalewayMailTransport } from 'src/mail/scaleway-mail.transport';
@@ -22,12 +26,28 @@ import { ScalewayMailTransport } from 'src/mail/scaleway-mail.transport';
  * files — is refused by that same schema, not by this factory, which has no way
  * of telling a production from a laptop.
  */
-const transportFor = (config: ConfigService): MailTransport => {
-  if (config.get<MailTransportName>('MAIL_TRANSPORT') !== SENDING_TRANSPORT) {
-    // Where the outbox goes is the transport's own default when the variable is
-    // unset: two spellings of ".mail-outbox" would be one of them missing from
-    // .gitignore, and those files carry real addresses.
-    return new FileMailTransport(config.get<string>('MAIL_OUTBOX_DIR'));
+/**
+ * The skeleton is handed its two values, like every transport below: reading
+ * the environment happens here and nowhere else in the module.
+ */
+const composerOptionsFrom = (
+  config: ConfigService<EnvironmentVariables, true>,
+): MailComposerOptions => ({
+  baseUrl: config.get('FRONTEND_URL', { infer: true }),
+  senderEmail: config.get('MAIL_FROM', { infer: true }),
+});
+
+const transportFor = (
+  config: ConfigService<EnvironmentVariables, true>,
+): MailTransport => {
+  if (config.get('MAIL_TRANSPORT', { infer: true }) !== SENDING_TRANSPORT) {
+    // Where the outbox goes always has a value by now — the schema supplies
+    // .mail-outbox when the variable is unset, and the single spelling of that
+    // name lives in the transport. Two spellings would be one of them missing
+    // from .gitignore, and those files carry real addresses.
+    return new FileMailTransport(
+      config.get('MAIL_OUTBOX_DIR', { infer: true }),
+    );
   }
 
   return new ScalewayMailTransport({
@@ -38,8 +58,15 @@ const transportFor = (config: ConfigService): MailTransport => {
     // instead of building an application that starts healthy and has every
     // message refused by the provider. What it reports is the name of the key,
     // never its value.
-    secretKey: config.getOrThrow<string>('SCW_SECRET_KEY'),
-    projectId: config.getOrThrow<string>('SCW_PROJECT_ID'),
+    //
+    // These two are the reason getOrThrow survives the move to the typed
+    // configuration while PrismaService lost it: they are required of the
+    // sending transport alone (@ValidateIf), so the schema declares them
+    // optional and the type says "string | undefined" — which the credentials
+    // of the client do not accept. The compiler now asks for the check the
+    // comment above asks for.
+    secretKey: config.getOrThrow('SCW_SECRET_KEY', { infer: true }),
+    projectId: config.getOrThrow('SCW_PROJECT_ID', { infer: true }),
   });
 };
 
@@ -55,7 +82,12 @@ const transportFor = (config: ConfigService): MailTransport => {
 @Global()
 @Module({
   providers: [
-    MailComposer,
+    {
+      provide: MailComposer,
+      inject: [ConfigService],
+      useFactory: (config: ConfigService<EnvironmentVariables, true>) =>
+        new MailComposer(composerOptionsFrom(config)),
+    },
     MailService,
     {
       provide: MAIL_TRANSPORT,

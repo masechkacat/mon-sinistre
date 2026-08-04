@@ -109,10 +109,38 @@ describe('validateEnv', () => {
     ).toThrow(/MAIL_FROM/);
   });
 
-  it('rejects an out-of-range port', () => {
-    expect(() => validateEnv({ ...validEnv, DB_PORT: '70000' })).toThrow(
+  it('listens on the port and host of the schema when .env names neither', () => {
+    // The values themselves, not the constants that hold them: what this
+    // guards is that a fresh clone comes up where the README says it does.
+    const env = validateEnv(validEnv);
+    expect(env.PORT).toBe(3001);
+    expect(env.HOST).toBe('0.0.0.0');
+  });
+
+  it('prefers what .env names to the default', () => {
+    const env = validateEnv({ ...validEnv, PORT: '4000', HOST: '127.0.0.1' });
+    expect(env.PORT).toBe(4000);
+    expect(env.HOST).toBe('127.0.0.1');
+  });
+
+  it('refuses a port or a host set to nothing — empty is not unset', () => {
+    // A variable written and left blank is a mistake, not an omission: reading
+    // it as unset would hide the typo behind a default that happens to work.
+    expect(() => validateEnv({ ...validEnv, PORT: '' })).toThrow(/PORT/);
+    expect(() => validateEnv({ ...validEnv, HOST: '' })).toThrow(/HOST/);
+  });
+
+  it.each([
+    ['above the range', '70000'],
+    // Zero is a valid port to the kernel and means "pick any free one" — an
+    // API nobody can find the address of, started without a word of warning.
+    ['zero', '0'],
+    ['not a number at all', 'cinq-mille'],
+  ])('rejects a port %s, whichever port it is', (_case, value) => {
+    expect(() => validateEnv({ ...validEnv, DB_PORT: value })).toThrow(
       /DB_PORT/,
     );
+    expect(() => validateEnv({ ...validEnv, PORT: value })).toThrow(/PORT/);
   });
 });
 
@@ -146,6 +174,12 @@ describe('validateEnv, mail transport', () => {
     expect(() => validateEnv({ ...validEnv, MAIL_TRANSPORT: value })).toThrow(
       /MAIL_TRANSPORT/,
     );
+  });
+
+  it('writes to .mail-outbox when no directory is named', () => {
+    // The value, not the constant behind it: what this guards is that a fresh
+    // clone puts its messages where the .gitignore entry reaches them.
+    expect(validateEnv(validEnv).MAIL_OUTBOX_DIR).toBe('.mail-outbox');
   });
 
   it('rejects an empty outbox directory', () => {
