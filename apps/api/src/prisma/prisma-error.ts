@@ -3,10 +3,8 @@ import { Prisma } from 'src/generated/prisma/client';
 
 /**
  * Short on purpose: a code belongs here only when one answer is true for every
- * endpoint at once, and almost none are. P2002 is deliberately absent — at an
- * endpoint taking an email address a 409 is an account-enumeration oracle, so
- * an endpoint that really owes a 409 catches P2002 itself; unmapped it stays
- * a 500.
+ * endpoint at once, and almost none are. P2002 is deliberately absent —
+ * `apps/api/CLAUDE.md`, «Правила проекта».
  *
  * A Map rather than an object literal: the key comes off the error, and an
  * object literal answers `constructor` with something that is not a mapping.
