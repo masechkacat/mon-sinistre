@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Стек
 
-Next.js 16 (App Router, `src/app/`), React 19, Tailwind CSS 4 (через PostCSS, без tailwind.config). Компонентная база — **shadcn/ui на Base UI** (дефолт shadcn с июля 2026; при инициализации выбирать Base UI, не Radix). Отдельных библиотек примитивов сверх этого не подключать. Работа с API — **TanStack Query** (см. «Правила проекта»).
+Next.js 16 (App Router, `src/app/`), React 19, Tailwind CSS 4 (через PostCSS, без tailwind.config). Компонентная база — **shadcn/ui на Base UI**, инициализирована (конфигурация — `components.json`); при добавлении компонентов выбирать Base UI-вариант, не Radix. Отдельных библиотек примитивов сверх этого не подключать. Работа с API — **TanStack Query** (см. «Правила проекта»).
 
 Технические решения фундамента клиента — тест-инфраструктура (Playwright + axe),
 темы, локализация, контроль литералов, слой API — приняты в
