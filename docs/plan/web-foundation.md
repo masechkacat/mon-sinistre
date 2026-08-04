@@ -1,9 +1,8 @@
 # Plan: Фундамент клиента и главная страница
 
 **PRD**: docs/prd/web-foundation.md
-**Research**: docs/research/web-foundation.md — пишется после этого плана
-(конвейер prd → plan → research). Задачи с пометкой «по research-отчёту»
-применяют его решения, а не перевыбирают их.
+**Research**: docs/research/web-foundation.md. Задачи с пометкой «по
+research-отчёту» применяют его решения, а не перевыбирают их.
 **Дата**: 2026-08-04
 
 Фича целиком клиентская: все фазы затрагивают только `apps/web`.
