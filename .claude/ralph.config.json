@@ -29,6 +29,8 @@
     "Bash(npm run lint)",
     "Bash(npm run lint:*)",
     "Bash(npm run test:tooling)",
+    "Bash(npm run test:web)",
+    "mcp__playwright__*",
     "Bash(npm run build:contracts)",
     "Bash(npm run db:up)",
     "Bash(npx prisma migrate:*)",

@@ -16,7 +16,7 @@ Next.js 16 (App Router, `src/app/`), React 19, Tailwind CSS 4 (через PostCS
 
 ## Команды
 
-Своих у пакета нет: запуск, сборка и линт — из корня (`npm run dev:web`, `npm run build`, `npm run lint`). API ожидается на http://localhost:3001. Тестов в этом пакете нет — доменная логика тестируется в API. Линтер — eslint c `eslint-config-next` (flat config в `eslint.config.mjs`), запускается pre-commit хуком.
+Запуск, сборка, линт и тесты — из корня (`npm run dev:web`, `npm run build`, `npm run lint`, `npm run test:web` — Playwright). API ожидается на http://localhost:3001. Доменная логика тестируется в API. Линтер — eslint c `eslint-config-next` (flat config в `eslint.config.mjs`), запускается pre-commit хуком.
 
 ## Особенности сборки
 
@@ -42,7 +42,6 @@ Next.js 16 (App Router, `src/app/`), React 19, Tailwind CSS 4 (через PostCS
 ## Актуализация документации
 
 При изменении архитектуры клиента обновлять этот файл в том же коммите:
-инициализация shadcn/ui на Base UI (запланирована, но ещё не выполнена),
 появление слоя работы с API, механизма локализации, тестов. Изменения,
 затрагивающие весь монорепозиторий, — в корневом `../../CLAUDE.md`. Факт, уже
 написанный там, здесь не повторять: корневой файл загружен всегда.
