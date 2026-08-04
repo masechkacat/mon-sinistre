@@ -16,8 +16,7 @@ export interface ScalewayMailConfig {
   readonly projectId: string;
 }
 
-/** Nothing is logged here: MailService logs a failed send once, and it is the
- * only place that can strip a recipient address a transport let slip. */
+/** Nothing is logged here: logging a failed send is MailService's job. */
 export class ScalewayMailTransport implements MailTransport {
   constructor(
     private readonly config: ScalewayMailConfig,
