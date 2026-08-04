@@ -5,36 +5,17 @@
 
 ## Стек
 
-NestJS 11 на **Fastify** (не Express — плагины через `app.register`, см.
-`src/main.ts`), Prisma + PostgreSQL, Passport (local + JWT), Swagger на `/docs`.
+NestJS 11 на **Fastify**, не Express: плагины через `app.register` (`src/main.ts`).
 
-## Команды (из apps/api)
+## Команды
 
-Запуск, юнит-тесты и линт — из корня. Здесь только то, чего в корне нет:
-
-```bash
-npm test -- steps        # один тест по подстроке пути
-npm run test:int         # *.int-spec.ts против реального Postgres — нужен npm run db:up
-npm run test:cov
-npm run lint:fix
-npm run prisma:generate  # после каждой правки schema.prisma
-npm run migration:dev    # локально
-npm run migration:deploy # прод/CI
-npm run seed             # импорт справочника коммун COG, идемпотентен
-```
-
-Рантайму нужен собранный contracts (`npm run build:contracts` из корня); тестам
-не нужен — jest подставляет исходники через `moduleNameMapper`.
+Скрипты — `package.json` пакета. Из них не выводится одно: тестам собранный
+contracts не нужен — jest подставляет его исходники через `moduleNameMapper`
+(рантайму — нужен).
 
 ## Модули
 
-У модулей со своими правилами — собственный `CLAUDE.md` рядом с кодом,
-подхватывается при работе с файлами модуля. Здесь только адрес, правила — там:
-
-- `src/prisma/` — Prisma 7 (driver adapter), connection string из `DB_*`,
-  `escapeLikePattern`, перевод кодов ошибок, клиент интеграционных тестов.
-- `src/communes/` — импорт COG, `normalizeCommuneName`, поиск `GET /communes?q=`.
-- `src/mail/` — каркас письма, единственная точка отправки, транспорты.
+Свои `CLAUDE.md` у `src/prisma/`, `src/communes/`, `src/mail/` — правила там.
 
 ## Единственные точки входа
 
