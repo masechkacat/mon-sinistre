@@ -12,12 +12,8 @@ import {
   prismaErrorDetail,
 } from 'src/prisma/prisma-error';
 
-/**
- * The two methods this filter calls on the reply, and the two properties it
- * reads off the request. `fastify` is not a direct dependency of this package —
- * it arrives under @nestjs/platform-fastify — so naming what is used keeps a
- * phantom import out of application code.
- */
+/** Declared rather than imported: fastify arrives under
+ * @nestjs/platform-fastify and is not a direct dependency of this package. */
 interface HttpReply {
   status(code: number): HttpReply;
   send(body: unknown): unknown;
@@ -28,21 +24,15 @@ interface HttpRequest {
   readonly url: string;
 }
 
-/**
- * What Nest's own filter sends for an unhandled error, kept to the byte — the
- * status is a parameter only so that an error naming 503 is not answered with a
- * body that says 500.
- */
+/** What Nest's own filter sends, kept to the byte. */
 const internalErrorBody = (status: number) => ({
   statusCode: status,
   message: 'Internal server error',
 });
 
 /**
- * An error that is not ours and not Nest's, but already carries a status —
- * Fastify raises those for a malformed body or an oversized payload, and the
- * `http-errors` shape is what Nest's own filter recognises here. Replicated so
- * that registering this filter changes no answer: without the branch a
+ * Fastify raises these for a malformed body or an oversized payload. Replicated
+ * so that registering this filter changes no answer: without the branch a
  * protocol complaint that used to be a 400 would become a 500.
  */
 interface HttpErrorLike {
@@ -80,28 +70,18 @@ const asHttpError = (exception: unknown): HttpErrorLike | undefined => {
     : undefined;
 };
 
-/**
- * Enough to find the failing line, far short of a full trace of the framework.
- */
 const MAX_LOGGED_FRAMES = 12;
 
 /** Typed as a number: what is compared against it is a status, not an enum. */
 const FIRST_SERVER_STATUS: number = HttpStatus.INTERNAL_SERVER_ERROR;
 
 /**
- * The frames of a stack and nothing else.
- *
- * The header of a V8 stack is `${name}: ${message}`, and the message is exactly
- * what must not reach the logs: a Prisma error spells the offending values out
- * in it, and those values are addresses, names and inventory entries. The
- * header is therefore removed by exact length, not by dropping the first line —
- * a message with newlines in it occupies several. What survives is then kept
- * only if it looks like a frame, so a message that faked its own header leaves
- * nothing behind either.
- *
- * Anything that does not match this shape yields no stack at all. Losing the
- * trace of an odd error costs a debugging session; the other direction costs
- * personal data in a log file, which the project does not allow (`CLAUDE.md`).
+ * The frames of a stack and nothing else. The header of a V8 stack is
+ * `${name}: ${message}`, and the message is exactly what must not reach the
+ * logs. It is removed by exact length, not by dropping the first line — a
+ * message with newlines occupies several. Anything not matching this shape
+ * yields no stack at all: losing the trace of an odd error costs a debugging
+ * session, the other direction costs personal data in a log file.
  */
 const framesOf = (exception: unknown): string | undefined => {
   if (!(exception instanceof Error) || !exception.stack) {
@@ -133,23 +113,12 @@ const nameOf = (exception: unknown): string =>
   exception instanceof Error ? exception.constructor.name : typeof exception;
 
 /**
- * The last stop of every request that failed.
+ * The last stop of every failed request. It does not change the response shape;
+ * it exists so that nothing of an unhandled error reaches the client, and
+ * nothing of it reaches the log beyond its class and where it happened.
  *
- * It exists for two reasons, and neither is the response shape — an
- * HttpException already answers exactly as it did before this filter:
- *
- * - **nothing of an unhandled error reaches the client**: whatever it carries,
- *   the answer is the same 500 Nest sends by default;
- * - **nothing of it reaches the log either, beyond its class and where it
- *   happened**. Prisma is the reason: its errors quote the values of the fields
- *   that failed, and in this product those are postal addresses, email
- *   addresses and inventory entries. What a Prisma error is allowed to say is
- *   decided in `src/prisma/prisma-error.ts` — its code and model name, never
- *   its message.
- *
- * Client errors are not logged at all. A 4xx is a caller's mistake, its body
- * is built from what the caller sent, and there is nothing in it worth the risk
- * of writing input to disk.
+ * Client errors are not logged at all: a 4xx body is built from what the caller
+ * sent.
  */
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
@@ -160,10 +129,8 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const request = http.getRequest<HttpRequest>();
     const reply = http.getResponse<HttpReply>();
 
-    // A failed query that is really the caller's mistake answers as that
-    // mistake; everything below then treats it like any other HttpException,
-    // logging included — which is to say, not at all. The original is what
-    // gets logged when it stays a failure, so both are kept.
+    // Both are kept: the translated one decides the answer, the original is
+    // what gets logged when it stays a failure.
     const answer = httpExceptionForPrisma(exception) ?? exception;
 
     const httpError = asHttpError(answer);
@@ -176,14 +143,11 @@ export class AllExceptionsFilter implements ExceptionFilter {
       this.logFailure(exception, status, request);
     }
 
-    // An HttpException answers with its own body at any status, exactly as it
-    // did before this filter: what a 500 of ours says is written by whoever
-    // threw it. The stricter rule below is about the other kind — an error that
-    // merely carries a statusCode: its status is honoured, its message passed
-    // on only under 500. Nest hands that message over at any status, and this
-    // is the one place the filter deliberately does not, because a foreign
-    // server-side failure has nothing to tell a client that is worth the risk
-    // of what it might quote.
+    // An HttpException answers with its own body at any status — what a 500 of
+    // ours says is written by whoever threw it. A foreign http-error is
+    // stricter than Nest on purpose: its message is passed on only below 500,
+    // because a server-side failure has nothing to tell a client that is worth
+    // the risk of what it might quote.
     const body =
       answer instanceof HttpException
         ? httpExceptionBody(answer, status)
@@ -199,12 +163,10 @@ export class AllExceptionsFilter implements ExceptionFilter {
     status: number,
     request: HttpRequest,
   ): void {
-    // The path without its query string: `q` is what the reader typed, and a
-    // future endpoint could take an address the same way.
+    // Without the query string: `q` is what the reader typed, and a future
+    // endpoint could take an address the same way.
     const path = request.url.split('?')[0];
 
-    // The Prisma code and model when there is one: with the message off
-    // limits, it is the only thing that says which query failed and why.
     const detail = prismaErrorDetail(exception);
 
     this.logger.error(

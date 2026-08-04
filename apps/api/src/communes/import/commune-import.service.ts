@@ -36,8 +36,8 @@ export class CommuneImportService {
 
   async run(): Promise<CommuneImportResult> {
     const communes = await this.source.fetchCommunes();
-    // Day precision at UTC midnight: the run date lands in a `date` column
-    // (domain rule for dates), so no timezone component may leak into it.
+    // UTC midnight: the run date lands in a `date` column, so no timezone
+    // component may leak into it.
     const sourceVerifiedAt = new Date(
       `${new Date().toISOString().slice(0, 10)}T00:00:00Z`,
     );
@@ -58,9 +58,8 @@ export class CommuneImportService {
       }
     }
 
-    // Reconciliation against the source, not against the table: codes that
-    // disappeared from the response stay in the database and must not fail
-    // the run. Counts and the driver error only — no personal data here.
+    // Against the source, not the table: codes that disappeared from the
+    // response stay in the database and must not fail the run.
     if (processed !== communes.length) {
       throw new Error(
         `Commune import reconciliation failed: persisted ${processed} of ` +
@@ -80,9 +79,7 @@ export class CommuneImportService {
   ): Promise<void> {
     const fields = {
       name: commune.nom,
-      // Written here and nowhere else: the search key must come from the same
-      // function the query uses, or a renamed commune would keep answering
-      // under its old spelling (docs/research/commune-referential.md).
+      // The search key must come from the same function the query uses.
       nameNormalized: normalizeCommuneName(commune.nom),
       departementCode: commune.codeDepartement,
       departementName: commune.departement.nom,

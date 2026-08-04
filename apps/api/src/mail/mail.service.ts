@@ -6,13 +6,9 @@ import type { ComposeMailInput, MailMessage } from 'src/mail/mail-message';
 import { MAIL_TRANSPORT, type MailTransport } from 'src/mail/mail-transport';
 
 /**
- * The single point through which every email of the product leaves: features
- * describe a message, MailService composes it and hands it to the transport.
- *
- * It knows nothing about the environment — the transport arrives through the
- * MAIL_TRANSPORT token — and it is also the place where a limit such as "no
- * more than one email a day" will go once a feature owns that requirement
- * (docs/plan/emails.md, "Вне скоупа").
+ * The single point through which every email of the product leaves. It knows
+ * nothing about the environment — the transport arrives through the
+ * MAIL_TRANSPORT token — and is where a rate limit will go.
  */
 @Injectable()
 export class MailService {
@@ -25,11 +21,8 @@ export class MailService {
 
   /**
    * Returns once the transport has accepted the message, throws otherwise:
-   * MailCompositionError if the message could not be assembled,
-   * MailDeliveryError if it could not be delivered — a failure of a transport
-   * always reaches the caller as that type, whatever the transport threw.
-   * There is no result to inspect and no path on which a message vanishes
-   * without a word.
+   * MailCompositionError or MailDeliveryError. There is no result to inspect
+   * and no path on which a message vanishes without a word.
    */
   async send(input: ComposeMailInput): Promise<void> {
     const message = this.compose(input);
@@ -45,8 +38,7 @@ export class MailService {
       throw failure;
     }
 
-    // The subject and nothing else — the recipient address stays out of the
-    // logs on both paths (apps/api/CLAUDE.md, "Правила проекта").
+    // The subject and nothing else.
     this.logger.log(`Email sent: "${message.subject}"`);
   }
 
@@ -54,8 +46,8 @@ export class MailService {
     try {
       return this.composer.compose(input);
     } catch (cause) {
-      // Not even the subject here: composition may well have failed on the
-      // subject itself, and the error already names the offending field.
+      // Not even the subject: composition may well have failed on the subject
+      // itself, and the error already names the offending field.
       this.logger.error(
         'An email could not be composed and was not sent',
         withoutAddress(reportOf(cause), input.to),
@@ -65,28 +57,20 @@ export class MailService {
   }
 }
 
-/**
- * A transport either honours the contract of MailTransport or it does not, and
- * the calling feature must not have to know which: anything else it throws is
- * wrapped, so that a failed delivery is a MailDeliveryError every time — the
- * promise features are given (apps/api/CLAUDE.md). The original stays as the
- * cause and is reported below.
- */
+/** Anything a transport throws is wrapped, so a failed delivery is a
+ * MailDeliveryError every time. The original stays as the cause. */
 const deliveryErrorOf = (cause: unknown): MailDeliveryError =>
   cause instanceof MailDeliveryError
     ? cause
     : new MailDeliveryError('the transport failed', { cause });
 
-/** How deep the chain of causes is followed — a guard against a cycle. */
+/** A guard against a cycle in the chain of causes. */
 const MAX_CAUSE_DEPTH = 5;
 
 /**
- * What reaches the logs of a failure: the stack, and then the chain of causes,
- * because a stack does not carry it. Without the chain the log of phase 2 would
- * read "Scaleway TEM request failed" and never say whether it was a timeout, a
- * refused connection or a bad answer (docs/research/emails.md).
- *
- * Names and messages only, never the values an error may carry.
+ * The stack, then the chain of causes, because a stack does not carry it —
+ * without the chain a log would say "request failed" and never whether it was a
+ * timeout, a refused connection or a bad answer. Names and messages only.
  */
 const reportOf = (thrown: unknown): string => {
   if (!(thrown instanceof Error)) {
@@ -104,19 +88,14 @@ const reportOf = (thrown: unknown): string => {
 
 const ADDRESS_REMOVED = '[address removed]';
 
-/** Every character a regular expression would otherwise read as syntax. */
 const escapeRegExp = (value: string): string =>
   value.replaceAll(/[\\^$.*+?()[\]{}|]/g, String.raw`\$&`);
 
 /**
- * The last gate before an address could reach a log. Transports and the
- * composer owe an error free of it, but the guarantee features rely on must not
- * rest on every future transport getting that right: this service is the only
- * place able to enforce it, and it knows the address it just handed over.
- *
- * Case-insensitive: the domain of an address is case-insensitive by RFC 5321,
- * so a provider is free to answer about "Destinataire@Example.test" whatever
- * was sent to it, and an exact match would hand that straight to the logs.
+ * The last gate before an address could reach a log: transports owe an error
+ * free of it, but the guarantee must not rest on every future transport getting
+ * that right. Case-insensitive — the domain of an address is case-insensitive
+ * by RFC 5321, so a provider may answer about "Destinataire@Example.test".
  */
 const withoutAddress = (report: string, recipient: string): string =>
   recipient === ''

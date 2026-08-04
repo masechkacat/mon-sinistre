@@ -3,22 +3,12 @@ import type { ConfigService } from '@nestjs/config';
 import { validateEnv, type EnvironmentVariables } from './env.validation';
 
 /**
- * The one ConfigService stub of the unit specs.
+ * The one ConfigService stub of the unit specs. The base is the real schema's
+ * own output, so a default added to the schema reaches every spec.
  *
- * Four specs used to build their own, and the four drifted: when the schema
- * started supplying a default, three of them still described an application
- * that could no longer exist, and the divergence surfaced as a test handing a
- * transport nothing at all. The base here is not a hand-written record but the
- * real schema's own output, so a default added to the schema reaches every spec
- * without anybody remembering to copy it.
- *
- * Overrides are applied raw, on top, and deliberately not validated: a spec's
- * whole subject is often a configuration that must not be accepted — a sender
- * address with a line break, a provider selected without its credentials.
- * Validating them would make those states unreachable and delete the tests.
- *
- * An override of `undefined` means "this variable is not set", which is how a
- * spec asks what happens without it.
+ * Overrides are applied raw and deliberately not validated: a spec's subject is
+ * often a configuration that must not be accepted, and validating them would
+ * make those states unreachable. An override of `undefined` means "not set".
  */
 const VALID_ENV: Record<string, string> = {
   DB_HOST: 'localhost',

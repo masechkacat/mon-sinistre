@@ -701,6 +701,25 @@ function openPullRequest(cfg, phase, milestone, branch) {
 
   const all = milestoneIssues(milestone, 'all');
 
+  // Баланс текста считает скрипт, а не агент: рост документации должен быть
+  // виден на ревью независимо от того, признался ли в нём автор.
+  const [mdAdded, mdDeleted] = git([
+    'diff',
+    '--numstat',
+    `origin/main...${branch}`,
+    '--',
+    '*.md',
+  ])
+    .split('\n')
+    .filter(Boolean)
+    .reduce(
+      ([a, d], line) => {
+        const [add, del] = line.split('\t');
+        return [a + (Number(add) || 0), d + (Number(del) || 0)];
+      },
+      [0, 0],
+    );
+
   const body = [
     `Фаза ${phase} плана \`docs/plan/${cfg.feature}.md\`.`,
     '',
@@ -712,6 +731,7 @@ function openPullRequest(cfg, phase, milestone, branch) {
     '## Контекст',
     `- PRD: \`docs/prd/${cfg.feature}.md\``,
     `- Research: \`docs/research/${cfg.feature}.md\``,
+    `- Текст (\`*.md\`): +${mdAdded}/−${mdDeleted} строк к \`origin/main\``,
     '',
     '_Собрано Ralph Loop (`.claude/ralph.js`), по одному коммиту на issue._',
   ].join('\n');

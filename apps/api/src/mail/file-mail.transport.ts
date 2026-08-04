@@ -7,12 +7,8 @@ import { MailDeliveryError } from 'src/mail/mail-delivery.error';
 import type { MailMessage } from 'src/mail/mail-message';
 import type { MailTransport } from 'src/mail/mail-transport';
 
-/**
- * Where the local transport puts a message. The file system is behind an
- * interface handed to the constructor — the same shape as the fetch function of
- * GeoApiClient — so the test reads the very channel the developer opens, with
- * no disk and no mock of node:fs in the way.
- */
+/** Behind an interface so the test reads the channel the developer opens, with
+ * no disk and no mock of node:fs in the way. */
 export interface MailOutbox {
   mkdir(dir: string): Promise<void>;
   writeFile(file: string, contents: string): Promise<void>;
@@ -26,42 +22,25 @@ const nodeOutbox: MailOutbox = {
 };
 
 /**
- * Relative to the working directory of the API, which npm sets to apps/api —
- * the directory is in the root .gitignore, because real addresses end up in
- * those files.
- *
- * The only spelling of the name in code, and it stays in this module because
- * this module is what the name is a fact about. Applying it is not done here,
- * though: the schema of the environment declares it as the default of
- * MAIL_OUTBOX_DIR, so a transport is always handed a directory and there is one
- * place to read what happens when .env says nothing. A second default in the
- * constructor below would be dead in production and alive only in tests — the
- * kind that stops matching what runs.
+ * The only spelling of the name in code. Applying it happens in the environment
+ * schema, which declares it as the default of MAIL_OUTBOX_DIR — a second default
+ * in the constructor below would be dead in production and alive only in tests.
  */
 export const DEFAULT_MAIL_OUTBOX_DIR = '.mail-outbox';
 
-/** Long enough to recognise a French subject, short enough for any file system. */
 const MAX_SLUG_LENGTH = 60;
 
 /**
- * The transport of local development: a message is written as a pair of files
- * instead of being sent. Nothing leaves the machine — no address of a real
- * person can be reached from a development database — and the developer reads
- * the .txt as the recipient of a plain-text client would, then opens the .html
- * in a browser and clicks the links.
- *
- * Mailpit and friends were turned down for it: they need a container Ralph Loop
- * cannot start, while this needs neither a dependency nor a service
- * (docs/research/emails.md).
+ * Local development: a message is written as a pair of files instead of being
+ * sent. Mailpit and friends were turned down because they need a container Ralph
+ * Loop cannot start.
  */
 export class FileMailTransport implements MailTransport {
   private readonly logger = new Logger(FileMailTransport.name);
 
   /**
    * Two messages of one mailing can be written in the same millisecond, and a
-   * message overwritten in the outbox looks exactly like a message that was
-   * never sent — the failure the whole mail module exists to make impossible.
-   * Why the name departs from research this way — docs/decisions.md, 03.08.2026.
+   * message overwritten in the outbox looks exactly like one never sent.
    */
   private written = 0;
 
@@ -76,25 +55,20 @@ export class FileMailTransport implements MailTransport {
 
     try {
       await this.outbox.mkdir(this.dir);
-      // The .txt goes last on purpose: a write can fail halfway (no space, no
-      // permission), and the file the developer looks for first is then the
-      // one that only exists when the pair is complete.
+      // The .txt goes last on purpose: a write can fail halfway, and the file
+      // the developer looks for first then exists only when the pair is complete.
       await this.outbox.writeFile(join(this.dir, `${name}.html`), message.html);
       await this.outbox.writeFile(
         join(this.dir, `${name}.txt`),
         textFile(message),
       );
     } catch (cause) {
-      // The cause carries the errno and the path, both of which the developer
-      // needs; the address and the body stay out of it, as of any transport
-      // failure (apps/api/CLAUDE.md, "Правила проекта").
       throw new MailDeliveryError('the local outbox could not be written', {
         cause,
       });
     }
 
-    // The subject and the name of the file — enough to find the message on
-    // disk, and never the recipient.
+    // Subject and file name only — never the recipient.
     this.logger.log(
       `Email written to the local outbox: "${message.subject}" (${name})`,
     );
@@ -111,11 +85,6 @@ export class FileMailTransport implements MailTransport {
   }
 }
 
-/**
- * Headers first, then the text version — the envelope and the message in one
- * file. What a provider will put into the headers of the sent email is what a
- * developer reads here, including the address that stops the messages.
- */
 const textFile = (message: MailMessage): string => {
   const headers = [
     `From: ${message.from.name} <${message.from.email}>`,
@@ -128,10 +97,6 @@ const textFile = (message: MailMessage): string => {
   return `${headers.join('\n')}\n\n${message.text}`;
 };
 
-/**
- * A French subject has spaces, diacritics and punctuation; a file name that a
- * shell and a browser handle without quoting has none of them.
- */
 const slugify = (subject: string): string => {
   const slug = subject
     .normalize('NFD')
@@ -141,7 +106,6 @@ const slugify = (subject: string): string => {
     .slice(0, MAX_SLUG_LENGTH)
     .replaceAll(/^-+|-+$/g, '');
 
-  // A subject made of nothing but punctuation would leave no name at all, and
-  // the pair of files still has to be found.
+  // A subject of nothing but punctuation would leave no name at all.
   return slug === '' ? 'message' : slug;
 };
