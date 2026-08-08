@@ -1,14 +1,14 @@
 import { expect, test } from '@playwright/test';
 import { expectNoAxeViolations } from './a11y';
-import { gotoOk, pages } from './pages';
+import { gotoPage, pages } from './pages';
 
 const themes = ['light', 'dark'] as const;
 
-for (const path of pages) {
+for (const entry of pages) {
   for (const colorScheme of themes) {
-    test(`axe: ${path} — theme ${colorScheme}`, async ({ page }) => {
+    test(`axe: ${entry.path} — theme ${colorScheme}`, async ({ page }) => {
       await page.emulateMedia({ colorScheme });
-      await gotoOk(page, path);
+      await gotoPage(page, entry);
       await expectNoAxeViolations(page);
     });
   }

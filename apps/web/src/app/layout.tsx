@@ -1,11 +1,9 @@
 import type { Metadata } from 'next';
 import './globals.css';
-import { Geist } from 'next/font/google';
 import Link from 'next/link';
 import { fr } from '@/i18n/fr';
 import { cn } from '@/lib/utils';
-
-const geist = Geist({ subsets: ['latin'], variable: '--font-sans' });
+import { geist } from './fonts';
 
 const chromeContainer = 'mx-auto w-full max-w-2xl px-6 py-4';
 
