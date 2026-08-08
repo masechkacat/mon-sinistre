@@ -1,6 +1,6 @@
 {
   "feature": "web-foundation",
-  "phases": [2],
+  "phases": [3],
   "maxIterations": 5,
   "stallLimit": 2,
   "maxBudgetUsd": 10,
