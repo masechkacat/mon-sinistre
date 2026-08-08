@@ -8,10 +8,6 @@ export const fr = {
     skipToContent: 'Aller au contenu principal',
   },
   home: {
-    subtitle:
-      'Veille des arrêtés de catastrophe naturelle et suivi du sinistre.',
-    skeletonNote: 'Squelette du projet — voir',
-    skeletonPath: 'docs/technical-specification.md',
     title: 'Après une catastrophe naturelle, chaque jour compte',
     lead: 'Mon Sinistre vous prévient dès que l’État reconnaît la catastrophe dans votre commune, puis vous aide à faire vos démarches auprès de votre assurance sans manquer aucun délai.',
     catnat: {
