@@ -9,9 +9,9 @@ test('the rendered page shows strings from the localization file', async ({
   page,
 }) => {
   await page.goto('/');
-  await expect(page).toHaveTitle(fr.layout.metaTitle);
+  await expect(page).toHaveTitle(fr.serviceName);
   await expect(page.getByRole('heading', { level: 1 })).toHaveText(
-    fr.home.title,
+    fr.serviceName,
   );
   await expect(page.getByText(fr.home.subtitle)).toBeVisible();
   await expect(page.locator('a[href="#contenu"]')).toHaveText(

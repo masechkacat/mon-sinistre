@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { expectNoAxeViolations } from './a11y';
-import { pages } from './pages';
+import { gotoOk, pages } from './pages';
 
 const themes = ['light', 'dark'] as const;
 
@@ -8,10 +8,7 @@ for (const path of pages) {
   for (const colorScheme of themes) {
     test(`axe: ${path} — theme ${colorScheme}`, async ({ page }) => {
       await page.emulateMedia({ colorScheme });
-      const response = await page.goto(path);
-      // A missing route would render Next's own 404, likely axe-clean —
-      // the run would stay green without testing the page it claims to.
-      expect(response?.status()).toBe(200);
+      await gotoOk(page, path);
       await expectNoAxeViolations(page);
     });
   }
