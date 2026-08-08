@@ -44,4 +44,10 @@ export const fr = {
       ],
     },
   },
+  notFound: {
+    title: 'Page introuvable',
+    description:
+      'La page que vous cherchez n’existe pas ou n’est plus disponible. L’adresse contient peut-être une erreur.',
+    backHome: 'Retourner à l’accueil',
+  },
 } as const;

@@ -1,7 +1,7 @@
 import { AxeBuilder } from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 import { fr } from '../src/i18n/fr';
-import { gotoOk, pages } from './pages';
+import { gotoPage, pages } from './pages';
 
 // Landmarks and heading order are "best-practice" axe rules, outside the WCAG
 // tags of expectNoAxeViolations — hence the explicit rule list here.
@@ -16,9 +16,9 @@ const structureRules = [
   'heading-order',
 ];
 
-for (const path of pages) {
-  test(`landmarks and heading order: ${path}`, async ({ page }) => {
-    await gotoOk(page, path);
+for (const entry of pages) {
+  test(`landmarks and heading order: ${entry.path}`, async ({ page }) => {
+    await gotoPage(page, entry);
     const results = await new AxeBuilder({ page })
       .withRules(structureRules)
       .analyze();
@@ -29,20 +29,20 @@ for (const path of pages) {
     await expect(page.getByRole('contentinfo')).toBeVisible();
   });
 
-  test(`the service name in the header links home: ${path}`, async ({
+  test(`the service name in the header links home: ${entry.path}`, async ({
     page,
   }) => {
-    await gotoOk(page, path);
+    await gotoPage(page, entry);
     const homeLink = page
       .getByRole('banner')
       .getByRole('link', { name: fr.serviceName });
     await expect(homeLink).toHaveAttribute('href', '/');
   });
 
-  test(`keyboard pass: skip link first, focus visible on every stop: ${path}`, async ({
+  test(`keyboard pass: skip link first, focus visible on every stop: ${entry.path}`, async ({
     page,
   }) => {
-    await gotoOk(page, path);
+    await gotoPage(page, entry);
     const stops: string[] = [];
     let reachedDocumentEnd = false;
     // The bound exists only to terminate a pathological run; the assertion on
