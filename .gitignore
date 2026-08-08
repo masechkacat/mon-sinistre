@@ -18,6 +18,8 @@ out/
 
 # tests & coverage
 coverage/
+test-results/
+playwright-report/
 
 # письма локального режима — в файлах лежат реальные адреса получателей
 .mail-outbox/
