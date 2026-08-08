@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { gotoOk, pages } from './pages';
+import { gotoPage, pages } from './pages';
 
 // 640 px is not arbitrary: Chrome implements 200 % zoom by shrinking the CSS
 // viewport, so a 1280 px window at 200 % IS a 640 px viewport (WCAG 1.4.4,
@@ -9,11 +9,13 @@ const viewports = [
   { label: 'zoom 200 %', width: 640, height: 360 },
 ] as const;
 
-for (const path of pages) {
+for (const entry of pages) {
   for (const { label, width, height } of viewports) {
-    test(`no horizontal scroll at ${label}: ${path}`, async ({ page }) => {
+    test(`no horizontal scroll at ${label}: ${entry.path}`, async ({
+      page,
+    }) => {
       await page.setViewportSize({ width, height });
-      await gotoOk(page, path);
+      await gotoPage(page, entry);
       const widths = await page.evaluate(() => ({
         scrollWidth: document.documentElement.scrollWidth,
         clientWidth: document.documentElement.clientWidth,

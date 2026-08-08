@@ -1,9 +1,9 @@
 import { expect, test } from '@playwright/test';
 import { fr } from '../src/i18n/fr';
-import { gotoOk } from './pages';
+import { gotoPage, home } from './pages';
 
 test('home: exactly one h1, section headings in order', async ({ page }) => {
-  await gotoOk(page, '/');
+  await gotoPage(page, home);
   await expect(page.getByRole('heading', { level: 1 })).toHaveText(
     fr.home.title,
   );
@@ -25,14 +25,14 @@ function stringLeaves(node: unknown): string[] {
 }
 
 test('home: every string from the dictionary is visible', async ({ page }) => {
-  await gotoOk(page, '/');
+  await gotoPage(page, home);
   for (const text of stringLeaves(fr.home)) {
     await expect(page.getByText(text)).toBeVisible();
   }
 });
 
 test('home: the next steps are an ordered list', async ({ page }) => {
-  await gotoOk(page, '/');
+  await gotoPage(page, home);
   const steps = page.locator('ol > li');
   await expect(steps).toHaveText([...fr.home.next.steps]);
 });
