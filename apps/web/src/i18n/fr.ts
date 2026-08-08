@@ -49,6 +49,7 @@ export const fr = {
     description:
       'Le service a rencontré un problème inattendu. Ce n’est pas de votre faute. Vous pouvez réessayer, ou revenir un peu plus tard.',
     retry: 'Réessayer',
+    digestLabel: 'Référence technique :',
   },
   notFound: {
     title: 'Page introuvable',

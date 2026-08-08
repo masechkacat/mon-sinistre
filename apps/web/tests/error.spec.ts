@@ -14,11 +14,18 @@ test('a render error shows the French server-error page', async ({ page }) => {
     fr.serverError.title,
   );
   await expect(page.getByText(fr.serverError.description)).toBeVisible();
+  await expect(page.getByText(fr.serverError.digestLabel)).toBeVisible();
 });
 
 test('the server-error page offers a retry', async ({ page }) => {
   await gotoPage(page, serverError);
-  await expect(
-    page.getByRole('main').getByRole('button', { name: fr.serverError.retry }),
-  ).toBeVisible();
+  await page
+    .getByRole('main')
+    .getByRole('button', { name: fr.serverError.retry })
+    .click();
+  // The re-render fails again on /test-erreur, so success is not observable;
+  // what the click must not produce is a blank page.
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(
+    fr.serverError.title,
+  );
 });
