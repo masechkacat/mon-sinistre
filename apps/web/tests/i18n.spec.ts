@@ -10,10 +10,7 @@ test('the rendered page shows strings from the localization file', async ({
 }) => {
   await page.goto('/');
   await expect(page).toHaveTitle(fr.serviceName);
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText(
-    fr.serviceName,
-  );
-  await expect(page.getByText(fr.home.subtitle)).toBeVisible();
+  // Body copy is asserted string-by-string in home.spec.ts — not repeated here.
   await expect(page.locator('a[href="#contenu"]')).toHaveText(
     fr.layout.skipToContent,
   );
@@ -60,7 +57,7 @@ test('smoke: Tailwind classes and dictionary strings pass the literal check', as
   const messages = await literalViolations(
     "import { fr } from '@/i18n/fr';\n" +
       'export default function Smoke() {\n' +
-      '  return <p className="mt-4 text-lg">{fr.home.subtitle}</p>;\n' +
+      '  return <p className="mt-4 text-lg">{fr.home.lead}</p>;\n' +
       '}\n',
   );
   expect(messages).toEqual([]);
