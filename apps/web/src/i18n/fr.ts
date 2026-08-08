@@ -44,6 +44,12 @@ export const fr = {
       ],
     },
   },
+  serverError: {
+    title: 'Une erreur est survenue',
+    description:
+      'Le service a rencontré un problème inattendu. Ce n’est pas de votre faute. Vous pouvez réessayer, ou revenir un peu plus tard.',
+    retry: 'Réessayer',
+  },
   notFound: {
     title: 'Page introuvable',
     description:
