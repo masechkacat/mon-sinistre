@@ -21,12 +21,20 @@ for (const path of pages) {
       expect(widths.scrollWidth).toBeLessThanOrEqual(widths.clientWidth);
       // The document check alone is blind to containers that clip instead of
       // scrolling (Card sets overflow-hidden): content lost there never widens
-      // the page. Any clipping element must fit its content too.
+      // the page. Any clipping element must fit its content too. Scrolling
+      // containers (overflow auto/scroll) keep content reachable and WCAG
+      // 1.4.10 allows them, so only hidden/clip are checked.
       const clipped = await page.evaluate(() =>
         [...document.querySelectorAll('*')]
-          .filter((el) => getComputedStyle(el).overflowX !== 'visible')
+          .filter((el) =>
+            ['hidden', 'clip'].includes(getComputedStyle(el).overflowX),
+          )
           .filter((el) => el.scrollWidth > el.clientWidth)
-          .map((el) => `${el.tagName.toLowerCase()}.${el.className}`),
+          // el.className is an SVGAnimatedString on SVG elements — the
+          // attribute reads as plain text everywhere.
+          .map(
+            (el) => `${el.tagName.toLowerCase()}.${el.getAttribute('class')}`,
+          ),
       );
       expect(clipped).toEqual([]);
     });

@@ -1,6 +1,10 @@
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { fr } from '@/i18n/fr';
 
+function SectionHeading({ children }: { children: string }) {
+  return <h2 className="text-xl font-semibold">{children}</h2>;
+}
+
 export default function Home() {
   return (
     <div className="mx-auto max-w-2xl space-y-12 px-6 py-16">
@@ -12,16 +16,16 @@ export default function Home() {
       </section>
 
       <section className="space-y-4">
-        <h2 className="text-xl font-semibold">{fr.home.catnat.heading}</h2>
+        <SectionHeading>{fr.home.catnat.heading}</SectionHeading>
         <p>{fr.home.catnat.event}</p>
         <p>{fr.home.catnat.arrete}</p>
         <p>{fr.home.catnat.deadline}</p>
       </section>
 
-      <div className="grid gap-6 sm:grid-cols-2">
+      <section className="grid gap-6 sm:grid-cols-2">
         <Card className="text-base">
           <CardHeader>
-            <h2 className="text-xl font-semibold">{fr.home.does.heading}</h2>
+            <SectionHeading>{fr.home.does.heading}</SectionHeading>
           </CardHeader>
           <CardContent>
             <ul className="list-disc space-y-2 pl-5">
@@ -33,7 +37,7 @@ export default function Home() {
         </Card>
         <Card className="text-base">
           <CardHeader>
-            <h2 className="text-xl font-semibold">{fr.home.doesNot.heading}</h2>
+            <SectionHeading>{fr.home.doesNot.heading}</SectionHeading>
           </CardHeader>
           <CardContent>
             <ul className="list-disc space-y-2 pl-5">
@@ -43,10 +47,10 @@ export default function Home() {
             </ul>
           </CardContent>
         </Card>
-      </div>
+      </section>
 
       <section className="space-y-4">
-        <h2 className="text-xl font-semibold">{fr.home.next.heading}</h2>
+        <SectionHeading>{fr.home.next.heading}</SectionHeading>
         <ol className="list-decimal space-y-2 pl-5">
           {fr.home.next.steps.map((step) => (
             <li key={step}>{step}</li>

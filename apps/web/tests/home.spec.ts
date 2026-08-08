@@ -15,20 +15,18 @@ test('home: exactly one h1, section headings in order', async ({ page }) => {
   ]);
 });
 
-test('home: every paragraph and list item from the dictionary is visible', async ({
-  page,
-}) => {
+// Walks the dictionary instead of listing keys so that a string added to
+// fr.home but forgotten on the page fails without editing this test.
+function stringLeaves(node: unknown): string[] {
+  if (typeof node === 'string') return [node];
+  if (node && typeof node === 'object')
+    return Object.values(node).flatMap(stringLeaves);
+  return [];
+}
+
+test('home: every string from the dictionary is visible', async ({ page }) => {
   await gotoOk(page, '/');
-  const texts = [
-    fr.home.lead,
-    fr.home.catnat.event,
-    fr.home.catnat.arrete,
-    fr.home.catnat.deadline,
-    ...fr.home.does.items,
-    ...fr.home.doesNot.items,
-    ...fr.home.next.steps,
-  ];
-  for (const text of texts) {
+  for (const text of stringLeaves(fr.home)) {
     await expect(page.getByText(text)).toBeVisible();
   }
 });
