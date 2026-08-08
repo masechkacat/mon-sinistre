@@ -11,11 +11,11 @@ export default function NotFound() {
       title={fr.notFound.title}
       description={fr.notFound.description}
     >
-      <p>
-        <Link href="/" className="underline underline-offset-4">
-          {fr.notFound.backHome}
-        </Link>
-      </p>
+      {/* inline-block so the parent's space-y margin applies — vertical
+          margins have no effect on a purely inline <a>. */}
+      <Link href="/" className="inline-block underline underline-offset-4">
+        {fr.notFound.backHome}
+      </Link>
     </MessageScreen>
   );
 }
