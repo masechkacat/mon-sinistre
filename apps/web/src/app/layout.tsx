@@ -1,14 +1,14 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import { Geist } from 'next/font/google';
+import { fr } from '@/i18n/fr';
 import { cn } from '@/lib/utils';
 
 const geist = Geist({ subsets: ['latin'], variable: '--font-sans' });
 
 export const metadata: Metadata = {
-  title: 'Mon Sinistre',
-  description:
-    'Veille des arrêtés de catastrophe naturelle et suivi du sinistre',
+  title: fr.layout.metaTitle,
+  description: fr.layout.metaDescription,
 };
 
 export default function RootLayout({
@@ -20,7 +20,7 @@ export default function RootLayout({
     <html lang="fr" className={cn('font-sans', geist.variable)}>
       <body>
         <a href="#contenu" className="skip-link">
-          Aller au contenu principal
+          {fr.layout.skipToContent}
         </a>
         <main id="contenu">{children}</main>
       </body>
