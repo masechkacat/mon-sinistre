@@ -34,8 +34,33 @@ export default function RootLayout({
           {children}
         </main>
         <footer className="border-t">
-          <div className={cn(chromeContainer, 'text-sm text-muted-foreground')}>
-            {fr.serviceName}
+          <div
+            className={cn(
+              chromeContainer,
+              'flex flex-wrap items-center justify-between gap-x-6 gap-y-2 text-sm text-muted-foreground',
+            )}
+          >
+            <span>{fr.serviceName}</span>
+            <nav aria-label={fr.layout.legalNav}>
+              <ul className="flex flex-wrap gap-x-6 gap-y-2">
+                <li>
+                  <Link
+                    href="/mentions-legales"
+                    className="underline underline-offset-4"
+                  >
+                    {fr.mentionsLegales.title}
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    href="/politique-de-confidentialite"
+                    className="underline underline-offset-4"
+                  >
+                    {fr.politiqueConfidentialite.title}
+                  </Link>
+                </li>
+              </ul>
+            </nav>
           </div>
         </footer>
       </body>

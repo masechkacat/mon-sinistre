@@ -15,8 +15,22 @@ export const serverError = {
   path: '/test-erreur' satisfies Route,
   status: 500,
 } as const;
+export const mentionsLegales = {
+  path: '/mentions-legales' satisfies Route,
+  status: 200,
+} as const;
+export const politiqueConfidentialite = {
+  path: '/politique-de-confidentialite' satisfies Route,
+  status: 200,
+} as const;
 
-export const pages = [home, notFound, serverError] as const;
+export const pages = [
+  home,
+  notFound,
+  serverError,
+  mentionsLegales,
+  politiqueConfidentialite,
+] as const;
 
 export async function gotoPage(
   page: Page,

@@ -6,6 +6,7 @@ export const fr = {
     metaDescription:
       'Veille des arrêtés de catastrophe naturelle et suivi du sinistre',
     skipToContent: 'Aller au contenu principal',
+    legalNav: 'Informations légales',
   },
   home: {
     title: 'Après une catastrophe naturelle, chaque jour compte',
@@ -61,8 +62,6 @@ export const fr = {
     title: 'Mentions légales',
     editeur: {
       heading: 'Éditeur du site',
-      // Публиковать ли данные éditeur — решение владельца при вычитке:
-      // research web-foundation, «Структура юридических страниц».
       paragraphs: [
         'Le site Mon Sinistre est édité à titre non professionnel par [prénom et nom — à compléter avant publication].',
         'Adresse : [adresse postale — à compléter ou à omettre avant publication].',

@@ -1,10 +1,7 @@
 import { PageTitle } from '@/components/page-title';
+import { SectionHeading } from '@/components/section-heading';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { fr } from '@/i18n/fr';
-
-function SectionHeading({ children }: { children: string }) {
-  return <h2 className="text-xl font-semibold">{children}</h2>;
-}
 
 export default function Home() {
   return (
