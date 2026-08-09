@@ -1,10 +1,11 @@
 {
   "feature": "web-foundation",
-  "phases": [4],
+  "phases": [5],
   "maxIterations": 5,
   "stallLimit": 2,
-  "maxBudgetUsd": 20,
-  "maxTurns": 120,
+  "model": "claude-sonnet-5",
+  "maxBudgetUsd": 10,
+  "maxTurns": 60,
   "permissionMode": "acceptEdits",
   "prType": "feat",
   "project": {
