@@ -52,6 +52,11 @@ export const fr = {
     retry: 'Réessayer',
     digestLabel: 'Référence technique :',
   },
+  requestError: {
+    title: 'Impossible de récupérer ces informations',
+    description:
+      'Une erreur est survenue pendant le chargement. Vérifiez votre connexion et réessayez dans quelques instants.',
+  },
   notFound: {
     title: 'Page introuvable',
     description:
