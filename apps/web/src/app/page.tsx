@@ -1,14 +1,12 @@
+import { PageContainer } from '@/components/page-container';
 import { PageTitle } from '@/components/page-title';
+import { SectionHeading } from '@/components/section-heading';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { fr } from '@/i18n/fr';
 
-function SectionHeading({ children }: { children: string }) {
-  return <h2 className="text-xl font-semibold">{children}</h2>;
-}
-
 export default function Home() {
   return (
-    <div className="mx-auto max-w-2xl space-y-12 px-6 py-16">
+    <PageContainer className="space-y-12">
       <section className="space-y-4">
         <PageTitle>{fr.home.title}</PageTitle>
         <p className="text-lg text-muted-foreground">{fr.home.lead}</p>
@@ -56,6 +54,6 @@ export default function Home() {
           ))}
         </ol>
       </section>
-    </div>
+    </PageContainer>
   );
 }

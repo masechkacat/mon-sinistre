@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 import Link from 'next/link';
 import { fr } from '@/i18n/fr';
+import { legalPages } from '@/lib/legal-pages';
 import { cn } from '@/lib/utils';
 import { geist } from './fonts';
 
@@ -34,8 +35,24 @@ export default function RootLayout({
           {children}
         </main>
         <footer className="border-t">
-          <div className={cn(chromeContainer, 'text-sm text-muted-foreground')}>
-            {fr.serviceName}
+          <div
+            className={cn(
+              chromeContainer,
+              'flex flex-wrap items-center justify-between gap-x-6 gap-y-2 text-sm text-muted-foreground',
+            )}
+          >
+            <span>{fr.serviceName}</span>
+            <nav aria-label={fr.layout.legalNav}>
+              <ul className="flex flex-wrap gap-x-6 gap-y-2">
+                {legalPages.map(({ path, dict }) => (
+                  <li key={path}>
+                    <Link href={path} className="underline underline-offset-4">
+                      {dict.title}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </nav>
           </div>
         </footer>
       </body>
