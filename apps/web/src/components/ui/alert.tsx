@@ -9,8 +9,11 @@ const alertVariants = cva(
     variants: {
       variant: {
         default: 'bg-card text-card-foreground',
+        // Full opacity, not shadcn's default /90: at 90% the description text
+        // fails WCAG AA contrast (4.49:1 on --card, axe color-contrast) —
+        // apps/web/CLAUDE.md requires 4.5:1.
         destructive:
-          'bg-card text-destructive *:data-[slot=alert-description]:text-destructive/90 *:[svg]:text-current',
+          'bg-card text-destructive *:data-[slot=alert-description]:text-destructive *:[svg]:text-current',
       },
     },
     defaultVariants: {
