@@ -1,10 +1,10 @@
 import { notFound } from 'next/navigation';
 
-// Garde commune aux routes réservées aux tests (src/app/test-erreur,
-// src/app/test-requete) : 404 en dehors du webServer Playwright, seul
-// endroit qui pose TEST_ROUTES. `export const dynamic = 'force-dynamic'`
-// reste dans chaque page.tsx — Next.js exige un littéral au niveau du
-// module de la route, il ne peut pas venir d'une fonction importée.
+// The shared guard of the test-only routes (src/app/test-erreur,
+// src/app/test-requete): a 404 outside the Playwright webServer, the only
+// place that sets TEST_ROUTES. `export const dynamic = 'force-dynamic'` stays
+// in each page.tsx — Next.js requires a literal at the route module level, it
+// cannot come from an imported function.
 export function requireTestRoute() {
   if (process.env.TEST_ROUTES !== '1') notFound();
 }

@@ -1,4 +1,4 @@
-// Adresse distincte du défaut de src/lib/api/config.ts (localhost:3001) :
-// posée ici, lue par playwright.config.ts (webServer.env) et par
-// tests/api.spec.ts, pour qu'un seul endroit fixe la valeur attendue.
+// Deliberately different from the default in src/lib/api/config.ts: set here,
+// read by playwright.config.ts (webServer.env) and by tests/api.spec.ts, so a
+// single place fixes the expected value.
 export const testApiBaseUrl = 'http://localhost:4001';

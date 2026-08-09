@@ -6,14 +6,14 @@ import { apiFetch } from '@/lib/api/client';
 import { apiBaseUrl } from '@/lib/api/config';
 import { queryKeys } from '@/lib/api/keys';
 
-// Route de test du slice couvert par la phase 5 : la connexion au provider,
-// la lecture de l'adresse depuis l'environnement (tâche 1) et l'affichage
-// francisé de l'état d'erreur (tâche 2) — docs/research/web-foundation.md.
+// Test-only route exercising the API layer in isolation: the provider
+// connection, the base address read from the environment and the French
+// error state — docs/research/web-foundation.md. The retry policy is the
+// real one, from providers.tsx, so the tests measure production behaviour.
 export function TestRequete() {
   const { status } = useQuery({
     queryKey: queryKeys.health(),
     queryFn: () => apiFetch<{ status: string }>('/health'),
-    retry: false,
   });
 
   return (
