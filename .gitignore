@@ -40,6 +40,9 @@ npm-debug.log*
 !.vscode/extensions.json
 .idea/
 
+# python — кеш скриптов скиллов (.agents/)
+__pycache__/
+
 # os
 .DS_Store
 Thumbs.db
