@@ -5,6 +5,7 @@ import { fr } from '@/i18n/fr';
 import { legalPages } from '@/lib/legal-pages';
 import { cn } from '@/lib/utils';
 import { geist } from './fonts';
+import { Providers } from './providers';
 
 const chromeContainer = 'mx-auto w-full max-w-2xl px-6 py-4';
 
@@ -32,7 +33,7 @@ export default function RootLayout({
           </div>
         </header>
         <main id="contenu" className="flex-1">
-          {children}
+          <Providers>{children}</Providers>
         </main>
         <footer className="border-t">
           <div
