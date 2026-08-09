@@ -2,18 +2,7 @@ import { PageContainer } from '@/components/page-container';
 import { PageTitle } from '@/components/page-title';
 import { SectionHeading } from '@/components/section-heading';
 
-type LegalSection = { heading: string; paragraphs: readonly string[] };
-
-// The single definition of «a legal dictionary is a title plus sections»,
-// shared by the pages and the content test — a section added to fr.ts
-// appears on the page without touching either.
-export function legalSections(
-  dict: Record<string, string | LegalSection>,
-): LegalSection[] {
-  return Object.values(dict).filter(
-    (value): value is LegalSection => typeof value !== 'string',
-  );
-}
+export type LegalSection = { heading: string; paragraphs: readonly string[] };
 
 export function LegalPage({
   title,
@@ -28,8 +17,11 @@ export function LegalPage({
       {sections.map((section) => (
         <section key={section.heading} className="space-y-4">
           <SectionHeading>{section.heading}</SectionHeading>
-          {section.paragraphs.map((paragraph) => (
-            <p key={paragraph}>{paragraph}</p>
+          {section.paragraphs.map((paragraph, index) => (
+            // Index keys are deliberate: the list is static server-rendered
+            // content, while legal boilerplate can repeat a sentence verbatim
+            // — text-as-key would then collide.
+            <p key={index}>{paragraph}</p>
           ))}
         </section>
       ))}

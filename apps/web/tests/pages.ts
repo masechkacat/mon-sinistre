@@ -1,5 +1,6 @@
 import type { Route } from 'next';
 import { expect, type Page } from '@playwright/test';
+import { legalPages } from '../src/lib/legal-pages';
 
 // The status is asserted because a mistyped path would render the not-found
 // page — landmark- and likely axe-clean, so a suite pointed at it would stay
@@ -15,22 +16,13 @@ export const serverError = {
   path: '/test-erreur' satisfies Route,
   status: 500,
 } as const;
-export const mentionsLegales = {
-  path: '/mentions-legales' satisfies Route,
-  status: 200,
-} as const;
-export const politiqueConfidentialite = {
-  path: '/politique-de-confidentialite' satisfies Route,
-  status: 200,
-} as const;
+// Derived from the registry the footer renders, so a legal page cannot be
+// covered by the shared suites while missing from the site, or vice versa.
+const legalEntries = legalPages.map(
+  ({ path }) => ({ path, status: 200 }) as const,
+);
 
-export const pages = [
-  home,
-  notFound,
-  serverError,
-  mentionsLegales,
-  politiqueConfidentialite,
-] as const;
+export const pages = [home, notFound, serverError, ...legalEntries] as const;
 
 export async function gotoPage(
   page: Page,

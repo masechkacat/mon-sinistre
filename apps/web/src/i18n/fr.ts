@@ -60,72 +60,76 @@ export const fr = {
   },
   mentionsLegales: {
     title: 'Mentions légales',
-    editeur: {
-      heading: 'Éditeur du site',
-      paragraphs: [
-        'Le site Mon Sinistre est édité à titre non professionnel par [prénom et nom — à compléter avant publication].',
-        'Adresse : [adresse postale — à compléter ou à omettre avant publication].',
-        'Contact : [adresse électronique — à compléter avant publication].',
-      ],
-    },
-    directeurPublication: {
-      heading: 'Directeur de la publication',
-      paragraphs: [
-        'Le directeur de la publication, c’est-à-dire la personne responsable de ce qui est publié sur le site, est l’éditeur du site, [prénom et nom — à compléter avant publication].',
-      ],
-    },
-    hebergeur: {
-      heading: 'Hébergeur',
-      paragraphs: [
-        'Le site est hébergé par [dénomination de l’hébergeur — à compléter avant publication], [adresse — à compléter], [téléphone — à compléter].',
-      ],
-    },
+    sections: [
+      {
+        heading: 'Éditeur du site',
+        paragraphs: [
+          'Le site Mon Sinistre est édité à titre non professionnel par [prénom et nom — à compléter avant publication].',
+          'Adresse : [adresse postale — à compléter ou à omettre avant publication].',
+          'Contact : [adresse électronique — à compléter avant publication].',
+        ],
+      },
+      {
+        heading: 'Directeur de la publication',
+        paragraphs: [
+          'Le directeur de la publication, c’est-à-dire la personne responsable de ce qui est publié sur le site, est l’éditeur du site, [prénom et nom — à compléter avant publication].',
+        ],
+      },
+      {
+        heading: 'Hébergeur',
+        paragraphs: [
+          'Le site est hébergé par [dénomination de l’hébergeur — à compléter avant publication], [adresse — à compléter], [téléphone — à compléter].',
+        ],
+      },
+    ],
   },
   politiqueConfidentialite: {
     title: 'Politique de confidentialité',
-    responsable: {
-      heading: 'Responsable du traitement',
-      paragraphs: [
-        'Le responsable du traitement, c’est-à-dire la personne qui décide comment d’éventuelles données personnelles seraient utilisées sur ce site, est l’éditeur du site, [prénom et nom — à compléter avant publication], joignable à [adresse électronique — à compléter avant publication].',
-      ],
-    },
-    donnees: {
-      heading: 'Données collectées',
-      paragraphs: [
-        'À ce jour, Mon Sinistre ne collecte aucune donnée personnelle : le site ne propose ni compte ni formulaire, n’utilise ni cookie ni traceur, et ne contient aucun outil de mesure d’audience.',
-        'Avant toute collecte de données, par exemple à l’ouverture de l’inscription à la veille des arrêtés, cette politique sera mise à jour pour décrire précisément les données concernées.',
-      ],
-    },
-    finalites: {
-      heading: 'Finalités et bases légales',
-      paragraphs: [
-        'Aucun traitement de données personnelles n’étant mis en œuvre, aucune finalité ni base légale n’est à décrire à ce jour. Cette section sera complétée avant toute collecte.',
-      ],
-    },
-    destinataires: {
-      heading: 'Destinataires et sous-traitants',
-      paragraphs: [
-        'Aucune donnée personnelle n’est transmise à des tiers, faute de donnée collectée.',
-      ],
-    },
-    conservation: {
-      heading: 'Durée de conservation',
-      paragraphs: [
-        'Sans objet à ce jour : aucune donnée personnelle n’est conservée.',
-      ],
-    },
-    droits: {
-      heading: 'Vos droits',
-      paragraphs: [
-        'Le règlement général sur la protection des données (RGPD), le texte européen qui encadre l’utilisation des données personnelles, vous donne un droit d’accès, de rectification, d’effacement, d’opposition et de portabilité sur les données qui vous concernent.',
-        'Pour exercer ces droits, écrivez à [adresse électronique — à compléter avant publication]. Votre demande sera traitée dans les meilleurs délais.',
-      ],
-    },
-    cnil: {
-      heading: 'Réclamation auprès de la CNIL',
-      paragraphs: [
-        'Si vous estimez que vos droits ne sont pas respectés, vous pouvez adresser une réclamation à la Commission nationale de l’informatique et des libertés (CNIL), l’autorité française chargée de veiller à la protection des données personnelles, sur son site cnil.fr.',
-      ],
-    },
+    sections: [
+      {
+        heading: 'Responsable du traitement',
+        paragraphs: [
+          'Le responsable du traitement, c’est-à-dire la personne qui décide comment d’éventuelles données personnelles seraient utilisées sur ce site, est l’éditeur du site, [prénom et nom — à compléter avant publication], joignable à [adresse électronique — à compléter avant publication].',
+        ],
+      },
+      {
+        heading: 'Données collectées',
+        paragraphs: [
+          'À ce jour, Mon Sinistre ne collecte aucune donnée personnelle : le site ne propose ni compte ni formulaire, n’utilise ni cookie ni traceur, et ne contient aucun outil de mesure d’audience.',
+          'Avant toute collecte de données, par exemple à l’ouverture de l’inscription à la veille des arrêtés, cette politique sera mise à jour pour décrire précisément les données concernées.',
+        ],
+      },
+      {
+        heading: 'Finalités et bases légales',
+        paragraphs: [
+          'Aucun traitement de données personnelles n’étant mis en œuvre, aucune finalité ni base légale n’est à décrire à ce jour. Cette section sera complétée avant toute collecte.',
+        ],
+      },
+      {
+        heading: 'Destinataires et sous-traitants',
+        paragraphs: [
+          'Aucune donnée personnelle n’est transmise à des tiers, faute de donnée collectée.',
+        ],
+      },
+      {
+        heading: 'Durée de conservation',
+        paragraphs: [
+          'Sans objet à ce jour : aucune donnée personnelle n’est conservée.',
+        ],
+      },
+      {
+        heading: 'Vos droits',
+        paragraphs: [
+          'Le règlement général sur la protection des données (RGPD), le texte européen qui encadre l’utilisation des données personnelles, vous donne un droit d’accès, de rectification, d’effacement, d’opposition et de portabilité sur les données qui vous concernent.',
+          'Pour exercer ces droits, écrivez à [adresse électronique — à compléter avant publication]. Votre demande sera traitée dans les meilleurs délais.',
+        ],
+      },
+      {
+        heading: 'Réclamation auprès de la CNIL',
+        paragraphs: [
+          'Si vous estimez que vos droits ne sont pas respectés, vous pouvez adresser une réclamation à la Commission nationale de l’informatique et des libertés (CNIL), l’autorité française chargée de veiller à la protection des données personnelles, sur son site cnil.fr.',
+        ],
+      },
+    ],
   },
 } as const;

@@ -27,6 +27,11 @@ for (const entry of pages) {
     await expect(page.getByRole('banner')).toBeVisible();
     await expect(page.getByRole('main')).toBeVisible();
     await expect(page.getByRole('contentinfo')).toBeVisible();
+    // The accessible name is pinned here because axe accepts a single
+    // unlabeled nav: nothing else fails if the aria-label is dropped.
+    await expect(
+      page.getByRole('navigation', { name: fr.layout.legalNav }),
+    ).toBeVisible();
   });
 
   test(`the service name in the header links home: ${entry.path}`, async ({

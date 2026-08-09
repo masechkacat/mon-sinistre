@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 import Link from 'next/link';
 import { fr } from '@/i18n/fr';
+import { legalPages } from '@/lib/legal-pages';
 import { cn } from '@/lib/utils';
 import { geist } from './fonts';
 
@@ -43,22 +44,13 @@ export default function RootLayout({
             <span>{fr.serviceName}</span>
             <nav aria-label={fr.layout.legalNav}>
               <ul className="flex flex-wrap gap-x-6 gap-y-2">
-                <li>
-                  <Link
-                    href="/mentions-legales"
-                    className="underline underline-offset-4"
-                  >
-                    {fr.mentionsLegales.title}
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    href="/politique-de-confidentialite"
-                    className="underline underline-offset-4"
-                  >
-                    {fr.politiqueConfidentialite.title}
-                  </Link>
-                </li>
+                {legalPages.map(({ path, dict }) => (
+                  <li key={path}>
+                    <Link href={path} className="underline underline-offset-4">
+                      {dict.title}
+                    </Link>
+                  </li>
+                ))}
               </ul>
             </nav>
           </div>
