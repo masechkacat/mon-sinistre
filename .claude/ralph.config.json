@@ -1,6 +1,6 @@
 {
-  "feature": "web-foundation",
-  "phases": [5],
+  "feature": "veille-subscription-lifecycle",
+  "phases": [1],
   "maxIterations": 5,
   "stallLimit": 2,
   "model": "claude-sonnet-5",
