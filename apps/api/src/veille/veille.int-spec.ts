@@ -5,7 +5,15 @@ import {
   NestFastifyApplication,
 } from '@nestjs/platform-fastify';
 import { Test } from '@nestjs/testing';
-import { VEILLE_MAX_COMMUNES } from '@mon-sinistre/contracts';
+import {
+  ThrottlerStorage,
+  type ThrottlerStorageService,
+} from '@nestjs/throttler';
+import {
+  VEILLE_CONFIRM_PATH,
+  VEILLE_MAX_COMMUNES,
+  VEILLE_UNSUBSCRIBE_PATH,
+} from '@mon-sinistre/contracts';
 import { AppModule } from 'src/app.module';
 import { createGlobalValidationPipe } from 'src/config/validation-pipe';
 import { captureLogs } from 'src/mail/mail-log.test-helper';
@@ -13,6 +21,7 @@ import { mailLinksOf } from 'src/mail/mail-links.test-helper';
 import type { MailMessage } from 'src/mail/mail-message';
 import { MAIL_TRANSPORT, type MailTransport } from 'src/mail/mail-transport';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { VEILLE_FORM_RATE_LIMIT } from './veille.controller';
 
 class RecordingTransport implements MailTransport {
   readonly sent: MailMessage[] = [];
@@ -50,9 +59,10 @@ describe('POST /veille (integration)', () => {
   let app: NestFastifyApplication;
   let prisma: PrismaService;
   let transport: RecordingTransport;
+  let throttler: ThrottlerStorageService;
   const logs = captureLogs();
 
-  const post = (body: unknown) =>
+  const post = (body: object) =>
     app.inject({ method: 'POST', url: '/veille', payload: body });
 
   beforeAll(async () => {
@@ -73,6 +83,7 @@ describe('POST /veille (integration)', () => {
     await app.getHttpAdapter().getInstance().ready();
 
     prisma = app.get(PrismaService);
+    throttler = app.get<ThrottlerStorageService>(ThrottlerStorage);
   });
 
   afterAll(async () => {
@@ -81,6 +92,9 @@ describe('POST /veille (integration)', () => {
 
   beforeEach(async () => {
     transport.sent.length = 0;
+    // Every test shares one client address, so without this the rate limit of
+    // the route would count the whole file as a single caller.
+    throttler.storage.clear();
     await prisma.$executeRaw`TRUNCATE TABLE "Veille", "Commune" CASCADE`;
   });
 
@@ -102,14 +116,14 @@ describe('POST /veille (integration)', () => {
     const [message] = transport.sent;
     if (!message) throw new Error('expected a message to have been sent');
 
-    const confirmToken = tokenFrom(message, '/veille/confirmation');
+    const confirmToken = tokenFrom(message, VEILLE_CONFIRM_PATH);
     expect(veille.confirmTokenHash).toBe(
       createHash('sha256').update(confirmToken).digest('hex'),
     );
     // The database holds the hash, never the token that went out in the link.
     expect(veille.confirmTokenHash).not.toBe(confirmToken);
 
-    const unsubscribeToken = tokenFrom(message, '/veille/desinscription');
+    const unsubscribeToken = tokenFrom(message, VEILLE_UNSUBSCRIBE_PATH);
     expect(veille.unsubscribeTokenHash).toBe(
       createHash('sha256').update(unsubscribeToken).digest('hex'),
     );
@@ -179,6 +193,20 @@ describe('POST /veille (integration)', () => {
     expect(res.statusCode).toBe(204);
     const rows = await prisma.veilleCommune.findMany();
     expect(rows).toHaveLength(1);
+  });
+
+  it('stops mailing further addresses once one caller passes the rate limit', async () => {
+    await prisma.commune.create({ data: commune('30189', 'Nîmes') });
+    const submit = (n: number) =>
+      post({ email: `riverain${n}@example.fr`, communeCodes: ['30189'] });
+
+    for (let i = 0; i < VEILLE_FORM_RATE_LIMIT.limit; i++) {
+      expect((await submit(i)).statusCode).toBe(204);
+    }
+    const refused = await submit(VEILLE_FORM_RATE_LIMIT.limit);
+
+    expect(refused.statusCode).toBe(429);
+    expect(transport.sent).toHaveLength(VEILLE_FORM_RATE_LIMIT.limit);
   });
 
   it('never logs the email address, on success or on a rejected commune code', async () => {

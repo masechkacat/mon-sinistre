@@ -1,11 +1,12 @@
 import {
+  VEILLE_CONFIRM_PATH,
   VEILLE_CONFIRM_TTL_DAYS,
   VEILLE_UNSUBSCRIBE_PATH,
 } from '@mon-sinistre/contracts';
 import { fr } from 'src/i18n/fr';
 import { mailLinksOf } from 'src/mail/mail-links.test-helper';
 import { MailComposer } from 'src/mail/mail-composer';
-import type { ComposeMailInput } from 'src/mail/mail-message';
+import { confirmationMailFor } from './veille-confirmation-mail';
 
 const FRONTEND_URL = 'https://app.example.test';
 const MAIL_FROM = 'no-reply@example.test';
@@ -15,43 +16,27 @@ const composer = () =>
 
 const CONFIRM_TOKEN = 'confirm-token-123';
 const UNSUBSCRIBE_TOKEN = 'unsubscribe-token-456';
+const CHOSEN = [
+  { name: 'Nîmes', departementName: 'Gard' },
+  { name: 'Alès', departementName: 'Gard' },
+];
 const COMMUNES = ['Nîmes (Gard)', 'Alès (Gard)'];
 
-/**
- * The shape src/veille/ will build once it exists (task `POST /veille`):
- * fr.mail.veille supplies the strings, the caller supplies the data (token,
- * chosen communes) that is not UI text.
- */
-const confirmationInput = (
-  overrides: Partial<ComposeMailInput> = {},
-): ComposeMailInput => ({
-  to: 'destinataire@example.test',
-  subject: fr.mail.veille.confirmation.subject,
-  reason: fr.mail.veille.reason,
-  unsubscribePath: `${VEILLE_UNSUBSCRIBE_PATH}?token=${UNSUBSCRIBE_TOKEN}`,
-  blocks: [
-    { kind: 'paragraph', text: fr.mail.veille.confirmation.intro },
-    { kind: 'list', items: COMMUNES },
-    {
-      kind: 'link',
-      text: fr.mail.veille.confirmation.confirmLink,
-      path: `/veille/confirmation?token=${CONFIRM_TOKEN}`,
-    },
-    {
-      kind: 'paragraph',
-      text: fr.mail.veille.confirmation.expiresIn(
-        String(VEILLE_CONFIRM_TTL_DAYS),
-      ),
-    },
-  ],
-  ...overrides,
-});
+// The builder the service calls, not a copy of it: a paragraph dropped from
+// the real mail has to break this suite.
+const confirmationInput = () =>
+  confirmationMailFor(
+    'destinataire@example.test',
+    CHOSEN,
+    CONFIRM_TOKEN,
+    UNSUBSCRIBE_TOKEN,
+  );
 
 describe('veille confirmation mail (fr.mail.veille + contracts constants)', () => {
   it('carries the confirmation link with its token', () => {
     const message = composer().compose(confirmationInput());
 
-    const confirmUrl = `${FRONTEND_URL}/veille/confirmation?token=${CONFIRM_TOKEN}`;
+    const confirmUrl = `${FRONTEND_URL}${VEILLE_CONFIRM_PATH}?token=${CONFIRM_TOKEN}`;
     expect(mailLinksOf(message.text)).toContain(confirmUrl);
     expect(mailLinksOf(message.html)).toContain(confirmUrl);
     expect(message.text).toContain(fr.mail.veille.confirmation.confirmLink);

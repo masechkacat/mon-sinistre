@@ -81,8 +81,9 @@ export const VEILLE_CONFIRM_TTL_DAYS = 7;
 export const VEILLE_MAX_COMMUNES = 20;
 
 /**
- * Path of the veille unsubscribe page, relative to `FRONTEND_URL`. Declared
- * once here: both the API (mail links) and the web client (route handler)
- * need it (docs/plan/emails.md, "Владелец пути").
+ * Paths of the veille pages, relative to `FRONTEND_URL`. Declared once here:
+ * both the API (mail links) and the web client (page and route handler) need
+ * them (docs/plan/emails.md, "Владелец пути").
  */
 export const VEILLE_UNSUBSCRIBE_PATH = '/veille/desinscription';
+export const VEILLE_CONFIRM_PATH = '/veille/confirmation';
