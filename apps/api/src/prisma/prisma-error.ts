@@ -21,6 +21,38 @@ export const httpExceptionForPrisma = (
     ? HTTP_FOR_CODE.get(exception.code)?.()
     : undefined;
 
+const asRecord = (value: unknown): Record<string, unknown> | undefined =>
+  typeof value === 'object' && value !== null
+    ? (value as Record<string, unknown>)
+    : undefined;
+
+/**
+ * `P2002` on a named column — for the endpoint that has to catch it itself
+ * (`../../CLAUDE.md`, «Правила проекта»).
+ *
+ * `meta.target`, which every Prisma 5/6 answer to this question reads, does not
+ * exist behind a driver adapter: v7 passes the driver's own error through, and
+ * the violated columns arrive as
+ * `meta.driverAdapterError.cause.constraint.fields`. Reading `target` here
+ * would silently return false for every duplicate.
+ */
+export const isUniqueViolationOn = (
+  exception: unknown,
+  field: string,
+): boolean => {
+  if (
+    !(exception instanceof Prisma.PrismaClientKnownRequestError) ||
+    exception.code !== 'P2002'
+  ) {
+    return false;
+  }
+  const cause = asRecord(
+    asRecord(asRecord(exception.meta)?.driverAdapterError)?.cause,
+  );
+  const fields = asRecord(cause?.constraint)?.fields;
+  return Array.isArray(fields) && fields.includes(field);
+};
+
 /**
  * The code and the model — the only two things a Prisma error carries that are
  * safe to write down. The message quotes the values that failed the constraint

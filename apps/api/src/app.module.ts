@@ -9,6 +9,7 @@ import { validateEnv } from './config/env.validation';
 import { HealthController } from './health/health.controller';
 import { MailModule } from './mail/mail.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { VeilleModule } from './veille/veille.module';
 
 /**
  * ThrottlerGuard is global; auth endpoints need stricter per-route limits via
@@ -24,6 +25,7 @@ import { PrismaModule } from './prisma/prisma.module';
     PrismaModule,
     MailModule,
     CommunesModule,
+    VeilleModule,
   ],
   controllers: [HealthController],
   providers: [

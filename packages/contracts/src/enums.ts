@@ -73,3 +73,17 @@ export const OVERDUE_REMINDER_INTERVAL_DAYS = 7;
 export const REFERENCE_DATA_STALE_AFTER_MONTHS = 6;
 
 export const COMMUNE_SEARCH_LIMIT = 10;
+
+/** How long a veille confirmation link stays valid, in days. */
+export const VEILLE_CONFIRM_TTL_DAYS = 7;
+
+/** Upper bound on communes a single veille subscription may track. */
+export const VEILLE_MAX_COMMUNES = 20;
+
+/**
+ * Paths of the veille pages, relative to `FRONTEND_URL`. Declared once here:
+ * both the API (mail links) and the web client (page and route handler) need
+ * them (docs/plan/emails.md, "Владелец пути").
+ */
+export const VEILLE_UNSUBSCRIBE_PATH = '/veille/desinscription';
+export const VEILLE_CONFIRM_PATH = '/veille/confirmation';

@@ -33,5 +33,23 @@ export const fr = {
       signature:
         'Mon Sinistre — être accompagné après une catastrophe naturelle',
     },
+    veille: {
+      confirmation: {
+        subject: 'Confirmez votre inscription à la veille Mon Sinistre',
+        // Concatenated, not a template literal: no-irregular-whitespace
+        // exempts plain strings but not templates, and the space before ":"
+        // must stay a literal U+00A0 (French typography, see
+        // fr.mail.footer.noReply above).
+        intro:
+          'Vous avez demandé à être averti·e dès la publication de ' +
+          ARRETE_CATNAT +
+          ' pour les communes suivantes :',
+        confirmLink: 'Confirmer votre inscription',
+        expiresIn: (days: string) =>
+          `Ce lien de confirmation est valable ${days} jours.`,
+      },
+      reason:
+        'vous avez laissé votre adresse sur le formulaire de veille de Mon Sinistre',
+    },
   },
 } as const;
