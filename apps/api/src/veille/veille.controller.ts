@@ -16,7 +16,7 @@ import {
 import { Throttle } from '@nestjs/throttler';
 import type { VeilleConfirmationResponse } from '@mon-sinistre/contracts';
 import { CreateVeilleDto } from './dto/create-veille.dto';
-import { VeilleConfirmationTokenDto } from './dto/veille-confirmation-token.dto';
+import { VeilleTokenDto } from './dto/veille-token.dto';
 import { VeilleConfirmationResponseDto } from './dto/veille-confirmation-response.dto';
 import { VeilleService } from './veille.service';
 
@@ -60,7 +60,7 @@ export class VeilleController {
   })
   @ApiOkResponse({ type: VeilleConfirmationResponseDto })
   async getConfirmationStatus(
-    @Query() query: VeilleConfirmationTokenDto,
+    @Query() query: VeilleTokenDto,
   ): Promise<VeilleConfirmationResponse> {
     return { status: await this.veille.getConfirmationStatus(query.token) };
   }
@@ -76,8 +76,23 @@ export class VeilleController {
   })
   @ApiOkResponse({ type: VeilleConfirmationResponseDto })
   async confirm(
-    @Body() body: VeilleConfirmationTokenDto,
+    @Body() body: VeilleTokenDto,
   ): Promise<VeilleConfirmationResponse> {
     return { status: await this.veille.confirm(body.token) };
+  }
+
+  @Post('desinscription')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: 'Delete a subscription from its unsubscribe link',
+    description:
+      'Always 204, whether the token matched a row or not — a repeat call ' +
+      'and a call with an unknown token are both a no-op, not an error. The ' +
+      'unsubscribe token carries no expiry: it works for a subscription ' +
+      'that was never confirmed, and for one confirmed long ago.',
+  })
+  @ApiNoContentResponse()
+  async unsubscribe(@Body() body: VeilleTokenDto): Promise<void> {
+    await this.veille.unsubscribe(body.token);
   }
 }

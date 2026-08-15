@@ -117,4 +117,15 @@ export class VeilleService {
     });
     return 'active';
   }
+
+  /**
+   * `deleteMany`, not `delete`: a token matching no row must not throw — a
+   * repeat call and a call on an already-deleted subscription are both a
+   * silent no-op.
+   */
+  async unsubscribe(token: string): Promise<void> {
+    await this.prisma.veille.deleteMany({
+      where: { unsubscribeTokenHash: hashVeilleToken(token) },
+    });
+  }
 }

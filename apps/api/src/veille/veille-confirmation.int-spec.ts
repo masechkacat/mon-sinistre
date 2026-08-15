@@ -7,9 +7,8 @@ import { VEILLE_CONFIRM_TTL_DAYS } from '@mon-sinistre/contracts';
 import { AppModule } from 'src/app.module';
 import { createGlobalValidationPipe } from 'src/config/validation-pipe';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { DAY_MS } from './veille-commune.test-helper';
 import { generateVeilleToken } from './veille-token';
-
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 describe('/veille/confirmation (integration)', () => {
   let app: NestFastifyApplication;

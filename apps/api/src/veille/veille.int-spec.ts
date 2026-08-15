@@ -22,6 +22,7 @@ import type { MailMessage } from 'src/mail/mail-message';
 import { MAIL_TRANSPORT, type MailTransport } from 'src/mail/mail-transport';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { VEILLE_FORM_RATE_LIMIT } from './veille.controller';
+import { communeFixture } from './veille-commune.test-helper';
 
 class RecordingTransport implements MailTransport {
   readonly sent: MailMessage[] = [];
@@ -31,19 +32,6 @@ class RecordingTransport implements MailTransport {
     return Promise.resolve();
   }
 }
-
-const SOURCE = {
-  sourceUrl: 'https://geo.api.gouv.fr/communes',
-  sourceVerifiedAt: new Date('2026-08-16'),
-};
-
-const commune = (codeInsee: string, name: string) => ({
-  codeInsee,
-  name,
-  departementCode: codeInsee.slice(0, 2),
-  departementName: 'Gard',
-  ...SOURCE,
-});
 
 const tokenFrom = (message: MailMessage, path: string): string => {
   const url = [...mailLinksOf(message.text)].find((link) =>
@@ -99,7 +87,7 @@ describe('POST /veille (integration)', () => {
   });
 
   it('creates a subscription with hashed tokens and sends the confirmation mail', async () => {
-    await prisma.commune.create({ data: commune('30189', 'Nîmes') });
+    await prisma.commune.create({ data: communeFixture('30189', 'Nîmes') });
 
     const res = await post({
       email: 'riverain@example.fr',
@@ -131,7 +119,7 @@ describe('POST /veille (integration)', () => {
   });
 
   it('creates exactly one subscription for two spellings of the same address', async () => {
-    await prisma.commune.create({ data: commune('30189', 'Nîmes') });
+    await prisma.commune.create({ data: communeFixture('30189', 'Nîmes') });
 
     const first = await post({
       email: ' User@Example.fr ',
@@ -183,7 +171,7 @@ describe('POST /veille (integration)', () => {
   });
 
   it('treats a code repeated in the form as one commune, not a validation error', async () => {
-    await prisma.commune.create({ data: commune('30189', 'Nîmes') });
+    await prisma.commune.create({ data: communeFixture('30189', 'Nîmes') });
 
     const res = await post({
       email: 'riverain@example.fr',
@@ -196,7 +184,7 @@ describe('POST /veille (integration)', () => {
   });
 
   it('stops mailing further addresses once one caller passes the rate limit', async () => {
-    await prisma.commune.create({ data: commune('30189', 'Nîmes') });
+    await prisma.commune.create({ data: communeFixture('30189', 'Nîmes') });
     const submit = (n: number) =>
       post({ email: `riverain${n}@example.fr`, communeCodes: ['30189'] });
 
@@ -210,7 +198,7 @@ describe('POST /veille (integration)', () => {
   });
 
   it('never logs the email address, on success or on a rejected commune code', async () => {
-    await prisma.commune.create({ data: commune('30189', 'Nîmes') });
+    await prisma.commune.create({ data: communeFixture('30189', 'Nîmes') });
     const email = 'riverain@example.fr';
 
     await post({ email, communeCodes: ['30189'] });
