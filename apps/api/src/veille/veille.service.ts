@@ -12,6 +12,19 @@ import { generateVeilleToken, hashVeilleToken } from './veille-token';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+/**
+ * Single source of the pending/active/invalid decision — read by `GET` and
+ * the pre-write check of `POST`, so the two never disagree on the same token.
+ */
+const classifyConfirmation = (
+  veille: { confirmedAt: Date | null; confirmExpiresAt: Date } | null,
+): VeilleConfirmationStatus => {
+  if (!veille) return 'invalid';
+  if (veille.confirmedAt) return 'active';
+  if (veille.confirmExpiresAt < new Date()) return 'invalid';
+  return 'pending';
+};
+
 @Injectable()
 export class VeilleService {
   constructor(
@@ -86,9 +99,22 @@ export class VeilleService {
       where: { confirmTokenHash: hashVeilleToken(token) },
       select: { confirmedAt: true, confirmExpiresAt: true },
     });
-    if (!veille) return 'invalid';
-    if (veille.confirmedAt) return 'active';
-    if (veille.confirmExpiresAt < new Date()) return 'invalid';
-    return 'pending';
+    return classifyConfirmation(veille);
+  }
+
+  async confirm(token: string): Promise<VeilleConfirmationStatus> {
+    const hash = hashVeilleToken(token);
+    const veille = await this.prisma.veille.findUnique({
+      where: { confirmTokenHash: hash },
+      select: { confirmedAt: true, confirmExpiresAt: true },
+    });
+    const status = classifyConfirmation(veille);
+    if (status !== 'pending') return status;
+
+    await this.prisma.veille.update({
+      where: { confirmTokenHash: hash },
+      data: { confirmedAt: new Date() },
+    });
+    return 'active';
   }
 }

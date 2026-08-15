@@ -16,7 +16,7 @@ import {
 import { Throttle } from '@nestjs/throttler';
 import type { VeilleConfirmationResponse } from '@mon-sinistre/contracts';
 import { CreateVeilleDto } from './dto/create-veille.dto';
-import { VeilleConfirmationQueryDto } from './dto/veille-confirmation-query.dto';
+import { VeilleConfirmationTokenDto } from './dto/veille-confirmation-token.dto';
 import { VeilleConfirmationResponseDto } from './dto/veille-confirmation-response.dto';
 import { VeilleService } from './veille.service';
 
@@ -60,8 +60,24 @@ export class VeilleController {
   })
   @ApiOkResponse({ type: VeilleConfirmationResponseDto })
   async getConfirmationStatus(
-    @Query() query: VeilleConfirmationQueryDto,
+    @Query() query: VeilleConfirmationTokenDto,
   ): Promise<VeilleConfirmationResponse> {
     return { status: await this.veille.getConfirmationStatus(query.token) };
+  }
+
+  @Post('confirmation')
+  @ApiOperation({
+    summary: 'Activate a subscription from its confirmation link',
+    description:
+      'Sets confirmedAt. A second call with the same token is not an error — ' +
+      'it answers "active" again. An unknown or expired token answers ' +
+      '"invalid", the cause not told apart; a subscription already active ' +
+      'stays active regardless of confirmExpiresAt.',
+  })
+  @ApiOkResponse({ type: VeilleConfirmationResponseDto })
+  async confirm(
+    @Body() body: VeilleConfirmationTokenDto,
+  ): Promise<VeilleConfirmationResponse> {
+    return { status: await this.veille.confirm(body.token) };
   }
 }
