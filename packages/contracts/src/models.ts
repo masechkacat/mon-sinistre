@@ -5,6 +5,7 @@ import {
   SinistreStatus,
   StepAnchor,
   StepStatus,
+  VeilleConfirmationStatus,
 } from './enums';
 import { IsoDate, IsoDateTime } from './iso-date';
 
@@ -81,6 +82,11 @@ export interface Veille {
   /** Null until the confirmation link is visited; unconfirmed watches never receive alerts. */
   confirmedAt: IsoDateTime | null;
   createdAt: IsoDateTime;
+}
+
+/** Response body of the veille confirmation endpoints (`GET`/`POST`). */
+export interface VeilleConfirmationResponse {
+  status: VeilleConfirmationStatus;
 }
 
 /** One insurance claim being accompanied. */

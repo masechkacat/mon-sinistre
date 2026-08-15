@@ -1,13 +1,31 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { VEILLE_CONFIRM_TTL_DAYS } from '@mon-sinistre/contracts';
+import {
+  VEILLE_CONFIRM_TTL_DAYS,
+  type VeilleConfirmationStatus,
+} from '@mon-sinistre/contracts';
 import { MailService } from 'src/mail/mail.service';
 import { isUniqueViolationOn } from 'src/prisma/prisma-error';
 import { PrismaService } from 'src/prisma/prisma.service';
 import type { CreateVeilleDto } from './dto/create-veille.dto';
 import { confirmationMailFor } from './veille-confirmation-mail';
-import { generateVeilleToken } from './veille-token';
+import { generateVeilleToken, hashVeilleToken } from './veille-token';
 
-const DAY_MS = 24 * 60 * 60 * 1000;
+/** Exported for the veille specs, so none of them keeps its own copy. */
+export const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Single source of the pending/active/invalid decision — `GET` reads it
+ * directly, `POST` falls back to it when its conditional write matched no
+ * row, so the two never disagree on the same token.
+ */
+const classifyConfirmation = (
+  veille: { confirmedAt: Date | null; confirmExpiresAt: Date } | null,
+): VeilleConfirmationStatus => {
+  if (!veille) return 'invalid';
+  if (veille.confirmedAt) return 'active';
+  if (veille.confirmExpiresAt < new Date()) return 'invalid';
+  return 'pending';
+};
 
 @Injectable()
 export class VeilleService {
@@ -74,5 +92,45 @@ export class VeilleService {
         unsubscribe.token,
       ),
     );
+  }
+
+  async getConfirmationStatus(
+    token: string,
+  ): Promise<VeilleConfirmationStatus> {
+    const veille = await this.prisma.veille.findUnique({
+      where: { confirmTokenHash: hashVeilleToken(token) },
+      select: { confirmedAt: true, confirmExpiresAt: true },
+    });
+    return classifyConfirmation(veille);
+  }
+
+  /**
+   * One conditional `updateMany`, not read-then-update: between the two the
+   * row can vanish (a concurrent desinscription from the same mail), and
+   * `update` would throw `P2025` — a 404 through the global Prisma mapping
+   * instead of the documented `200 { status: 'invalid' }`.
+   */
+  async confirm(token: string): Promise<VeilleConfirmationStatus> {
+    const confirmed = await this.prisma.veille.updateMany({
+      // The atomic form of `classifyConfirmation(...) === 'pending'`.
+      where: {
+        confirmTokenHash: hashVeilleToken(token),
+        confirmedAt: null,
+        confirmExpiresAt: { gte: new Date() },
+      },
+      data: { confirmedAt: new Date() },
+    });
+    return confirmed.count > 0 ? 'active' : this.getConfirmationStatus(token);
+  }
+
+  /**
+   * `deleteMany`, not `delete`: a token matching no row must not throw — a
+   * repeat call and a call on an already-deleted subscription are both a
+   * silent no-op.
+   */
+  async unsubscribe(token: string): Promise<void> {
+    await this.prisma.veille.deleteMany({
+      where: { unsubscribeTokenHash: hashVeilleToken(token) },
+    });
   }
 }

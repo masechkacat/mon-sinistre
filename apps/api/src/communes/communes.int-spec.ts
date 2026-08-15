@@ -1,11 +1,6 @@
-import {
-  FastifyAdapter,
-  NestFastifyApplication,
-} from '@nestjs/platform-fastify';
-import { Test } from '@nestjs/testing';
+import { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { COMMUNE_SEARCH_LIMIT, Commune } from '@mon-sinistre/contracts';
-import { AppModule } from 'src/app.module';
-import { createGlobalValidationPipe } from 'src/config/validation-pipe';
+import { createIntTestApp } from 'src/app.int-helper';
 import {
   MAX_QUERY_LENGTH,
   MIN_QUERY_LENGTH,
@@ -48,18 +43,7 @@ describe('GET /communes (integration)', () => {
     });
 
   beforeAll(async () => {
-    const moduleRef = await Test.createTestingModule({
-      imports: [AppModule],
-    }).compile();
-
-    app = moduleRef.createNestApplication<NestFastifyApplication>(
-      new FastifyAdapter(),
-    );
-    // The exact pipe main.ts installs — the validation behaviour under test.
-    app.useGlobalPipes(createGlobalValidationPipe());
-    await app.init();
-    await app.getHttpAdapter().getInstance().ready();
-
+    app = await createIntTestApp();
     prisma = app.get(PrismaService);
   });
 

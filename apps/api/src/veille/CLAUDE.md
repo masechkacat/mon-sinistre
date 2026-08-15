@@ -6,17 +6,28 @@
 
 ## Точки входа
 
-- `POST /veille` (`veille.controller.ts` → `VeilleService.subscribe`) —
-  единственный эндпоинт фазы 1. Отвечает `204` без тела всегда, кроме провала
-  валидации тела (`400`) и превышения `VEILLE_FORM_RATE_LIMIT` (`429`). Оба
-  ответа зависят только от запроса, не от адреса, — enumeration-оракула здесь
-  нет.
+Семантика ответов каждого эндпоинта — в его `@ApiOperation`
+(`veille.controller.ts`), здесь не пересказывается. Что оттуда не видно:
+
+- `POST /veille` → `VeilleService.subscribe`; `204` и `429` зависят только от
+  запроса, не от адреса, — enumeration-оракула здесь нет.
+- `GET /veille/confirmation?token=…` → `VeilleService.getConfirmationStatus`;
+  токен читается голым `@Query('token')`, не DTO — почему, сказано у
+  обработчика.
+- `POST /veille/confirmation` → `VeilleService.confirm`; каскад
+  переходов — `classifyConfirmation` в сервисе, единственный источник решения
+  `pending | active | invalid` для обоих эндпоинтов confirmation.
+- `POST /veille/desinscription` → `VeilleService.unsubscribe`; каскад
+  `VeilleCommune` сносится вместе с `Veille`.
+- `dto/veille-token.dto.ts` (`VeilleTokenDto`) — одна DTO с полем `token` для
+  обоих `POST`, второй такой же не заводить.
 - `veille-confirmation-mail.ts` — единственная сборка письма подтверждения;
   её же зовёт спека рядом, второго описания того же письма не заводить.
 - `veille-token.ts` — единственный способ получить пару токен/хеш
   (`generateVeilleToken`) и пересчитать хеш по токену (`hashVeilleToken`,
-  понадобится подтверждению и отписке фазы 2): `randomBytes(32).base64url` в
-  письмо, `sha256` hex в базу, второй генерации не заводить.
+  используется и статусом подтверждения, и отпиской — оба ищут `Veille` по
+  своему хешу): `randomBytes(32).base64url` в письмо, `sha256` hex в базу,
+  второй генерации не заводить.
 
 ## Почему токен живёт в query, а не в сегменте пути
 

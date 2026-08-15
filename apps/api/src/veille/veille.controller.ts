@@ -1,7 +1,24 @@
-import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
-import { ApiNoContentResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Post,
+  Query,
+} from '@nestjs/common';
+import {
+  ApiNoContentResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiQuery,
+  ApiTags,
+} from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
+import type { VeilleConfirmationResponse } from '@mon-sinistre/contracts';
 import { CreateVeilleDto } from './dto/create-veille.dto';
+import { VeilleTokenDto } from './dto/veille-token.dto';
+import { VeilleConfirmationResponseDto } from './dto/veille-confirmation-response.dto';
 import { VeilleService } from './veille.service';
 
 /**
@@ -32,5 +49,64 @@ export class VeilleController {
   @ApiNoContentResponse()
   async subscribe(@Body() dto: CreateVeilleDto): Promise<void> {
     await this.veille.subscribe(dto);
+  }
+
+  @Get('confirmation')
+  @ApiOperation({
+    summary: 'Read the status of a confirmation link',
+    description:
+      'Read-only: visiting this link (e.g. a mail client preview) never ' +
+      'confirms the subscription. An unknown token answers the same ' +
+      '"invalid" as an expired one — the cause is not told apart.',
+  })
+  @ApiQuery({ name: 'token', description: 'Token carried by the veille link' })
+  @ApiOkResponse({ type: VeilleConfirmationResponseDto })
+  async getConfirmationStatus(
+    // A bare param, not VeilleTokenDto: mail gateways rewrite links and append
+    // tracking params, which the global forbidNonWhitelisted would answer 400.
+    // Anything but a single token string — absent, repeated — is as unknown a
+    // token as a wrong one.
+    @Query('token') token?: string | string[],
+  ): Promise<VeilleConfirmationResponse> {
+    return {
+      status:
+        typeof token === 'string'
+          ? await this.veille.getConfirmationStatus(token)
+          : 'invalid',
+    };
+  }
+
+  @Post('confirmation')
+  // Nest answers 201 to a POST by default; the contract of this endpoint is
+  // 200 { status } whatever the token turns out to be.
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Activate a subscription from its confirmation link',
+    description:
+      'Sets confirmedAt. A second call with the same token is not an error — ' +
+      'it answers "active" again. An unknown or expired token answers ' +
+      '"invalid", the cause not told apart; a subscription already active ' +
+      'stays active regardless of confirmExpiresAt.',
+  })
+  @ApiOkResponse({ type: VeilleConfirmationResponseDto })
+  async confirm(
+    @Body() body: VeilleTokenDto,
+  ): Promise<VeilleConfirmationResponse> {
+    return { status: await this.veille.confirm(body.token) };
+  }
+
+  @Post('desinscription')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: 'Delete a subscription from its unsubscribe link',
+    description:
+      'Always 204, whether the token matched a row or not — a repeat call ' +
+      'and a call with an unknown token are both a no-op, not an error. The ' +
+      'unsubscribe token carries no expiry: it works for a subscription ' +
+      'that was never confirmed, and for one confirmed long ago.',
+  })
+  @ApiNoContentResponse()
+  async unsubscribe(@Body() body: VeilleTokenDto): Promise<void> {
+    await this.veille.unsubscribe(body.token);
   }
 }
