@@ -1,11 +1,14 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { VEILLE_CONFIRM_TTL_DAYS } from '@mon-sinistre/contracts';
+import {
+  VEILLE_CONFIRM_TTL_DAYS,
+  type VeilleConfirmationStatus,
+} from '@mon-sinistre/contracts';
 import { MailService } from 'src/mail/mail.service';
 import { isUniqueViolationOn } from 'src/prisma/prisma-error';
 import { PrismaService } from 'src/prisma/prisma.service';
 import type { CreateVeilleDto } from './dto/create-veille.dto';
 import { confirmationMailFor } from './veille-confirmation-mail';
-import { generateVeilleToken } from './veille-token';
+import { generateVeilleToken, hashVeilleToken } from './veille-token';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -74,5 +77,18 @@ export class VeilleService {
         unsubscribe.token,
       ),
     );
+  }
+
+  async getConfirmationStatus(
+    token: string,
+  ): Promise<VeilleConfirmationStatus> {
+    const veille = await this.prisma.veille.findUnique({
+      where: { confirmTokenHash: hashVeilleToken(token) },
+      select: { confirmedAt: true, confirmExpiresAt: true },
+    });
+    if (!veille) return 'invalid';
+    if (veille.confirmedAt) return 'active';
+    if (veille.confirmExpiresAt < new Date()) return 'invalid';
+    return 'pending';
   }
 }

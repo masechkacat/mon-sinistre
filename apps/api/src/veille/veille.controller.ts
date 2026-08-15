@@ -1,7 +1,23 @@
-import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
-import { ApiNoContentResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Post,
+  Query,
+} from '@nestjs/common';
+import {
+  ApiNoContentResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
+import type { VeilleConfirmationResponse } from '@mon-sinistre/contracts';
 import { CreateVeilleDto } from './dto/create-veille.dto';
+import { VeilleConfirmationQueryDto } from './dto/veille-confirmation-query.dto';
+import { VeilleConfirmationResponseDto } from './dto/veille-confirmation-response.dto';
 import { VeilleService } from './veille.service';
 
 /**
@@ -32,5 +48,20 @@ export class VeilleController {
   @ApiNoContentResponse()
   async subscribe(@Body() dto: CreateVeilleDto): Promise<void> {
     await this.veille.subscribe(dto);
+  }
+
+  @Get('confirmation')
+  @ApiOperation({
+    summary: 'Read the status of a confirmation link',
+    description:
+      'Read-only: visiting this link (e.g. a mail client preview) never ' +
+      'confirms the subscription. An unknown token answers the same ' +
+      '"invalid" as an expired one — the cause is not told apart.',
+  })
+  @ApiOkResponse({ type: VeilleConfirmationResponseDto })
+  async getConfirmationStatus(
+    @Query() query: VeilleConfirmationQueryDto,
+  ): Promise<VeilleConfirmationResponse> {
+    return { status: await this.veille.getConfirmationStatus(query.token) };
   }
 }

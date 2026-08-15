@@ -87,3 +87,10 @@ export const VEILLE_MAX_COMMUNES = 20;
  */
 export const VEILLE_UNSUBSCRIBE_PATH = '/veille/desinscription';
 export const VEILLE_CONFIRM_PATH = '/veille/confirmation';
+
+/**
+ * `pending`/`active` reflect `Veille.confirmedAt`; `invalid` covers both an
+ * unknown token and an expired, still-unconfirmed one — the two causes are
+ * never told apart in the response (anti-enumeration).
+ */
+export type VeilleConfirmationStatus = 'pending' | 'active' | 'invalid';
