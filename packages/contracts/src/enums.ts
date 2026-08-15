@@ -77,6 +77,9 @@ export const COMMUNE_SEARCH_LIMIT = 10;
 /** How long a veille confirmation link stays valid, in days. */
 export const VEILLE_CONFIRM_TTL_DAYS = 7;
 
+/** Upper bound on communes a single veille subscription may track. */
+export const VEILLE_MAX_COMMUNES = 20;
+
 /**
  * Path of the veille unsubscribe page, relative to `FRONTEND_URL`. Declared
  * once here: both the API (mail links) and the web client (route handler)

@@ -15,8 +15,8 @@ contracts не нужен — jest подставляет его исходни�
 
 ## Модули
 
-Свои `CLAUDE.md` у `src/prisma/`, `src/communes/`, `src/mail/` — правила там.
-Решения будущего модуля veille (схема, токены, лимит писем, чистка) —
+Свои `CLAUDE.md` у `src/prisma/`, `src/communes/`, `src/mail/`, `src/veille/` —
+правила там. Решения фичи veille (схема, токены, лимит писем, чистка) —
 `../../docs/research/veille-subscription-lifecycle.md`.
 
 ## Единственные точки входа
