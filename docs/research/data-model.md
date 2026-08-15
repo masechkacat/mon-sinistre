@@ -23,7 +23,7 @@ duration+unit, ReminderLog.kind, File.contentSha256, семантика updatedA
 | Деньги (`costCents`) | `integer`, центы                                                                                                                              |
 | Enum'ы contracts     | Prisma `enum` с теми же значениями                                                                                                            |
 | `SourceReference`    | пара колонок `sourceUrl` + `sourceVerifiedAt`; `possiblyOutdated` **вычисляется на чтении** (старше 6 мес., константа contracts), не хранится |
-| id                   | `uuid` (v7 — сортируемость по времени), генерация на стороне БД: `uuidv7()` нативна с PostgreSQL 18   |
+| id                   | `uuid` (v7 — сортируемость по времени), генерация на стороне БД: `uuidv7()` нативна с PostgreSQL 18                                           |
 
 Статусы шагов: в базе только `FAIT` / `NON_APPLICABLE` — колонка
 `persistedStatus` (nullable enum из двух значений); остальное вычисляется.
@@ -260,20 +260,18 @@ Auth уже решён (api/CLAUDE.md): Passport local + JWT, refresh с рот�
 ## 6. Veille и идемпотентность рассылок
 
 - `Veille`: id, email, confirmedAt (null = не подтверждена, писем не получает),
-  confirmTokenHash, unsubscribeTokenHash, createdAt. Токены хранятся хешами.
-  `unique(email)` — одна veille на адрес, повторная форма **изменяет**
-  существующую подписку (решение — вопрос № 3). Три обязательных нюанса:
+  confirmTokenHash, unsubscribeTokenHash, confirmExpiresAt, createdAt. Токены
+  хранятся хешами. `unique(email)` — одна veille на адрес; email нормализуется
+  (lowercase, trim) до проверки уникальности. Три обязательных нюанса:
   изменение состава коммун — тоже double opt-in (зная чужой email, нельзя
   менять его подписку); ответ формы одинаков для нового и существующего адреса
   (анти-enumeration, созвучно правилу «чужой и несуществующий неразличимы»);
-  email нормализуется (lowercase, trim) до проверки уникальности.
-  **Состав полей неполон для PRD veille**: не хватает срока жизни ссылки подтверждения (7 дней), счётчика
-  писем на адрес в сутки и места для отложенного состава коммун — `VeilleCommune`
-  хранит только действующий. Поля добавляются research'ем соответствующих фич
-  (`veille-subscription-lifecycle`, `veille-commune-change`), этот параграф
-  правится в том же коммите, что и миграция.
-- `VeilleCommune`: veilleId → Veille (cascade), codeInsee → Commune;
-  PK составной, индекс `(codeInsee)` — fan-out уведомлений в день arrêté.
+  нюансы `confirmExpiresAt` и токенов — `docs/research/veille-subscription-lifecycle.md`.
+- `VeilleCommune`: veilleId → Veille (cascade), codeInsee → Commune
+  (restrict); PK составной, индекс `(codeInsee)` — fan-out уведомлений в день
+  arrêté.
+- `VeilleFormEmail`: id, emailHash, sentAt; индекс `(emailHash, sentAt)` —
+  счётчик писем формы, детали `docs/research/veille-subscription-lifecycle.md`.
 - `VeilleNotification`: veilleId, arreteId, sentAt; `unique(veilleId, arreteId)` —
   повторный прогон монитора (rectificatif, ретрай) не шлёт письмо дважды.
 - `ReminderLog` (напоминания шагов): stepId → Step (cascade), **kind**

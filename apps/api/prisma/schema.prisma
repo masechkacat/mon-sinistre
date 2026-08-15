@@ -31,6 +31,7 @@ model Commune {
   predecessors       Commune[] @relation("CommuneSuccessor")
   sourceUrl          String
   sourceVerifiedAt   DateTime  @db.Date
+  veilleCommunes     VeilleCommune[]
 
   // Префиксный поиск и сортировка: колонка объявлена COLLATE "C" (миграция
   // normalize_collation), поэтому обычный btree обслуживает и LIKE 'q%', и
@@ -38,4 +39,39 @@ model Commune {
   // Prisma не поддерживает и в схеме не выражается: она живёт только в SQL
   // миграции, дрейфом не считается (проверка — commune-name-normalized.int-spec).
   @@index([nameNormalized])
+}
+
+// Подписка на уведомления об arrêté по выбранным коммунам — схема и решения:
+// docs/research/veille-subscription-lifecycle.md. Токены хранятся хешами.
+model Veille {
+  id                   String          @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  email                String          @unique
+  // null = подписка не подтверждена, писем об arrêté не получает
+  confirmedAt          DateTime?       @db.Timestamptz(6)
+  confirmTokenHash     String          @unique
+  unsubscribeTokenHash String          @unique
+  // Действует, пока confirmedAt null
+  confirmExpiresAt     DateTime        @db.Timestamptz(6)
+  createdAt            DateTime        @default(now()) @db.Timestamptz(6)
+  communes             VeilleCommune[]
+}
+
+model VeilleCommune {
+  veilleId  String  @db.Uuid
+  codeInsee String
+  veille    Veille  @relation(fields: [veilleId], references: [id], onDelete: Cascade)
+  commune   Commune @relation(fields: [codeInsee], references: [codeInsee], onDelete: Restrict)
+
+  @@id([veilleId, codeInsee])
+  @@index([codeInsee])
+}
+
+// Счётчик писем формы veille (лимит частоты, фаза 3) —
+// docs/research/veille-subscription-lifecycle.md.
+model VeilleFormEmail {
+  id        String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  emailHash String
+  sentAt    DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([emailHash, sentAt])
 }
