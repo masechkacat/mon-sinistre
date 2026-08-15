@@ -1,10 +1,6 @@
 import { createHash } from 'node:crypto';
 
-import {
-  FastifyAdapter,
-  NestFastifyApplication,
-} from '@nestjs/platform-fastify';
-import { Test } from '@nestjs/testing';
+import { NestFastifyApplication } from '@nestjs/platform-fastify';
 import {
   ThrottlerStorage,
   type ThrottlerStorageService,
@@ -14,15 +10,14 @@ import {
   VEILLE_MAX_COMMUNES,
   VEILLE_UNSUBSCRIBE_PATH,
 } from '@mon-sinistre/contracts';
-import { AppModule } from 'src/app.module';
-import { createGlobalValidationPipe } from 'src/config/validation-pipe';
+import { createIntTestApp } from 'src/app.int-helper';
 import { captureLogs } from 'src/mail/mail-log.test-helper';
 import { mailLinksOf } from 'src/mail/mail-links.test-helper';
 import type { MailMessage } from 'src/mail/mail-message';
 import { MAIL_TRANSPORT, type MailTransport } from 'src/mail/mail-transport';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { VEILLE_FORM_RATE_LIMIT } from './veille.controller';
-import { communeFixture } from './veille-commune.test-helper';
+import { communeFixture } from './veille.test-helper';
 
 class RecordingTransport implements MailTransport {
   readonly sent: MailMessage[] = [];
@@ -55,20 +50,10 @@ describe('POST /veille (integration)', () => {
 
   beforeAll(async () => {
     transport = new RecordingTransport();
-    const moduleRef = await Test.createTestingModule({
-      imports: [AppModule],
-    })
-      .overrideProvider(MAIL_TRANSPORT)
-      .useValue(transport)
-      .compile();
-
-    app = moduleRef.createNestApplication<NestFastifyApplication>(
-      new FastifyAdapter(),
-    );
-    // The exact pipe main.ts installs — the validation behaviour under test.
-    app.useGlobalPipes(createGlobalValidationPipe());
-    await app.init();
-    await app.getHttpAdapter().getInstance().ready();
+    app = await createIntTestApp({
+      customize: (builder) =>
+        builder.overrideProvider(MAIL_TRANSPORT).useValue(transport),
+    });
 
     prisma = app.get(PrismaService);
     throttler = app.get<ThrottlerStorageService>(ThrottlerStorage);

@@ -5,13 +5,8 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import {
-  FastifyAdapter,
-  NestFastifyApplication,
-} from '@nestjs/platform-fastify';
-import { Test } from '@nestjs/testing';
-import { AppModule } from 'src/app.module';
-import { createGlobalValidationPipe } from 'src/config/validation-pipe';
+import { NestFastifyApplication } from '@nestjs/platform-fastify';
+import { createIntTestApp } from 'src/app.int-helper';
 import { Prisma } from 'src/generated/prisma/client';
 
 const ADDRESS = 'destinataire@example.test';
@@ -73,19 +68,9 @@ describe('AllExceptionsFilter (integration)', () => {
   const get = (path: string) => app.inject({ method: 'GET', url: path });
 
   beforeAll(async () => {
-    const moduleRef = await Test.createTestingModule({
-      imports: [AppModule],
-      controllers: [BoomController],
-    }).compile();
-
-    app = moduleRef.createNestApplication<NestFastifyApplication>(
-      new FastifyAdapter(),
-    );
-    // The exact pipe main.ts installs: one of the cases below is a validation
-    // error, whose body the filter must pass on untouched.
-    app.useGlobalPipes(createGlobalValidationPipe());
-    await app.init();
-    await app.getHttpAdapter().getInstance().ready();
+    app = await createIntTestApp({
+      metadata: { controllers: [BoomController] },
+    });
   });
 
   afterAll(async () => {

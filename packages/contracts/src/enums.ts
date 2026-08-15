@@ -92,5 +92,14 @@ export const VEILLE_CONFIRM_PATH = '/veille/confirmation';
  * `pending`/`active` reflect `Veille.confirmedAt`; `invalid` covers both an
  * unknown token and an expired, still-unconfirmed one — the two causes are
  * never told apart in the response (anti-enumeration).
+ *
+ * A runtime array, not just a union: the API's Swagger DTO needs the values
+ * as data, and a hand-copied list there would go stale silently.
  */
-export type VeilleConfirmationStatus = 'pending' | 'active' | 'invalid';
+export const VEILLE_CONFIRMATION_STATUSES = [
+  'pending',
+  'active',
+  'invalid',
+] as const;
+export type VeilleConfirmationStatus =
+  (typeof VEILLE_CONFIRMATION_STATUSES)[number];

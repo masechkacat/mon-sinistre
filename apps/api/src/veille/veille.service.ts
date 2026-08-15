@@ -10,11 +10,13 @@ import type { CreateVeilleDto } from './dto/create-veille.dto';
 import { confirmationMailFor } from './veille-confirmation-mail';
 import { generateVeilleToken, hashVeilleToken } from './veille-token';
 
-const DAY_MS = 24 * 60 * 60 * 1000;
+/** Exported for the veille specs, so none of them keeps its own copy. */
+export const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
- * Single source of the pending/active/invalid decision — read by `GET` and
- * the pre-write check of `POST`, so the two never disagree on the same token.
+ * Single source of the pending/active/invalid decision — `GET` reads it
+ * directly, `POST` falls back to it when its conditional write matched no
+ * row, so the two never disagree on the same token.
  */
 const classifyConfirmation = (
   veille: { confirmedAt: Date | null; confirmExpiresAt: Date } | null,
@@ -102,20 +104,23 @@ export class VeilleService {
     return classifyConfirmation(veille);
   }
 
+  /**
+   * One conditional `updateMany`, not read-then-update: between the two the
+   * row can vanish (a concurrent desinscription from the same mail), and
+   * `update` would throw `P2025` — a 404 through the global Prisma mapping
+   * instead of the documented `200 { status: 'invalid' }`.
+   */
   async confirm(token: string): Promise<VeilleConfirmationStatus> {
-    const hash = hashVeilleToken(token);
-    const veille = await this.prisma.veille.findUnique({
-      where: { confirmTokenHash: hash },
-      select: { confirmedAt: true, confirmExpiresAt: true },
-    });
-    const status = classifyConfirmation(veille);
-    if (status !== 'pending') return status;
-
-    await this.prisma.veille.update({
-      where: { confirmTokenHash: hash },
+    const confirmed = await this.prisma.veille.updateMany({
+      // The atomic form of `classifyConfirmation(...) === 'pending'`.
+      where: {
+        confirmTokenHash: hashVeilleToken(token),
+        confirmedAt: null,
+        confirmExpiresAt: { gte: new Date() },
+      },
       data: { confirmedAt: new Date() },
     });
-    return 'active';
+    return confirmed.count > 0 ? 'active' : this.getConfirmationStatus(token);
   }
 
   /**

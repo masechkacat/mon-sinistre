@@ -1,15 +1,18 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsString } from 'class-validator';
+import { IsString, MaxLength } from 'class-validator';
+import { VEILLE_TOKEN_LENGTH } from '../veille-token';
 
 /**
- * Shared by every endpoint that reads a single token — confirmation's GET
- * (query) and POST (body), and desinscription's POST (body): Nest validates a
- * class the same way regardless of which decorator reads it, and the
+ * Body of both token-carrying POSTs — confirmation and desinscription: the
  * confirm/unsubscribe tokens differ only in which hash column the service
- * looks them up against.
+ * looks them up against. (Confirmation's GET reads its token from a bare
+ * `@Query('token')` instead — see the note in the controller.)
  */
 export class VeilleTokenDto {
-  @ApiProperty({ description: 'Token carried by the veille link' })
+  /** Token carried by the veille link. */
   @IsString()
+  // MaxLength, not an exact Length: a token truncated by a mail client must
+  // answer the same "invalid" as an unknown one, not a 400 — the bound only
+  // keeps megabyte-sized strings away from sha256.
+  @MaxLength(VEILLE_TOKEN_LENGTH)
   token: string;
 }

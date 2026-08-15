@@ -6,34 +6,21 @@
 
 ## Точки входа
 
-- `POST /veille` (`veille.controller.ts` → `VeilleService.subscribe`) —
-  единственный эндпоинт фазы 1. Отвечает `204` без тела всегда, кроме провала
-  валидации тела (`400`) и превышения `VEILLE_FORM_RATE_LIMIT` (`429`). Оба
-  ответа зависят только от запроса, не от адреса, — enumeration-оракула здесь
-  нет.
-- `GET /veille/confirmation?token=…` (→ `VeilleService.getConfirmationStatus`)
-  — только чтение, подписку не подтверждает (иначе превью почтовика
-  активировало бы её само). Отвечает `200 { status }`,
-  `VeilleConfirmationStatus` — `pending | active | invalid`; неизвестный токен
-  и просроченная, но ещё не удалённая подписка дают одинаковый `invalid`,
-  причина наружу не различается.
-- `POST /veille/confirmation` (→ `VeilleService.confirm`) — активация:
-  проставляет `confirmedAt` и отвечает `200 { status: 'active' }`. Повторный
-  вызов тем же токеном не ошибка — строка не трогается, ответ снова `active`, и
-  срок с этого момента не проверяется вовсе (в т.ч. в `GET` — она смотрит на
-  `confirmedAt` раньше `confirmExpiresAt`). Неизвестный и просроченный токен —
-  `invalid`, как в `GET`, той же неразличимой причиной.
-- `POST /veille/desinscription` (→ `VeilleService.unsubscribe`) —
-  `deleteMany` по `unsubscribeTokenHash`, отвечает `204` всегда, независимо от
-  того, нашлась ли строка: повторный вызов и вызов с неизвестным токеном — тот
-  же ответ, без исключения. Каскад `VeilleCommune` сносится вместе с `Veille`.
-  Токен без срока — работает и для неподтверждённой подписки (ссылка из письма
-  фазы 1), и сколько угодно после подтверждения; `confirmedAt` и
-  `confirmExpiresAt` здесь не смотрятся вовсе.
-- `dto/veille-token.dto.ts` (`VeilleTokenDto`) — одна DTO с полем `token`,
-  общая для `GET` (`@Query`) и `POST` (`@Body`) confirmation и для `POST`
-  desinscription: Nest валидирует класс одинаково независимо от
-  декоратора-источника, второй такой же DTO не заводить.
+Семантика ответов каждого эндпоинта — в его `@ApiOperation`
+(`veille.controller.ts`), здесь не пересказывается. Что оттуда не видно:
+
+- `POST /veille` → `VeilleService.subscribe`; `204` и `429` зависят только от
+  запроса, не от адреса, — enumeration-оракула здесь нет.
+- `GET /veille/confirmation?token=…` → `VeilleService.getConfirmationStatus`;
+  токен читается голым `@Query('token')`, не DTO — почему, сказано у
+  обработчика.
+- `POST /veille/confirmation` → `VeilleService.confirm`; каскад
+  переходов — `classifyConfirmation` в сервисе, единственный источник решения
+  `pending | active | invalid` для обоих эндпоинтов confirmation.
+- `POST /veille/desinscription` → `VeilleService.unsubscribe`; каскад
+  `VeilleCommune` сносится вместе с `Veille`.
+- `dto/veille-token.dto.ts` (`VeilleTokenDto`) — одна DTO с полем `token` для
+  обоих `POST`, второй такой же не заводить.
 - `veille-confirmation-mail.ts` — единственная сборка письма подтверждения;
   её же зовёт спека рядом, второго описания того же письма не заводить.
 - `veille-token.ts` — единственный способ получить пару токен/хеш

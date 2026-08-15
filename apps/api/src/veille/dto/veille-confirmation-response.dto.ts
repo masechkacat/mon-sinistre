@@ -1,7 +1,8 @@
 import { ApiProperty } from '@nestjs/swagger';
-import type {
-  VeilleConfirmationResponse,
-  VeilleConfirmationStatus,
+import {
+  VEILLE_CONFIRMATION_STATUSES,
+  type VeilleConfirmationResponse,
+  type VeilleConfirmationStatus,
 } from '@mon-sinistre/contracts';
 
 /**
@@ -9,6 +10,6 @@ import type {
  * `implements` makes the compiler fail here whenever the contract changes.
  */
 export class VeilleConfirmationResponseDto implements VeilleConfirmationResponse {
-  @ApiProperty({ enum: ['pending', 'active', 'invalid'] })
+  @ApiProperty({ enum: VEILLE_CONFIRMATION_STATUSES })
   status: VeilleConfirmationStatus;
 }

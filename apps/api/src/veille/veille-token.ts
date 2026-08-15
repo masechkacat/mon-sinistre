@@ -7,6 +7,9 @@ import { createHash, randomBytes } from 'node:crypto';
  */
 const TOKEN_BYTES = 32;
 
+/** base64url length of a generated token — the bound the DTO holds inputs to. */
+export const VEILLE_TOKEN_LENGTH = Math.ceil((TOKEN_BYTES * 4) / 3);
+
 export interface VeilleToken {
   /** Goes out in the mail link; never stored. */
   readonly token: string;
