@@ -1,7 +1,7 @@
 # PRD: Письма приложения
 
 **Дата**: 2026-08-02
-**Статус**: approved <!-- draft → approved → done; в реализацию берётся только approved -->
+**Статус**: done <!-- draft → approved → done; в реализацию берётся только approved -->
 
 ## Цель
 
