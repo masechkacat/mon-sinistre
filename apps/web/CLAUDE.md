@@ -13,6 +13,8 @@ Next.js 16 (App Router, `src/app/`), React 19, Tailwind CSS 4 (через PostCS
 Технические решения фундамента клиента — тест-инфраструктура (Playwright + axe),
 темы, локализация, контроль литералов, слой API — приняты в
 `../../docs/research/web-foundation.md`; фазы применяют их, не перевыбирая.
+Решения фичи veille (страницы, combobox коммун, one-click отписка) —
+`../../docs/research/veille-subscription-lifecycle.md`.
 
 ## Команды
 
