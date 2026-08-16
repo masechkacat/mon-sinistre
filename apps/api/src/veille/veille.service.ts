@@ -327,10 +327,33 @@ export class VeilleService {
     });
   }
 
+  /**
+   * Single hourly trigger for both cleanups (research, «Удаление
+   * неподтверждённых за 7 дней и чистка счётчика»): the two `deleteMany`
+   * calls are independent of each other, but the schedule is one — a second
+   * `@Cron` on the same expression would just be two names for the same tick.
+   */
   @Cron(CronExpression.EVERY_HOUR)
+  async cleanupExpired(): Promise<void> {
+    await this.deleteExpiredUnconfirmed();
+    await this.deleteStaleFormEmailCounters();
+  }
+
   async deleteExpiredUnconfirmed(): Promise<void> {
     await this.prisma.veille.deleteMany({
       where: { confirmedAt: null, confirmExpiresAt: { lt: new Date() } },
+    });
+  }
+
+  /**
+   * `VeilleFormEmail` rows outlive the `Veille` they were sent for — no FK
+   * ties them together, so desinscription and expiry cleanup above never
+   * touch this table. This is the only thing that does, on its own 24-hour
+   * window, independent of whatever happened to the subscription.
+   */
+  async deleteStaleFormEmailCounters(): Promise<void> {
+    await this.prisma.veilleFormEmail.deleteMany({
+      where: { sentAt: { lt: new Date(Date.now() - DAY_MS) } },
     });
   }
 }
