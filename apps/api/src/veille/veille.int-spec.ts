@@ -22,6 +22,7 @@ import type { MailMessage } from 'src/mail/mail-message';
 import { MAIL_TRANSPORT, type MailTransport } from 'src/mail/mail-transport';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { VEILLE_FORM_RATE_LIMIT } from './veille.controller';
+import { VeilleService } from './veille.service';
 import { communeFixture } from './veille.test-helper';
 
 class RecordingTransport implements MailTransport {
@@ -316,6 +317,41 @@ describe('POST /veille (integration)', () => {
       expect(await prisma.veille.findMany({ where: { email } })).toHaveLength(
         1,
       );
+    });
+
+    it('creates the subscription anew when the hourly cleanup deletes the expired row while the resubmission is rewriting it', async () => {
+      await prisma.commune.create({ data: communeFixture('30189', 'Nîmes') });
+      const email = 'riverain@example.fr';
+
+      await post({ email, communeCodes: ['30189'] });
+      const expired = await prisma.veille.findFirstOrThrow();
+      await prisma.veille.update({
+        where: { id: expired.id },
+        data: { confirmExpiresAt: new Date(Date.now() - 1000) },
+      });
+      transport.sent.length = 0;
+
+      // The cleanup lands between the lookup and the transaction that would
+      // have revived this very row (same interception as the test below).
+      const originalTransaction = prisma.$transaction.bind(prisma);
+      (
+        jest.spyOn(prisma, '$transaction') as jest.SpyInstance
+      ).mockImplementationOnce(async (...args: unknown[]) => {
+        await app.get(VeilleService).deleteExpiredUnconfirmed();
+        return originalTransaction(
+          ...(args as Parameters<typeof originalTransaction>),
+        );
+      });
+
+      const res = await post({ email, communeCodes: ['30189'] });
+
+      // Silence here would lose a subscription the reader has no way to see
+      // was lost — the retry creates a fresh row and mails its links.
+      expect(res.statusCode).toBe(204);
+      const rows = await prisma.veille.findMany({ where: { email } });
+      expect(rows).toHaveLength(1);
+      expect(rows[0]?.id).not.toBe(expired.id);
+      expect(transport.sent).toHaveLength(1);
     });
 
     it('does not 500 when a concurrent desinscription deletes the row while the resubmission is rewriting it', async () => {

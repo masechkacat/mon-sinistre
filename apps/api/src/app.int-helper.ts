@@ -3,6 +3,7 @@ import {
   FastifyAdapter,
   NestFastifyApplication,
 } from '@nestjs/platform-fastify';
+import { SchedulerRegistry } from '@nestjs/schedule';
 import { Test, TestingModuleBuilder } from '@nestjs/testing';
 import { AppModule } from 'src/app.module';
 import { createGlobalValidationPipe } from 'src/config/validation-pipe';
@@ -30,6 +31,19 @@ export async function createIntTestApp({
   );
   app.useGlobalPipes(createGlobalValidationPipe());
   await app.init();
+  await stopSchedules(app);
   await app.getHttpAdapter().getInstance().ready();
   return app;
+}
+
+/**
+ * `ScheduleModule` arms every `@Cron` during `init()`, and the specs share one
+ * database: a run crossing the top of an hour would otherwise have a background
+ * job deleting rows another spec had just written. Specs call the scheduled
+ * methods directly, so nothing here waits on a schedule anyway.
+ */
+async function stopSchedules(app: NestFastifyApplication): Promise<void> {
+  for (const job of app.get(SchedulerRegistry).getCronJobs().values()) {
+    await job.stop();
+  }
 }

@@ -1,5 +1,6 @@
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { createIntTestApp } from 'src/app.int-helper';
+import { captureLogs } from 'src/mail/mail-log.test-helper';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { DAY_MS, VeilleService } from './veille.service';
 import { communeFixture, createVeille } from './veille.test-helper';
@@ -8,6 +9,7 @@ describe('VeilleService.deleteExpiredUnconfirmed (integration)', () => {
   let app: NestFastifyApplication;
   let prisma: PrismaService;
   let veille: VeilleService;
+  const logs = captureLogs();
 
   beforeAll(async () => {
     app = await createIntTestApp();
@@ -37,6 +39,14 @@ describe('VeilleService.deleteExpiredUnconfirmed (integration)', () => {
     expect(await prisma.veilleCommune.findFirst()).toBeNull();
   });
 
+  it('keeps an unconfirmed subscription whose deadline has not passed', async () => {
+    await createVeille(prisma, { confirmedAt: null });
+
+    await veille.deleteExpiredUnconfirmed();
+
+    expect(await prisma.veille.findFirst()).not.toBeNull();
+  });
+
   it('keeps a confirmed subscription past its confirmExpiresAt', async () => {
     await createVeille(prisma, {
       confirmedAt: new Date(),
@@ -46,6 +56,28 @@ describe('VeilleService.deleteExpiredUnconfirmed (integration)', () => {
     await veille.deleteExpiredUnconfirmed();
 
     expect(await prisma.veille.findFirst()).not.toBeNull();
+  });
+
+  it('runs the counter cleanup even when the subscription cleanup fails, and logs no message of the failure', async () => {
+    await prisma.veilleFormEmail.create({
+      data: {
+        emailHash: 'hash-old',
+        sentAt: new Date(Date.now() - DAY_MS - 1000),
+      },
+    });
+    // A Prisma message is where an address would reach the log — the tick
+    // catches the failure itself, precisely so nothing prints it verbatim.
+    jest
+      .spyOn(veille, 'deleteExpiredUnconfirmed')
+      .mockRejectedValueOnce(
+        new Error('Unique constraint failed: riverain@example.fr'),
+      );
+
+    await expect(veille.cleanupExpired()).resolves.toBeUndefined();
+
+    expect(await prisma.veilleFormEmail.findFirst()).toBeNull();
+    expect(logs.levels()).toContain('error');
+    logs.expectNoTraceOf('riverain@example.fr');
   });
 
   it('makes the confirmation link answer "invalid" without revealing the cause', async () => {

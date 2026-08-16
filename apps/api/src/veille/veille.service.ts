@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import {
@@ -6,6 +6,7 @@ import {
   VEILLE_FORM_EMAIL_DAILY_LIMIT,
   type VeilleConfirmationStatus,
 } from '@mon-sinistre/contracts';
+import { errorSummary, framesOf } from 'src/common/error-report';
 import type { EnvironmentVariables } from 'src/config/env.validation';
 import { MailCompositionError } from 'src/mail/mail-composition.error';
 import type { ComposeMailInput } from 'src/mail/mail-message';
@@ -43,6 +44,7 @@ const classifyConfirmation = (
 
 @Injectable()
 export class VeilleService {
+  private readonly logger = new Logger(VeilleService.name);
   private readonly emailHashSecret: string;
 
   constructor(
@@ -75,9 +77,12 @@ export class VeilleService {
    * communes, extend the deadline and resend the confirmation mail with
    * rotated tokens; confirmed → row untouched, only a
    * "déjà inscrit·e" reminder mail goes out with the communes it actually
-   * has, ignoring whatever this new form submitted. A concurrent create that
-   * loses the unique-index race retries this once, landing the loser in the
-   * unconfirmed branch instead of surfacing `P2002`.
+   * has, ignoring whatever this new form submitted. Two races invalidate the
+   * branch taken and retry the whole method once (`isRetry`), so that the
+   * loser lands in the branch that is true after the race instead of
+   * answering 204 with nothing written: a concurrent create hitting the unique
+   * index, and the hourly cleanup deleting an expired row from under the
+   * rewrite.
    */
   private async upsertSubscription(
     email: string,
@@ -87,7 +92,7 @@ export class VeilleService {
   ): Promise<void> {
     const existing = await this.prisma.veille.findUnique({
       where: { email },
-      select: { id: true, confirmedAt: true },
+      select: { id: true, confirmedAt: true, confirmExpiresAt: true },
     });
 
     if (existing) {
@@ -99,10 +104,20 @@ export class VeilleService {
         existing.id,
         communeCodes,
       );
-      // `false` means the row vanished (desinscription) or got confirmed
-      // between the lookup above and the transaction — nothing to mail.
       if (rewritten) {
         await this.resendConfirmationMail(existing.id, email, communes);
+        return;
+      }
+      // `false` means the row vanished or got confirmed between the lookup
+      // above and the transaction — nothing to mail, with one exception. An
+      // already expired row cannot have been confirmed (`confirm` refuses it),
+      // so it was deleted, and the hourly cleanup is the likeliest deleter:
+      // this branch would have revived that very row, and dropping the form on
+      // the floor for the second the cleanup happens to run in would lose a
+      // subscription nobody can see was lost. Retried once, like the lost
+      // create race below, so the form creates it anew instead.
+      if (existing.confirmExpiresAt < new Date() && !isRetry) {
+        return this.upsertSubscription(email, communeCodes, communes, true);
       }
       return;
     }
@@ -155,7 +170,7 @@ export class VeilleService {
    * `findUnique` and this call the row can vanish (a concurrent
    * desinscription) or turn confirmed (a concurrent confirmation), and
    * `veille.update` would throw `P2025` on the first. Returns whether the row
-   * was still there to rewrite — the caller skips the resend mail otherwise.
+   * was still there to rewrite — the caller retries its branching otherwise.
    */
   private async resubscribeUnconfirmed(
     veilleId: string,
@@ -332,13 +347,40 @@ export class VeilleService {
    * неподтверждённых за 7 дней и чистка счётчика»): the two `deleteMany`
    * calls are independent of each other, but the schedule is one — a second
    * `@Cron` on the same expression would just be two names for the same tick.
+   *
+   * Each runs guarded so that the independence holds for failures too: nothing
+   * above a scheduled tick catches anything — `AllExceptionsFilter` only sees
+   * requests — so an unguarded rejection would cost the second cleanup its
+   * turn and reach the log as the scheduler's own `console.error`, message and
+   * all.
    */
   @Cron(CronExpression.EVERY_HOUR)
   async cleanupExpired(): Promise<void> {
-    await this.deleteExpiredUnconfirmed();
-    await this.deleteStaleFormEmailCounters();
+    await this.guarded('deleteExpiredUnconfirmed', () =>
+      this.deleteExpiredUnconfirmed(),
+    );
+    await this.guarded('deleteStaleFormEmailCounters', () =>
+      this.deleteStaleFormEmailCounters(),
+    );
   }
 
+  private async guarded(name: string, run: () => Promise<void>): Promise<void> {
+    try {
+      await run();
+    } catch (error) {
+      this.logger.error(
+        `${name} failed: ${errorSummary(error)}`,
+        framesOf(error),
+      );
+    }
+  }
+
+  /**
+   * The deletion criterion of the lifecycle: unconfirmed and past its
+   * deadline, which the `Veille` → `VeilleCommune` cascade extends to the
+   * chosen communes. A row still within its deadline stays, however long its
+   * owner takes to open the mail.
+   */
   async deleteExpiredUnconfirmed(): Promise<void> {
     await this.prisma.veille.deleteMany({
       where: { confirmedAt: null, confirmExpiresAt: { lt: new Date() } },
@@ -348,8 +390,10 @@ export class VeilleService {
   /**
    * `VeilleFormEmail` rows outlive the `Veille` they were sent for — no FK
    * ties them together, so desinscription and expiry cleanup above never
-   * touch this table. This is the only thing that does, on its own 24-hour
-   * window, independent of whatever happened to the subscription.
+   * touch this table. This is the only thing that ages its rows out — on its
+   * own 24-hour window, independent of whatever happened to the subscription
+   * they were sent for. `sendFormMail` writes them (and refunds one), nothing
+   * else reads or deletes them.
    */
   async deleteStaleFormEmailCounters(): Promise<void> {
     await this.prisma.veilleFormEmail.deleteMany({
