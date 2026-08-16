@@ -54,6 +54,10 @@ model Veille {
   confirmExpiresAt     DateTime        @db.Timestamptz(6)
   createdAt            DateTime        @default(now()) @db.Timestamptz(6)
   communes             VeilleCommune[]
+
+  // Индекс под часовую чистку — частичный, Prisma такие не выражает: CREATE
+  // INDEX и причина живут в миграции veille_cleanup_indexes, дрейфом это не
+  // считается — как collation у Commune.nameNormalized выше.
 }
 
 model VeilleCommune {
@@ -73,5 +77,8 @@ model VeilleFormEmail {
   emailHash String
   sentAt    DateTime @default(now()) @db.Timestamptz(6)
 
+  // Первый — счёт писем адресу за сутки, второй — часовая чистка по одному
+  // sentAt: ведущая колонка составного индекса ей не подходит.
   @@index([emailHash, sentAt])
+  @@index([sentAt])
 }

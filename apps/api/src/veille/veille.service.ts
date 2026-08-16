@@ -1,10 +1,12 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import {
   VEILLE_CONFIRM_TTL_DAYS,
   VEILLE_FORM_EMAIL_DAILY_LIMIT,
   type VeilleConfirmationStatus,
 } from '@mon-sinistre/contracts';
+import { errorSummary, stackOf } from 'src/common/error-report';
 import type { EnvironmentVariables } from 'src/config/env.validation';
 import { MailCompositionError } from 'src/mail/mail-composition.error';
 import type { ComposeMailInput } from 'src/mail/mail-message';
@@ -27,6 +29,28 @@ export const nextConfirmExpiresAt = (): Date =>
   new Date(Date.now() + VEILLE_CONFIRM_TTL_DAYS * DAY_MS);
 
 /**
+ * The one comparison of the confirmation deadline with "now", in the two
+ * languages that ask for it: `isStillOpen` for a row already read,
+ * `awaitingConfirmation` for the write that confirms one. `expiredUnconfirmed`
+ * is its exact complement — the deletion criterion of the hourly cleanup — and
+ * spells the comparison out instead of negating the fragment above:
+ * `NOT (… >= now)` is not an indexable clause, and that delete runs through a
+ * partial index.
+ */
+const isStillOpen = (confirmExpiresAt: Date): boolean =>
+  confirmExpiresAt >= new Date();
+
+const awaitingConfirmation = () => ({
+  confirmedAt: null,
+  confirmExpiresAt: { gte: new Date() },
+});
+
+const expiredUnconfirmed = () => ({
+  confirmedAt: null,
+  confirmExpiresAt: { lt: new Date() },
+});
+
+/**
  * Single source of the pending/active/invalid decision — `GET` reads it
  * directly, `POST` falls back to it when its conditional write matched no
  * row, so the two never disagree on the same token.
@@ -36,12 +60,16 @@ const classifyConfirmation = (
 ): VeilleConfirmationStatus => {
   if (!veille) return 'invalid';
   if (veille.confirmedAt) return 'active';
-  if (veille.confirmExpiresAt < new Date()) return 'invalid';
-  return 'pending';
+  return isStillOpen(veille.confirmExpiresAt) ? 'pending' : 'invalid';
 };
+
+/** What `claimUnconfirmed` found, and the row it claimed if it claimed one. */
+type Claim =
+  { kind: 'rewritten'; veilleId: string } | { kind: 'confirmed' | 'absent' };
 
 @Injectable()
 export class VeilleService {
+  private readonly logger = new Logger(VeilleService.name);
   private readonly emailHashSecret: string;
 
   constructor(
@@ -69,14 +97,17 @@ export class VeilleService {
   }
 
   /**
-   * Branches on whether `email` already has a row (docs/research, «Сценарии
-   * формы и гонка уникальности»): none → create; unconfirmed → rewrite its
-   * communes, extend the deadline and resend the confirmation mail with
-   * rotated tokens; confirmed → row untouched, only a
-   * "déjà inscrit·e" reminder mail goes out with the communes it actually
-   * has, ignoring whatever this new form submitted. A concurrent create that
-   * loses the unique-index race retries this once, landing the loser in the
-   * unconfirmed branch instead of surfacing `P2002`.
+   * Branches on what the address holds at the moment of the write (docs/
+   * research, «Сценарии формы и гонка уникальности» с врезкой фазы 4): nothing
+   * → create; unconfirmed → rewrite its communes, extend the deadline and
+   * resend the confirmation mail with rotated tokens; confirmed → row
+   * untouched, only a "déjà inscrit·e" reminder mail goes out with the communes
+   * it actually has, ignoring whatever this new form submitted. The branch is
+   * decided by the write that takes it (`claimUnconfirmed`), so no row is ever
+   * rewritten — or resurrected — on the strength of a lookup it has since
+   * outlived. The one race left is a concurrent create hitting the unique
+   * index: retried once (`isRetry`), so that the loser lands in the branch that
+   * is true after the race instead of answering 204 with nothing written.
    */
   private async upsertSubscription(
     email: string,
@@ -84,25 +115,13 @@ export class VeilleService {
     communes: readonly ChosenCommune[],
     isRetry = false,
   ): Promise<void> {
-    const existing = await this.prisma.veille.findUnique({
-      where: { email },
-      select: { id: true, confirmedAt: true },
-    });
-
-    if (existing) {
-      if (existing.confirmedAt) {
-        await this.sendAlreadySubscribedMail(email);
-        return;
-      }
-      const rewritten = await this.resubscribeUnconfirmed(
-        existing.id,
-        communeCodes,
-      );
-      // `false` means the row vanished (desinscription) or got confirmed
-      // between the lookup above and the transaction — nothing to mail.
-      if (rewritten) {
-        await this.resendConfirmationMail(existing.id, email, communes);
-      }
+    const claim = await this.claimUnconfirmed(email, communeCodes);
+    if (claim.kind === 'confirmed') {
+      await this.sendAlreadySubscribedMail(email);
+      return;
+    }
+    if (claim.kind === 'rewritten') {
+      await this.resendConfirmationMail(claim.veilleId, email, communes);
       return;
     }
 
@@ -132,10 +151,13 @@ export class VeilleService {
         if (!isRetry) {
           return this.upsertSubscription(email, communeCodes, communes, true);
         }
-        // Losing the race twice (delete then re-create between our lookup and
-        // this create) proves the address exists right now — a 500 here would
-        // be the same timing-dependent enumeration signal the untranslated
-        // P2002 avoids. Swallowed like any other lost race: 204, no mail.
+        // Losing the race twice (deleted then re-created between the claim and
+        // this create, twice over) proves the address exists right now — a 500
+        // here would be the same timing-dependent enumeration signal the
+        // untranslated P2002 avoids. The caller keeps its 204 and gets no mail,
+        // so this line is the only trace that a submission was dropped; the
+        // address itself stays out of it.
+        this.logger.warn('Subscription form lost the unique-index race twice');
         return;
       }
       throw error;
@@ -149,28 +171,45 @@ export class VeilleService {
   }
 
   /**
-   * The composition rewrite and deadline extension are conditioned on the
-   * same `updateMany` that guards `confirm()`: between the earlier
-   * `findUnique` and this call the row can vanish (a concurrent
-   * desinscription) or turn confirmed (a concurrent confirmation), and
-   * `veille.update` would throw `P2025` on the first. Returns whether the row
-   * was still there to rewrite — the caller skips the resend mail otherwise.
+   * Decides the unconfirmed branch by taking it: the conditional `updateMany`
+   * matches the row and locks it in the same statement, so a concurrent
+   * desinscription and the hourly cleanup both queue behind this transaction
+   * instead of deleting a row already being rewritten — and the cleanup, once
+   * let through, re-reads the deadline this extended and leaves the row alone.
+   * The deadline is deliberately not part of the condition: reviving an expired
+   * row that is still there is what this branch exists for.
+   *
+   * `count === 0` leaves two states worth telling apart, and the read that
+   * follows names them: a confirmed row, or nothing this submission may act on
+   * — deleted before the claim, or created unconfirmed right after it, in which
+   * case the caller's create meets the unique index and retries into here.
    */
-  private async resubscribeUnconfirmed(
-    veilleId: string,
+  private async claimUnconfirmed(
+    email: string,
     communeCodes: string[],
-  ): Promise<boolean> {
-    return this.prisma.$transaction(async (tx) => {
-      const updated = await tx.veille.updateMany({
-        where: { id: veilleId, confirmedAt: null },
+  ): Promise<Claim> {
+    return this.prisma.$transaction(async (tx): Promise<Claim> => {
+      const claimed = await tx.veille.updateMany({
+        where: { email, confirmedAt: null },
         data: { confirmExpiresAt: nextConfirmExpiresAt() },
       });
-      if (updated.count === 0) return false;
-      await tx.veilleCommune.deleteMany({ where: { veilleId } });
-      await tx.veilleCommune.createMany({
-        data: communeCodes.map((codeInsee) => ({ veilleId, codeInsee })),
+      if (claimed.count === 0) {
+        const existing = await tx.veille.findUnique({
+          where: { email },
+          select: { confirmedAt: true },
+        });
+        return { kind: existing?.confirmedAt ? 'confirmed' : 'absent' };
+      }
+
+      const { id } = await tx.veille.findUniqueOrThrow({
+        where: { email },
+        select: { id: true },
       });
-      return true;
+      await tx.veilleCommune.deleteMany({ where: { veilleId: id } });
+      await tx.veilleCommune.createMany({
+        data: communeCodes.map((codeInsee) => ({ veilleId: id, codeInsee })),
+      });
+      return { kind: 'rewritten', veilleId: id };
     });
   }
 
@@ -307,8 +346,7 @@ export class VeilleService {
       // The atomic form of `classifyConfirmation(...) === 'pending'`.
       where: {
         confirmTokenHash: hashVeilleToken(token),
-        confirmedAt: null,
-        confirmExpiresAt: { gte: new Date() },
+        ...awaitingConfirmation(),
       },
       data: { confirmedAt: new Date() },
     });
@@ -323,6 +361,63 @@ export class VeilleService {
   async unsubscribe(token: string): Promise<void> {
     await this.prisma.veille.deleteMany({
       where: { unsubscribeTokenHash: hashVeilleToken(token) },
+    });
+  }
+
+  /**
+   * Single hourly trigger for both cleanups (research, «Удаление
+   * неподтверждённых за 7 дней и чистка счётчика»): the two `deleteMany`
+   * calls are independent of each other, but the schedule is one — a second
+   * `@Cron` on the same expression would just be two names for the same tick.
+   *
+   * Each runs guarded so that the independence holds for failures too: nothing
+   * above a scheduled tick catches anything — `AllExceptionsFilter` only sees
+   * requests — so an unguarded rejection would cost the second cleanup its
+   * turn and reach the log as the scheduler's own `console.error`, message and
+   * all.
+   */
+  @Cron(CronExpression.EVERY_HOUR)
+  async cleanupExpired(): Promise<void> {
+    await this.guarded('deleteExpiredUnconfirmed', () =>
+      this.deleteExpiredUnconfirmed(),
+    );
+    await this.guarded('deleteStaleFormEmailCounters', () =>
+      this.deleteStaleFormEmailCounters(),
+    );
+  }
+
+  private async guarded(name: string, run: () => Promise<void>): Promise<void> {
+    try {
+      await run();
+    } catch (error) {
+      this.logger.error(
+        `${name} failed: ${errorSummary(error)}`,
+        stackOf(error),
+      );
+    }
+  }
+
+  /**
+   * The deletion criterion of the lifecycle — `expiredUnconfirmed`, the
+   * complement of what `confirm` still accepts — which the `Veille` →
+   * `VeilleCommune` cascade extends to the chosen communes. A row still within
+   * its deadline stays, however long its owner takes to open the mail.
+   */
+  async deleteExpiredUnconfirmed(): Promise<void> {
+    await this.prisma.veille.deleteMany({ where: expiredUnconfirmed() });
+  }
+
+  /**
+   * `VeilleFormEmail` rows outlive the `Veille` they were sent for — no FK
+   * ties them together, so desinscription and expiry cleanup above never
+   * touch this table. This is the only thing that ages its rows out — on its
+   * own 24-hour window, independent of whatever happened to the subscription
+   * they were sent for. `sendFormMail` writes them (and refunds one), nothing
+   * else reads or deletes them.
+   */
+  async deleteStaleFormEmailCounters(): Promise<void> {
+    await this.prisma.veilleFormEmail.deleteMany({
+      where: { sentAt: { lt: new Date(Date.now() - DAY_MS) } },
     });
   }
 }

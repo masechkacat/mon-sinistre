@@ -52,7 +52,7 @@
 
 Ветвление, гонка `P2002`, состав письма «déjà inscrit·e» и перевыпуск
 ссылок повторных писем — в docblock'ах `VeilleService.upsertSubscription`,
-`resubscribeUnconfirmed`, `resendConfirmationMail` и
+`claimUnconfirmed`, `resendConfirmationMail` и
 `sendAlreadySubscribedMail`, здесь не пересказывается.
 
 Коды коммун дедуплицируются до сверки со справочником — иначе повторённый в
@@ -60,3 +60,16 @@
 массива). Сверка — один `findMany` с `effectiveTo: null`; неизвестный код
 отвечает `400` до всякой попытки вставки, поэтому FK-нарушение
 (`VeilleCommune_codeInsee_fkey`) в этом пути никогда не срабатывает.
+
+## Жизненный цикл подписки и что переживает её удаление
+
+`Veille` проходит `pending` → `active` → удалена — третьего способа исчезнуть
+нет. Механика обоих путей удаления (отписка, часовая чистка просроченной
+неподтверждённой) — докблоки `unsubscribe` и `deleteExpiredUnconfirmed`;
+почему обе чистки висят на одном `@Cron` и почему каждая под своим
+`try/catch` — докблок `VeilleService.cleanupExpired`. Здесь не
+пересказывается.
+
+Счётчик писем формы (`VeilleFormEmail`) удаление подписки переживает: чем он
+за неё держится и на каком сроке уходит сам — докблок
+`deleteStaleFormEmailCounters`.

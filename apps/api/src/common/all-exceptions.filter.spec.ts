@@ -341,6 +341,21 @@ describe('AllExceptionsFilter', () => {
       expect(loggedText(error)).toContain('at quelquePart');
     });
 
+    it('hands the logger a stack it recognises even when one frame is all that is left', () => {
+      // Nest reads the second argument as a stack only while a line precedes
+      // the frames; a lone frame would be taken for the context of the log
+      // line instead, and «AllExceptionsFilter» would vanish from it.
+      const lone = new Error('boom');
+      lone.stack = 'Error: boom\n    at quelquePart (/app/dist/main.js:1:1)';
+
+      filter.catch(lone, hostFor().host);
+
+      expect(error).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.stringMatching(/^(.)+\n\s+at .+:\d+:\d+/),
+      );
+    });
+
     it('logs no stack rather than an unrecognised one', () => {
       // A stack that does not start with the header is not one this filter can
       // trim safely, and half a leak is a leak.

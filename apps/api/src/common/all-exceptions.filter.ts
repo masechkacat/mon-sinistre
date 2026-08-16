@@ -7,10 +7,8 @@ import {
   Logger,
 } from '@nestjs/common';
 
-import {
-  httpExceptionForPrisma,
-  prismaErrorDetail,
-} from 'src/prisma/prisma-error';
+import { errorSummary, stackOf } from 'src/common/error-report';
+import { httpExceptionForPrisma } from 'src/prisma/prisma-error';
 
 /** Declared rather than imported: fastify arrives under
  * @nestjs/platform-fastify and is not a direct dependency of this package. */
@@ -70,47 +68,8 @@ const asHttpError = (exception: unknown): HttpErrorLike | undefined => {
     : undefined;
 };
 
-const MAX_LOGGED_FRAMES = 12;
-
 /** Typed as a number: what is compared against it is a status, not an enum. */
 const FIRST_SERVER_STATUS: number = HttpStatus.INTERNAL_SERVER_ERROR;
-
-/**
- * The frames of a stack and nothing else. The header of a V8 stack is
- * `${name}: ${message}`, and the message is exactly what must not reach the
- * logs. It is removed by exact length, not by dropping the first line — a
- * message with newlines occupies several. Anything not matching this shape
- * yields no stack at all: losing the trace of an odd error costs a debugging
- * session, the other direction costs personal data in a log file.
- */
-const framesOf = (exception: unknown): string | undefined => {
-  if (!(exception instanceof Error) || !exception.stack) {
-    return undefined;
-  }
-  // An error with no message has no ": " in its header either — V8 writes the
-  // name alone. Spelling the separator out regardless would fail the match
-  // below and cost the frames of exactly the error that has nothing else to
-  // show. Under jest this is invisible: source-map-support rewrites the stack
-  // and puts the separator back, so the case is recorded with a stack written
-  // out by hand in the spec.
-  const header = exception.message
-    ? `${exception.name}: ${exception.message}`
-    : exception.name;
-  if (!exception.stack.startsWith(header)) {
-    return undefined;
-  }
-  const frames = exception.stack
-    .slice(header.length)
-    .split('\n')
-    .filter((line) => /^\s+at /.test(line))
-    .slice(0, MAX_LOGGED_FRAMES);
-
-  return frames.length > 0 ? frames.join('\n') : undefined;
-};
-
-/** The class that was thrown — never its message. */
-const nameOf = (exception: unknown): string =>
-  exception instanceof Error ? exception.constructor.name : typeof exception;
 
 /**
  * The last stop of every failed request. It does not change the response shape;
@@ -167,12 +126,9 @@ export class AllExceptionsFilter implements ExceptionFilter {
     // endpoint could take an address the same way.
     const path = request.url.split('?')[0];
 
-    const detail = prismaErrorDetail(exception);
-
     this.logger.error(
-      `${request.method} ${path} → ${status} ${nameOf(exception)}` +
-        (detail ? ` ${detail}` : ''),
-      framesOf(exception),
+      `${request.method} ${path} → ${status} ${errorSummary(exception)}`,
+      stackOf(exception),
     );
   }
 }
