@@ -36,7 +36,7 @@ describe('/veille/confirmation (integration)', () => {
   });
 
   beforeEach(async () => {
-    await prisma.$executeRaw`TRUNCATE TABLE "Veille" CASCADE`;
+    await prisma.$executeRaw`TRUNCATE TABLE "Veille", "VeilleFormEmail" CASCADE`;
   });
 
   describe('GET', () => {

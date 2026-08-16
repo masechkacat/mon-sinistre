@@ -6,6 +6,7 @@ import {
   type VeilleConfirmationStatus,
 } from '@mon-sinistre/contracts';
 import type { EnvironmentVariables } from 'src/config/env.validation';
+import { MailCompositionError } from 'src/mail/mail-composition.error';
 import type { ComposeMailInput } from 'src/mail/mail-message';
 import { MailService } from 'src/mail/mail.service';
 import { isUniqueViolationOn } from 'src/prisma/prisma-error';
@@ -17,16 +18,12 @@ import {
   type ChosenCommune,
 } from './veille-confirmation-mail';
 import { hashVeilleFormEmail } from './veille-email-hash';
-import {
-  generateVeilleToken,
-  hashVeilleToken,
-  type VeilleToken,
-} from './veille-token';
+import { generateVeilleToken, hashVeilleToken } from './veille-token';
 
-/** Exported for the veille specs, so none of them keeps its own copy. */
+/** Both exported for the veille specs, so none of them keeps its own copy. */
 export const DAY_MS = 24 * 60 * 60 * 1000;
 
-const nextConfirmExpiresAt = (): Date =>
+export const nextConfirmExpiresAt = (): Date =>
   new Date(Date.now() + VEILLE_CONFIRM_TTL_DAYS * DAY_MS);
 
 /**
@@ -74,7 +71,8 @@ export class VeilleService {
   /**
    * Branches on whether `email` already has a row (docs/research, «Сценарии
    * формы и гонка уникальности»): none → create; unconfirmed → rewrite its
-   * communes and extend the deadline; confirmed → row untouched, only a
+   * communes, extend the deadline and resend the confirmation mail with
+   * rotated tokens; confirmed → row untouched, only a
    * "déjà inscrit·e" reminder mail goes out with the communes it actually
    * has, ignoring whatever this new form submitted. A concurrent create that
    * loses the unique-index race retries this once, landing the loser in the
@@ -102,7 +100,9 @@ export class VeilleService {
       );
       // `false` means the row vanished (desinscription) or got confirmed
       // between the lookup above and the transaction — nothing to mail.
-      if (rewritten) await this.sendConfirmationMail(email, communes);
+      if (rewritten) {
+        await this.resendConfirmationMail(existing.id, email, communes);
+      }
       return;
     }
 
@@ -128,15 +128,24 @@ export class VeilleService {
       // hashes are 256 random bits apart). Left untranslated by the global
       // Prisma mapping on purpose (`src/prisma/prisma-error.ts`): a 409 on this
       // endpoint would tell an attacker the address is already registered.
-      if (isUniqueViolationOn(error, 'email') && !isRetry) {
-        return this.upsertSubscription(email, communeCodes, communes, true);
+      if (isUniqueViolationOn(error, 'email')) {
+        if (!isRetry) {
+          return this.upsertSubscription(email, communeCodes, communes, true);
+        }
+        // Losing the race twice (delete then re-create between our lookup and
+        // this create) proves the address exists right now — a 500 here would
+        // be the same timing-dependent enumeration signal the untranslated
+        // P2002 avoids. Swallowed like any other lost race: 204, no mail.
+        return;
       }
       throw error;
     }
 
     // Sent after the row is written: a delivery failure must not undo a
     // subscription the caller will otherwise never see again.
-    await this.sendConfirmationMail(email, communes, confirm, unsubscribe);
+    await this.sendFormMail(email, () =>
+      confirmationMailFor(email, communes, confirm.token, unsubscribe.token),
+    );
   }
 
   /**
@@ -166,79 +175,92 @@ export class VeilleService {
   }
 
   /**
-   * The confirm/unsubscribe token hashes of an existing row are never
-   * touched by `resubscribeUnconfirmed` (research: the confirm token is not
-   * reissued on resubmission, so the first mail's link keeps working) —
-   * without `tokens`, this mail's own tokens are freshly generated for the
-   * link's shape only and match no stored hash. That is fine: the row still
-   * expires unconfirmed after `VEILLE_CONFIRM_TTL_DAYS` regardless, and the
-   * first mail remains the reliable way to confirm or unsubscribe.
+   * Why a resent mail rotates hashes and mails fresh tokens, and why only
+   * inside the limit gate — research, врезка «Исправлено при реализации».
+   * Local to this method: both hashes rotate, conditioned on
+   * `confirmedAt: null` so a concurrent confirmation keeps its delivered
+   * links working.
    */
-  private async sendConfirmationMail(
+  private async resendConfirmationMail(
+    veilleId: string,
     email: string,
     communes: readonly ChosenCommune[],
-    confirm: VeilleToken = generateVeilleToken(),
-    unsubscribe: VeilleToken = generateVeilleToken(),
   ): Promise<void> {
-    await this.sendFormMail(
-      email,
-      confirmationMailFor(email, communes, confirm.token, unsubscribe.token),
-    );
+    await this.sendFormMail(email, async () => {
+      const confirm = generateVeilleToken();
+      const unsubscribe = generateVeilleToken();
+      const rotated = await this.prisma.veille.updateMany({
+        where: { id: veilleId, confirmedAt: null },
+        data: {
+          confirmTokenHash: confirm.hash,
+          unsubscribeTokenHash: unsubscribe.hash,
+        },
+      });
+      if (rotated.count === 0) return null;
+      return confirmationMailFor(
+        email,
+        communes,
+        confirm.token,
+        unsubscribe.token,
+      );
+    });
   }
 
   /**
    * Reads the subscription's own communes rather than trusting the caller's
    * `communes` — the whole point of this branch is that a different list in
-   * the new form changes nothing. Unlike `sendConfirmationMail`'s resend
-   * case, the unsubscribe token here *is* rotated and stored: this mail
-   * exists specifically to reach someone who may have lost the mail sent at
-   * creation time, so a cosmetic link that cannot actually unsubscribe would
-   * defeat its purpose (and the one-click promise of ТЗ § 7). The rotation's
-   * accepted cost is that any earlier mail's unsubscribe link stops matching
-   * — superseded by this one, which is the point of resending in the first
-   * place. The composition is not part of this write, so "не меняет состав
-   * коммун" still holds.
+   * the new form changes nothing; the composition is not part of the write,
+   * so "не меняет состав коммун" still holds. Why the unsubscribe hash
+   * rotates, and only inside the limit gate — research, врезка «Исправлено
+   * при реализации».
    */
   private async sendAlreadySubscribedMail(email: string): Promise<void> {
-    const unsubscribe = generateVeilleToken();
-    const rotated = await this.prisma.veille.updateMany({
-      where: { email, confirmedAt: { not: null } },
-      data: { unsubscribeTokenHash: unsubscribe.hash },
-    });
-    // A concurrent desinscription can race us between the lookup in
-    // `upsertSubscription` and here — nothing left to remind about.
-    if (rotated.count === 0) return;
+    await this.sendFormMail(email, async () => {
+      const unsubscribe = generateVeilleToken();
+      const rotated = await this.prisma.veille.updateMany({
+        where: { email, confirmedAt: { not: null } },
+        data: { unsubscribeTokenHash: unsubscribe.hash },
+      });
+      // A concurrent desinscription can race us between the lookup in
+      // `upsertSubscription` and here — nothing left to remind about.
+      if (rotated.count === 0) return null;
 
-    const veille = await this.prisma.veille.findUnique({
-      where: { email },
-      select: {
-        communes: {
-          select: {
-            commune: { select: { name: true, departementName: true } },
+      const veille = await this.prisma.veille.findUnique({
+        where: { email },
+        select: {
+          communes: {
+            select: {
+              commune: { select: { name: true, departementName: true } },
+            },
           },
         },
-      },
-    });
-    // Deleted between the rotation above and this read — rarer still, and a
-    // mail whose link is already dead again would be worse than silence.
-    if (!veille) return;
-    await this.sendFormMail(
-      email,
-      alreadySubscribedMailFor(
+      });
+      // Deleted between the rotation above and this read — rarer still, and
+      // a mail whose link is already dead again would be worse than silence.
+      if (!veille) return null;
+      return alreadySubscribedMailFor(
         email,
         veille.communes.map((c) => c.commune),
         unsubscribe.token,
-      ),
-    );
+      );
+    });
   }
 
   /**
-   * The counter row is written *before* `send()`: a failed delivery must
-   * still cost an attempt, not hand out a free retry.
+   * Single limit gate and single exit for form mails. `compose` runs only
+   * once the limit has let the mail through, so writes made for the mail's
+   * own sake (token rotation) never commit for a mail that is then
+   * suppressed; returning `null` (the row vanished mid-flight) aborts
+   * without costing an attempt. The counter row is still written *before*
+   * `send()`: a failed delivery must cost an attempt, not hand out a free
+   * retry. A composition failure is the one refund: it is deterministic and
+   * thrown before the transport is contacted, so charging it would burn the
+   * address's whole daily budget on a bug and then mask that bug behind
+   * silent 204s.
    */
   private async sendFormMail(
     email: string,
-    input: ComposeMailInput,
+    compose: () => ComposeMailInput | null | Promise<ComposeMailInput | null>,
   ): Promise<void> {
     const emailHash = hashVeilleFormEmail(email, this.emailHashSecret);
     const sentRecently = await this.prisma.veilleFormEmail.count({
@@ -246,8 +268,22 @@ export class VeilleService {
     });
     if (sentRecently >= VEILLE_FORM_EMAIL_DAILY_LIMIT) return;
 
-    await this.prisma.veilleFormEmail.create({ data: { emailHash } });
-    await this.mail.send(input);
+    const input = await compose();
+    if (!input) return;
+
+    const charged = await this.prisma.veilleFormEmail.create({
+      data: { emailHash },
+    });
+    try {
+      await this.mail.send(input);
+    } catch (error) {
+      if (error instanceof MailCompositionError) {
+        await this.prisma.veilleFormEmail.delete({
+          where: { id: charged.id },
+        });
+      }
+      throw error;
+    }
   }
 
   async getConfirmationStatus(

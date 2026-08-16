@@ -8,7 +8,8 @@ import { MAIL_TRANSPORT, type MailTransport } from 'src/mail/mail-transport';
 /**
  * The single point through which every email of the product leaves. It knows
  * nothing about the environment — the transport arrives through the
- * MAIL_TRANSPORT token — and is where a rate limit will go.
+ * MAIL_TRANSPORT token. Who owns which rate limit — `CLAUDE.md` of this
+ * module.
  */
 @Injectable()
 export class MailService {

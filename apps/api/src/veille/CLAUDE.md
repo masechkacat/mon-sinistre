@@ -36,8 +36,10 @@
   `VEILLE_EMAIL_HASH_SECRET`); второй свёртки адреса не заводить.
   `VeilleService.sendFormMail` — единственная точка проверки лимита
   (`VEILLE_FORM_EMAIL_DAILY_LIMIT`, скользящие 24 часа) и точка отправки
-  писем формы: `sendConfirmationMail` и `sendAlreadySubscribedMail` зовут её,
-  не `MailService.send()` напрямую.
+  писем формы: все три письма (создание, `resendConfirmationMail`,
+  `sendAlreadySubscribedMail`) уходят через неё, не через
+  `MailService.send()` напрямую. Композиция — callback за гейтом лимита;
+  почему — docblock `sendFormMail`.
 
 ## Почему токен живёт в query, а не в сегменте пути
 
@@ -48,10 +50,10 @@
 
 ## Ветка `subscribe` реализует все три сценария research
 
-Ветвление, гонка `P2002`, состав письма «déjà inscrit·e» и перевыпуск его
-ссылки отписки — в docblock'ах `VeilleService.upsertSubscription`,
-`resubscribeUnconfirmed` и `sendAlreadySubscribedMail`, здесь не
-пересказывается.
+Ветвление, гонка `P2002`, состав письма «déjà inscrit·e» и перевыпуск
+ссылок повторных писем — в docblock'ах `VeilleService.upsertSubscription`,
+`resubscribeUnconfirmed`, `resendConfirmationMail` и
+`sendAlreadySubscribedMail`, здесь не пересказывается.
 
 Коды коммун дедуплицируются до сверки со справочником — иначе повторённый в
 форме код читался бы как несуществующий (сравнение шло бы с длиной исходного
