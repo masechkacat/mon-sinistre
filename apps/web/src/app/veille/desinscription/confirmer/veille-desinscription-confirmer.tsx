@@ -17,32 +17,31 @@ export function VeilleDesinscriptionConfirmer() {
     mutationFn: () => unsubscribeVeille(token),
   });
 
-  if (desinscriptionMutation.isSuccess) {
-    return (
-      <AnnouncedResult
-        title={fr.veille.desinscription.confirmer.done.title}
-        description={fr.veille.desinscription.confirmer.done.description}
-        announce={desinscriptionMutation.isSuccess}
-        testId="veille-desinscription-result"
-      />
-    );
-  }
-
   return (
-    <MessageScreen
-      title={fr.veille.desinscription.confirmer.page.title}
-      description={fr.veille.desinscription.confirmer.description}
+    <AnnouncedResult
+      result={
+        desinscriptionMutation.isSuccess
+          ? fr.veille.desinscription.confirmer.done
+          : undefined
+      }
+      announce={desinscriptionMutation.isSuccess}
+      testId="veille-desinscription-result"
     >
-      <Button
-        type="button"
-        onClick={() => desinscriptionMutation.mutate()}
-        disabled={desinscriptionMutation.isPending}
+      <MessageScreen
+        title={fr.veille.desinscription.confirmer.page.title}
+        description={fr.veille.desinscription.confirmer.description}
       >
-        {desinscriptionMutation.isPending
-          ? fr.veille.desinscription.confirmer.unsubscribing
-          : fr.veille.desinscription.confirmer.unsubscribeButton}
-      </Button>
-      {desinscriptionMutation.isError ? <RequestError /> : null}
-    </MessageScreen>
+        <Button
+          type="button"
+          onClick={() => desinscriptionMutation.mutate()}
+          disabled={desinscriptionMutation.isPending}
+        >
+          {desinscriptionMutation.isPending
+            ? fr.veille.desinscription.confirmer.unsubscribing
+            : fr.veille.desinscription.confirmer.unsubscribeButton}
+        </Button>
+        {desinscriptionMutation.isError ? <RequestError /> : null}
+      </MessageScreen>
+    </AnnouncedResult>
   );
 }

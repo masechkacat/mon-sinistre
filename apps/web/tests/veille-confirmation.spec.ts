@@ -39,6 +39,25 @@ test('a pending token shows the confirm button and does not activate the subscri
   expect(postCalled).toBe(false);
 });
 
+test('the live region is already mounted on the pending screen, before it has anything to announce', async ({
+  page,
+}) => {
+  await page.route(`${testApiBaseUrl}/veille/confirmation**`, (route) =>
+    mockGetStatus(route, 'pending'),
+  );
+
+  await page.goto(`/veille/confirmation?token=${PENDING_TOKEN}`);
+  await expect(
+    page.getByRole('button', { name: fr.veille.confirmation.confirmButton }),
+  ).toBeVisible();
+
+  // The live-region rule of apps/web/CLAUDE.md, which this suite's
+  // toContainText assertions cannot see: they read a region that is there,
+  // never whether it was there in time to be announced.
+  await expect(page.getByRole('status')).toBeAttached();
+  await expect(page.getByRole('status')).toBeEmpty();
+});
+
 test('clicking the button activates the subscription, changes the screen, and announces the result to screen readers', async ({
   page,
 }) => {
@@ -70,6 +89,49 @@ test('clicking the button activates the subscription, changes the screen, and an
   await expect(
     page.getByRole('button', { name: fr.veille.confirmation.confirmButton }),
   ).toHaveCount(0);
+});
+
+test('a status refetch that fails after the confirmation does not take the confirmed screen away', async ({
+  page,
+}) => {
+  let getCalls = 0;
+  await page.route(`${testApiBaseUrl}/veille/confirmation**`, (route) => {
+    if (route.request().method() === 'POST')
+      return fulfillStatus(route, 'active');
+    getCalls += 1;
+    // Only the first GET answers: the rest stand in for the connection the
+    // user loses right after confirming (a mobile tab coming back into view).
+    return getCalls === 1 ? fulfillStatus(route, 'pending') : route.abort();
+  });
+
+  await page.goto(`/veille/confirmation?token=${PENDING_TOKEN}`);
+  await page
+    .getByRole('button', { name: fr.veille.confirmation.confirmButton })
+    .click();
+  await expect(
+    page.getByRole('heading', { name: fr.veille.confirmation.active.title }),
+  ).toBeVisible();
+
+  // The status query stays mounted and refetches when the tab regains focus
+  // (dispatched on both targets because which one React Query listens to is
+  // its own business). Two full refetches are awaited, not one: a refetch
+  // already in flight swallows the next focus, so the fourth GET can only
+  // start once the failure of the second and third — two attempts, `retry: 1`
+  // — has been through the query's error state and the render it triggers.
+  // One refetch would let the assertions below run before that render.
+  const refetchOnFocus = async () => {
+    await page.evaluate(() => {
+      document.dispatchEvent(new Event('visibilitychange', { bubbles: true }));
+      window.dispatchEvent(new Event('visibilitychange'));
+    });
+    return getCalls;
+  };
+  await expect.poll(refetchOnFocus).toBeGreaterThanOrEqual(5);
+
+  await expect(
+    page.getByRole('heading', { name: fr.veille.confirmation.active.title }),
+  ).toBeVisible();
+  await expect(page.getByTestId('request-error')).toHaveCount(0);
 });
 
 test('revisiting an already active token shows the active screen without a button, and without an error', async ({

@@ -1,40 +1,52 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import { MessageScreen } from '@/components/message-screen';
 import { useFocusOnSuccess } from '@/lib/use-focus-on-success';
 
 /**
- * The result screen of a form/action flow: a pre-mounted `role="status"`
- * live region (only its text changes) plus a focus target for the
- * `announce` transition. `announce` is decoupled from "is this the result
- * state" — a status reached by a plain page load (not by the action that
- * `announce` reports on) must render silently.
+ * The two ends of a form/action flow: `children` while the action has no
+ * result yet, the result screen once `result` arrives. Both live here instead
+ * of being swapped by the caller because the `role="status"` live region has
+ * to outlive the transition — mounted empty with the first screen, filled on
+ * the second (apps/web/CLAUDE.md: a region inserted into the DOM already
+ * carrying its text is often not announced).
+ * `announce` is decoupled from "is there a result" — a result reached by a
+ * plain page load (not by the action that `announce` reports on) must render
+ * silently.
  */
 export function AnnouncedResult({
-  title,
-  description,
+  result,
   announce,
   testId,
+  children,
 }: {
-  title: string;
-  description: string;
+  result: { title: string; description: string } | undefined;
   announce: boolean;
   testId?: string;
+  children: ReactNode;
 }) {
-  const resultRef = useFocusOnSuccess(announce);
+  const resultRef = useFocusOnSuccess(announce && result !== undefined);
   return (
     <>
       <div role="status" className="sr-only">
-        {announce ? `${title} ${description}` : null}
+        {announce && result ? `${result.title} ${result.description}` : null}
       </div>
-      <div
-        ref={resultRef}
-        tabIndex={-1}
-        data-testid={testId}
-        className="outline-none"
-      >
-        <MessageScreen title={title} description={description} />
-      </div>
+      {result ? (
+        <div
+          ref={resultRef}
+          tabIndex={-1}
+          data-testid={testId}
+          className="outline-none"
+        >
+          <MessageScreen
+            title={result.title}
+            description={result.description}
+          />
+        </div>
+      ) : (
+        children
+      )}
     </>
   );
 }
