@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import {
   VEILLE_CONFIRM_TTL_DAYS,
   VEILLE_FORM_EMAIL_DAILY_LIMIT,
@@ -323,6 +324,13 @@ export class VeilleService {
   async unsubscribe(token: string): Promise<void> {
     await this.prisma.veille.deleteMany({
       where: { unsubscribeTokenHash: hashVeilleToken(token) },
+    });
+  }
+
+  @Cron(CronExpression.EVERY_HOUR)
+  async deleteExpiredUnconfirmed(): Promise<void> {
+    await this.prisma.veille.deleteMany({
+      where: { confirmedAt: null, confirmExpiresAt: { lt: new Date() } },
     });
   }
 }
