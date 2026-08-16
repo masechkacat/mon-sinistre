@@ -12,6 +12,7 @@ import {
 } from '@mon-sinistre/contracts';
 import { apiFetch } from '@/lib/api/client';
 import { queryKeys } from '@/lib/api/keys';
+import { cn } from '@/lib/utils';
 import { fr } from '@/i18n/fr';
 
 // Declared once so `items` keeps its identity between renders with no results.
@@ -27,6 +28,7 @@ export interface CommuneMultiSelectProps {
   value: Commune[];
   onValueChange: (value: Commune[]) => void;
   id?: string;
+  error?: string;
 }
 
 /**
@@ -43,6 +45,7 @@ export function CommuneMultiSelect({
   value,
   onValueChange,
   id,
+  error,
 }: CommuneMultiSelectProps) {
   const [inputValue, setInputValue] = useState('');
   const [query, setQuery] = useState('');
@@ -75,7 +78,7 @@ export function CommuneMultiSelect({
   };
 
   return (
-    <Field.Root>
+    <Field.Root invalid={Boolean(error)}>
       <Combobox.Root
         id={id}
         multiple
@@ -96,7 +99,11 @@ export function CommuneMultiSelect({
         </Field.Label>
         <Combobox.Chips
           ref={fieldRef}
-          className="flex flex-wrap items-center gap-1.5 rounded-lg border border-input bg-background px-2 py-1.5 focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50"
+          className={cn(
+            'flex flex-wrap items-center gap-1.5 rounded-lg border border-input bg-background px-2 py-1.5 focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50',
+            error &&
+              'border-destructive ring-3 ring-destructive/20 dark:ring-destructive/40',
+          )}
         >
           {value.map((commune) => (
             <Combobox.Chip
@@ -117,6 +124,15 @@ export function CommuneMultiSelect({
             className="min-w-32 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
           />
         </Combobox.Chips>
+        {error ? (
+          <Field.Error
+            match
+            role="alert"
+            className="mt-1.5 text-sm text-destructive"
+          >
+            {error}
+          </Field.Error>
+        ) : null}
         <Combobox.Status
           className="sr-only"
           data-testid="commune-search-status"

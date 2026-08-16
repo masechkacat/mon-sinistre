@@ -46,6 +46,10 @@ export const fr = {
     },
   },
   veille: {
+    page: {
+      title: 'Être prévenu·e en cas de catastrophe naturelle',
+      lead: 'Indiquez votre adresse e-mail et les communes à surveiller. Vous recevrez un message le jour même de la publication d’un arrêté de catastrophe naturelle qui les concerne.',
+    },
     form: {
       communesLabel: 'Communes à surveiller',
       communesPlaceholder: 'Nom de la commune ou code INSEE',
@@ -55,6 +59,21 @@ export const fr = {
         count === 1 ? '1 commune trouvée' : `${count} communes trouvées`,
       maxCommunesReached: (max: number) =>
         `Nombre maximal de ${max} communes atteint`,
+      communesRequiredError: 'Choisissez au moins une commune à surveiller.',
+      emailLabel: 'Adresse e-mail',
+      emailPlaceholder: 'vous@exemple.fr',
+      emailRequiredError: 'Indiquez votre adresse e-mail.',
+      emailInvalidError: 'Indiquez une adresse e-mail valide.',
+      purpose:
+        'Votre adresse e-mail sert uniquement à vous prévenir lorsqu’un arrêté de catastrophe naturelle concerne une commune surveillée.',
+      privacyPolicyLink: 'Consulter notre politique de confidentialité',
+      submit: 'S’inscrire à la veille',
+      submitting: 'Inscription en cours…',
+    },
+    confirmationSent: {
+      title: 'Vérifiez votre boîte e-mail',
+      description:
+        'Un e-mail de confirmation vient de vous être envoyé. Ouvrez-le et cliquez sur le lien qu’il contient pour activer votre veille.',
     },
   },
   serverError: {

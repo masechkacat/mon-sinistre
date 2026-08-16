@@ -16,13 +16,20 @@ export const serverError = {
   path: '/test-erreur' satisfies Route,
   status: 500,
 } as const;
+export const veille = { path: '/veille' satisfies Route, status: 200 } as const;
 // Derived from the registry the footer renders, so a legal page cannot be
 // covered by the shared suites while missing from the site, or vice versa.
 const legalEntries = legalPages.map(
   ({ path }) => ({ path, status: 200 }) as const,
 );
 
-export const pages = [home, notFound, serverError, ...legalEntries] as const;
+export const pages = [
+  home,
+  notFound,
+  serverError,
+  veille,
+  ...legalEntries,
+] as const;
 
 export async function gotoPage(
   page: Page,
