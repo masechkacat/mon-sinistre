@@ -1,6 +1,5 @@
-import { VEILLE_CONFIRM_TTL_DAYS } from '@mon-sinistre/contracts';
 import type { PrismaService } from 'src/prisma/prisma.service';
-import { DAY_MS } from './veille.service';
+import { nextConfirmExpiresAt } from './veille.service';
 import { generateVeilleToken } from './veille-token';
 
 /** Minimal `Commune` row good enough for veille's FK on `VeilleCommune`. */
@@ -34,9 +33,7 @@ export const createVeille = async (
       confirmTokenHash: confirm.hash,
       unsubscribeTokenHash: unsubscribe.hash,
       confirmedAt: overrides.confirmedAt ?? null,
-      confirmExpiresAt:
-        overrides.confirmExpiresAt ??
-        new Date(Date.now() + VEILLE_CONFIRM_TTL_DAYS * DAY_MS),
+      confirmExpiresAt: overrides.confirmExpiresAt ?? nextConfirmExpiresAt(),
       ...(overrides.communeCodes && {
         communes: {
           create: overrides.communeCodes.map((codeInsee) => ({ codeInsee })),

@@ -13,6 +13,7 @@ const validEnv = {
   JWT_SECRET: SECRET,
   JWT_REFRESH_SECRET: SECRET,
   COOKIE_SECRET: SECRET,
+  VEILLE_EMAIL_HASH_SECRET: SECRET,
 };
 
 describe('validateEnv', () => {

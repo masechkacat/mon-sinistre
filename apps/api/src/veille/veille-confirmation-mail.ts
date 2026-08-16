@@ -11,6 +11,16 @@ export interface ChosenCommune {
   readonly departementName: string;
 }
 
+/** Shared by both veille mails, so the wording cannot drift between them. */
+export const communeLabel = (c: ChosenCommune): string =>
+  `${c.name} (${c.departementName})`;
+
+/** Shared by both veille mails: the web unsubscribe page reads exactly this
+ * `token` query parameter, and a drift here ships a mail whose one-click
+ * unsubscribe link 404s. */
+export const unsubscribePathFor = (unsubscribeToken: string): string =>
+  `${VEILLE_UNSUBSCRIBE_PATH}?token=${unsubscribeToken}`;
+
 /** The confirmation mail of the veille: fr.mail.veille supplies the strings,
  * the caller supplies the data (tokens, chosen communes) that is not UI text. */
 export const confirmationMailFor = (
@@ -22,12 +32,12 @@ export const confirmationMailFor = (
   to,
   subject: fr.mail.veille.confirmation.subject,
   reason: fr.mail.veille.reason,
-  unsubscribePath: `${VEILLE_UNSUBSCRIBE_PATH}?token=${unsubscribeToken}`,
+  unsubscribePath: unsubscribePathFor(unsubscribeToken),
   blocks: [
     { kind: 'paragraph', text: fr.mail.veille.confirmation.intro },
     {
       kind: 'list',
-      items: communes.map((c) => `${c.name} (${c.departementName})`),
+      items: communes.map(communeLabel),
     },
     {
       kind: 'link',

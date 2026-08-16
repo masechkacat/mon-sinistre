@@ -181,6 +181,12 @@ export class EnvironmentVariables {
   @IsSecret()
   COOKIE_SECRET: string;
 
+  /** Keys the veille form's per-address email hash (`VeilleFormEmail`) —
+   * separate from the other secrets above so rotating one never resets the
+   * other's guarantee (JWT rotation must not reset the anti-spam counter). */
+  @IsSecret()
+  VEILLE_EMAIL_HASH_SECRET: string;
+
   @IsOptional()
   @Type(() => Number)
   @IsInt()

@@ -81,6 +81,13 @@ export const VEILLE_CONFIRM_TTL_DAYS = 7;
 export const VEILLE_MAX_COMMUNES = 20;
 
 /**
+ * Cap on veille form mails (confirmation and "déjà inscrit·e") sent to a
+ * single address within a rolling 24h window — anti-spam, counted per
+ * address regardless of the form's outcome or a later desinscription.
+ */
+export const VEILLE_FORM_EMAIL_DAILY_LIMIT = 5;
+
+/**
  * Paths of the veille pages, relative to `FRONTEND_URL`. Declared once here:
  * both the API (mail links) and the web client (page and route handler) need
  * them (docs/plan/emails.md, "Владелец пути").

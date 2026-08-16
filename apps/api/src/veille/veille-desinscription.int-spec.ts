@@ -29,7 +29,7 @@ describe('POST /veille/desinscription (integration)', () => {
   });
 
   beforeEach(async () => {
-    await prisma.$executeRaw`TRUNCATE TABLE "Veille", "Commune" CASCADE`;
+    await prisma.$executeRaw`TRUNCATE TABLE "Veille", "Commune", "VeilleFormEmail" CASCADE`;
   });
 
   it('deletes the subscription and its VeilleCommune rows', async () => {
