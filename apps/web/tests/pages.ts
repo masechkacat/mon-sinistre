@@ -35,6 +35,12 @@ export const veilleConfirmation = {
       }),
     ),
 } as const;
+// No mockApi: unlike the confirmation page, this one calls the API only on
+// the button click, never on load — nothing to intercept for a plain visit.
+export const veilleDesinscriptionConfirmer = {
+  path: '/veille/desinscription/confirmer?token=invalide' as Route,
+  status: 200,
+} as const;
 // Derived from the registry the footer renders, so a legal page cannot be
 // covered by the shared suites while missing from the site, or vice versa.
 const legalEntries = legalPages.map(
@@ -47,6 +53,7 @@ export const pages = [
   serverError,
   veille,
   veilleConfirmation,
+  veilleDesinscriptionConfirmer,
   ...legalEntries,
 ] as const;
 

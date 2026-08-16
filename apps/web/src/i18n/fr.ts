@@ -95,6 +95,20 @@ export const fr = {
           'Ce lien de confirmation n’est plus valable : il a peut-être déjà été utilisé, ou son délai de validité est dépassé.',
       },
     },
+    desinscription: {
+      confirmer: {
+        page: { title: 'Se désinscrire de la veille' },
+        description:
+          'Vous ne recevrez plus de message en cas d’arrêté de catastrophe naturelle concernant les communes surveillées.',
+        unsubscribeButton: 'Se désinscrire',
+        unsubscribing: 'Désinscription en cours…',
+        done: {
+          title: 'Désinscription effectuée',
+          description:
+            'Votre adresse e-mail a été retirée de la veille. Vous pouvez vous réinscrire à tout moment depuis la page d’inscription.',
+        },
+      },
+    },
   },
   serverError: {
     title: 'Une erreur est survenue',
