@@ -1,6 +1,7 @@
 import type { Route } from 'next';
 import { expect, type Page } from '@playwright/test';
 import { legalPages } from '../src/lib/legal-pages';
+import { fr } from '../src/i18n/fr';
 import { testApiBaseUrl } from './env';
 
 // The status is asserted because a mistyped path would render the not-found
@@ -26,6 +27,14 @@ export const veille = { path: '/veille' satisfies Route, status: 200 } as const;
 export const veilleConfirmation = {
   path: '/veille/confirmation?token=invalide' as Route,
   status: 200,
+  // The h1 of this page is already on screen while the status GET is in
+  // flight, so gotoPage's generic gate lets a suite start on the loading
+  // state and race the swap. The heading below appears only with the screen
+  // the mock above stands for.
+  ready: (page: Page) =>
+    expect(
+      page.getByRole('heading', { name: fr.veille.confirmation.invalid.title }),
+    ).toBeVisible(),
   mockApi: (page: Page) =>
     page.route(`${testApiBaseUrl}/veille/confirmation**`, (route) =>
       route.fulfill({
@@ -67,4 +76,6 @@ export async function gotoPage(page: Page, entry: (typeof pages)[number]) {
   // focusable yet. Every page has exactly one h1 (layout.spec asserts it);
   // its visibility marks the page as actually rendered.
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+  // …unless the page paints its h1 before the state under test exists.
+  if ('ready' in entry) await entry.ready(page);
 }

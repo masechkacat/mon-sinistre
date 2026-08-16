@@ -1,7 +1,8 @@
-// The only read of NEXT_PUBLIC_API_URL on the client —
-// docs/research/web-foundation.md, «Слой обращения к API». NEXT_PUBLIC_* is
-// inlined into the bundle at build time, not at startup: the production
-// address is therefore decided by the build.
+// The only read of NEXT_PUBLIC_API_URL — docs/research/web-foundation.md,
+// «Слой обращения к API». NEXT_PUBLIC_* is inlined at build time, not at
+// startup: the production address is decided by the build, and one value
+// serves both callers — the browser, and the one-click unsubscribe route
+// handler, which dials the API from the web server itself.
 // The trailing slash is trimmed because apiFetch concatenates the path
 // directly, and `http://host//health` is a 404 on the API router.
 // `||`, not `??`: a variable declared but left empty (a blank line in
