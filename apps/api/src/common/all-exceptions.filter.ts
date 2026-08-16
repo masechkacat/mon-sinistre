@@ -7,7 +7,7 @@ import {
   Logger,
 } from '@nestjs/common';
 
-import { errorSummary, framesOf } from 'src/common/error-report';
+import { errorSummary, stackOf } from 'src/common/error-report';
 import { httpExceptionForPrisma } from 'src/prisma/prisma-error';
 
 /** Declared rather than imported: fastify arrives under
@@ -128,7 +128,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
     this.logger.error(
       `${request.method} ${path} → ${status} ${errorSummary(exception)}`,
-      framesOf(exception),
+      stackOf(exception),
     );
   }
 }

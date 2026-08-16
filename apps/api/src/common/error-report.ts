@@ -18,14 +18,20 @@ export const errorSummary = (thrown: unknown): string => {
 };
 
 /**
- * The frames of a stack and nothing else. The header of a V8 stack is
+ * A stack whose header is the class alone. The header of a V8 stack is
  * `${name}: ${message}`, and the message is exactly what must not reach the
  * logs. It is removed by exact length, not by dropping the first line — a
  * message with newlines occupies several. Anything not matching this shape
  * yields no stack at all: losing the trace of an odd error costs a debugging
  * session, the other direction costs personal data in a log file.
+ *
+ * The class name is written back as the first line instead of leaving the
+ * frames alone: `Logger.error(message, stack)` reads its second argument as a
+ * stack only while it looks like one (a line, then an indented `at …:1:1`), and
+ * a single surviving frame with nothing above it would be taken for the log's
+ * context, displacing the name of the class that logged the failure.
  */
-export const framesOf = (thrown: unknown): string | undefined => {
+export const stackOf = (thrown: unknown): string | undefined => {
   if (!(thrown instanceof Error) || !thrown.stack) {
     return undefined;
   }
@@ -47,5 +53,5 @@ export const framesOf = (thrown: unknown): string | undefined => {
     .filter((line) => /^\s+at /.test(line))
     .slice(0, MAX_LOGGED_FRAMES);
 
-  return frames.length > 0 ? frames.join('\n') : undefined;
+  return frames.length > 0 ? [nameOf(thrown), ...frames].join('\n') : undefined;
 };

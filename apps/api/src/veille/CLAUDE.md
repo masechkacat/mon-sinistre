@@ -52,7 +52,7 @@
 
 Ветвление, гонка `P2002`, состав письма «déjà inscrit·e» и перевыпуск
 ссылок повторных писем — в docblock'ах `VeilleService.upsertSubscription`,
-`resubscribeUnconfirmed`, `resendConfirmationMail` и
+`claimUnconfirmed`, `resendConfirmationMail` и
 `sendAlreadySubscribedMail`, здесь не пересказывается.
 
 Коды коммун дедуплицируются до сверки со справочником — иначе повторённый в
@@ -70,6 +70,6 @@
 `try/catch` — докблок `VeilleService.cleanupExpired`. Здесь не
 пересказывается.
 
-`VeilleFormEmail` с `Veille` внешним ключом не связан и удаление подписки её
-не трогает — почему это важно для лимита и на каком сроке строка чистится
-сама — докблок `deleteStaleFormEmailCounters`.
+Счётчик писем формы (`VeilleFormEmail`) удаление подписки переживает: чем он
+за неё держится и на каком сроке уходит сам — докблок
+`deleteStaleFormEmailCounters`.

@@ -22,7 +22,7 @@ import type { MailMessage } from 'src/mail/mail-message';
 import { MAIL_TRANSPORT, type MailTransport } from 'src/mail/mail-transport';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { VEILLE_FORM_RATE_LIMIT } from './veille.controller';
-import { VeilleService } from './veille.service';
+import { DAY_MS, VeilleService } from './veille.service';
 import { communeFixture } from './veille.test-helper';
 
 class RecordingTransport implements MailTransport {
@@ -293,22 +293,57 @@ describe('POST /veille (integration)', () => {
       );
     });
 
-    it('answers 204 when the unique-index race is lost twice — the row re-created between the retry lookup and its create', async () => {
+    /**
+     * Stages an interleaving around the interactive transaction
+     * `claimUnconfirmed` opens: `before` lands as it is about to start, `after`
+     * once it has committed. Its callback runs against a transaction-scoped
+     * client that a spy on `prisma.veille` would never see, so `$transaction`
+     * itself is the only place to stand.
+     */
+    const raceTransaction = (races: {
+      before?: () => Promise<unknown>;
+      after?: () => Promise<unknown>;
+    }): void => {
+      const original = prisma.$transaction.bind(prisma);
+      (
+        jest.spyOn(prisma, '$transaction') as jest.SpyInstance
+      ).mockImplementation(async (...args: unknown[]) => {
+        await races.before?.();
+        const result: unknown = await original(
+          ...(args as Parameters<typeof original>),
+        );
+        await races.after?.();
+        return result;
+      });
+    };
+
+    it('answers 204 and says so in the log when the unique-index race is lost twice', async () => {
       await prisma.commune.create({ data: communeFixture('30189', 'Nîmes') });
       const email = 'riverain@example.fr';
       await post({ email, communeCodes: ['30189'] });
       transport.sent.length = 0;
 
-      // Both lookups (initial and retry) miss the row that in fact exists —
-      // the shape of a concurrent desinscription plus a third submission
-      // landing between them. Each create then hits the real unique index.
-      const lookup = jest
-        .spyOn(prisma.veille, 'findUnique')
-        .mockResolvedValueOnce(null)
-        .mockResolvedValueOnce(null);
+      // The row is gone just before each claim and back before the create that
+      // follows it — a desinscription and a resubmission of the same address
+      // landing around this one, twice over, so that both creates meet the
+      // real unique index.
+      let reborn = 0;
+      raceTransaction({
+        before: () => prisma.veille.deleteMany({ where: { email } }),
+        after: () => {
+          reborn += 1;
+          return prisma.veille.create({
+            data: {
+              email,
+              confirmTokenHash: `confirm-${reborn}`,
+              unsubscribeTokenHash: `unsubscribe-${reborn}`,
+              confirmExpiresAt: new Date(Date.now() + DAY_MS),
+            },
+          });
+        },
+      });
 
       const res = await post({ email, communeCodes: ['30189'] });
-      lookup.mockRestore();
 
       // The always-204 contract holds even here: a 500 would be a
       // timing-dependent signal that the address currently exists.
@@ -317,9 +352,14 @@ describe('POST /veille (integration)', () => {
       expect(await prisma.veille.findMany({ where: { email } })).toHaveLength(
         1,
       );
+      // The submission was dropped. Silence towards the caller is deliberate;
+      // silence in the log too would make it indistinguishable from a mail
+      // that simply never arrived.
+      expect(logs.levels()).toContain('warn');
+      logs.expectNoTraceOf(email);
     });
 
-    it('creates the subscription anew when the hourly cleanup deletes the expired row while the resubmission is rewriting it', async () => {
+    it('creates the subscription anew when the hourly cleanup deletes the expired row just before the claim', async () => {
       await prisma.commune.create({ data: communeFixture('30189', 'Nîmes') });
       const email = 'riverain@example.fr';
 
@@ -331,22 +371,15 @@ describe('POST /veille (integration)', () => {
       });
       transport.sent.length = 0;
 
-      // The cleanup lands between the lookup and the transaction that would
-      // have revived this very row (same interception as the test below).
-      const originalTransaction = prisma.$transaction.bind(prisma);
-      (
-        jest.spyOn(prisma, '$transaction') as jest.SpyInstance
-      ).mockImplementationOnce(async (...args: unknown[]) => {
-        await app.get(VeilleService).deleteExpiredUnconfirmed();
-        return originalTransaction(
-          ...(args as Parameters<typeof originalTransaction>),
-        );
+      raceTransaction({
+        before: () => app.get(VeilleService).deleteExpiredUnconfirmed(),
       });
 
       const res = await post({ email, communeCodes: ['30189'] });
 
-      // Silence here would lose a subscription the reader has no way to see
-      // was lost — the retry creates a fresh row and mails its links.
+      // Nothing to revive and nothing to answer for: the form creates the
+      // subscription anew rather than dropping a submission for the second
+      // the cleanup happens to run in.
       expect(res.statusCode).toBe(204);
       const rows = await prisma.veille.findMany({ where: { email } });
       expect(rows).toHaveLength(1);
@@ -354,26 +387,17 @@ describe('POST /veille (integration)', () => {
       expect(transport.sent).toHaveLength(1);
     });
 
-    it('does not 500 when a concurrent desinscription deletes the row while the resubmission is rewriting it', async () => {
+    it('does not undo a desinscription that lands once the claim has committed', async () => {
       await prisma.commune.create({ data: communeFixture('30189', 'Nîmes') });
       const email = 'riverain@example.fr';
 
       await post({ email, communeCodes: ['30189'] });
       const veille = await prisma.veille.findFirstOrThrow();
 
-      // Between `upsertSubscription`'s lookup and the interactive transaction
-      // of `resubscribeUnconfirmed`, a desinscription for this same row
-      // lands and deletes it — intercepted on `$transaction` itself, since
-      // its callback runs against a separate, transaction-scoped client that
-      // a spy on `prisma.veille.updateMany` would never see.
-      const originalTransaction = prisma.$transaction.bind(prisma);
-      (
-        jest.spyOn(prisma, '$transaction') as jest.SpyInstance
-      ).mockImplementationOnce(async (...args: unknown[]) => {
-        await prisma.veille.deleteMany({ where: { id: veille.id } });
-        return originalTransaction(
-          ...(args as Parameters<typeof originalTransaction>),
-        );
+      // The one window a claim leaves: the row is rewritten, the desinscription
+      // deletes it, and the resend finds nothing left to rotate tokens on.
+      raceTransaction({
+        after: () => prisma.veille.deleteMany({ where: { id: veille.id } }),
       });
 
       const res = await post({ email, communeCodes: ['30189'] });

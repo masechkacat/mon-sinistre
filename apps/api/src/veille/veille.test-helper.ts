@@ -13,6 +13,24 @@ export const communeFixture = (codeInsee: string, name: string) => ({
 });
 
 /**
+ * One counter row of the daily mail limit, as `sendFormMail` writes it.
+ * `sentAgoMs` places it inside or outside the 24-hour window the hourly
+ * cleanup ages these rows out by; the hash stands for an address nobody here
+ * needs to name.
+ */
+export const createFormEmail = async (
+  prisma: PrismaService,
+  sentAgoMs = 0,
+): Promise<void> => {
+  await prisma.veilleFormEmail.create({
+    data: {
+      emailHash: `hash-${sentAgoMs}`,
+      sentAt: new Date(Date.now() - sentAgoMs),
+    },
+  });
+};
+
+/**
  * One subscription factory for every veille int-spec. Communes are opt-in and
  * their rows are the caller's business (`communeFixture` above): only the
  * cascade test needs them, and the FK insert is not free.
