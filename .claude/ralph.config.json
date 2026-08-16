@@ -1,6 +1,6 @@
 {
   "feature": "veille-subscription-lifecycle",
-  "phases": [3],
+  "phases": [4],
   "maxIterations": 5,
   "stallLimit": 2,
   "model": "claude-sonnet-5",
