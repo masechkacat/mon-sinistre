@@ -3,11 +3,11 @@
 import { Field } from '@base-ui/react/field';
 import { useMutation } from '@tanstack/react-query';
 import Link from 'next/link';
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import type { Commune } from '@mon-sinistre/contracts';
+import { AnnouncedResult } from '@/components/announced-result';
 import { CommuneMultiSelect } from '@/components/commune-multi-select';
 import { FieldError } from '@/components/field-error';
-import { MessageScreen } from '@/components/message-screen';
 import { PageContainer } from '@/components/page-container';
 import { PageTitle } from '@/components/page-title';
 import { RequestError } from '@/components/request-error';
@@ -45,14 +45,6 @@ export function VeilleForm() {
       }),
   });
 
-  // The submit button the user just activated unmounts with the form; without
-  // a new target, focus falls back to <body> and a keyboard or screen-reader
-  // user loses their place.
-  const confirmationRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (mutation.isSuccess) confirmationRef.current?.focus();
-  }, [mutation.isSuccess]);
-
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const trimmedEmail = email.trim();
@@ -77,24 +69,13 @@ export function VeilleForm() {
 
   return (
     <>
-      {/* Pre-mounted live region — only the text changes on success. */}
-      <div role="status" className="sr-only">
-        {mutation.isSuccess
-          ? `${fr.veille.confirmationSent.title} ${fr.veille.confirmationSent.description}`
-          : null}
-      </div>
       {mutation.isSuccess ? (
-        <div
-          ref={confirmationRef}
-          tabIndex={-1}
-          data-testid="veille-confirmation"
-          className="outline-none"
-        >
-          <MessageScreen
-            title={fr.veille.confirmationSent.title}
-            description={fr.veille.confirmationSent.description}
-          />
-        </div>
+        <AnnouncedResult
+          title={fr.veille.confirmationSent.title}
+          description={fr.veille.confirmationSent.description}
+          announce={mutation.isSuccess}
+          testId="veille-confirmation"
+        />
       ) : (
         <PageContainer className="space-y-8">
           <section className="space-y-4">

@@ -1,6 +1,7 @@
 import type { Route } from 'next';
 import { expect, type Page } from '@playwright/test';
 import { legalPages } from '../src/lib/legal-pages';
+import { testApiBaseUrl } from './env';
 
 // The status is asserted because a mistyped path would render the not-found
 // page — landmark- and likely axe-clean, so a suite pointed at it would stay
@@ -17,6 +18,23 @@ export const serverError = {
   status: 500,
 } as const;
 export const veille = { path: '/veille' satisfies Route, status: 200 } as const;
+// The token is deliberately unknown, and the status GET is mocked to a real
+// domain "invalid" response: nothing listens on testApiBaseUrl during
+// `npm run test:web` (env.ts), so without a mock the request would fail to
+// connect and the page would show the generic RequestError screen instead of
+// "lien invalide" — the branch these shared suites are meant to cover.
+export const veilleConfirmation = {
+  path: '/veille/confirmation?token=invalide' as Route,
+  status: 200,
+  mockApi: (page: Page) =>
+    page.route(`${testApiBaseUrl}/veille/confirmation**`, (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ status: 'invalid' }),
+      }),
+    ),
+} as const;
 // Derived from the registry the footer renders, so a legal page cannot be
 // covered by the shared suites while missing from the site, or vice versa.
 const legalEntries = legalPages.map(
@@ -28,15 +46,14 @@ export const pages = [
   notFound,
   serverError,
   veille,
+  veilleConfirmation,
   ...legalEntries,
 ] as const;
 
-export async function gotoPage(
-  page: Page,
-  { path, status }: (typeof pages)[number],
-) {
-  const response = await page.goto(path);
-  expect(response?.status()).toBe(status);
+export async function gotoPage(page: Page, entry: (typeof pages)[number]) {
+  if ('mockApi' in entry) await entry.mockApi(page);
+  const response = await page.goto(entry.path);
+  expect(response?.status()).toBe(entry.status);
   // The error page's UI exists only after hydration (the SSR payload of a
   // failed render carries no error screen), so a suite that does not
   // auto-wait — the keyboard pass — would probe a document with nothing
