@@ -1,14 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { COMMUNE_SEARCH_MIN_QUERY_LENGTH } from '@mon-sinistre/contracts';
 import { Transform } from 'class-transformer';
 import { IsString, MaxLength, MinLength } from 'class-validator';
-
-/**
- * A single letter matches thousands of communes and the database would scan
- * for every one of them; two is the shortest prefix worth an index lookup.
- * Two is also enough for the INSEE branch to be wrong about — "2A" is not a
- * code — which costs one empty answer and no scan.
- */
-export const MIN_QUERY_LENGTH = 2;
 
 /**
  * The longest commune name in the COG is 45 characters
@@ -25,14 +18,14 @@ export class SearchCommunesQueryDto {
   @ApiProperty({
     description: 'Commune name prefix or exact INSEE code (e.g. 2A004)',
     example: 'Château',
-    minLength: MIN_QUERY_LENGTH,
+    minLength: COMMUNE_SEARCH_MIN_QUERY_LENGTH,
     maxLength: MAX_QUERY_LENGTH,
   })
   @Transform(({ value }): unknown =>
     typeof value === 'string' ? value.trim() : value,
   )
   @IsString()
-  @MinLength(MIN_QUERY_LENGTH)
+  @MinLength(COMMUNE_SEARCH_MIN_QUERY_LENGTH)
   @MaxLength(MAX_QUERY_LENGTH)
   q: string;
 }

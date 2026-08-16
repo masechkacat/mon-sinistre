@@ -5,12 +5,15 @@ import {
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
-import { COMMUNE_SEARCH_LIMIT, Commune } from '@mon-sinistre/contracts';
+import {
+  COMMUNE_SEARCH_LIMIT,
+  COMMUNE_SEARCH_MIN_QUERY_LENGTH,
+  Commune,
+} from '@mon-sinistre/contracts';
 import { CommunesService } from './communes.service';
 import { CommuneResponseDto } from './dto/commune-response.dto';
 import {
   MAX_QUERY_LENGTH,
-  MIN_QUERY_LENGTH,
   SearchCommunesQueryDto,
 } from './dto/search-communes-query.dto';
 
@@ -34,7 +37,7 @@ export class CommunesController {
   })
   @ApiOkResponse({ type: [CommuneResponseDto] })
   @ApiBadRequestResponse({
-    description: `q is missing, shorter than ${MIN_QUERY_LENGTH} or longer than ${MAX_QUERY_LENGTH} characters`,
+    description: `q is missing, shorter than ${COMMUNE_SEARCH_MIN_QUERY_LENGTH} or longer than ${MAX_QUERY_LENGTH} characters`,
   })
   search(@Query() query: SearchCommunesQueryDto): Promise<Commune[]> {
     return this.communes.search(query.q);

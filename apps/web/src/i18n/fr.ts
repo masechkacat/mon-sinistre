@@ -45,6 +45,18 @@ export const fr = {
       ],
     },
   },
+  veille: {
+    form: {
+      communesLabel: 'Communes à surveiller',
+      communesPlaceholder: 'Nom de la commune ou code INSEE',
+      removeCommune: (name: string) => `Retirer ${name}`,
+      noCommuneFound: 'Aucune commune trouvée',
+      communesFound: (count: number) =>
+        count === 1 ? '1 commune trouvée' : `${count} communes trouvées`,
+      maxCommunesReached: (max: number) =>
+        `Nombre maximal de ${max} communes atteint`,
+    },
+  },
   serverError: {
     title: 'Une erreur est survenue',
     description:
