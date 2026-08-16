@@ -75,6 +75,40 @@ export const fr = {
       description:
         'Un e-mail de confirmation vient de vous être envoyé. Ouvrez-le et cliquez sur le lien qu’il contient pour activer votre veille.',
     },
+    confirmation: {
+      page: { title: 'Confirmer votre inscription' },
+      loading: 'Vérification du lien en cours…',
+      pending: {
+        description:
+          'Pour activer votre veille, confirmez que cette adresse e-mail est bien la vôtre.',
+      },
+      confirmButton: 'Confirmer',
+      confirming: 'Confirmation en cours…',
+      active: {
+        title: 'Votre veille est active',
+        description:
+          'Vous recevrez un message le jour même de la publication d’un arrêté de catastrophe naturelle concernant une des communes surveillées.',
+      },
+      invalid: {
+        title: 'Lien invalide',
+        description:
+          'Ce lien de confirmation n’est plus valable : il a peut-être déjà été utilisé, ou son délai de validité est dépassé.',
+      },
+    },
+    desinscription: {
+      confirmer: {
+        page: { title: 'Se désinscrire de la veille' },
+        description:
+          'Vous ne recevrez plus de message en cas d’arrêté de catastrophe naturelle concernant les communes surveillées.',
+        unsubscribeButton: 'Se désinscrire',
+        unsubscribing: 'Désinscription en cours…',
+        done: {
+          title: 'Désinscription effectuée',
+          description:
+            'Votre adresse e-mail a été retirée de la veille. Vous pouvez vous réinscrire à tout moment depuis la page d’inscription.',
+        },
+      },
+    },
   },
   serverError: {
     title: 'Une erreur est survenue',

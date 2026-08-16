@@ -1,4 +1,5 @@
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
+import { GLOBAL_RATE_LIMIT } from 'src/app.module';
 import { createIntTestApp } from 'src/app.int-helper';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { communeFixture, createVeille } from './veille.test-helper';
@@ -77,5 +78,21 @@ describe('POST /veille/desinscription (integration)', () => {
 
     expect(res.statusCode).toBe(204);
     expect(await prisma.veille.findFirst()).toBeNull();
+  });
+
+  // Оба теста — про ключ счётчика (`@ThrottleByToken` у обработчика).
+  it('does not put one caller over the shared limit with the unsubscribes of others', async () => {
+    for (let i = 0; i <= GLOBAL_RATE_LIMIT.limit; i++) {
+      expect((await post(`jeton-inconnu-${i}`)).statusCode).toBe(204);
+    }
+  });
+
+  it('still limits a caller repeating the same token', async () => {
+    const token = 'jeton-repete';
+    for (let i = 0; i < GLOBAL_RATE_LIMIT.limit; i++) {
+      expect((await post(token)).statusCode).toBe(204);
+    }
+
+    expect((await post(token)).statusCode).toBe(429);
   });
 });

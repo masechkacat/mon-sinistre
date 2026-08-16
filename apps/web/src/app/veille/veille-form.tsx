@@ -3,11 +3,11 @@
 import { Field } from '@base-ui/react/field';
 import { useMutation } from '@tanstack/react-query';
 import Link from 'next/link';
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import type { Commune } from '@mon-sinistre/contracts';
+import { AnnouncedResult } from '@/components/announced-result';
 import { CommuneMultiSelect } from '@/components/commune-multi-select';
 import { FieldError } from '@/components/field-error';
-import { MessageScreen } from '@/components/message-screen';
 import { PageContainer } from '@/components/page-container';
 import { PageTitle } from '@/components/page-title';
 import { RequestError } from '@/components/request-error';
@@ -45,14 +45,6 @@ export function VeilleForm() {
       }),
   });
 
-  // The submit button the user just activated unmounts with the form; without
-  // a new target, focus falls back to <body> and a keyboard or screen-reader
-  // user loses their place.
-  const confirmationRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (mutation.isSuccess) confirmationRef.current?.focus();
-  }, [mutation.isSuccess]);
-
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const trimmedEmail = email.trim();
@@ -76,90 +68,72 @@ export function VeilleForm() {
   };
 
   return (
-    <>
-      {/* Pre-mounted live region — only the text changes on success. */}
-      <div role="status" className="sr-only">
-        {mutation.isSuccess
-          ? `${fr.veille.confirmationSent.title} ${fr.veille.confirmationSent.description}`
-          : null}
-      </div>
-      {mutation.isSuccess ? (
-        <div
-          ref={confirmationRef}
-          tabIndex={-1}
-          data-testid="veille-confirmation"
-          className="outline-none"
+    <AnnouncedResult
+      result={mutation.isSuccess ? fr.veille.confirmationSent : undefined}
+      announce={mutation.isSuccess}
+      testId="veille-confirmation"
+    >
+      <PageContainer className="space-y-8">
+        <section className="space-y-4">
+          <PageTitle>{fr.veille.page.title}</PageTitle>
+          <p className="text-lg text-muted-foreground">{fr.veille.page.lead}</p>
+        </section>
+
+        <form
+          className="space-y-6"
+          onSubmit={handleSubmit}
+          noValidate
+          aria-busy={mutation.isPending}
         >
-          <MessageScreen
-            title={fr.veille.confirmationSent.title}
-            description={fr.veille.confirmationSent.description}
-          />
-        </div>
-      ) : (
-        <PageContainer className="space-y-8">
-          <section className="space-y-4">
-            <PageTitle>{fr.veille.page.title}</PageTitle>
-            <p className="text-lg text-muted-foreground">
-              {fr.veille.page.lead}
-            </p>
-          </section>
-
-          <form
-            className="space-y-6"
-            onSubmit={handleSubmit}
-            noValidate
-            aria-busy={mutation.isPending}
-          >
-            <Field.Root invalid={Boolean(emailError)} className="space-y-1.5">
-              <Field.Label className="block text-sm font-medium">
-                {fr.veille.form.emailLabel}
-              </Field.Label>
-              <Field.Control
-                type="email"
-                value={email}
-                onChange={(event) => {
-                  setEmail(event.target.value);
-                  setEmailError(undefined);
-                }}
-                placeholder={fr.veille.form.emailPlaceholder}
-                className={cn(
-                  inputFrameClassName,
-                  'w-full px-3 py-1.5 text-sm outline-none focus:border-ring focus:ring-3 focus:ring-ring/50',
-                  emailError && inputFrameInvalidClassName,
-                )}
-              />
-              <FieldError error={emailError} />
-            </Field.Root>
-
-            <CommuneMultiSelect
-              value={communes}
-              onValueChange={(next) => {
-                setCommunes(next);
-                if (next.length > 0) setCommunesError(undefined);
+          <Field.Root invalid={Boolean(emailError)} className="space-y-1.5">
+            <Field.Label className="block text-sm font-medium">
+              {fr.veille.form.emailLabel}
+            </Field.Label>
+            <Field.Control
+              type="email"
+              value={email}
+              onChange={(event) => {
+                setEmail(event.target.value);
+                setEmailError(undefined);
               }}
-              error={communesError}
+              placeholder={fr.veille.form.emailPlaceholder}
+              className={cn(
+                inputFrameClassName,
+                'w-full px-3 py-1.5 text-sm outline-none focus:border-ring focus:ring-3 focus:ring-ring/50',
+                emailError && inputFrameInvalidClassName,
+              )}
             />
+            <FieldError error={emailError} />
+          </Field.Root>
 
-            <p className="text-sm text-muted-foreground">
-              {fr.veille.form.purpose}{' '}
-              <Link
-                href="/politique-de-confidentialite"
-                className="underline underline-offset-4"
-              >
-                {fr.veille.form.privacyPolicyLink}
-              </Link>
-            </p>
+          <CommuneMultiSelect
+            value={communes}
+            onValueChange={(next) => {
+              setCommunes(next);
+              if (next.length > 0) setCommunesError(undefined);
+            }}
+            error={communesError}
+          />
 
-            <Button type="submit" disabled={mutation.isPending}>
-              {mutation.isPending
-                ? fr.veille.form.submitting
-                : fr.veille.form.submit}
-            </Button>
+          <p className="text-sm text-muted-foreground">
+            {fr.veille.form.purpose}{' '}
+            <Link
+              href="/politique-de-confidentialite"
+              className="underline underline-offset-4"
+            >
+              {fr.veille.form.privacyPolicyLink}
+            </Link>
+          </p>
 
-            {mutation.isError ? <RequestError /> : null}
-          </form>
-        </PageContainer>
-      )}
-    </>
+          <Button type="submit" disabled={mutation.isPending}>
+            {mutation.isPending
+              ? fr.veille.form.submitting
+              : fr.veille.form.submit}
+          </Button>
+
+          {mutation.isError ? <RequestError /> : null}
+        </form>
+      </PageContainer>
+    </AnnouncedResult>
   );
 }
