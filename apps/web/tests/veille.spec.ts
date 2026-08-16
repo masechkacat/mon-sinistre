@@ -1,31 +1,15 @@
-import { expect, test, type Page, type Route } from '@playwright/test';
-import type { Commune } from '@mon-sinistre/contracts';
+import { expect, test, type Locator } from '@playwright/test';
 import { fr } from '../src/i18n/fr';
 import { expectNoAxeViolations } from './a11y';
+import { NIMES, mockCommuneSearch, selectNimes } from './communes';
 import { testApiBaseUrl } from './env';
 
-const NIMES: Commune = {
-  codeInsee: '30189',
-  name: 'Nîmes',
-  departementCode: '30',
-  departementName: 'Gard',
-};
-
-async function mockCommuneSearch(route: Route) {
-  await route.fulfill({
-    status: 200,
-    contentType: 'application/json',
-    body: JSON.stringify([NIMES]),
-  });
-}
-
-async function selectNimes(page: Page) {
-  const input = page.getByLabel(fr.veille.form.communesLabel);
-  await input.focus();
-  await page.keyboard.type('Nimes');
-  await expect(page.getByRole('option', { name: /Nîmes/ })).toBeVisible();
-  await page.keyboard.press('ArrowDown');
-  await page.keyboard.press('Enter');
+async function expectErrorTiedTo(field: Locator, error: Locator) {
+  await expect(error).toBeVisible();
+  await expect(error).toHaveAttribute('role', 'alert');
+  const errorId = await error.getAttribute('id');
+  expect(errorId).not.toBeNull();
+  await expect(field).toHaveAttribute('aria-describedby', String(errorId));
 }
 
 test('submitting without a commune reports an error tied to the field, and does not send the request', async ({
@@ -42,12 +26,9 @@ test('submitting without a commune reports an error tied to the field, and does 
   await page.getByLabel(fr.veille.form.emailLabel).fill('riverain@example.fr');
   await page.getByRole('button', { name: fr.veille.form.submit }).click();
 
-  const error = page.getByText(fr.veille.form.communesRequiredError);
-  await expect(error).toBeVisible();
-  await expect(error).toHaveAttribute('role', 'alert');
-  await expect(page.getByLabel(fr.veille.form.communesLabel)).toHaveAttribute(
-    'aria-describedby',
-    await error.getAttribute('id'),
+  await expectErrorTiedTo(
+    page.getByLabel(fr.veille.form.communesLabel),
+    page.getByText(fr.veille.form.communesRequiredError),
   );
   expect(subscribeCalled).toBe(false);
 });
@@ -68,12 +49,9 @@ test('submitting with an invalid email reports an error tied to the field, and d
   await emailInput.fill('pas-une-adresse');
   await page.getByRole('button', { name: fr.veille.form.submit }).click();
 
-  const error = page.getByText(fr.veille.form.emailInvalidError);
-  await expect(error).toBeVisible();
-  await expect(error).toHaveAttribute('role', 'alert');
-  await expect(emailInput).toHaveAttribute(
-    'aria-describedby',
-    await error.getAttribute('id'),
+  await expectErrorTiedTo(
+    emailInput,
+    page.getByText(fr.veille.form.emailInvalidError),
   );
   expect(subscribeCalled).toBe(false);
 });
@@ -96,6 +74,11 @@ test('a successful submission shows the confirmation screen, announced to screen
   await page.getByLabel(fr.veille.form.emailLabel).fill('riverain@example.fr');
   await page.getByRole('button', { name: fr.veille.form.submit }).click();
 
+  // Focus moves to the confirmation: the button the user just pressed is
+  // gone, and without a target a keyboard user restarts from the page top.
+  // Asserted first: it also waits out the form, whose own empty status
+  // regions would otherwise trip getByRole('status') strict mode.
+  await expect(page.getByTestId('veille-confirmation')).toBeFocused();
   const status = page.getByRole('status');
   await expect(status).toContainText(fr.veille.confirmationSent.title);
   await expect(status).toContainText(fr.veille.confirmationSent.description);
@@ -143,7 +126,9 @@ for (const colorScheme of ['light', 'dark'] as const) {
       .getByLabel(fr.veille.form.emailLabel)
       .fill('riverain@example.fr');
     await page.getByRole('button', { name: fr.veille.form.submit }).click();
-    await expect(page.getByRole('status')).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: fr.veille.confirmationSent.title }),
+    ).toBeVisible();
     await expectNoAxeViolations(page);
   });
 

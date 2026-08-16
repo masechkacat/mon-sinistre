@@ -10,6 +10,11 @@ import {
   VEILLE_MAX_COMMUNES,
   type Commune,
 } from '@mon-sinistre/contracts';
+import { FieldError } from '@/components/field-error';
+import {
+  inputFrameClassName,
+  inputFrameInvalidClassName,
+} from '@/components/ui/input';
 import { apiFetch } from '@/lib/api/client';
 import { queryKeys } from '@/lib/api/keys';
 import { cn } from '@/lib/utils';
@@ -63,17 +68,44 @@ export function CommuneMultiSelect({
       apiFetch<Commune[]>(`/communes?q=${encodeURIComponent(query)}`),
     enabled: searchEnabled,
     placeholderData: keepPreviousData,
+    // The referential is near-static; without this every window refocus and
+    // every retype of a cached prefix refires the request.
+    staleTime: Infinity,
   });
 
   const items = searchEnabled ? (data ?? NO_ITEMS) : NO_ITEMS;
+  // Until the debounce catches up and the answer for the current query
+  // arrives, the popup shows the previous query's results (placeholderData) —
+  // a list that does not correspond to what is typed. `data` may also be
+  // undefined with fetching over: a failed request, which must not read as
+  // « aucune commune trouvée » either.
+  const searchSettled =
+    searchEnabled &&
+    !isFetching &&
+    data !== undefined &&
+    query === inputValue.trim();
 
   const ceilingReached = value.length >= VEILLE_MAX_COMMUNES;
   // The popup anchors to the whole field, not to the input: the input starts
   // after the chips, and the list would hang off to the right of them.
   const fieldRef = useRef<HTMLDivElement>(null);
 
-  const handleValueChange = (next: Commune[]) => {
-    if (next.length > VEILLE_MAX_COMMUNES) return;
+  // cancel() stops Base UI's own follow-up to a refused selection — without
+  // it the primitive still clears the input and closes the popup.
+  const handleValueChange = (
+    next: Commune[],
+    eventDetails: Combobox.Root.ChangeEventDetails,
+  ) => {
+    if (next.length > VEILLE_MAX_COMMUNES) {
+      eventDetails.cancel();
+      return;
+    }
+    // While the list is stale, Enter would add a commune unrelated to what is
+    // typed; additions wait for the current answer, removals stay possible.
+    if (!searchSettled && next.length > value.length) {
+      eventDetails.cancel();
+      return;
+    }
     onValueChange(next);
   };
 
@@ -100,9 +132,9 @@ export function CommuneMultiSelect({
         <Combobox.Chips
           ref={fieldRef}
           className={cn(
-            'flex flex-wrap items-center gap-1.5 rounded-lg border border-input bg-background px-2 py-1.5 focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50',
-            error &&
-              'border-destructive ring-3 ring-destructive/20 dark:ring-destructive/40',
+            inputFrameClassName,
+            'flex flex-wrap items-center gap-1.5 px-2 py-1.5 focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50',
+            error && inputFrameInvalidClassName,
           )}
         >
           {value.map((commune) => (
@@ -124,39 +156,55 @@ export function CommuneMultiSelect({
             className="min-w-32 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
           />
         </Combobox.Chips>
-        {error ? (
-          <Field.Error
-            match
-            role="alert"
-            className="mt-1.5 text-sm text-destructive"
-          >
-            {error}
-          </Field.Error>
-        ) : null}
+        <FieldError error={error} className="mt-1.5" />
         <Combobox.Status
           className="sr-only"
           data-testid="commune-search-status"
         >
-          {searchEnabled && !isFetching && query === inputValue.trim()
-            ? fr.veille.form.communesFound(items.length)
-            : null}
+          {searchSettled ? fr.veille.form.communesFound(items.length) : null}
         </Combobox.Status>
         {/* Visible and announced: pressing Enter on a 21st commune does
-            nothing, and silence reads as a broken field. */}
-        {ceilingReached ? (
-          <p role="status" className="mt-1.5 text-sm text-muted-foreground">
-            {fr.veille.form.maxCommunesReached(VEILLE_MAX_COMMUNES)}
-          </p>
-        ) : null}
+            nothing, and silence reads as a broken field. Pre-mounted live
+            region — only the text toggles. */}
+        <p
+          role="status"
+          className={cn(
+            'text-sm text-muted-foreground',
+            ceilingReached && 'mt-1.5',
+          )}
+        >
+          {ceilingReached
+            ? fr.veille.form.maxCommunesReached(VEILLE_MAX_COMMUNES)
+            : null}
+        </p>
         <Combobox.Portal>
           <Combobox.Positioner
             anchor={fieldRef}
             className="z-50"
             sideOffset={4}
           >
-            <Combobox.Popup className="max-h-64 w-(--anchor-width) overflow-auto rounded-lg border border-border bg-popover py-1 text-popover-foreground shadow-md">
-              <Combobox.Empty className="px-3 py-2 text-sm text-muted-foreground">
-                {fr.veille.form.noCommuneFound}
+            {/* The chrome goes with the content: while the popup has nothing
+                to show (search pending, nothing settled) an empty bordered
+                strip would hang under the field. */}
+            <Combobox.Popup
+              className={cn(
+                'max-h-64 w-(--anchor-width) overflow-auto rounded-lg bg-popover text-popover-foreground',
+                (items.length > 0 || searchSettled) &&
+                  'border border-border py-1 shadow-md',
+              )}
+            >
+              {/* Only a settled search may claim there is nothing: below the
+                  minimum query length, during the debounce and while a fetch
+                  is in flight, the message would describe a search that never
+                  ran. Pre-mounted live region (Base UI docs: toggle the
+                  children, not the node). */}
+              <Combobox.Empty
+                className={cn(
+                  'text-sm text-muted-foreground',
+                  searchSettled && 'px-3 py-2',
+                )}
+              >
+                {searchSettled ? fr.veille.form.noCommuneFound : null}
               </Combobox.Empty>
               <Combobox.List>
                 {(commune: Commune) => (

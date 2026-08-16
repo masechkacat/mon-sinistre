@@ -1,38 +1,9 @@
-import { expect, test, type Page, type Route } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { VEILLE_MAX_COMMUNES, type Commune } from '@mon-sinistre/contracts';
 import { fr } from '../src/i18n/fr';
 import { expectNoAxeViolations } from './a11y';
+import { CHATEAU, NIMES, mockCommuneSearch, selectNimes } from './communes';
 import { testApiBaseUrl } from './env';
-
-const CHATEAU: Commune = {
-  codeInsee: '02168',
-  name: 'Château-Thierry',
-  departementCode: '02',
-  departementName: 'Aisne',
-};
-const NIMES: Commune = {
-  codeInsee: '30189',
-  name: 'Nîmes',
-  departementCode: '30',
-  departementName: 'Gard',
-};
-
-const normalize = (s: string) =>
-  s
-    .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, '')
-    .toLowerCase();
-
-// Mirrors the API's search: name prefix (accent-insensitive) or exact INSEE
-// code — good enough for a mock, the real matching is tested in the API.
-function communesMatching(q: string): Commune[] {
-  const normalizedQuery = normalize(q);
-  return [CHATEAU, NIMES].filter(
-    (commune) =>
-      normalize(commune.name).startsWith(normalizedQuery) ||
-      commune.codeInsee.toLowerCase() === q.toLowerCase(),
-  );
-}
 
 // A chip holds the name next to its remove button, so no element's text is
 // the name alone; the remove button is what the chip is addressable by.
@@ -40,16 +11,6 @@ const chipOf = (page: Page, commune: Commune) =>
   page.getByRole('button', {
     name: fr.veille.form.removeCommune(commune.name),
   });
-
-async function mockCommuneSearch(route: Route) {
-  const url = new URL(route.request().url());
-  const q = url.searchParams.get('q') ?? '';
-  await route.fulfill({
-    status: 200,
-    contentType: 'application/json',
-    body: JSON.stringify(communesMatching(q)),
-  });
-}
 
 test('a commune is found by name and by INSEE code, and is selected only with the keyboard', async ({
   page,
@@ -88,12 +49,7 @@ test('a selected commune is removed from the keyboard', async ({ page }) => {
   await page.route(`${testApiBaseUrl}/communes**`, mockCommuneSearch);
   await page.goto('/test-communes');
 
-  const input = page.getByLabel(fr.veille.form.communesLabel);
-  await input.focus();
-  await page.keyboard.type('Nimes');
-  await expect(page.getByRole('option', { name: /Nîmes/ })).toBeVisible();
-  await page.keyboard.press('ArrowDown');
-  await page.keyboard.press('Enter');
+  await selectNimes(page);
   await expect(page.getByTestId('selected-count')).toHaveText('1');
 
   // The input is empty again after selection: Backspace here removes the
@@ -131,15 +87,52 @@ test('a 21st commune cannot be added once the ceiling is reached', async ({
     page.getByText(fr.veille.form.maxCommunesReached(VEILLE_MAX_COMMUNES)),
   ).toBeVisible();
 
+  await selectNimes(page);
+
+  await expect(page.getByTestId('selected-count')).toHaveText('20');
+  await expect(chipOf(page, NIMES)).toBeHidden();
+});
+
+test('a search still in flight neither claims « aucune commune » nor lets Enter select the previous results', async ({
+  page,
+}) => {
+  // The « Chateau » answer is held until the test releases it, making the
+  // pending-search window deterministic instead of timing-dependent.
+  let releaseSearch = () => {};
+  const searchHeld = new Promise<void>((resolve) => {
+    releaseSearch = resolve;
+  });
+  await page.route(`${testApiBaseUrl}/communes**`, async (route) => {
+    const q = new URL(route.request().url()).searchParams.get('q') ?? '';
+    if (q === 'Chateau') await searchHeld;
+    await mockCommuneSearch(route);
+  });
+  await page.goto('/test-communes');
+
   const input = page.getByLabel(fr.veille.form.communesLabel);
   await input.focus();
   await page.keyboard.type('Nimes');
   await expect(page.getByRole('option', { name: /Nîmes/ })).toBeVisible();
+
+  await page.keyboard.press('Control+a');
+  await page.keyboard.type('Chateau');
+  // keepPreviousData keeps the previous list on screen while the new answer
+  // is pending: Nîmes is still shown, but it must be inert — Enter committing
+  // it would subscribe the user to a commune unrelated to what they typed.
+  await expect(page.getByRole('option', { name: /Nîmes/ })).toBeVisible();
+  await expect(page.getByText(fr.veille.form.noCommuneFound)).toBeHidden();
   await page.keyboard.press('ArrowDown');
   await page.keyboard.press('Enter');
+  await expect(page.getByTestId('selected-count')).toHaveText('0');
 
-  await expect(page.getByTestId('selected-count')).toHaveText('20');
-  await expect(chipOf(page, NIMES)).toBeHidden();
+  releaseSearch();
+  await expect(
+    page.getByRole('option', { name: /Château-Thierry/ }),
+  ).toBeVisible();
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('Enter');
+  await expect(chipOf(page, CHATEAU)).toBeVisible();
+  await expect(page.getByTestId('selected-count')).toHaveText('1');
 });
 
 // The shared axe suite walks the real pages (tests/pages.ts), and the test
@@ -151,12 +144,7 @@ test('the field is axe-clean with the list open and with chips selected', async 
   await page.route(`${testApiBaseUrl}/communes**`, mockCommuneSearch);
   await page.goto('/test-communes');
 
-  const input = page.getByLabel(fr.veille.form.communesLabel);
-  await input.focus();
-  await page.keyboard.type('Nimes');
-  await expect(page.getByRole('option', { name: /Nîmes/ })).toBeVisible();
-  await page.keyboard.press('ArrowDown');
-  await page.keyboard.press('Enter');
+  await selectNimes(page);
   await expect(chipOf(page, NIMES)).toBeVisible();
   await expectNoAxeViolations(page);
 
