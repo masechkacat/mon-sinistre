@@ -74,6 +74,16 @@ export const REFERENCE_DATA_STALE_AFTER_MONTHS = 6;
 
 export const COMMUNE_SEARCH_LIMIT = 10;
 
+/**
+ * Shortest `q` worth a lookup: a single letter matches thousands of communes
+ * and the database would scan for every one of them. Two is also enough for
+ * the INSEE branch to be wrong about — "2A" is not a code — which costs one
+ * empty answer and no scan. Needed by both the API (query validation) and the
+ * web client (when to enable the search query) — declared once here so the
+ * two do not carry the number as two separate literals.
+ */
+export const COMMUNE_SEARCH_MIN_QUERY_LENGTH = 2;
+
 /** How long a veille confirmation link stays valid, in days. */
 export const VEILLE_CONFIRM_TTL_DAYS = 7;
 

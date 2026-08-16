@@ -1,10 +1,11 @@
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
-import { COMMUNE_SEARCH_LIMIT, Commune } from '@mon-sinistre/contracts';
-import { createIntTestApp } from 'src/app.int-helper';
 import {
-  MAX_QUERY_LENGTH,
-  MIN_QUERY_LENGTH,
-} from 'src/communes/dto/search-communes-query.dto';
+  COMMUNE_SEARCH_LIMIT,
+  COMMUNE_SEARCH_MIN_QUERY_LENGTH,
+  Commune,
+} from '@mon-sinistre/contracts';
+import { createIntTestApp } from 'src/app.int-helper';
+import { MAX_QUERY_LENGTH } from 'src/communes/dto/search-communes-query.dto';
 import { normalizeCommuneName } from 'src/communes/normalize-commune-name';
 import { PrismaService } from 'src/prisma/prisma.service';
 
@@ -185,8 +186,8 @@ describe('GET /communes (integration)', () => {
     // it: the case is "just outside what we accept", not "64", and a label
     // spelling the number out goes stale the day the bound moves.
     [
-      `q shorter than ${MIN_QUERY_LENGTH} characters`,
-      'a'.repeat(MIN_QUERY_LENGTH - 1),
+      `q shorter than ${COMMUNE_SEARCH_MIN_QUERY_LENGTH} characters`,
+      'a'.repeat(COMMUNE_SEARCH_MIN_QUERY_LENGTH - 1),
     ],
     [
       `q longer than ${MAX_QUERY_LENGTH} characters`,
