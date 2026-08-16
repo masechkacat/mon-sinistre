@@ -7,11 +7,13 @@ import {
 } from '@nestjs/throttler';
 import {
   VEILLE_CONFIRM_PATH,
+  VEILLE_FORM_EMAIL_DAILY_LIMIT,
   VEILLE_MAX_COMMUNES,
   VEILLE_UNSUBSCRIBE_PATH,
 } from '@mon-sinistre/contracts';
 import { createIntTestApp } from 'src/app.int-helper';
 import { fr } from 'src/i18n/fr';
+import { MailDeliveryError } from 'src/mail/mail-delivery.error';
 import { captureLogs } from 'src/mail/mail-log.test-helper';
 import { mailLinksOf } from 'src/mail/mail-links.test-helper';
 import type { MailMessage } from 'src/mail/mail-message';
@@ -22,8 +24,14 @@ import { communeFixture } from './veille.test-helper';
 
 class RecordingTransport implements MailTransport {
   readonly sent: MailMessage[] = [];
+  /** Consumed by the next `send()` only — a one-shot failure for a single test. */
+  failNext = false;
 
   send(message: MailMessage): Promise<void> {
+    if (this.failNext) {
+      this.failNext = false;
+      return Promise.reject(new MailDeliveryError('boom'));
+    }
     this.sent.push(message);
     return Promise.resolve();
   }
@@ -66,10 +74,11 @@ describe('POST /veille (integration)', () => {
 
   beforeEach(async () => {
     transport.sent.length = 0;
+    transport.failNext = false;
     // Every test shares one client address, so without this the rate limit of
     // the route would count the whole file as a single caller.
     throttler.storage.clear();
-    await prisma.$executeRaw`TRUNCATE TABLE "Veille", "Commune" CASCADE`;
+    await prisma.$executeRaw`TRUNCATE TABLE "Veille", "Commune", "VeilleFormEmail" CASCADE`;
   });
 
   it('creates a subscription with hashed tokens and sends the confirmation mail', async () => {
@@ -399,6 +408,132 @@ describe('POST /veille (integration)', () => {
       expect(await prisma.veille.findMany({ where: { email } })).toHaveLength(
         1,
       );
+    });
+  });
+
+  describe('daily email limit per address (VEILLE_FORM_EMAIL_DAILY_LIMIT)', () => {
+    it('sends no mail for the sixth form within 24h, but still answers 204 and applies the subscription change', async () => {
+      await prisma.commune.create({ data: communeFixture('30189', 'Nîmes') });
+      await prisma.commune.create({
+        data: communeFixture('34172', 'Montpellier'),
+      });
+      const email = 'riverain@example.fr';
+      const submit = (i: number) => {
+        throttler.storage.clear();
+        return post({
+          email,
+          communeCodes: [i % 2 === 0 ? '30189' : '34172'],
+        });
+      };
+
+      for (let i = 0; i < VEILLE_FORM_EMAIL_DAILY_LIMIT; i++) {
+        const res = await submit(i);
+        expect(res.statusCode).toBe(204);
+        expect(res.payload).toBe('');
+      }
+      expect(transport.sent).toHaveLength(VEILLE_FORM_EMAIL_DAILY_LIMIT);
+
+      // Sixth form (index 5, odd) — same 204/empty response, no sixth mail.
+      const sixth = await submit(VEILLE_FORM_EMAIL_DAILY_LIMIT);
+      expect(sixth.statusCode).toBe(204);
+      expect(sixth.payload).toBe('');
+      expect(transport.sent).toHaveLength(VEILLE_FORM_EMAIL_DAILY_LIMIT);
+      expect(await prisma.veilleFormEmail.count()).toBe(
+        VEILLE_FORM_EMAIL_DAILY_LIMIT,
+      );
+
+      // Composition still rewritten from the sixth (blocked) form.
+      const veille = await prisma.veille.findFirstOrThrow({
+        where: { email },
+      });
+      const communes = await prisma.veilleCommune.findMany({
+        where: { veilleId: veille.id },
+      });
+      expect(communes.map((c) => c.codeInsee)).toEqual(['34172']);
+    });
+
+    it('is not reset by an unsubscribe/resubscribe cycle for the same address', async () => {
+      await prisma.commune.create({ data: communeFixture('30189', 'Nîmes') });
+      const email = 'riverain@example.fr';
+
+      const first = await post({ email, communeCodes: ['30189'] });
+      expect(first.statusCode).toBe(204);
+      const [creationMail] = transport.sent;
+      if (!creationMail) throw new Error('expected a creation mail');
+      const confirmToken = tokenFrom(creationMail, VEILLE_CONFIRM_PATH);
+      throttler.storage.clear();
+      expect(
+        (
+          await app.inject({
+            method: 'POST',
+            url: '/veille/confirmation',
+            payload: { token: confirmToken },
+          })
+        ).statusCode,
+      ).toBe(200);
+
+      // Four more "déjà inscrit·e" mails bring the count to the limit.
+      for (let i = 1; i < VEILLE_FORM_EMAIL_DAILY_LIMIT; i++) {
+        throttler.storage.clear();
+        const res = await post({ email, communeCodes: ['30189'] });
+        expect(res.statusCode).toBe(204);
+      }
+      expect(transport.sent).toHaveLength(VEILLE_FORM_EMAIL_DAILY_LIMIT);
+
+      const lastReminder = transport.sent[transport.sent.length - 1];
+      if (!lastReminder) throw new Error('expected a reminder mail');
+      const unsubscribeToken = tokenFrom(lastReminder, VEILLE_UNSUBSCRIBE_PATH);
+      throttler.storage.clear();
+      const unsub = await app.inject({
+        method: 'POST',
+        url: '/veille/desinscription',
+        payload: { token: unsubscribeToken },
+      });
+      expect(unsub.statusCode).toBe(204);
+      expect(await prisma.veille.findMany({ where: { email } })).toEqual([]);
+
+      // A brand new subscription for the same address is still the sixth
+      // form mail of the window — blocked, though the row is created again.
+      throttler.storage.clear();
+      const sixth = await post({ email, communeCodes: ['30189'] });
+      expect(sixth.statusCode).toBe(204);
+      expect(await prisma.veille.findMany({ where: { email } })).toHaveLength(
+        1,
+      );
+      expect(transport.sent).toHaveLength(VEILLE_FORM_EMAIL_DAILY_LIMIT);
+      expect(await prisma.veilleFormEmail.count()).toBe(
+        VEILLE_FORM_EMAIL_DAILY_LIMIT,
+      );
+    });
+
+    it('stores no email in VeilleFormEmail, only a hash that a keyless SHA-256 of the address would not match', async () => {
+      await prisma.commune.create({ data: communeFixture('30189', 'Nîmes') });
+      const email = 'riverain@example.fr';
+
+      await post({ email, communeCodes: ['30189'] });
+
+      const rows = await prisma.veilleFormEmail.findMany();
+      expect(rows).toHaveLength(1);
+      const [row] = rows;
+      if (!row) throw new Error('expected a counter row');
+      expect(row.emailHash).not.toBe(email);
+      expect(row.emailHash).not.toBe(
+        createHash('sha256').update(email).digest('hex'),
+      );
+    });
+
+    it('keeps the counter row when the mail fails to send', async () => {
+      await prisma.commune.create({ data: communeFixture('30189', 'Nîmes') });
+      transport.failNext = true;
+
+      const res = await post({
+        email: 'riverain@example.fr',
+        communeCodes: ['30189'],
+      });
+
+      expect(res.statusCode).toBe(500);
+      expect(transport.sent).toHaveLength(0);
+      expect(await prisma.veilleFormEmail.count()).toBe(1);
     });
   });
 });

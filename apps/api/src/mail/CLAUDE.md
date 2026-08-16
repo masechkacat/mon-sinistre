@@ -1,7 +1,9 @@
 # CLAUDE.md — `src/mail`
 
 **Единственная точка выхода письма из API — `MailService.send()`**, обязательна
-для всех фич; там же будут лимиты частоты. Решения — `docs/research/emails.md`
+для всех фич. Лимит частоты живёт у фичи, которая его считает (пример —
+`VEILLE_FORM_EMAIL_DAILY_LIMIT` в `src/veille/veille.service.ts`), не здесь:
+каркас не классифицирует письма по фичам. Решения — `docs/research/emails.md`
 (снапшот на 03.08.2026).
 
 Промис вернулся — транспорт принял письмо, иначе `MailCompositionError` или

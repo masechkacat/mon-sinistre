@@ -1,8 +1,12 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import {
   VEILLE_CONFIRM_TTL_DAYS,
+  VEILLE_FORM_EMAIL_DAILY_LIMIT,
   type VeilleConfirmationStatus,
 } from '@mon-sinistre/contracts';
+import type { EnvironmentVariables } from 'src/config/env.validation';
+import type { ComposeMailInput } from 'src/mail/mail-message';
 import { MailService } from 'src/mail/mail.service';
 import { isUniqueViolationOn } from 'src/prisma/prisma-error';
 import { PrismaService } from 'src/prisma/prisma.service';
@@ -12,6 +16,7 @@ import {
   confirmationMailFor,
   type ChosenCommune,
 } from './veille-confirmation-mail';
+import { hashVeilleFormEmail } from './veille-email-hash';
 import {
   generateVeilleToken,
   hashVeilleToken,
@@ -40,10 +45,17 @@ const classifyConfirmation = (
 
 @Injectable()
 export class VeilleService {
+  private readonly emailHashSecret: string;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly mail: MailService,
-  ) {}
+    config: ConfigService<EnvironmentVariables, true>,
+  ) {
+    this.emailHashSecret = config.get('VEILLE_EMAIL_HASH_SECRET', {
+      infer: true,
+    });
+  }
 
   async subscribe(dto: CreateVeilleDto): Promise<void> {
     const communeCodes = [...new Set(dto.communeCodes)];
@@ -168,7 +180,8 @@ export class VeilleService {
     confirm: VeilleToken = generateVeilleToken(),
     unsubscribe: VeilleToken = generateVeilleToken(),
   ): Promise<void> {
-    await this.mail.send(
+    await this.sendFormMail(
+      email,
       confirmationMailFor(email, communes, confirm.token, unsubscribe.token),
     );
   }
@@ -209,13 +222,32 @@ export class VeilleService {
     // Deleted between the rotation above and this read — rarer still, and a
     // mail whose link is already dead again would be worse than silence.
     if (!veille) return;
-    await this.mail.send(
+    await this.sendFormMail(
+      email,
       alreadySubscribedMailFor(
         email,
         veille.communes.map((c) => c.commune),
         unsubscribe.token,
       ),
     );
+  }
+
+  /**
+   * The counter row is written *before* `send()`: a failed delivery must
+   * still cost an attempt, not hand out a free retry.
+   */
+  private async sendFormMail(
+    email: string,
+    input: ComposeMailInput,
+  ): Promise<void> {
+    const emailHash = hashVeilleFormEmail(email, this.emailHashSecret);
+    const sentRecently = await this.prisma.veilleFormEmail.count({
+      where: { emailHash, sentAt: { gte: new Date(Date.now() - DAY_MS) } },
+    });
+    if (sentRecently >= VEILLE_FORM_EMAIL_DAILY_LIMIT) return;
+
+    await this.prisma.veilleFormEmail.create({ data: { emailHash } });
+    await this.mail.send(input);
   }
 
   async getConfirmationStatus(

@@ -31,6 +31,13 @@
   используется и статусом подтверждения, и отпиской — оба ищут `Veille` по
   своему хешу): `randomBytes(32).base64url` в письмо, `sha256` hex в базу,
   второй генерации не заводить.
+- `veille-email-hash.ts` (`hashVeilleFormEmail`) — единственный способ
+  получить `VeilleFormEmail.emailHash` (HMAC-SHA256 на
+  `VEILLE_EMAIL_HASH_SECRET`); второй свёртки адреса не заводить.
+  `VeilleService.sendFormMail` — единственная точка проверки лимита
+  (`VEILLE_FORM_EMAIL_DAILY_LIMIT`, скользящие 24 часа) и точка отправки
+  писем формы: `sendConfirmationMail` и `sendAlreadySubscribedMail` зовут её,
+  не `MailService.send()` напрямую.
 
 ## Почему токен живёт в query, а не в сегменте пути
 
