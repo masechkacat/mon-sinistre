@@ -121,9 +121,9 @@ describe('POST /veille (integration)', () => {
     const rows = await prisma.veille.findMany();
     expect(rows).toHaveLength(1);
     expect(rows[0]?.email).toBe('user@example.fr');
-    // Only the first submission is a new address — the mail sent for a
-    // resubmission of an existing one arrives in a later phase.
-    expect(transport.sent).toHaveLength(1);
+    // The second spelling normalizes to the same, still-unconfirmed address —
+    // it resends the confirmation mail rather than creating a second row.
+    expect(transport.sent).toHaveLength(2);
   });
 
   it.each([
@@ -190,5 +190,105 @@ describe('POST /veille (integration)', () => {
     await post({ email, communeCodes: ['99999'] });
 
     logs.expectNoTraceOf(email);
+  });
+
+  describe('resubmission of an unconfirmed address', () => {
+    it('rewrites the commune composition from the latest form and extends the deadline, without creating a second subscription', async () => {
+      await prisma.commune.create({ data: communeFixture('30189', 'Nîmes') });
+      await prisma.commune.create({
+        data: communeFixture('34172', 'Montpellier'),
+      });
+      const email = 'riverain@example.fr';
+
+      const first = await post({ email, communeCodes: ['30189'] });
+      expect(first.statusCode).toBe(204);
+      const firstVeille = await prisma.veille.findFirstOrThrow();
+
+      const second = await post({ email, communeCodes: ['34172'] });
+      expect(second.statusCode).toBe(204);
+
+      const rows = await prisma.veille.findMany();
+      expect(rows).toHaveLength(1);
+      expect(rows[0]?.id).toBe(firstVeille.id);
+      expect(rows[0]?.confirmExpiresAt.getTime()).toBeGreaterThan(
+        firstVeille.confirmExpiresAt.getTime(),
+      );
+
+      const communes = await prisma.veilleCommune.findMany({
+        where: { veilleId: firstVeille.id },
+      });
+      expect(communes.map((c) => c.codeInsee)).toEqual(['34172']);
+
+      // "уходит новое письмо подтверждения" — docs/plan, phase 3.
+      expect(transport.sent).toHaveLength(2);
+    });
+
+    it('keeps the confirmation link from the first mail working', async () => {
+      await prisma.commune.create({ data: communeFixture('30189', 'Nîmes') });
+      await prisma.commune.create({
+        data: communeFixture('34172', 'Montpellier'),
+      });
+      const email = 'riverain@example.fr';
+
+      await post({ email, communeCodes: ['30189'] });
+      const [firstMail] = transport.sent;
+      if (!firstMail) throw new Error('expected a first mail to be sent');
+      const firstConfirmToken = tokenFrom(firstMail, VEILLE_CONFIRM_PATH);
+
+      await post({ email, communeCodes: ['34172'] });
+
+      const res = await app.inject({
+        method: 'GET',
+        url: `/veille/confirmation?token=${firstConfirmToken}`,
+      });
+      expect(res.statusCode).toBe(200);
+      expect(JSON.parse(res.payload)).toEqual({ status: 'pending' });
+    });
+
+    it('does not let a race between two submissions of the same new address surface as 500 or 409', async () => {
+      await prisma.commune.create({ data: communeFixture('30189', 'Nîmes') });
+      const email = 'riverain-race@example.fr';
+
+      const [first, second] = await Promise.all([
+        post({ email, communeCodes: ['30189'] }),
+        post({ email, communeCodes: ['30189'] }),
+      ]);
+
+      expect(first.statusCode).toBe(204);
+      expect(second.statusCode).toBe(204);
+      expect(await prisma.veille.findMany({ where: { email } })).toHaveLength(
+        1,
+      );
+    });
+
+    it('does not 500 when a concurrent desinscription deletes the row while the resubmission is rewriting it', async () => {
+      await prisma.commune.create({ data: communeFixture('30189', 'Nîmes') });
+      const email = 'riverain@example.fr';
+
+      await post({ email, communeCodes: ['30189'] });
+      const veille = await prisma.veille.findFirstOrThrow();
+
+      // Between `upsertSubscription`'s lookup and the interactive transaction
+      // of `resubscribeUnconfirmed`, a desinscription for this same row
+      // lands and deletes it — intercepted on `$transaction` itself, since
+      // its callback runs against a separate, transaction-scoped client that
+      // a spy on `prisma.veille.updateMany` would never see.
+      const originalTransaction = prisma.$transaction.bind(prisma);
+      (
+        jest.spyOn(prisma, '$transaction') as jest.SpyInstance
+      ).mockImplementationOnce(async (...args: unknown[]) => {
+        await prisma.veille.deleteMany({ where: { id: veille.id } });
+        return originalTransaction(
+          ...(args as Parameters<typeof originalTransaction>),
+        );
+      });
+
+      const res = await post({ email, communeCodes: ['30189'] });
+
+      expect(res.statusCode).toBe(204);
+      expect(await prisma.veille.findMany({ where: { email } })).toEqual([]);
+      // The row is gone — no resend mail on top of the first one.
+      expect(transport.sent).toHaveLength(1);
+    });
   });
 });

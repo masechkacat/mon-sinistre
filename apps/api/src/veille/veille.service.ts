@@ -7,11 +7,21 @@ import { MailService } from 'src/mail/mail.service';
 import { isUniqueViolationOn } from 'src/prisma/prisma-error';
 import { PrismaService } from 'src/prisma/prisma.service';
 import type { CreateVeilleDto } from './dto/create-veille.dto';
-import { confirmationMailFor } from './veille-confirmation-mail';
-import { generateVeilleToken, hashVeilleToken } from './veille-token';
+import {
+  confirmationMailFor,
+  type ChosenCommune,
+} from './veille-confirmation-mail';
+import {
+  generateVeilleToken,
+  hashVeilleToken,
+  type VeilleToken,
+} from './veille-token';
 
 /** Exported for the veille specs, so none of them keeps its own copy. */
 export const DAY_MS = 24 * 60 * 60 * 1000;
+
+const nextConfirmExpiresAt = (): Date =>
+  new Date(Date.now() + VEILLE_CONFIRM_TTL_DAYS * DAY_MS);
 
 /**
  * Single source of the pending/active/invalid decision — `GET` reads it
@@ -34,14 +44,6 @@ export class VeilleService {
     private readonly mail: MailService,
   ) {}
 
-  /**
-   * Only the "address does not exist yet" branch of
-   * docs/research/veille-subscription-lifecycle.md — the other two
-   * (unconfirmed resubmission, already-subscribed) arrive in phase 3. Until
-   * then a second POST for an email already in `Veille` hits the unique index
-   * and is swallowed here: the caller gets the same 204 as a fresh address,
-   * and the database keeps the first submission's subscription untouched.
-   */
   async subscribe(dto: CreateVeilleDto): Promise<void> {
     const communeCodes = [...new Set(dto.communeCodes)];
     const communes = await this.prisma.commune.findMany({
@@ -53,6 +55,39 @@ export class VeilleService {
     if (communes.length !== communeCodes.length) {
       throw new BadRequestException('Unknown commune code');
     }
+    await this.upsertSubscription(dto.email, communeCodes, communes);
+  }
+
+  /**
+   * Branches on whether `email` already has a row (docs/research, «Сценарии
+   * формы и гонка уникальности»): none → create; unconfirmed → rewrite its
+   * communes and extend the deadline; confirmed → left untouched for now,
+   * the "déjà inscrit·e" mail is the next task of this phase. A concurrent
+   * create that loses the unique-index race retries this once, landing the
+   * loser in the unconfirmed branch instead of surfacing `P2002`.
+   */
+  private async upsertSubscription(
+    email: string,
+    communeCodes: string[],
+    communes: readonly ChosenCommune[],
+    isRetry = false,
+  ): Promise<void> {
+    const existing = await this.prisma.veille.findUnique({
+      where: { email },
+      select: { id: true, confirmedAt: true },
+    });
+
+    if (existing) {
+      if (existing.confirmedAt) return;
+      const rewritten = await this.resubscribeUnconfirmed(
+        existing.id,
+        communeCodes,
+      );
+      // `false` means the row vanished (desinscription) or got confirmed
+      // between the lookup above and the transaction — nothing to mail.
+      if (rewritten) await this.sendConfirmationMail(email, communes);
+      return;
+    }
 
     const confirm = generateVeilleToken();
     const unsubscribe = generateVeilleToken();
@@ -62,12 +97,10 @@ export class VeilleService {
       // its communes appear together or not at all.
       await this.prisma.veille.create({
         data: {
-          email: dto.email,
+          email,
           confirmTokenHash: confirm.hash,
           unsubscribeTokenHash: unsubscribe.hash,
-          confirmExpiresAt: new Date(
-            Date.now() + VEILLE_CONFIRM_TTL_DAYS * DAY_MS,
-          ),
+          confirmExpiresAt: nextConfirmExpiresAt(),
           communes: {
             create: communeCodes.map((codeInsee) => ({ codeInsee })),
           },
@@ -78,19 +111,60 @@ export class VeilleService {
       // hashes are 256 random bits apart). Left untranslated by the global
       // Prisma mapping on purpose (`src/prisma/prisma-error.ts`): a 409 on this
       // endpoint would tell an attacker the address is already registered.
-      if (isUniqueViolationOn(error, 'email')) return;
+      if (isUniqueViolationOn(error, 'email') && !isRetry) {
+        return this.upsertSubscription(email, communeCodes, communes, true);
+      }
       throw error;
     }
 
     // Sent after the row is written: a delivery failure must not undo a
     // subscription the caller will otherwise never see again.
+    await this.sendConfirmationMail(email, communes, confirm, unsubscribe);
+  }
+
+  /**
+   * The composition rewrite and deadline extension are conditioned on the
+   * same `updateMany` that guards `confirm()`: between the earlier
+   * `findUnique` and this call the row can vanish (a concurrent
+   * desinscription) or turn confirmed (a concurrent confirmation), and
+   * `veille.update` would throw `P2025` on the first. Returns whether the row
+   * was still there to rewrite — the caller skips the resend mail otherwise.
+   */
+  private async resubscribeUnconfirmed(
+    veilleId: string,
+    communeCodes: string[],
+  ): Promise<boolean> {
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.veille.updateMany({
+        where: { id: veilleId, confirmedAt: null },
+        data: { confirmExpiresAt: nextConfirmExpiresAt() },
+      });
+      if (updated.count === 0) return false;
+      await tx.veilleCommune.deleteMany({ where: { veilleId } });
+      await tx.veilleCommune.createMany({
+        data: communeCodes.map((codeInsee) => ({ veilleId, codeInsee })),
+      });
+      return true;
+    });
+  }
+
+  /**
+   * The confirm/unsubscribe token hashes of an existing row are never
+   * touched by `resubscribeUnconfirmed` (research: the confirm token is not
+   * reissued on resubmission, so the first mail's link keeps working) —
+   * without `tokens`, this mail's own tokens are freshly generated for the
+   * link's shape only and match no stored hash. That is fine: the row still
+   * expires unconfirmed after `VEILLE_CONFIRM_TTL_DAYS` regardless, and the
+   * first mail remains the reliable way to confirm or unsubscribe.
+   */
+  private async sendConfirmationMail(
+    email: string,
+    communes: readonly ChosenCommune[],
+    confirm: VeilleToken = generateVeilleToken(),
+    unsubscribe: VeilleToken = generateVeilleToken(),
+  ): Promise<void> {
     await this.mail.send(
-      confirmationMailFor(
-        dto.email,
-        communes,
-        confirm.token,
-        unsubscribe.token,
-      ),
+      confirmationMailFor(email, communes, confirm.token, unsubscribe.token),
     );
   }
 
