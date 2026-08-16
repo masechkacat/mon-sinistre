@@ -14,12 +14,18 @@ export async function POST(request: NextRequest) {
 
 // A human following the same link must not unsubscribe by merely opening
 // it — this redirects to the page with the confirm button instead.
+// The Location stays rooted instead of going through NextResponse.redirect,
+// which demands an absolute URL: self-hosted Next builds `request.url` from
+// the address of its own socket and trusts neither Host nor X-Forwarded-Host,
+// so behind a proxy the absolute form sends the reader of the email to
+// localhost. A rooted Location resolves against whatever host the reader
+// actually came in on (RFC 7231 § 7.1.2).
 export function GET(request: NextRequest) {
   const token = request.nextUrl.searchParams.get('token') ?? '';
-  return NextResponse.redirect(
-    new URL(
-      `/veille/desinscription/confirmer?token=${encodeURIComponent(token)}`,
-      request.url,
-    ),
-  );
+  return new NextResponse(null, {
+    status: 307,
+    headers: {
+      Location: `/veille/desinscription/confirmer?token=${encodeURIComponent(token)}`,
+    },
+  });
 }
