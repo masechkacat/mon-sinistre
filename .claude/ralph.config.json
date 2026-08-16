@@ -1,11 +1,11 @@
 {
   "feature": "veille-subscription-lifecycle",
-  "phases": [5],
+  "phases": [6],
   "maxIterations": 5,
   "stallLimit": 2,
   "model": "claude-sonnet-5",
   "maxBudgetUsd": 10,
-  "maxTurns": 90,
+  "maxTurns": 150,
   "permissionMode": "acceptEdits",
   "prType": "feat",
   "project": {
