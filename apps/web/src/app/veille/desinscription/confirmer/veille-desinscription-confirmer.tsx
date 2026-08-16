@@ -2,12 +2,11 @@
 
 import { useMutation } from '@tanstack/react-query';
 import { useSearchParams } from 'next/navigation';
-import { VEILLE_UNSUBSCRIBE_PATH } from '@mon-sinistre/contracts';
 import { AnnouncedResult } from '@/components/announced-result';
 import { MessageScreen } from '@/components/message-screen';
 import { RequestError } from '@/components/request-error';
 import { Button } from '@/components/ui/button';
-import { apiFetch } from '@/lib/api/client';
+import { unsubscribeVeille } from '@/lib/api/veille';
 import { fr } from '@/i18n/fr';
 
 export function VeilleDesinscriptionConfirmer() {
@@ -15,12 +14,7 @@ export function VeilleDesinscriptionConfirmer() {
   const token = searchParams.get('token') ?? '';
 
   const desinscriptionMutation = useMutation({
-    mutationFn: () =>
-      apiFetch<void>(VEILLE_UNSUBSCRIBE_PATH, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token }),
-      }),
+    mutationFn: () => unsubscribeVeille(token),
   });
 
   if (desinscriptionMutation.isSuccess) {
