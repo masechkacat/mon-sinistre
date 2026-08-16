@@ -7,6 +7,7 @@ import { MailService } from 'src/mail/mail.service';
 import { isUniqueViolationOn } from 'src/prisma/prisma-error';
 import { PrismaService } from 'src/prisma/prisma.service';
 import type { CreateVeilleDto } from './dto/create-veille.dto';
+import { alreadySubscribedMailFor } from './veille-already-subscribed-mail';
 import {
   confirmationMailFor,
   type ChosenCommune,
@@ -61,10 +62,11 @@ export class VeilleService {
   /**
    * Branches on whether `email` already has a row (docs/research, «Сценарии
    * формы и гонка уникальности»): none → create; unconfirmed → rewrite its
-   * communes and extend the deadline; confirmed → left untouched for now,
-   * the "déjà inscrit·e" mail is the next task of this phase. A concurrent
-   * create that loses the unique-index race retries this once, landing the
-   * loser in the unconfirmed branch instead of surfacing `P2002`.
+   * communes and extend the deadline; confirmed → row untouched, only a
+   * "déjà inscrit·e" reminder mail goes out with the communes it actually
+   * has, ignoring whatever this new form submitted. A concurrent create that
+   * loses the unique-index race retries this once, landing the loser in the
+   * unconfirmed branch instead of surfacing `P2002`.
    */
   private async upsertSubscription(
     email: string,
@@ -78,7 +80,10 @@ export class VeilleService {
     });
 
     if (existing) {
-      if (existing.confirmedAt) return;
+      if (existing.confirmedAt) {
+        await this.sendAlreadySubscribedMail(email);
+        return;
+      }
       const rewritten = await this.resubscribeUnconfirmed(
         existing.id,
         communeCodes,
@@ -165,6 +170,51 @@ export class VeilleService {
   ): Promise<void> {
     await this.mail.send(
       confirmationMailFor(email, communes, confirm.token, unsubscribe.token),
+    );
+  }
+
+  /**
+   * Reads the subscription's own communes rather than trusting the caller's
+   * `communes` — the whole point of this branch is that a different list in
+   * the new form changes nothing. Unlike `sendConfirmationMail`'s resend
+   * case, the unsubscribe token here *is* rotated and stored: this mail
+   * exists specifically to reach someone who may have lost the mail sent at
+   * creation time, so a cosmetic link that cannot actually unsubscribe would
+   * defeat its purpose (and the one-click promise of ТЗ § 7). The rotation's
+   * accepted cost is that any earlier mail's unsubscribe link stops matching
+   * — superseded by this one, which is the point of resending in the first
+   * place. The composition is not part of this write, so "не меняет состав
+   * коммун" still holds.
+   */
+  private async sendAlreadySubscribedMail(email: string): Promise<void> {
+    const unsubscribe = generateVeilleToken();
+    const rotated = await this.prisma.veille.updateMany({
+      where: { email, confirmedAt: { not: null } },
+      data: { unsubscribeTokenHash: unsubscribe.hash },
+    });
+    // A concurrent desinscription can race us between the lookup in
+    // `upsertSubscription` and here — nothing left to remind about.
+    if (rotated.count === 0) return;
+
+    const veille = await this.prisma.veille.findUnique({
+      where: { email },
+      select: {
+        communes: {
+          select: {
+            commune: { select: { name: true, departementName: true } },
+          },
+        },
+      },
+    });
+    // Deleted between the rotation above and this read — rarer still, and a
+    // mail whose link is already dead again would be worse than silence.
+    if (!veille) return;
+    await this.mail.send(
+      alreadySubscribedMailFor(
+        email,
+        veille.communes.map((c) => c.commune),
+        unsubscribe.token,
+      ),
     );
   }
 
