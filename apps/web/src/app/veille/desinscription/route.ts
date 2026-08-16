@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { ApiError } from '@/lib/api/client';
 import { unsubscribeVeille } from '@/lib/api/veille';
 
 // RFC 8058 one-click: mail clients POST here with
@@ -8,7 +9,20 @@ import { unsubscribeVeille } from '@/lib/api/veille';
 // docs/research/veille-subscription-lifecycle.md, «One-click отписка».
 export async function POST(request: NextRequest) {
   const token = request.nextUrl.searchParams.get('token') ?? '';
-  await unsubscribeVeille(token);
+  try {
+    await unsubscribeVeille(token);
+  } catch (error) {
+    // Never 200: a success the API did not confirm would tell the mail client
+    // the address is off the list while it is still on it. An error leaves the
+    // reader the link in the message body, which lands on the confirm page.
+    // Logged because nothing else sees this failure — no screen, no user to
+    // report it; the token stays out, it authorises the deletion.
+    console.error(
+      'veille one-click unsubscribe failed',
+      error instanceof ApiError ? `API ${error.status}` : error,
+    );
+    return new NextResponse(null, { status: 502 });
+  }
   return new NextResponse(null, { status: 200 });
 }
 

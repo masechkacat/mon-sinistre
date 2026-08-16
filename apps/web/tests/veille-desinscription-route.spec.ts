@@ -17,6 +17,7 @@ type ReceivedRequest = {
 
 async function withMockUnsubscribeApi(
   run: (received: () => ReceivedRequest | null) => Promise<void>,
+  apiStatus = 204,
 ) {
   let received: ReceivedRequest | null = null;
   const server: Server = createServer((req: IncomingMessage, res) => {
@@ -29,7 +30,7 @@ async function withMockUnsubscribeApi(
         contentType: req.headers['content-type'],
         body: Buffer.concat(chunks).toString('utf8'),
       };
-      res.writeHead(204);
+      res.writeHead(apiStatus);
       res.end();
     });
   });
@@ -111,4 +112,42 @@ test('an unknown token gives the client no error on either method', async ({
     expect(getResponse.status()).toBeGreaterThanOrEqual(300);
     expect(getResponse.status()).toBeLessThan(400);
   });
+});
+
+// The two failures the handler must survive: a refusal (rate limit, restart)
+// and an API that does not answer at all.
+test('an API that refuses the deletion answers the mail client 502, not a false success', async ({
+  request,
+}) => {
+  await withMockUnsubscribeApi(async (received) => {
+    const response = await request.post(
+      '/veille/desinscription?token=jeton-refuse',
+      {
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        data: 'List-Unsubscribe=One-Click',
+        maxRedirects: 0,
+      },
+    );
+
+    expect(response.status()).toBe(502);
+    expect(await response.text()).toBe('');
+    expect(received()?.method).toBe('POST');
+  }, 429);
+});
+
+test('an unreachable API answers 502 too, without an HTML error page', async ({
+  request,
+}) => {
+  // No listener stood up on purpose: nothing else answers on testApiBaseUrl.
+  const response = await request.post(
+    '/veille/desinscription?token=jeton-injoignable',
+    {
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      data: 'List-Unsubscribe=One-Click',
+      maxRedirects: 0,
+    },
+  );
+
+  expect(response.status()).toBe(502);
+  expect(await response.text()).toBe('');
 });

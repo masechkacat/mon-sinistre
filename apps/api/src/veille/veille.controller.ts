@@ -16,6 +16,7 @@ import {
 } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import type { VeilleConfirmationResponse } from '@mon-sinistre/contracts';
+import { ThrottleByToken } from 'src/common/token-throttler.guard';
 import { CreateVeilleDto } from './dto/create-veille.dto';
 import { VeilleTokenDto } from './dto/veille-token.dto';
 import { VeilleConfirmationResponseDto } from './dto/veille-confirmation-response.dto';
@@ -95,6 +96,7 @@ export class VeilleController {
     return { status: await this.veille.confirm(body.token) };
   }
 
+  @ThrottleByToken()
   @Post('desinscription')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({

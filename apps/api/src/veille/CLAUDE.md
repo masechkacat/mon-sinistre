@@ -18,7 +18,9 @@
   переходов — `classifyConfirmation` в сервисе, единственный источник решения
   `pending | active | invalid` для обоих эндпоинтов confirmation.
 - `POST /veille/desinscription` → `VeilleService.unsubscribe`; каскад
-  `VeilleCommune` сносится вместе с `Veille`.
+  `VeilleCommune` сносится вместе с `Veille`. Единственный маршрут под
+  `@ThrottleByToken` (`src/common/token-throttler.guard.ts`) — почему, сказано
+  у декоратора.
 - `dto/veille-token.dto.ts` (`VeilleTokenDto`) — одна DTO с полем `token` для
   обоих `POST`, второй такой же не заводить.
 - `veille-confirmation-mail.ts` — единственная сборка письма подтверждения;
