@@ -122,6 +122,25 @@ export class VeilleController {
       : { status: 'invalid' };
   }
 
+  @Post('changement')
+  // Nest answers 201 to a POST by default; the contract of this endpoint is
+  // 200 { status } whatever the token turns out to be.
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Apply a pending change-of-composition request',
+    description:
+      'Deletes the request and rewrites the active composition to match it ' +
+      'in the same step — the whole new set, not a merge with the previous ' +
+      'one. A repeat call, an unknown token and an expired request all ' +
+      'answer "invalid", the cause not told apart.',
+  })
+  @ApiOkResponse({ type: VeilleChangeResponseDto })
+  async applyChange(
+    @Body() body: VeilleTokenDto,
+  ): Promise<VeilleChangeResponse> {
+    return this.veille.applyChange(body.token);
+  }
+
   @ThrottleByToken()
   @Post('desinscription')
   @HttpCode(HttpStatus.NO_CONTENT)

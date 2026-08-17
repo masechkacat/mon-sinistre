@@ -2,10 +2,11 @@ import { IsString, MaxLength } from 'class-validator';
 import { VEILLE_TOKEN_LENGTH } from '../veille-token';
 
 /**
- * Body of both token-carrying POSTs — confirmation and desinscription: the
- * confirm/unsubscribe tokens differ only in which hash column the service
- * looks them up against. (Confirmation's GET reads its token from a bare
- * `@Query('token')` instead — see the note in the controller.)
+ * Body of every token-carrying POST — confirmation, changement and
+ * desinscription: the confirm/change/unsubscribe tokens differ only in which
+ * hash column the service looks them up against. (Each endpoint's GET, where
+ * it has one, reads its token from a bare `@Query('token')` instead — see
+ * the note in the controller.)
  */
 export class VeilleTokenDto {
   /** Token carried by the veille link. */

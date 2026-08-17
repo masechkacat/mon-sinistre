@@ -10,6 +10,7 @@ import {
 } from '@mon-sinistre/contracts';
 import { errorSummary, stackOf } from 'src/common/error-report';
 import type { EnvironmentVariables } from 'src/config/env.validation';
+import type { Prisma } from 'src/generated/prisma/client';
 import { MailCompositionError } from 'src/mail/mail-composition.error';
 import type { ComposeMailInput } from 'src/mail/mail-message';
 import { MailService } from 'src/mail/mail.service';
@@ -225,11 +226,22 @@ export class VeilleService {
         where: { email },
         select: { id: true },
       });
-      await tx.veilleCommune.deleteMany({ where: { veilleId: id } });
-      await tx.veilleCommune.createMany({
-        data: communeCodes.map((codeInsee) => ({ veilleId: id, codeInsee })),
-      });
+      await this.replaceCommunes(tx, id, communeCodes);
       return { kind: 'rewritten', veilleId: id };
+    });
+  }
+
+  /** The one place `VeilleCommune` rows are dropped and rebuilt wholesale — the
+   * subscribe rewrite and the change-request apply share this, not a
+   * merge/diff against the previous set. */
+  private async replaceCommunes(
+    tx: Prisma.TransactionClient,
+    veilleId: string,
+    communeCodes: string[],
+  ): Promise<void> {
+    await tx.veilleCommune.deleteMany({ where: { veilleId } });
+    await tx.veilleCommune.createMany({
+      data: communeCodes.map((codeInsee) => ({ veilleId, codeInsee })),
     });
   }
 
@@ -468,6 +480,42 @@ export class VeilleService {
       select: { name: true, departementName: true },
     });
     return { status: 'pending', communes };
+  }
+
+  /**
+   * Applies a pending change request by deleting it — the delete's
+   * `changeTokenHash` + `expiresAt` condition is the atomic capture
+   * (research, «Применение изменения»): a repeat `POST`, two racing tabs and
+   * the hourly cleanup all resolve through that one `deleteMany`'s row count,
+   * no `P2025` in sight. The hash rides along in the delete's own condition,
+   * not just the read before it: `communeCodes` are read ahead of the
+   * capture (`deleteMany` itself returns only a count), and read committed
+   * lets a concurrent resubmission rewrite the row between that read and the
+   * delete — repeating the hash closes the window by making a since-rotated
+   * token fail its own claim instead of deleting the row under someone
+   * else's now-current hash and applying the composition this read saw
+   * before the rotation. `communeCodes` are not re-validated against the
+   * commune registry here — that happened when the form was submitted,
+   * `Commune` rows are never deleted, and the FK on `createMany` still
+   * guards referential integrity.
+   */
+  async applyChange(token: string): Promise<VeilleChangeResponse> {
+    const changeTokenHash = hashVeilleToken(token);
+    return this.prisma.$transaction(async (tx) => {
+      const change = await tx.veilleChange.findUnique({
+        where: { changeTokenHash },
+        select: { veilleId: true, communeCodes: true },
+      });
+      if (!change) return { status: 'invalid' };
+
+      const claimed = await tx.veilleChange.deleteMany({
+        where: { changeTokenHash, expiresAt: { gte: new Date() } },
+      });
+      if (claimed.count === 0) return { status: 'invalid' };
+
+      await this.replaceCommunes(tx, change.veilleId, change.communeCodes);
+      return { status: 'applied' };
+    });
   }
 
   /**

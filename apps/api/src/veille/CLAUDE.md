@@ -24,9 +24,10 @@
   `@ThrottleByToken` (`src/common/token-throttler.guard.ts`) — почему, сказано
   у декоратора.
 - `GET /veille/changement?token=…` → `VeilleService.getChangeStatus`; почему
-  один `findFirst`, а не `findUnique` — докблок метода. `POST` (применение,
-  фаза 2) читает ту же заявку своим отдельным захватом — второго поиска по
-  хешу не заводить.
+  один `findFirst`, а не `findUnique` — докблок метода.
+- `POST /veille/changement` → `VeilleService.applyChange`; удаление заявки —
+  сам атомарный захват (докблок метода), второго поиска по хешу заводить не
+  нужно. Без `@ThrottleByToken` — почему, research «Контракт API».
 - `dto/veille-token.dto.ts` (`VeilleTokenDto`) — одна DTO с полем `token` для
   обоих `POST`, второй такой же не заводить.
 - `veille-confirmation-mail.ts` — единственная сборка письма подтверждения;

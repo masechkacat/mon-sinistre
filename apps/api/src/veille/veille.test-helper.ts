@@ -72,8 +72,8 @@ export const createVeille = async (
 
 /**
  * A confirmed subscription plus its pending `VeilleChange` request — the
- * fixture every `GET /veille/changement` spec needs, without going through
- * the form/mail round trip that produces one in production. Built on
+ * fixture every `/veille/changement` spec needs, without going through the
+ * form/mail round trip that produces one in production. Built on
  * `createVeille` rather than writing its own `Veille` row.
  */
 export const createChangeRequest = async (
@@ -82,8 +82,14 @@ export const createChangeRequest = async (
     expiresAt: Date;
     communeCodes: string[];
   }> = {},
-): Promise<{ changeToken: string; veilleId: string }> => {
-  const { veilleId } = await createVeille(prisma, { confirmedAt: new Date() });
+): Promise<{
+  changeToken: string;
+  unsubscribeToken: string;
+  veilleId: string;
+}> => {
+  const { veilleId, unsubscribeToken } = await createVeille(prisma, {
+    confirmedAt: new Date(),
+  });
   const change = generateVeilleToken();
   await prisma.veilleChange.create({
     data: {
@@ -93,5 +99,5 @@ export const createChangeRequest = async (
       expiresAt: overrides.expiresAt ?? nextChangeExpiresAt(),
     },
   });
-  return { changeToken: change.token, veilleId };
+  return { changeToken: change.token, unsubscribeToken, veilleId };
 };
