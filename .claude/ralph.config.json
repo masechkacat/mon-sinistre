@@ -1,6 +1,6 @@
 {
   "feature": "veille-commune-change",
-  "phases": [2],
+  "phases": [],
   "maxIterations": 5,
   "stallLimit": 2,
   "model": "claude-sonnet-5",
