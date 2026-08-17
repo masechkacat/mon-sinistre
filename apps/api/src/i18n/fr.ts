@@ -48,13 +48,16 @@ export const fr = {
         expiresIn: (days: string) =>
           `Ce lien de confirmation est valable ${days} jours.`,
       },
-      alreadySubscribed: {
-        subject: 'Vous êtes déjà inscrit·e à la veille Mon Sinistre',
+      change: {
+        subject: 'Confirmez la modification de votre veille Mon Sinistre',
         // Concatenated for the same reason as confirmation.intro above: the
-        // non-breaking space before ":" must stay a literal U+00A0.
+        // space before ":" must stay a literal U+00A0.
         intro:
-          'Vous avez rempli le formulaire de veille Mon Sinistre, mais vous' +
-          ' êtes déjà inscrit·e pour les communes suivantes :',
+          'Vous avez demandé à modifier votre veille Mon Sinistre. Le' +
+          ' nouveau suivi porterait sur les communes suivantes :',
+        changeLink: 'Confirmer la modification',
+        expiresIn: (days: string) =>
+          `Ce lien de modification est valable ${days} jours.`,
       },
       reason:
         'vous avez laissé votre adresse sur le formulaire de veille de Mon Sinistre',

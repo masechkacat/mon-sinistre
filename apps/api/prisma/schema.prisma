@@ -15,7 +15,7 @@ generator client {
 // не удаляются: строка остаётся с effectiveTo и ссылкой на successor.
 // Доменные даты — колонки date, не timestamp (правило проекта).
 model Commune {
-  codeInsee          String    @id
+  codeInsee          String          @id
   name               String
   // Поисковый ключ названия: normalizeCommuneName(name), заполняется импортом.
   // Nullable до backfill (перезапуск идемпотентного импорта), затем NOT NULL
@@ -24,13 +24,13 @@ model Commune {
   departementCode    String
   departementName    String
   // null = код действует в актуальном COG
-  effectiveTo        DateTime? @db.Date
+  effectiveTo        DateTime?       @db.Date
   // куда влилась commune nouvelle; резолвится итеративно на чтении
   successorCodeInsee String?
-  successor          Commune?  @relation("CommuneSuccessor", fields: [successorCodeInsee], references: [codeInsee], onDelete: Restrict)
-  predecessors       Commune[] @relation("CommuneSuccessor")
+  successor          Commune?        @relation("CommuneSuccessor", fields: [successorCodeInsee], references: [codeInsee], onDelete: Restrict)
+  predecessors       Commune[]       @relation("CommuneSuccessor")
   sourceUrl          String
-  sourceVerifiedAt   DateTime  @db.Date
+  sourceVerifiedAt   DateTime        @db.Date
   veilleCommunes     VeilleCommune[]
 
   // Префиксный поиск и сортировка: колонка объявлена COLLATE "C" (миграция
@@ -54,10 +54,23 @@ model Veille {
   confirmExpiresAt     DateTime        @db.Timestamptz(6)
   createdAt            DateTime        @default(now()) @db.Timestamptz(6)
   communes             VeilleCommune[]
+  change               VeilleChange?
 
   // Индекс под часовую чистку — частичный, Prisma такие не выражает: CREATE
   // INDEX и причина живут в миграции veille_cleanup_indexes, дрейфом это не
   // считается — как collation у Commune.nameNormalized выше.
+}
+
+// Неподтверждённая заявка на смену состава коммун — docs/research/veille-commune-change.md.
+// На рассылку не влияет: действующий состав — только VeilleCommune.
+model VeilleChange {
+  id              String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  veilleId        String   @unique @db.Uuid
+  veille          Veille   @relation(fields: [veilleId], references: [id], onDelete: Cascade)
+  changeTokenHash String   @unique
+  communeCodes    String[]
+  expiresAt       DateTime @db.Timestamptz(6)
+  createdAt       DateTime @default(now()) @db.Timestamptz(6)
 }
 
 model VeilleCommune {

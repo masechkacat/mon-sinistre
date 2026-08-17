@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import {
+  VEILLE_CHANGE_TTL_DAYS,
   VEILLE_CONFIRM_TTL_DAYS,
   VEILLE_FORM_EMAIL_DAILY_LIMIT,
   type VeilleConfirmationStatus,
@@ -11,10 +12,13 @@ import type { EnvironmentVariables } from 'src/config/env.validation';
 import { MailCompositionError } from 'src/mail/mail-composition.error';
 import type { ComposeMailInput } from 'src/mail/mail-message';
 import { MailService } from 'src/mail/mail.service';
-import { isUniqueViolationOn } from 'src/prisma/prisma-error';
+import {
+  isForeignKeyViolation,
+  isUniqueViolationOn,
+} from 'src/prisma/prisma-error';
 import { PrismaService } from 'src/prisma/prisma.service';
 import type { CreateVeilleDto } from './dto/create-veille.dto';
-import { alreadySubscribedMailFor } from './veille-already-subscribed-mail';
+import { changeMailFor } from './veille-change-mail';
 import {
   confirmationMailFor,
   type ChosenCommune,
@@ -27,6 +31,9 @@ export const DAY_MS = 24 * 60 * 60 * 1000;
 
 export const nextConfirmExpiresAt = (): Date =>
   new Date(Date.now() + VEILLE_CONFIRM_TTL_DAYS * DAY_MS);
+
+export const nextChangeExpiresAt = (): Date =>
+  new Date(Date.now() + VEILLE_CHANGE_TTL_DAYS * DAY_MS);
 
 /**
  * The one comparison of the confirmation deadline with "now", in the two
@@ -65,7 +72,14 @@ const classifyConfirmation = (
 
 /** What `claimUnconfirmed` found, and the row it claimed if it claimed one. */
 type Claim =
-  { kind: 'rewritten'; veilleId: string } | { kind: 'confirmed' | 'absent' };
+  { kind: 'rewritten' | 'confirmed'; veilleId: string } | { kind: 'absent' };
+
+/**
+ * Thrown only inside the transaction of `upsertChangeRequest`'s mail step, to
+ * roll it back — a plain early `return null` would still commit whichever of
+ * the two rotations already ran, stranding a hash whose token nobody received.
+ */
+class ChangeMailRaceLost extends Error {}
 
 @Injectable()
 export class VeilleService {
@@ -98,16 +112,18 @@ export class VeilleService {
 
   /**
    * Branches on what the address holds at the moment of the write (docs/
-   * research, «Сценарии формы и гонка уникальности» с врезкой фазы 4): nothing
-   * → create; unconfirmed → rewrite its communes, extend the deadline and
-   * resend the confirmation mail with rotated tokens; confirmed → row
-   * untouched, only a "déjà inscrit·e" reminder mail goes out with the communes
-   * it actually has, ignoring whatever this new form submitted. The branch is
-   * decided by the write that takes it (`claimUnconfirmed`), so no row is ever
-   * rewritten — or resurrected — on the strength of a lookup it has since
-   * outlived. The one race left is a concurrent create hitting the unique
-   * index: retried once (`isRetry`), so that the loser lands in the branch that
-   * is true after the race instead of answering 204 with nothing written.
+   * research, «Сценарии формы и гонка уникальности» с врезкой фазы 4, и
+   * docs/research/veille-commune-change.md, «Ветка подтверждённого адреса»):
+   * nothing → create; unconfirmed → rewrite its communes, extend the deadline
+   * and resend the confirmation mail with rotated tokens; confirmed → the
+   * active subscription is untouched, and the new composition lands in its
+   * `VeilleChange` request instead, mailed as a change-confirmation link. The
+   * branch is decided by the write that takes it (`claimUnconfirmed`), so no
+   * row is ever rewritten — or resurrected — on the strength of a lookup it
+   * has since outlived. The one race left is a concurrent create hitting the
+   * unique index: retried once (`isRetry`), so that the loser lands in the
+   * branch that is true after the race instead of answering 204 with nothing
+   * written.
    */
   private async upsertSubscription(
     email: string,
@@ -117,7 +133,7 @@ export class VeilleService {
   ): Promise<void> {
     const claim = await this.claimUnconfirmed(email, communeCodes);
     if (claim.kind === 'confirmed') {
-      await this.sendAlreadySubscribedMail(email);
+      await this.upsertChangeRequest(claim.veilleId, email, communeCodes);
       return;
     }
     if (claim.kind === 'rewritten') {
@@ -196,9 +212,12 @@ export class VeilleService {
       if (claimed.count === 0) {
         const existing = await tx.veille.findUnique({
           where: { email },
-          select: { confirmedAt: true },
+          select: { id: true, confirmedAt: true },
         });
-        return { kind: existing?.confirmedAt ? 'confirmed' : 'absent' };
+        if (!existing) return { kind: 'absent' };
+        return existing.confirmedAt
+          ? { kind: 'confirmed', veilleId: existing.id }
+          : { kind: 'absent' };
       }
 
       const { id } = await tx.veille.findUniqueOrThrow({
@@ -246,42 +265,115 @@ export class VeilleService {
   }
 
   /**
-   * Reads the subscription's own communes rather than trusting the caller's
-   * `communes` — the whole point of this branch is that a different list in
-   * the new form changes nothing; the composition is not part of the write,
-   * so "не меняет состав коммун" still holds. Why the unsubscribe hash
-   * rotates, and only inside the limit gate — research, врезка «Исправлено
-   * при реализации».
+   * The confirmed branch of a resubmission (docs/research/
+   * veille-commune-change.md, «Ветка подтверждённого адреса в subscribe»):
+   * the pending request's composition and deadline are rewritten on every
+   * submission — win or lose the rate limit below — so a delivered link
+   * always opens onto what the next confirmation would actually apply.
+   * `veilleId` comes from the same claim that already proved the row
+   * confirmed, so the write below cannot land on a different subscription's
+   * request in the email-normalisation race that `claimUnconfirmed` guards
+   * against; the mail-gated rotation further down still keys its unsubscribe
+   * half by `email` (research: same condition as the deleted
+   * `sendAlreadySubscribedMail`), since that hash lives on `Veille`, not on
+   * this request.
+   *
+   * `create` needs *some* hash to satisfy the column — `placeholder` — whose
+   * token is dropped on the spot: the rotation below mails a freshly generated
+   * one. What the placeholder can outlive is the mail — the daily limit may
+   * suppress it, the rotation may lose its race — and it then stays in the
+   * column as a hash nobody holds the token for. That is the harmless end of
+   * the race: an unreachable request confirms nothing and expires on its own,
+   * unlike a rotated hash whose token was never delivered, which is what
+   * `rotateAndSendChangeMail` goes to the trouble of preventing. A stored
+   * `changeTokenHash` is therefore no proof that a link went out.
+   *
+   * The FK this insert relies on can still lose a race of its own — a
+   * concurrent desinscription deleting the `Veille` row between
+   * `claimUnconfirmed`'s read and this write — which surfaces as `P2003`
+   * (`veille-schema.int-spec.ts` holds Prisma to that code); treated the same
+   * as every other
+   * "vanished mid-flight" race in this file, nothing left to hold a pending
+   * request for.
    */
-  private async sendAlreadySubscribedMail(email: string): Promise<void> {
-    await this.sendFormMail(email, async () => {
-      const unsubscribe = generateVeilleToken();
-      const rotated = await this.prisma.veille.updateMany({
-        where: { email, confirmedAt: { not: null } },
-        data: { unsubscribeTokenHash: unsubscribe.hash },
-      });
-      // A concurrent desinscription can race us between the lookup in
-      // `upsertSubscription` and here — nothing left to remind about.
-      if (rotated.count === 0) return null;
-
-      const veille = await this.prisma.veille.findUnique({
-        where: { email },
-        select: {
-          communes: {
-            select: {
-              commune: { select: { name: true, departementName: true } },
-            },
-          },
+  private async upsertChangeRequest(
+    veilleId: string,
+    email: string,
+    communeCodes: string[],
+  ): Promise<void> {
+    const placeholder = generateVeilleToken();
+    try {
+      await this.prisma.veilleChange.upsert({
+        where: { veilleId },
+        create: {
+          veilleId,
+          communeCodes,
+          expiresAt: nextChangeExpiresAt(),
+          changeTokenHash: placeholder.hash,
         },
+        update: { communeCodes, expiresAt: nextChangeExpiresAt() },
       });
-      // Deleted between the rotation above and this read — rarer still, and
-      // a mail whose link is already dead again would be worse than silence.
-      if (!veille) return null;
-      return alreadySubscribedMailFor(
-        email,
-        veille.communes.map((c) => c.commune),
-        unsubscribe.token,
-      );
+    } catch (error) {
+      if (isForeignKeyViolation(error)) return;
+      throw error;
+    }
+
+    await this.rotateAndSendChangeMail(veilleId, email);
+  }
+
+  /**
+   * Token rotation is gated the same way `resendConfirmationMail`'s is: only
+   * a mail that actually goes out gets a link that still works. Both
+   * rotations and the read of the composition to mail share one transaction,
+   * not two independent `updateMany` calls — either the change hash matching
+   * zero rows (a concurrent desinscription already cascaded the request
+   * away) or the unsubscribe hash doing the same throws `ChangeMailRaceLost`
+   * to roll back, so a lost race can never strand a rotated `changeTokenHash`
+   * whose token was never mailed. The composition mailed is read back inside
+   * the same transaction rather than trusting the caller's snapshot: a second
+   * submission racing this one between `upsertChangeRequest`'s write and this
+   * rotation would otherwise mail a list that no longer matches what the
+   * link, once confirmed, actually applies.
+   */
+  private async rotateAndSendChangeMail(
+    veilleId: string,
+    email: string,
+  ): Promise<void> {
+    await this.sendFormMail(email, async () => {
+      try {
+        return await this.prisma.$transaction(async (tx) => {
+          const change = generateVeilleToken();
+          const unsubscribe = generateVeilleToken();
+          const rotatedChange = await tx.veilleChange.updateMany({
+            where: { veilleId },
+            data: { changeTokenHash: change.hash },
+          });
+          if (rotatedChange.count === 0) throw new ChangeMailRaceLost();
+          const rotatedUnsubscribe = await tx.veille.updateMany({
+            where: { email, confirmedAt: { not: null } },
+            data: { unsubscribeTokenHash: unsubscribe.hash },
+          });
+          if (rotatedUnsubscribe.count === 0) throw new ChangeMailRaceLost();
+
+          const request = await tx.veilleChange.findUniqueOrThrow({
+            where: { veilleId },
+            select: { communeCodes: true },
+          });
+          const communes = await tx.commune.findMany({
+            where: { codeInsee: { in: request.communeCodes } },
+            select: { name: true, departementName: true },
+          });
+          return changeMailFor(
+            email,
+            communes,
+            change.token,
+            unsubscribe.token,
+          );
+        });
+      } catch (error) {
+        if (error instanceof ChangeMailRaceLost) return null;
+        throw error;
+      }
     });
   }
 

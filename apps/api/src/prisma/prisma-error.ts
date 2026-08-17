@@ -54,6 +54,16 @@ export const isUniqueViolationOn = (
 };
 
 /**
+ * `P2003` — a `create`'s foreign key no longer resolves, because the parent
+ * row was deleted by a concurrent request between the read that chose this
+ * write and the write itself. Unlike `P2002` above, no field name is needed:
+ * every caller of this so far has exactly one FK to check.
+ */
+export const isForeignKeyViolation = (exception: unknown): boolean =>
+  exception instanceof Prisma.PrismaClientKnownRequestError &&
+  exception.code === 'P2003';
+
+/**
  * The code and the model — the only two things a Prisma error carries that are
  * safe to write down. The message quotes the values that failed the constraint
  * and `meta` holds the query arguments; in this product those are addresses and

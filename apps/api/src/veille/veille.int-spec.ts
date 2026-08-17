@@ -6,6 +6,7 @@ import {
   type ThrottlerStorageService,
 } from '@nestjs/throttler';
 import {
+  VEILLE_CHANGE_PATH,
   VEILLE_CONFIRM_PATH,
   VEILLE_FORM_EMAIL_DAILY_LIMIT,
   VEILLE_MAX_COMMUNES,
@@ -417,35 +418,46 @@ describe('POST /veille (integration)', () => {
         payload: { token },
       });
 
-    it('does not create a second subscription and leaves the commune composition untouched, even with a different list in the new form', async () => {
+    it('leaves the active commune composition untouched and writes a single pending change request carrying the latest form’s composition', async () => {
       await prisma.commune.create({ data: communeFixture('30189', 'Nîmes') });
       await prisma.commune.create({
         data: communeFixture('34172', 'Montpellier'),
       });
+      await prisma.commune.create({ data: communeFixture('75056', 'Paris') });
       const email = 'riverain@example.fr';
 
       await post({ email, communeCodes: ['30189'] });
       const [firstMail] = transport.sent;
       if (!firstMail) throw new Error('expected a first mail to be sent');
-      const confirmToken = tokenFrom(firstMail, VEILLE_CONFIRM_PATH);
-      expect((await confirm(confirmToken)).statusCode).toBe(200);
+      expect(
+        (await confirm(tokenFrom(firstMail, VEILLE_CONFIRM_PATH))).statusCode,
+      ).toBe(200);
 
+      // Same 204/empty response as a new or unconfirmed address — the caller
+      // cannot tell which branch it took.
       const second = await post({ email, communeCodes: ['34172'] });
-
       expect(second.statusCode).toBe(204);
       expect(second.payload).toBe('');
 
-      const rows = await prisma.veille.findMany({ where: { email } });
-      expect(rows).toHaveLength(1);
-      expect(rows[0]?.confirmedAt).not.toBeNull();
-
+      const veille = await prisma.veille.findFirstOrThrow({
+        where: { email },
+      });
       const communes = await prisma.veilleCommune.findMany({
-        where: { veilleId: rows[0]?.id },
+        where: { veilleId: veille.id },
       });
       expect(communes.map((c) => c.codeInsee)).toEqual(['30189']);
+
+      // A further submission rewrites the same request rather than adding a
+      // second one — `veilleId @unique` holds this at the schema level too.
+      await post({ email, communeCodes: ['75056'] });
+      const changes = await prisma.veilleChange.findMany({
+        where: { veilleId: veille.id },
+      });
+      expect(changes).toHaveLength(1);
+      expect(changes[0]?.communeCodes).toEqual(['75056']);
     });
 
-    it('sends a "déjà inscrit·e" mail listing the communes of the active subscription, with a working unsubscribe link', async () => {
+    it('sends a change mail listing the new composition, with a working unsubscribe link', async () => {
       await prisma.commune.create({ data: communeFixture('30189', 'Nîmes') });
       await prisma.commune.create({
         data: communeFixture('34172', 'Montpellier'),
@@ -455,66 +467,125 @@ describe('POST /veille (integration)', () => {
       await post({ email, communeCodes: ['30189'] });
       const [firstMail] = transport.sent;
       if (!firstMail) throw new Error('expected a first mail to be sent');
-      const confirmToken = tokenFrom(firstMail, VEILLE_CONFIRM_PATH);
-      await confirm(confirmToken);
+      await confirm(tokenFrom(firstMail, VEILLE_CONFIRM_PATH));
       transport.sent.length = 0;
 
       const res = await post({ email, communeCodes: ['34172'] });
-
       expect(res.statusCode).toBe(204);
       expect(transport.sent).toHaveLength(1);
-      const [reminder] = transport.sent;
-      if (!reminder) throw new Error('expected a reminder mail to be sent');
+      const [changeMail] = transport.sent;
+      if (!changeMail) throw new Error('expected a change mail to be sent');
 
-      expect(reminder.subject).toBe(fr.mail.veille.alreadySubscribed.subject);
-      // The submitted list (34172) is discarded — the mail names the
-      // subscription's actual, unchanged composition (30189).
-      expect(reminder.text).toContain('Nîmes (Gard)');
-      expect(reminder.text).not.toContain('Montpellier (Gard)');
+      expect(changeMail.subject).toBe(fr.mail.veille.change.subject);
+      // The mail names the *new* composition (34172), not the still-active
+      // one (30189) — the reader confirms what they are about to get.
+      expect(changeMail.text).toContain('Montpellier (Gard)');
+      expect(changeMail.text).not.toContain('Nîmes (Gard)');
 
-      // Reminder mails exist to reach someone who may have lost the mail
-      // sent at creation time, so this link has to actually unsubscribe —
-      // not just look like it does.
-      const reminderUnsubscribeToken = tokenFrom(
-        reminder,
-        VEILLE_UNSUBSCRIBE_PATH,
-      );
       const unsubscribeRes = await app.inject({
         method: 'POST',
         url: '/veille/desinscription',
-        payload: { token: reminderUnsubscribeToken },
+        payload: { token: tokenFrom(changeMail, VEILLE_UNSUBSCRIBE_PATH) },
       });
       expect(unsubscribeRes.statusCode).toBe(204);
       expect(await prisma.veille.findMany({ where: { email } })).toEqual([]);
     });
 
-    it('rotates the unsubscribe token, so the mail sent at creation time no longer unsubscribes on its own', async () => {
+    it('rotates both the change and the unsubscribe token on every submission, so the previous mail’s links stop matching', async () => {
+      await prisma.commune.create({ data: communeFixture('30189', 'Nîmes') });
+      await prisma.commune.create({
+        data: communeFixture('34172', 'Montpellier'),
+      });
+      const email = 'riverain@example.fr';
+
+      await post({ email, communeCodes: ['30189'] });
+      const [firstMail] = transport.sent;
+      if (!firstMail) throw new Error('expected a first mail to be sent');
+      const firstUnsubscribeToken = tokenFrom(
+        firstMail,
+        VEILLE_UNSUBSCRIBE_PATH,
+      );
+      await confirm(tokenFrom(firstMail, VEILLE_CONFIRM_PATH));
+      transport.sent.length = 0;
+
+      await post({ email, communeCodes: ['34172'] });
+      const [firstChangeMail] = transport.sent;
+      if (!firstChangeMail) throw new Error('expected a first change mail');
+      const staleChangeToken = tokenFrom(firstChangeMail, VEILLE_CHANGE_PATH);
+
+      await post({ email, communeCodes: ['30189'] });
+
+      const veille = await prisma.veille.findFirstOrThrow({
+        where: { email },
+      });
+      const change = await prisma.veilleChange.findUniqueOrThrow({
+        where: { veilleId: veille.id },
+      });
+      expect(change.changeTokenHash).not.toBe(
+        createHash('sha256').update(staleChangeToken).digest('hex'),
+      );
+
+      // Idempotent-looking 204 (anti-enumeration), but the row survives —
+      // the latest change mail's freshly rotated link is the one that works.
+      const staleUnsubscribeRes = await app.inject({
+        method: 'POST',
+        url: '/veille/desinscription',
+        payload: { token: firstUnsubscribeToken },
+      });
+      expect(staleUnsubscribeRes.statusCode).toBe(204);
+      expect(await prisma.veille.findMany({ where: { email } })).toHaveLength(
+        1,
+      );
+    });
+
+    // The 400 itself (0 or > VEILLE_MAX_COMMUNES communes) is already proven
+    // by the general validation tests above, for every address state — this
+    // one case is only here to prove the additional invariant of this
+    // branch: a rejected form must not touch VeilleChange either.
+    it('rejects more than VEILLE_MAX_COMMUNES communes with 400, creating no change request and leaving the composition untouched', async () => {
       await prisma.commune.create({ data: communeFixture('30189', 'Nîmes') });
       const email = 'riverain@example.fr';
 
       await post({ email, communeCodes: ['30189'] });
       const [firstMail] = transport.sent;
       if (!firstMail) throw new Error('expected a first mail to be sent');
-      const confirmToken = tokenFrom(firstMail, VEILLE_CONFIRM_PATH);
-      const firstUnsubscribeToken = tokenFrom(
-        firstMail,
-        VEILLE_UNSUBSCRIBE_PATH,
-      );
-      await confirm(confirmToken);
+      await confirm(tokenFrom(firstMail, VEILLE_CONFIRM_PATH));
+
+      const res = await post({
+        email,
+        communeCodes: Array.from({ length: VEILLE_MAX_COMMUNES + 1 }, (_, i) =>
+          String(i).padStart(5, '0'),
+        ),
+      });
+
+      expect(res.statusCode).toBe(400);
+      const veille = await prisma.veille.findFirstOrThrow({
+        where: { email },
+      });
+      const communes = await prisma.veilleCommune.findMany({
+        where: { veilleId: veille.id },
+      });
+      expect(communes.map((c) => c.codeInsee)).toEqual(['30189']);
+      expect(
+        await prisma.veilleChange.findMany({ where: { veilleId: veille.id } }),
+      ).toEqual([]);
+    });
+
+    it('never logs the email address on a confirmed resubmission', async () => {
+      await prisma.commune.create({ data: communeFixture('30189', 'Nîmes') });
+      await prisma.commune.create({
+        data: communeFixture('34172', 'Montpellier'),
+      });
+      const email = 'riverain@example.fr';
 
       await post({ email, communeCodes: ['30189'] });
+      const [firstMail] = transport.sent;
+      if (!firstMail) throw new Error('expected a first mail to be sent');
+      await confirm(tokenFrom(firstMail, VEILLE_CONFIRM_PATH));
 
-      const staleUnsubscribeRes = await app.inject({
-        method: 'POST',
-        url: '/veille/desinscription',
-        payload: { token: firstUnsubscribeToken },
-      });
-      // Idempotent-looking 204 (anti-enumeration), but the row survives —
-      // the reminder mail's freshly rotated link is the one that works now.
-      expect(staleUnsubscribeRes.statusCode).toBe(204);
-      expect(await prisma.veille.findMany({ where: { email } })).toHaveLength(
-        1,
-      );
+      await post({ email, communeCodes: ['34172'] });
+
+      logs.expectNoTraceOf(email);
     });
   });
 
@@ -590,8 +661,11 @@ describe('POST /veille (integration)', () => {
       expect(JSON.parse(confirmRes.payload)).toEqual({ status: 'active' });
     });
 
-    it('does not rotate the unsubscribe token when the limit suppresses the "déjà inscrit·e" mail', async () => {
+    it('does not rotate the change or unsubscribe tokens when the limit suppresses the change mail, but still rewrites the pending request', async () => {
       await prisma.commune.create({ data: communeFixture('30189', 'Nîmes') });
+      await prisma.commune.create({
+        data: communeFixture('34172', 'Montpellier'),
+      });
       const email = 'riverain@example.fr';
 
       await post({ email, communeCodes: ['30189'] });
@@ -604,28 +678,44 @@ describe('POST /veille (integration)', () => {
         payload: { token: tokenFrom(creationMail, VEILLE_CONFIRM_PATH) },
       });
 
-      // Reminder mails up to the limit; the last delivered one carries the
-      // unsubscribe token whose hash is stored.
+      // Change mails up to the limit; the last delivered one carries the
+      // tokens whose hashes are stored.
       for (let i = 1; i < VEILLE_FORM_EMAIL_DAILY_LIMIT; i++) {
         throttler.storage.clear();
-        await post({ email, communeCodes: ['30189'] });
+        await post({ email, communeCodes: ['34172'] });
       }
       expect(transport.sent).toHaveLength(VEILLE_FORM_EMAIL_DAILY_LIMIT);
-      const lastReminder = transport.sent[VEILLE_FORM_EMAIL_DAILY_LIMIT - 1];
-      if (!lastReminder) throw new Error('expected a reminder mail');
+      const lastChangeMail = transport.sent[VEILLE_FORM_EMAIL_DAILY_LIMIT - 1];
+      if (!lastChangeMail) throw new Error('expected a change mail');
 
       // Sixth form: suppressed — anonymous form submissions must not be able
-      // to invalidate every delivered unsubscribe link (ТЗ § 7, one-click).
+      // to invalidate every delivered unsubscribe or change link (ТЗ § 7,
+      // one-click), yet the request itself still reflects the latest form.
       throttler.storage.clear();
       expect((await post({ email, communeCodes: ['30189'] })).statusCode).toBe(
         204,
       );
       expect(transport.sent).toHaveLength(VEILLE_FORM_EMAIL_DAILY_LIMIT);
 
+      const veille = await prisma.veille.findFirstOrThrow({
+        where: { email },
+      });
+      const change = await prisma.veilleChange.findUniqueOrThrow({
+        where: { veilleId: veille.id },
+      });
+      expect(change.communeCodes).toEqual(['30189']);
+      expect(change.changeTokenHash).toBe(
+        createHash('sha256')
+          .update(tokenFrom(lastChangeMail, VEILLE_CHANGE_PATH))
+          .digest('hex'),
+      );
+
       const unsubscribeRes = await app.inject({
         method: 'POST',
         url: '/veille/desinscription',
-        payload: { token: tokenFrom(lastReminder, VEILLE_UNSUBSCRIBE_PATH) },
+        payload: {
+          token: tokenFrom(lastChangeMail, VEILLE_UNSUBSCRIBE_PATH),
+        },
       });
       expect(unsubscribeRes.statusCode).toBe(204);
       expect(await prisma.veille.findMany({ where: { email } })).toEqual([]);
@@ -651,7 +741,7 @@ describe('POST /veille (integration)', () => {
         ).statusCode,
       ).toBe(200);
 
-      // Four more "déjà inscrit·e" mails bring the count to the limit.
+      // Four more change mails bring the count to the limit.
       for (let i = 1; i < VEILLE_FORM_EMAIL_DAILY_LIMIT; i++) {
         throttler.storage.clear();
         const res = await post({ email, communeCodes: ['30189'] });
@@ -660,7 +750,7 @@ describe('POST /veille (integration)', () => {
       expect(transport.sent).toHaveLength(VEILLE_FORM_EMAIL_DAILY_LIMIT);
 
       const lastReminder = transport.sent[transport.sent.length - 1];
-      if (!lastReminder) throw new Error('expected a reminder mail');
+      if (!lastReminder) throw new Error('expected a change mail');
       const unsubscribeToken = tokenFrom(lastReminder, VEILLE_UNSUBSCRIBE_PATH);
       throttler.storage.clear();
       const unsub = await app.inject({

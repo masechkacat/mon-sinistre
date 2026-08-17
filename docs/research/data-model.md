@@ -274,6 +274,11 @@ Auth уже решён (api/CLAUDE.md): Passport local + JWT, refresh с рот�
   счётчик писем формы, детали `docs/research/veille-subscription-lifecycle.md`.
 - `VeilleNotification`: veilleId, arreteId, sentAt; `unique(veilleId, arreteId)` —
   повторный прогон монитора (rectificatif, ретрай) не шлёт письмо дважды.
+- `VeilleChange`: неподтверждённая заявка на смену состава коммун — id,
+  veilleId → Veille (cascade), changeTokenHash, communeCodes (скалярный
+  массив), expiresAt, createdAt. `unique(veilleId)` — у подписки не может
+  быть двух заявок разом, повторная форма переписывает единственную строку;
+  подробности docs/research/veille-commune-change.md.
 - `ReminderLog` (напоминания шагов): stepId → Step (cascade), **kind**
   (`SCALE` — напоминание по шкале, `OVERDUE` — о просрочке), offsetDays
   (факт: за сколько дней отправлено; для `OVERDUE` не используется),
@@ -290,8 +295,9 @@ Auth уже решён (api/CLAUDE.md): Passport local + JWT, refresh с рот�
 
 ## 7. Удаление (RGPD)
 
-- **Veille**: hard delete по запросу/отписке — каскад сносит VeilleCommune и
-  VeilleNotification. Немедленно, без корзины (жёсткое требование ТЗ § 7).
+- **Veille**: hard delete по запросу/отписке — каскад сносит VeilleCommune,
+  VeilleNotification и VeilleChange. Немедленно, без корзины (жёсткое
+  требование ТЗ § 7).
 - **User**: удаление аккаунта — каскад User → Sinistre → Step/InventoryItem →
   File строками БД **плюс** удаление объектов S3 по `storageKey`. Порядок:
   сначала собрать ключи, удалить строки транзакцией, затем чистить S3
