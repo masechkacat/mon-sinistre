@@ -18,6 +18,15 @@ describe('Veille / VeilleCommune schema (integration)', () => {
     await prisma.$executeRaw`TRUNCATE TABLE "Veille", "Commune", "VeilleFormEmail" CASCADE`;
   });
 
+  function veilleChangeData(overrides: Partial<{ veilleId: string }> = {}) {
+    return {
+      veilleId: overrides.veilleId ?? '',
+      changeTokenHash: `change-${Math.random()}`,
+      communeCodes: ['30189'],
+      expiresAt: new Date('2026-08-24'),
+    };
+  }
+
   async function createCommune(codeInsee: string) {
     return prisma.commune.create({
       data: {
@@ -83,5 +92,51 @@ describe('Veille / VeilleCommune schema (integration)', () => {
     await expect(
       prisma.commune.delete({ where: { codeInsee: commune.codeInsee } }),
     ).rejects.toMatchObject({ code: 'P2039' });
+  });
+
+  it('rejects a second VeilleChange for the same subscription via the unique index', async () => {
+    const veille = await prisma.veille.create({ data: veilleData() });
+    await prisma.veilleChange.create({
+      data: veilleChangeData({ veilleId: veille.id }),
+    });
+
+    await expect(
+      prisma.veilleChange.create({
+        data: veilleChangeData({ veilleId: veille.id }),
+      }),
+    ).rejects.toMatchObject({ code: 'P2002' });
+  });
+
+  it('upsert rewrites the single VeilleChange for a subscription', async () => {
+    const veille = await prisma.veille.create({ data: veilleData() });
+    const data = veilleChangeData({ veilleId: veille.id });
+    await prisma.veilleChange.create({ data });
+
+    const rewritten = { ...data, communeCodes: ['30007'] };
+    await prisma.veilleChange.upsert({
+      where: { veilleId: veille.id },
+      create: rewritten,
+      update: rewritten,
+    });
+
+    const rows = await prisma.veilleChange.findMany({
+      where: { veilleId: veille.id },
+    });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.communeCodes).toEqual(['30007']);
+  });
+
+  it('cascades: deleting a Veille removes its VeilleChange', async () => {
+    const veille = await prisma.veille.create({ data: veilleData() });
+    await prisma.veilleChange.create({
+      data: veilleChangeData({ veilleId: veille.id }),
+    });
+
+    await prisma.veille.delete({ where: { id: veille.id } });
+
+    const remaining = await prisma.veilleChange.findMany({
+      where: { veilleId: veille.id },
+    });
+    expect(remaining).toEqual([]);
   });
 });
