@@ -131,3 +131,18 @@ export const VEILLE_CONFIRMATION_STATUSES = [
 ] as const;
 export type VeilleConfirmationStatus =
   (typeof VEILLE_CONFIRMATION_STATUSES)[number];
+
+/**
+ * `pending` reflects a live `VeilleChange`; `applied` is the terminal answer of
+ * `POST` only — the row is deleted the moment it applies, so it is never read
+ * back as `pending`. `invalid` covers an unknown token, an expired request and
+ * an already-applied one — the three causes are never told apart (anti-
+ * enumeration), same principle and same reason for a runtime array as
+ * `VEILLE_CONFIRMATION_STATUSES` above.
+ */
+export const VEILLE_CHANGE_STATUSES = [
+  'pending',
+  'applied',
+  'invalid',
+] as const;
+export type VeilleChangeStatus = (typeof VEILLE_CHANGE_STATUSES)[number];

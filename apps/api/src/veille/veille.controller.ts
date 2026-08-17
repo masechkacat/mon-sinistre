@@ -15,10 +15,14 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
-import type { VeilleConfirmationResponse } from '@mon-sinistre/contracts';
+import type {
+  VeilleChangeResponse,
+  VeilleConfirmationResponse,
+} from '@mon-sinistre/contracts';
 import { ThrottleByToken } from 'src/common/token-throttler.guard';
 import { CreateVeilleDto } from './dto/create-veille.dto';
 import { VeilleTokenDto } from './dto/veille-token.dto';
+import { VeilleChangeResponseDto } from './dto/veille-change-response.dto';
 import { VeilleConfirmationResponseDto } from './dto/veille-confirmation-response.dto';
 import { VeilleService } from './veille.service';
 
@@ -94,6 +98,28 @@ export class VeilleController {
     @Body() body: VeilleTokenDto,
   ): Promise<VeilleConfirmationResponse> {
     return { status: await this.veille.confirm(body.token) };
+  }
+
+  @Get('changement')
+  @ApiOperation({
+    summary: 'Read the status of a pending change-of-composition request',
+    description:
+      'Read-only: visiting this link (e.g. a mail client preview) never ' +
+      'applies the change. An unknown token answers the same "invalid" as ' +
+      'an expired request — the cause is not told apart.',
+  })
+  @ApiQuery({
+    name: 'token',
+    description: 'Token carried by the veille change link',
+  })
+  @ApiOkResponse({ type: VeilleChangeResponseDto })
+  async getChangeStatus(
+    // A bare param, for the same reason as the confirmation GET above.
+    @Query('token') token?: string | string[],
+  ): Promise<VeilleChangeResponse> {
+    return typeof token === 'string'
+      ? await this.veille.getChangeStatus(token)
+      : { status: 'invalid' };
   }
 
   @ThrottleByToken()

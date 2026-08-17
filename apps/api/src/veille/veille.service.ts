@@ -5,6 +5,7 @@ import {
   VEILLE_CHANGE_TTL_DAYS,
   VEILLE_CONFIRM_TTL_DAYS,
   VEILLE_FORM_EMAIL_DAILY_LIMIT,
+  type VeilleChangeResponse,
   type VeilleConfirmationStatus,
 } from '@mon-sinistre/contracts';
 import { errorSummary, stackOf } from 'src/common/error-report';
@@ -443,6 +444,30 @@ export class VeilleService {
       data: { confirmedAt: new Date() },
     });
     return confirmed.count > 0 ? 'active' : this.getConfirmationStatus(token);
+  }
+
+  /**
+   * `findFirst`, not `findUnique`: the expiry condition rides along in the
+   * same query, so an unknown token and an expired-but-still-there request
+   * come back identically as "no row" — no second, JS-side check to keep in
+   * sync with the one the cleanup and `POST` use. `changeTokenHash` stays
+   * unique, so this is still a single-row lookup by index, not a scan.
+   */
+  async getChangeStatus(token: string): Promise<VeilleChangeResponse> {
+    const change = await this.prisma.veilleChange.findFirst({
+      where: {
+        changeTokenHash: hashVeilleToken(token),
+        expiresAt: { gte: new Date() },
+      },
+      select: { communeCodes: true },
+    });
+    if (!change) return { status: 'invalid' };
+
+    const communes = await this.prisma.commune.findMany({
+      where: { codeInsee: { in: change.communeCodes } },
+      select: { name: true, departementName: true },
+    });
+    return { status: 'pending', communes };
   }
 
   /**

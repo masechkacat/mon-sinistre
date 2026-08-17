@@ -23,6 +23,10 @@
   `VeilleCommune` сносится вместе с `Veille`. Единственный маршрут под
   `@ThrottleByToken` (`src/common/token-throttler.guard.ts`) — почему, сказано
   у декоратора.
+- `GET /veille/changement?token=…` → `VeilleService.getChangeStatus`; почему
+  один `findFirst`, а не `findUnique` — докблок метода. `POST` (применение,
+  фаза 2) читает ту же заявку своим отдельным захватом — второго поиска по
+  хешу не заводить.
 - `dto/veille-token.dto.ts` (`VeilleTokenDto`) — одна DTO с полем `token` для
   обоих `POST`, второй такой же не заводить.
 - `veille-confirmation-mail.ts` — единственная сборка письма подтверждения;
