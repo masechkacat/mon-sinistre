@@ -50,6 +50,25 @@ export const veilleDesinscriptionConfirmer = {
   path: '/veille/desinscription/confirmer?token=invalide' as Route,
   status: 200,
 } as const;
+// Same rationale as veilleConfirmation above: the status GET fires on load,
+// so it needs a mock to reach "lien invalide" instead of the RequestError
+// screen this suite is not meant to cover.
+export const veilleChange = {
+  path: '/veille/changement?token=invalide' as Route,
+  status: 200,
+  ready: (page: Page) =>
+    expect(
+      page.getByRole('heading', { name: fr.veille.change.invalid.title }),
+    ).toBeVisible(),
+  mockApi: (page: Page) =>
+    page.route(`${testApiBaseUrl}/veille/changement**`, (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ status: 'invalid' }),
+      }),
+    ),
+} as const;
 // Derived from the registry the footer renders, so a legal page cannot be
 // covered by the shared suites while missing from the site, or vice versa.
 const legalEntries = legalPages.map(
@@ -63,6 +82,7 @@ export const pages = [
   veille,
   veilleConfirmation,
   veilleDesinscriptionConfirmer,
+  veilleChange,
   ...legalEntries,
 ] as const;
 

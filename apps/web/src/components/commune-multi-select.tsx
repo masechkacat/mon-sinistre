@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/input';
 import { apiFetch } from '@/lib/api/client';
 import { queryKeys } from '@/lib/api/keys';
+import { communeLabel } from '@/lib/commune-label';
 import { cn } from '@/lib/utils';
 import { fr } from '@/i18n/fr';
 
@@ -26,8 +27,6 @@ const NO_ITEMS: Commune[] = [];
 const SEARCH_DEBOUNCE_MS = 250;
 
 const isSameCommune = (a: Commune, b: Commune) => a.codeInsee === b.codeInsee;
-const communeLabel = (commune: Commune) =>
-  `${commune.name} (${commune.departementName})`;
 
 export interface CommuneMultiSelectProps {
   value: Commune[];
