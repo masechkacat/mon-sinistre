@@ -104,6 +104,16 @@ export const VEILLE_FORM_EMAIL_DAILY_LIMIT = 5;
  */
 export const VEILLE_UNSUBSCRIBE_PATH = '/veille/desinscription';
 export const VEILLE_CONFIRM_PATH = '/veille/confirmation';
+export const VEILLE_CHANGE_PATH = '/veille/changement';
+
+/**
+ * How long a veille change (pending `VeilleChange`) link stays valid, in
+ * days. A separate constant from `VEILLE_CONFIRM_TTL_DAYS`: the two delays
+ * are independent product decisions that merely coincide in value
+ * (docs/research/veille-commune-change.md) — reusing the confirmation one
+ * would make a change to either silently move the other.
+ */
+export const VEILLE_CHANGE_TTL_DAYS = 7;
 
 /**
  * `pending`/`active` reflect `Veille.confirmedAt`; `invalid` covers both an
