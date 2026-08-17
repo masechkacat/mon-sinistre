@@ -33,21 +33,17 @@ const changeInput = () =>
   );
 
 describe('veille change mail (fr.mail.veille.change + contracts constants)', () => {
-  it('carries the change link with its token', () => {
+  // Оба набора целиком, а не toContain: лишняя ссылка в письме — вторая
+  // отписка, чужой путь — иначе прошла бы незамеченной.
+  it('carries exactly the change link and the footer unsubscribe link', () => {
     const message = composer().compose(changeInput());
 
     const changeUrl = `${FRONTEND_URL}${VEILLE_CHANGE_PATH}?token=${CHANGE_TOKEN}`;
-    expect(mailLinksOf(message.text)).toContain(changeUrl);
-    expect(mailLinksOf(message.html)).toContain(changeUrl);
-    expect(message.text).toContain(fr.mail.veille.change.changeLink);
-  });
-
-  it('carries the unsubscribe link in the footer', () => {
-    const message = composer().compose(changeInput());
-
     const unsubscribeUrl = `${FRONTEND_URL}${VEILLE_UNSUBSCRIBE_PATH}?token=${UNSUBSCRIBE_TOKEN}`;
-    expect(mailLinksOf(message.text)).toContain(unsubscribeUrl);
-    expect(mailLinksOf(message.html)).toContain(unsubscribeUrl);
+    const links = new Set([changeUrl, unsubscribeUrl]);
+    expect(mailLinksOf(message.text)).toEqual(links);
+    expect(mailLinksOf(message.html)).toEqual(links);
+    expect(message.text).toContain(fr.mail.veille.change.changeLink);
     expect(message.text).toContain(fr.mail.footer.unsubscribe);
   });
 

@@ -278,12 +278,21 @@ export class VeilleService {
    * `sendAlreadySubscribedMail`), since that hash lives on `Veille`, not on
    * this request.
    *
-   * `create` needs *some* hash to satisfy the column — `placeholder` — but it
-   * is never the one mailed: the rotation below always follows, and always
-   * finds the row this upsert just guaranteed exists. The FK this insert
-   * relies on can still lose a race of its own — a concurrent desinscription
-   * deleting the `Veille` row between `claimUnconfirmed`'s read and this
-   * write — which surfaces as `P2003`; treated the same as every other
+   * `create` needs *some* hash to satisfy the column — `placeholder` — whose
+   * token is dropped on the spot: the rotation below mails a freshly generated
+   * one. What the placeholder can outlive is the mail — the daily limit may
+   * suppress it, the rotation may lose its race — and it then stays in the
+   * column as a hash nobody holds the token for. That is the harmless end of
+   * the race: an unreachable request confirms nothing and expires on its own,
+   * unlike a rotated hash whose token was never delivered, which is what
+   * `rotateAndSendChangeMail` goes to the trouble of preventing. A stored
+   * `changeTokenHash` is therefore no proof that a link went out.
+   *
+   * The FK this insert relies on can still lose a race of its own — a
+   * concurrent desinscription deleting the `Veille` row between
+   * `claimUnconfirmed`'s read and this write — which surfaces as `P2003`
+   * (`veille-schema.int-spec.ts` holds Prisma to that code); treated the same
+   * as every other
    * "vanished mid-flight" race in this file, nothing left to hold a pending
    * request for.
    */

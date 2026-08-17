@@ -1,4 +1,5 @@
 import { PrismaClient } from 'src/generated/prisma/client';
+import { isForeignKeyViolation } from 'src/prisma/prisma-error';
 import { createIntTestPrismaClient } from 'src/prisma/prisma-client.int-helper';
 
 // Schema-level guarantees of the veille migration:
@@ -124,6 +125,21 @@ describe('Veille / VeilleCommune schema (integration)', () => {
     });
     expect(rows).toHaveLength(1);
     expect(rows[0]?.communeCodes).toEqual(['30007']);
+  });
+
+  // The race `upsertChangeRequest`'s docblock describes. Asserted through the
+  // guard, not the bare code — RESTRICT above already shows the driver adapter
+  // is free to renumber what Postgres raised.
+  it('surfaces a vanished parent as the violation isForeignKeyViolation catches', async () => {
+    const veille = await prisma.veille.create({ data: veilleData() });
+    await prisma.veille.delete({ where: { id: veille.id } });
+    const data = veilleChangeData({ veilleId: veille.id });
+
+    const error: unknown = await prisma.veilleChange
+      .upsert({ where: { veilleId: veille.id }, create: data, update: data })
+      .catch((raised: unknown) => raised);
+
+    expect(isForeignKeyViolation(error)).toBe(true);
   });
 
   it('cascades: deleting a Veille removes its VeilleChange', async () => {
