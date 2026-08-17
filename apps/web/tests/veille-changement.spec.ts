@@ -1,4 +1,9 @@
-import { expect, test, type Route as PlaywrightRoute } from '@playwright/test';
+import {
+  expect,
+  test,
+  type Page,
+  type Route as PlaywrightRoute,
+} from '@playwright/test';
 import { fr } from '../src/i18n/fr';
 import { expectNoAxeViolations } from './a11y';
 import { testApiBaseUrl } from './env';
@@ -9,6 +14,16 @@ const PENDING_COMMUNES = [
   { name: 'Lourdes', departementName: 'Hautes-Pyrénées' },
   { name: 'Tarbes', departementName: 'Hautes-Pyrénées' },
 ];
+
+// TanStack Query refetches the mounted status query when the tab regains
+// focus; both events are dispatched because the listener it installs depends
+// on the environment.
+function focusTab(page: Page) {
+  return page.evaluate(() => {
+    document.dispatchEvent(new Event('visibilitychange', { bubbles: true }));
+    window.dispatchEvent(new Event('visibilitychange'));
+  });
+}
 
 function fulfillGet(route: PlaywrightRoute) {
   return route.fulfill({
@@ -130,10 +145,7 @@ test('a status refetch that fails after applying does not take the applied scree
   // refetches (retry: 1) are awaited so the failure has been through the
   // query's error state and the render it triggers before asserting below.
   const refetchOnFocus = async () => {
-    await page.evaluate(() => {
-      document.dispatchEvent(new Event('visibilitychange', { bubbles: true }));
-      window.dispatchEvent(new Event('visibilitychange'));
-    });
+    await focusTab(page);
     return getCalls;
   };
   await expect.poll(refetchOnFocus).toBeGreaterThanOrEqual(5);
@@ -176,6 +188,72 @@ test('an unknown token shows "lien invalide"', async ({ page }) => {
     page.getByRole('heading', { name: fr.veille.change.invalid.title }),
   ).toBeVisible();
   await expect(page.getByRole('button')).toHaveCount(0);
+});
+
+test('a status refetch that fails on the pending screen does not take the composition away', async ({
+  page,
+}) => {
+  let getCalls = 0;
+  await page.route(`${testApiBaseUrl}/veille/changement**`, (route) => {
+    getCalls += 1;
+    // The link lives 7 days: the first GET answers, the rest stand in for a
+    // connection lost while the tab was left open.
+    return getCalls === 1 ? fulfillGet(route) : route.abort();
+  });
+
+  await page.goto(`/veille/changement?token=${PENDING_TOKEN}`);
+  await expect(
+    page.getByRole('button', { name: fr.veille.change.confirmButton }),
+  ).toBeVisible();
+
+  const refetchOnFocus = async () => {
+    await focusTab(page);
+    return getCalls;
+  };
+  await expect.poll(refetchOnFocus).toBeGreaterThanOrEqual(5);
+
+  await expect(
+    page.getByText(
+      `${PENDING_COMMUNES[0].name} (${PENDING_COMMUNES[0].departementName})`,
+    ),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: fr.veille.change.confirmButton }),
+  ).toBeVisible();
+  await expect(page.getByTestId('request-error')).toHaveCount(0);
+});
+
+test('an empty commune list is not offered for confirmation', async ({
+  page,
+}) => {
+  let postCalled = false;
+  await page.route(`${testApiBaseUrl}/veille/changement**`, (route) => {
+    if (route.request().method() === 'POST') {
+      postCalled = true;
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ status: 'applied' }),
+      });
+    }
+    // The API joins the requested codes against the Commune table and drops
+    // those with no row, so a stale reference table can empty the list the
+    // page exists to show.
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ status: 'pending', communes: [] }),
+    });
+  });
+
+  await page.goto(`/veille/changement?token=${PENDING_TOKEN}`);
+
+  await expect(page.getByTestId('request-error')).toBeVisible();
+  await expect(
+    page.getByText(fr.veille.change.pending.description),
+  ).toHaveCount(0);
+  await expect(page.getByRole('button')).toHaveCount(0);
+  expect(postCalled).toBe(false);
 });
 
 for (const colorScheme of ['light', 'dark'] as const) {

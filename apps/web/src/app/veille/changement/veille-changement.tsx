@@ -54,6 +54,8 @@ export function VeilleChangement() {
         ? fr.veille.change.invalid
         : undefined;
 
+  const communes = statusQuery.data?.communes ?? [];
+
   return (
     <AnnouncedResult
       result={result}
@@ -62,20 +64,31 @@ export function VeilleChangement() {
     >
       <PageContainer className="space-y-6">
         <PageTitle>{fr.veille.change.page.title}</PageTitle>
-        {statusQuery.isError ? (
-          // Same distinction as veille-confirmation.tsx, same reason.
+        {statusQuery.isError && !statusQuery.data ? (
+          // Same distinction as veille-confirmation.tsx, same reason. The
+          // `!data` guard extends the priority rule above to a composition
+          // already read: the link lives 7 days, so a tab left open refetches
+          // on focus, and a failure there must not take away the list the user
+          // is about to confirm — RequestError offers no way back.
           <RequestError />
         ) : status === undefined ? (
           <p className="text-lg text-muted-foreground">
             {fr.veille.change.loading}
           </p>
+        ) : communes.length === 0 ? (
+          // The page's safety argument is that it shows exactly what will be
+          // applied (research § «Страница web»). The API builds the list by
+          // joining the request against the Commune table and silently drops
+          // codes with no row, so an empty list means the composition cannot
+          // be shown — confirming it unseen is worse than retrying later.
+          <RequestError />
         ) : (
           <>
             <p className="text-lg text-muted-foreground">
               {fr.veille.change.pending.description}
             </p>
             <ul className="list-disc space-y-1 pl-6 text-lg text-muted-foreground">
-              {(statusQuery.data?.communes ?? []).map((commune) => (
+              {communes.map((commune) => (
                 <li key={`${commune.name}-${commune.departementName}`}>
                   {communeLabel(commune)}
                 </li>
