@@ -2,7 +2,9 @@
 
 Подписка на уведомления об arrêté по выбранным коммунам. Решения фичи —
 `docs/research/veille-subscription-lifecycle.md`; план по фазам —
-`docs/plan/veille-subscription-lifecycle.md`.
+`docs/plan/veille-subscription-lifecycle.md`. Изменение состава коммун уже
+подтверждённой подписки — `docs/research/veille-commune-change.md`, план —
+`docs/plan/veille-commune-change.md`.
 
 ## Точки входа
 
@@ -25,9 +27,10 @@
   обоих `POST`, второй такой же не заводить.
 - `veille-confirmation-mail.ts` — единственная сборка письма подтверждения;
   её же зовёт спека рядом, второго описания того же письма не заводить.
-- `veille-already-subscribed-mail.ts` — единственная сборка письма «déjà
-  inscrit·e» (уходит подтверждённому адресу при повторной форме); её же
-  зовёт спека рядом, второго описания того же письма не заводить.
+- `veille-change-mail.ts` — единственная сборка письма изменения состава
+  (уходит подтверждённому адресу при повторной форме с другим составом;
+  ссылка ведёт на заявку `VeilleChange`, не применяет её сама); её же зовёт
+  спека рядом, второго описания того же письма не заводить.
 - `veille-token.ts` — единственный способ получить пару токен/хеш
   (`generateVeilleToken`) и пересчитать хеш по токену (`hashVeilleToken`,
   используется и статусом подтверждения, и отпиской — оба ищут `Veille` по
@@ -39,9 +42,9 @@
   `VeilleService.sendFormMail` — единственная точка проверки лимита
   (`VEILLE_FORM_EMAIL_DAILY_LIMIT`, скользящие 24 часа) и точка отправки
   писем формы: все три письма (создание, `resendConfirmationMail`,
-  `sendAlreadySubscribedMail`) уходят через неё, не через
-  `MailService.send()` напрямую. Композиция — callback за гейтом лимита;
-  почему — docblock `sendFormMail`.
+  `rotateAndSendChangeMail`) уходят через неё, не через `MailService.send()`
+  напрямую. Композиция — callback за гейтом лимита; почему — docblock
+  `sendFormMail`.
 
 ## Почему токен живёт в query, а не в сегменте пути
 
@@ -52,10 +55,15 @@
 
 ## Ветка `subscribe` реализует все три сценария research
 
-Ветвление, гонка `P2002`, состав письма «déjà inscrit·e» и перевыпуск
-ссылок повторных писем — в docblock'ах `VeilleService.upsertSubscription`,
-`claimUnconfirmed`, `resendConfirmationMail` и
-`sendAlreadySubscribedMail`, здесь не пересказывается.
+Ветвление, гонка `P2002` и перевыпуск ссылок повторных писем — в
+docblock'ах `VeilleService.upsertSubscription`, `claimUnconfirmed` и
+`resendConfirmationMail`, здесь не пересказывается. Ветка подтверждённого
+адреса (заявка `VeilleChange`, а не письмо «déjà inscrit·e») — docblock'и
+`upsertChangeRequest` (запись заявки, гонка с каскадом отписки) и
+`rotateAndSendChangeMail` (ротация токенов и перечитывание состава внутри
+одной транзакции); заявка живёт 1:1 к `Veille`
+(`docs/research/veille-commune-change.md`, `data-model.md` § 6) и не влияет
+на действующий состав до подтверждения по отдельной ссылке (фаза 2).
 
 Коды коммун дедуплицируются до сверки со справочником — иначе повторённый в
 форме код читался бы как несуществующий (сравнение шло бы с длиной исходного
