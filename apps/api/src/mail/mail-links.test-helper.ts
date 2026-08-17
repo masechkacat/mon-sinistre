@@ -14,3 +14,18 @@ export const mailLinksOf = (contents: string): Set<string> =>
       url.replaceAll('&amp;', '&'),
     ),
   );
+
+/**
+ * The `token` query param of the one link in `message` containing `path` —
+ * shared by every veille spec that needs the token a mail actually carried,
+ * rather than the one a fixture wrote to the database.
+ */
+export const tokenFrom = (message: { text: string }, path: string): string => {
+  const url = [...mailLinksOf(message.text)].find((link) =>
+    link.includes(path),
+  );
+  if (!url) throw new Error(`no link containing "${path}" in the mail`);
+  const token = new URL(url).searchParams.get('token');
+  if (!token) throw new Error(`link "${url}" carries no token`);
+  return token;
+};

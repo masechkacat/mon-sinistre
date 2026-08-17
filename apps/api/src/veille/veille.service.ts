@@ -5,10 +5,12 @@ import {
   VEILLE_CHANGE_TTL_DAYS,
   VEILLE_CONFIRM_TTL_DAYS,
   VEILLE_FORM_EMAIL_DAILY_LIMIT,
+  type VeilleChangeResponse,
   type VeilleConfirmationStatus,
 } from '@mon-sinistre/contracts';
 import { errorSummary, stackOf } from 'src/common/error-report';
 import type { EnvironmentVariables } from 'src/config/env.validation';
+import type { Prisma } from 'src/generated/prisma/client';
 import { MailCompositionError } from 'src/mail/mail-composition.error';
 import type { ComposeMailInput } from 'src/mail/mail-message';
 import { MailService } from 'src/mail/mail.service';
@@ -224,11 +226,22 @@ export class VeilleService {
         where: { email },
         select: { id: true },
       });
-      await tx.veilleCommune.deleteMany({ where: { veilleId: id } });
-      await tx.veilleCommune.createMany({
-        data: communeCodes.map((codeInsee) => ({ veilleId: id, codeInsee })),
-      });
+      await this.replaceCommunes(tx, id, communeCodes);
       return { kind: 'rewritten', veilleId: id };
+    });
+  }
+
+  /** The one place `VeilleCommune` rows are dropped and rebuilt wholesale — the
+   * subscribe rewrite and the change-request apply share this, not a
+   * merge/diff against the previous set. */
+  private async replaceCommunes(
+    tx: Prisma.TransactionClient,
+    veilleId: string,
+    communeCodes: string[],
+  ): Promise<void> {
+    await tx.veilleCommune.deleteMany({ where: { veilleId } });
+    await tx.veilleCommune.createMany({
+      data: communeCodes.map((codeInsee) => ({ veilleId, codeInsee })),
     });
   }
 
@@ -361,6 +374,7 @@ export class VeilleService {
           });
           const communes = await tx.commune.findMany({
             where: { codeInsee: { in: request.communeCodes } },
+            orderBy: { nameNormalized: 'asc' },
             select: { name: true, departementName: true },
           });
           return changeMailFor(
@@ -446,6 +460,71 @@ export class VeilleService {
   }
 
   /**
+   * `findFirst`, not `findUnique`: the expiry condition rides along in the
+   * same query, so an unknown token and an expired-but-still-there request
+   * come back identically as "no row" — no second, JS-side check to keep in
+   * sync with the one the cleanup and `POST` use. `changeTokenHash` stays
+   * unique, so this is still a single-row lookup by index, not a scan.
+   */
+  async getChangeStatus(token: string): Promise<VeilleChangeResponse> {
+    const change = await this.prisma.veilleChange.findFirst({
+      where: {
+        changeTokenHash: hashVeilleToken(token),
+        expiresAt: { gte: new Date() },
+      },
+      select: { communeCodes: true },
+    });
+    if (!change) return { status: 'invalid' };
+
+    const communes = await this.prisma.commune.findMany({
+      where: { codeInsee: { in: change.communeCodes } },
+      orderBy: { nameNormalized: 'asc' },
+      select: { name: true, departementName: true },
+    });
+    return { status: 'pending', communes };
+  }
+
+  /**
+   * Applies a pending change request by deleting it — the delete's
+   * `changeTokenHash` + `expiresAt` condition is the atomic capture
+   * (research, «Применение изменения»): a repeat `POST`, two racing tabs and
+   * the hourly cleanup all resolve through that one `deleteMany`'s row count,
+   * no `P2025` in sight. The hash rides along in the delete's own condition,
+   * not just the read before it: `communeCodes` are read ahead of the
+   * capture (`deleteMany` itself returns only a count), and read committed
+   * lets a concurrent resubmission rewrite the row between that read and the
+   * delete — repeating the hash makes a since-rotated token fail its own
+   * claim instead of deleting the row under someone else's now-current hash.
+   * It does not pin the composition itself: `upsertChangeRequest` rewrites
+   * `communeCodes` under the unchanged hash (rotation is a later, separate
+   * transaction, and a mail suppressed by the daily limit skips it
+   * altogether), so a resubmission landing inside that window is applied as
+   * the set this link promised and loses its own request to the claim.
+   * `communeCodes` are not re-validated against the
+   * commune registry here — that happened when the form was submitted,
+   * `Commune` rows are never deleted, and the FK on `createMany` still
+   * guards referential integrity.
+   */
+  async applyChange(token: string): Promise<VeilleChangeResponse> {
+    const changeTokenHash = hashVeilleToken(token);
+    return this.prisma.$transaction(async (tx) => {
+      const change = await tx.veilleChange.findUnique({
+        where: { changeTokenHash },
+        select: { veilleId: true, communeCodes: true },
+      });
+      if (!change) return { status: 'invalid' };
+
+      const claimed = await tx.veilleChange.deleteMany({
+        where: { changeTokenHash, expiresAt: { gte: new Date() } },
+      });
+      if (claimed.count === 0) return { status: 'invalid' };
+
+      await this.replaceCommunes(tx, change.veilleId, change.communeCodes);
+      return { status: 'applied' };
+    });
+  }
+
+  /**
    * `deleteMany`, not `delete`: a token matching no row must not throw — a
    * repeat call and a call on an already-deleted subscription are both a
    * silent no-op.
@@ -457,16 +536,17 @@ export class VeilleService {
   }
 
   /**
-   * Single hourly trigger for both cleanups (research, «Удаление
-   * неподтверждённых за 7 дней и чистка счётчика»): the two `deleteMany`
-   * calls are independent of each other, but the schedule is one — a second
-   * `@Cron` on the same expression would just be two names for the same tick.
+   * Single hourly trigger for all three cleanups (research, «Удаление
+   * неподтверждённых за 7 дней и чистка счётчика» и «Чистка просроченных
+   * заявок»): the `deleteMany` calls are independent of each other, but the
+   * schedule is one — a second `@Cron` on the same expression would just be
+   * two names for the same tick.
    *
    * Each runs guarded so that the independence holds for failures too: nothing
    * above a scheduled tick catches anything — `AllExceptionsFilter` only sees
-   * requests — so an unguarded rejection would cost the second cleanup its
-   * turn and reach the log as the scheduler's own `console.error`, message and
-   * all.
+   * requests — so an unguarded rejection would cost the remaining cleanups
+   * their turn and reach the log as the scheduler's own `console.error`,
+   * message and all.
    */
   @Cron(CronExpression.EVERY_HOUR)
   async cleanupExpired(): Promise<void> {
@@ -475,6 +555,9 @@ export class VeilleService {
     );
     await this.guarded('deleteStaleFormEmailCounters', () =>
       this.deleteStaleFormEmailCounters(),
+    );
+    await this.guarded('deleteExpiredChanges', () =>
+      this.deleteExpiredChanges(),
     );
   }
 
@@ -510,6 +593,23 @@ export class VeilleService {
   async deleteStaleFormEmailCounters(): Promise<void> {
     await this.prisma.veilleFormEmail.deleteMany({
       where: { sentAt: { lt: new Date(Date.now() - DAY_MS) } },
+    });
+  }
+
+  /**
+   * The third guarded branch of the same hourly tick (research, «Чистка
+   * просроченных заявок»): hard-deletes `VeilleChange` rows past their
+   * `expiresAt`, no `Veille`/`VeilleCommune` read or write involved — the
+   * subscription stays in whatever composition it already has. No index
+   * backs this delete, and that is not an oversight: unlike
+   * `deleteExpiredUnconfirmed` above, this table never accumulates rows a
+   * scan would have to skip past — every row is either applied (deleted by
+   * `applyChange`), cascaded away with its subscription, or still live —
+   * so a seq scan by `expiresAt` already is the right plan.
+   */
+  async deleteExpiredChanges(): Promise<void> {
+    await this.prisma.veilleChange.deleteMany({
+      where: { expiresAt: { lt: new Date() } },
     });
   }
 }

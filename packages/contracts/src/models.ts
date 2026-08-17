@@ -5,6 +5,7 @@ import {
   SinistreStatus,
   StepAnchor,
   StepStatus,
+  VeilleChangeStatus,
   VeilleConfirmationStatus,
 } from './enums';
 import { IsoDate, IsoDateTime } from './iso-date';
@@ -87,6 +88,16 @@ export interface Veille {
 /** Response body of the veille confirmation endpoints (`GET`/`POST`). */
 export interface VeilleConfirmationResponse {
   status: VeilleConfirmationStatus;
+}
+
+/**
+ * Response body of the veille change-of-composition endpoints (`GET`/`POST`).
+ * `communes` is the pending request's new composition — present only when
+ * `status` is `pending` (`GET`; `POST` never returns it).
+ */
+export interface VeilleChangeResponse {
+  status: VeilleChangeStatus;
+  communes?: Pick<Commune, 'name' | 'departementName'>[];
 }
 
 /** One insurance claim being accompanied. */

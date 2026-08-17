@@ -15,10 +15,14 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
-import type { VeilleConfirmationResponse } from '@mon-sinistre/contracts';
+import type {
+  VeilleChangeResponse,
+  VeilleConfirmationResponse,
+} from '@mon-sinistre/contracts';
 import { ThrottleByToken } from 'src/common/token-throttler.guard';
 import { CreateVeilleDto } from './dto/create-veille.dto';
 import { VeilleTokenDto } from './dto/veille-token.dto';
+import { VeilleChangeResponseDto } from './dto/veille-change-response.dto';
 import { VeilleConfirmationResponseDto } from './dto/veille-confirmation-response.dto';
 import { VeilleService } from './veille.service';
 
@@ -94,6 +98,47 @@ export class VeilleController {
     @Body() body: VeilleTokenDto,
   ): Promise<VeilleConfirmationResponse> {
     return { status: await this.veille.confirm(body.token) };
+  }
+
+  @Get('changement')
+  @ApiOperation({
+    summary: 'Read the status of a pending change-of-composition request',
+    description:
+      'Read-only: visiting this link (e.g. a mail client preview) never ' +
+      'applies the change. An unknown token answers the same "invalid" as ' +
+      'an expired request — the cause is not told apart.',
+  })
+  @ApiQuery({
+    name: 'token',
+    description: 'Token carried by the veille change link',
+  })
+  @ApiOkResponse({ type: VeilleChangeResponseDto })
+  async getChangeStatus(
+    // A bare param, for the same reason as the confirmation GET above.
+    @Query('token') token?: string | string[],
+  ): Promise<VeilleChangeResponse> {
+    return typeof token === 'string'
+      ? await this.veille.getChangeStatus(token)
+      : { status: 'invalid' };
+  }
+
+  @Post('changement')
+  // Nest answers 201 to a POST by default; the contract of this endpoint is
+  // 200 { status } whatever the token turns out to be.
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Apply a pending change-of-composition request',
+    description:
+      'Deletes the request and rewrites the active composition to match it ' +
+      'in the same step — the whole new set, not a merge with the previous ' +
+      'one. A repeat call, an unknown token and an expired request all ' +
+      'answer "invalid", the cause not told apart.',
+  })
+  @ApiOkResponse({ type: VeilleChangeResponseDto })
+  async applyChange(
+    @Body() body: VeilleTokenDto,
+  ): Promise<VeilleChangeResponse> {
+    return this.veille.applyChange(body.token);
   }
 
   @ThrottleByToken()

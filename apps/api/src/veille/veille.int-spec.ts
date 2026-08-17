@@ -18,7 +18,7 @@ import { MailComposer } from 'src/mail/mail-composer';
 import { MailCompositionError } from 'src/mail/mail-composition.error';
 import { MailDeliveryError } from 'src/mail/mail-delivery.error';
 import { captureLogs } from 'src/mail/mail-log.test-helper';
-import { mailLinksOf } from 'src/mail/mail-links.test-helper';
+import { tokenFrom } from 'src/mail/mail-links.test-helper';
 import type { MailMessage } from 'src/mail/mail-message';
 import { MAIL_TRANSPORT, type MailTransport } from 'src/mail/mail-transport';
 import { PrismaService } from 'src/prisma/prisma.service';
@@ -40,16 +40,6 @@ class RecordingTransport implements MailTransport {
     return Promise.resolve();
   }
 }
-
-const tokenFrom = (message: MailMessage, path: string): string => {
-  const url = [...mailLinksOf(message.text)].find((link) =>
-    link.includes(path),
-  );
-  if (!url) throw new Error(`no link containing "${path}" in the mail`);
-  const token = new URL(url).searchParams.get('token');
-  if (!token) throw new Error(`link "${url}" carries no token`);
-  return token;
-};
 
 describe('POST /veille (integration)', () => {
   let app: NestFastifyApplication;
