@@ -34,6 +34,7 @@ describe('VeilleService cleanup schedule', () => {
           useValue: {
             veille: { deleteMany },
             veilleFormEmail: { deleteMany },
+            veilleChange: { deleteMany },
           },
         },
         { provide: MailService, useValue: {} },
@@ -47,7 +48,7 @@ describe('VeilleService cleanup schedule', () => {
     await moduleRef.close();
   });
 
-  it('runs both cleanups hourly, and nothing else on a schedule', async () => {
+  it('runs all three cleanups hourly, and nothing else on a schedule', async () => {
     const registry = moduleRef.get(SchedulerRegistry);
     expect(registry.getIntervals()).toEqual([]);
     expect(registry.getTimeouts()).toEqual([]);
@@ -61,6 +62,6 @@ describe('VeilleService cleanup schedule', () => {
     // the loop is all a cleanup needs when its queries are stubs.
     await new Promise((resolve) => setImmediate(resolve));
 
-    expect(deleteMany).toHaveBeenCalledTimes(2);
+    expect(deleteMany).toHaveBeenCalledTimes(3);
   });
 });

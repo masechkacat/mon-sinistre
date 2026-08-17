@@ -89,3 +89,14 @@ docblock'ах `VeilleService.upsertSubscription`, `claimUnconfirmed` и
 Счётчик писем формы (`VeilleFormEmail`) удаление подписки переживает: чем он
 за неё держится и на каком сроке уходит сам — докблок
 `deleteStaleFormEmailCounters`.
+
+## Жизненный цикл заявки на изменение состава
+
+Заявка `VeilleChange` (1:1 к `Veille`, см. выше) исчезает одним из трёх
+путей — применена (`applyChange` удаляет строку внутри той же транзакции, что
+переписывает `VeilleCommune`), просрочена (третья guarded-ветка
+`cleanupExpired` — докблок `deleteExpiredChanges`, почему без индекса) или
+снесена каскадом вместе с подпиской при отписке. Все три — один и тот же
+приём (`deleteMany`/`onDelete: Cascade`), второй код чистки не заводить;
+`deleteExpiredChanges` не читает и не пишет `Veille`/`VeilleCommune`, поэтому
+подписка при просрочке заявки продолжает жить в прежнем составе.

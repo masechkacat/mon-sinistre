@@ -530,16 +530,17 @@ export class VeilleService {
   }
 
   /**
-   * Single hourly trigger for both cleanups (research, «Удаление
-   * неподтверждённых за 7 дней и чистка счётчика»): the two `deleteMany`
-   * calls are independent of each other, but the schedule is one — a second
-   * `@Cron` on the same expression would just be two names for the same tick.
+   * Single hourly trigger for all three cleanups (research, «Удаление
+   * неподтверждённых за 7 дней и чистка счётчика» и «Чистка просроченных
+   * заявок»): the `deleteMany` calls are independent of each other, but the
+   * schedule is one — a second `@Cron` on the same expression would just be
+   * two names for the same tick.
    *
    * Each runs guarded so that the independence holds for failures too: nothing
    * above a scheduled tick catches anything — `AllExceptionsFilter` only sees
-   * requests — so an unguarded rejection would cost the second cleanup its
-   * turn and reach the log as the scheduler's own `console.error`, message and
-   * all.
+   * requests — so an unguarded rejection would cost the remaining cleanups
+   * their turn and reach the log as the scheduler's own `console.error`,
+   * message and all.
    */
   @Cron(CronExpression.EVERY_HOUR)
   async cleanupExpired(): Promise<void> {
@@ -548,6 +549,9 @@ export class VeilleService {
     );
     await this.guarded('deleteStaleFormEmailCounters', () =>
       this.deleteStaleFormEmailCounters(),
+    );
+    await this.guarded('deleteExpiredChanges', () =>
+      this.deleteExpiredChanges(),
     );
   }
 
@@ -583,6 +587,23 @@ export class VeilleService {
   async deleteStaleFormEmailCounters(): Promise<void> {
     await this.prisma.veilleFormEmail.deleteMany({
       where: { sentAt: { lt: new Date(Date.now() - DAY_MS) } },
+    });
+  }
+
+  /**
+   * The third guarded branch of the same hourly tick (research, «Чистка
+   * просроченных заявок»): hard-deletes `VeilleChange` rows past their
+   * `expiresAt`, no `Veille`/`VeilleCommune` read or write involved — the
+   * subscription stays in whatever composition it already has. No index
+   * backs this delete, and that is not an oversight: unlike
+   * `deleteExpiredUnconfirmed` above, this table never accumulates rows a
+   * scan would have to skip past — every row is either applied (deleted by
+   * `applyChange`), cascaded away with its subscription, or still live —
+   * so a seq scan by `expiresAt` already is the right plan.
+   */
+  async deleteExpiredChanges(): Promise<void> {
+    await this.prisma.veilleChange.deleteMany({
+      where: { expiresAt: { lt: new Date() } },
     });
   }
 }

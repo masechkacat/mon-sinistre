@@ -3,8 +3,10 @@ import { createIntTestApp } from 'src/app.int-helper';
 import { captureLogs } from 'src/mail/mail-log.test-helper';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { DAY_MS, VeilleService } from './veille.service';
+import { generateVeilleToken } from './veille-token';
 import {
   communeFixture,
+  createChangeRequest,
   createFormEmail,
   createVeille,
 } from './veille.test-helper';
@@ -81,6 +83,57 @@ describe('VeilleService.cleanupExpired (integration)', () => {
     });
   });
 
+  describe('deleteExpiredChanges', () => {
+    it('deletes an expired change request', async () => {
+      const { veilleId } = await createChangeRequest(prisma, {
+        expiresAt: new Date(Date.now() - DAY_MS),
+      });
+
+      await veille.deleteExpiredChanges();
+
+      expect(
+        await prisma.veilleChange.findFirst({ where: { veilleId } }),
+      ).toBeNull();
+    });
+
+    it('leaves the subscription and its active communes untouched', async () => {
+      await prisma.commune.create({ data: communeFixture('30189', 'Nîmes') });
+      const { veilleId } = await createVeille(prisma, {
+        confirmedAt: new Date(),
+        communeCodes: ['30189'],
+      });
+      const change = generateVeilleToken();
+      await prisma.veilleChange.create({
+        data: {
+          veilleId,
+          changeTokenHash: change.hash,
+          communeCodes: [],
+          expiresAt: new Date(Date.now() - DAY_MS),
+        },
+      });
+
+      await veille.deleteExpiredChanges();
+
+      expect(
+        await prisma.veille.findUnique({ where: { id: veilleId } }),
+      ).not.toBeNull();
+      const communes = await prisma.veilleCommune.findMany({
+        where: { veilleId },
+      });
+      expect(communes.map((c) => c.codeInsee)).toEqual(['30189']);
+    });
+
+    it('keeps a change request whose deadline has not passed', async () => {
+      const { veilleId } = await createChangeRequest(prisma);
+
+      await veille.deleteExpiredChanges();
+
+      expect(
+        await prisma.veilleChange.findFirst({ where: { veilleId } }),
+      ).not.toBeNull();
+    });
+  });
+
   describe('deleteStaleFormEmailCounters', () => {
     it('removes counter rows older than the 24-hour window', async () => {
       await createFormEmail(prisma, DAY_MS + 1000);
@@ -99,8 +152,11 @@ describe('VeilleService.cleanupExpired (integration)', () => {
     });
   });
 
-  it('runs the counter cleanup even when the subscription cleanup fails, and logs no message of the failure', async () => {
+  it('runs the other two cleanups even when the subscription cleanup fails, and logs no message of the failure', async () => {
     await createFormEmail(prisma, DAY_MS + 1000);
+    const { veilleId } = await createChangeRequest(prisma, {
+      expiresAt: new Date(Date.now() - DAY_MS),
+    });
     // A Prisma message is where an address would reach the log — the tick
     // catches the failure itself, precisely so nothing prints it verbatim.
     jest
@@ -112,6 +168,9 @@ describe('VeilleService.cleanupExpired (integration)', () => {
     await expect(veille.cleanupExpired()).resolves.toBeUndefined();
 
     expect(await prisma.veilleFormEmail.findFirst()).toBeNull();
+    expect(
+      await prisma.veilleChange.findFirst({ where: { veilleId } }),
+    ).toBeNull();
     expect(logs.levels()).toContain('error');
     logs.expectNoTraceOf('riverain@example.fr');
   });
