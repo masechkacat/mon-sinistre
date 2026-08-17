@@ -3,4 +3,5 @@ export const queryKeys = {
   communes: (q: string) => ['communes', q] as const,
   veilleConfirmation: (token: string) =>
     ['veille', 'confirmation', token] as const,
+  veilleChange: (token: string) => ['veille', 'changement', token] as const,
 };

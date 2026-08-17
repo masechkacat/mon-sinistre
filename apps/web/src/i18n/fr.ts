@@ -1,5 +1,14 @@
 // The space before ":" and "?" is a literal U+00A0, not a typo — same
 // convention as apps/api/src/i18n/fr.ts.
+
+// Shared across veille.confirmation and veille.change below: same fact
+// (link being checked, link no longer usable, alert reaches the watched
+// communes), same wording — one string, not a fact stated twice.
+const VEILLE_LIEN_VERIFICATION_EN_COURS = 'Vérification du lien en cours…';
+const VEILLE_LIEN_INVALIDE = 'Lien invalide';
+const VEILLE_ALERTE_ARRETE =
+  'Vous recevrez un message le jour même de la publication d’un arrêté de catastrophe naturelle concernant une des communes surveillées.';
+
 export const fr = {
   serviceName: 'Mon Sinistre',
   layout: {
@@ -77,7 +86,7 @@ export const fr = {
     },
     confirmation: {
       page: { title: 'Confirmer votre inscription' },
-      loading: 'Vérification du lien en cours…',
+      loading: VEILLE_LIEN_VERIFICATION_EN_COURS,
       pending: {
         description:
           'Pour activer votre veille, confirmez que cette adresse e-mail est bien la vôtre.',
@@ -86,13 +95,31 @@ export const fr = {
       confirming: 'Confirmation en cours…',
       active: {
         title: 'Votre veille est active',
-        description:
-          'Vous recevrez un message le jour même de la publication d’un arrêté de catastrophe naturelle concernant une des communes surveillées.',
+        description: VEILLE_ALERTE_ARRETE,
       },
       invalid: {
-        title: 'Lien invalide',
+        title: VEILLE_LIEN_INVALIDE,
         description:
           'Ce lien de confirmation n’est plus valable : il a peut-être déjà été utilisé, ou son délai de validité est dépassé.',
+      },
+    },
+    change: {
+      page: { title: 'Confirmer la modification de votre veille' },
+      loading: VEILLE_LIEN_VERIFICATION_EN_COURS,
+      pending: {
+        description:
+          'Voici la nouvelle liste des communes surveillées. Pour l’appliquer, confirmez la modification.',
+      },
+      confirmButton: 'Confirmer la modification',
+      confirming: 'Modification en cours…',
+      applied: {
+        title: 'Modification appliquée',
+        description: `La liste des communes surveillées a été mise à jour. ${VEILLE_ALERTE_ARRETE}`,
+      },
+      invalid: {
+        title: VEILLE_LIEN_INVALIDE,
+        description:
+          'Ce lien de modification n’est plus valable : il a peut-être déjà été utilisé, ou son délai de validité est dépassé.',
       },
     },
     desinscription: {
