@@ -1,18 +1,16 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, PickType } from '@nestjs/swagger';
 import {
   VEILLE_CHANGE_STATUSES,
   type VeilleChangeResponse,
   type VeilleChangeStatus,
 } from '@mon-sinistre/contracts';
+import { CommuneResponseDto } from 'src/communes/dto/commune-response.dto';
 
 /** One commune of the pending request's new composition. */
-class VeilleChangeCommuneDto {
-  @ApiProperty({ example: 'Nîmes' })
-  name: string;
-
-  @ApiProperty({ example: 'Gard' })
-  departementName: string;
-}
+class VeilleChangeCommuneDto extends PickType(CommuneResponseDto, [
+  'name',
+  'departementName',
+] as const) {}
 
 /**
  * Swagger-only mirror of {@link VeilleChangeResponse} — `implements` makes the

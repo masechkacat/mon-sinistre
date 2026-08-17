@@ -241,7 +241,7 @@ describe('/veille/changement (integration)', () => {
       if (!firstChangeMail) throw new Error('expected a first change mail');
       const staleToken = tokenFrom(firstChangeMail, VEILLE_CHANGE_PATH);
 
-      await post({ email, communeCodes: ['30189'] });
+      await post({ email, communeCodes: ['34172'] });
       const latestChangeMail = transport.sent[transport.sent.length - 1];
       if (!latestChangeMail) throw new Error('expected a second change mail');
       const latestToken = tokenFrom(latestChangeMail, VEILLE_CHANGE_PATH);
@@ -267,7 +267,7 @@ describe('/veille/changement (integration)', () => {
             where: { veilleId: veille.id },
           })
         ).map((c) => c.codeInsee),
-      ).toEqual(['30189']);
+      ).toEqual(['34172']);
     });
   });
 });

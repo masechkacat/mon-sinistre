@@ -14,6 +14,7 @@ import { MailCompositionError } from 'src/mail/mail-composition.error';
 import { MailDeliveryError } from 'src/mail/mail-delivery.error';
 import type { ComposeMailInput, MailMessage } from 'src/mail/mail-message';
 import { MAIL_TRANSPORT, type MailTransport } from 'src/mail/mail-transport';
+import { RecordingTransport } from 'src/mail/mail-transport.test-helper';
 import { MailModule } from 'src/mail/mail.module';
 import { MailService } from 'src/mail/mail.service';
 import {
@@ -46,15 +47,6 @@ const input = (
   blocks: [{ kind: 'paragraph', text: 'Un texte de test suffisamment long.' }],
   ...overrides,
 });
-
-class RecordingTransport implements MailTransport {
-  readonly sent: MailMessage[] = [];
-
-  send(message: MailMessage): Promise<void> {
-    this.sent.push(message);
-    return Promise.resolve();
-  }
-}
 
 const TRANSPORT_FAILURE = 'transport responded 500';
 const TRANSPORT_CAUSE = 'connection reset by peer';

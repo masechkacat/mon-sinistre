@@ -374,6 +374,7 @@ export class VeilleService {
           });
           const communes = await tx.commune.findMany({
             where: { codeInsee: { in: request.communeCodes } },
+            orderBy: { nameNormalized: 'asc' },
             select: { name: true, departementName: true },
           });
           return changeMailFor(
@@ -477,6 +478,7 @@ export class VeilleService {
 
     const communes = await this.prisma.commune.findMany({
       where: { codeInsee: { in: change.communeCodes } },
+      orderBy: { nameNormalized: 'asc' },
       select: { name: true, departementName: true },
     });
     return { status: 'pending', communes };
@@ -491,10 +493,14 @@ export class VeilleService {
    * not just the read before it: `communeCodes` are read ahead of the
    * capture (`deleteMany` itself returns only a count), and read committed
    * lets a concurrent resubmission rewrite the row between that read and the
-   * delete — repeating the hash closes the window by making a since-rotated
-   * token fail its own claim instead of deleting the row under someone
-   * else's now-current hash and applying the composition this read saw
-   * before the rotation. `communeCodes` are not re-validated against the
+   * delete — repeating the hash makes a since-rotated token fail its own
+   * claim instead of deleting the row under someone else's now-current hash.
+   * It does not pin the composition itself: `upsertChangeRequest` rewrites
+   * `communeCodes` under the unchanged hash (rotation is a later, separate
+   * transaction, and a mail suppressed by the daily limit skips it
+   * altogether), so a resubmission landing inside that window is applied as
+   * the set this link promised and loses its own request to the claim.
+   * `communeCodes` are not re-validated against the
    * commune registry here — that happened when the form was submitted,
    * `Commune` rows are never deleted, and the FK on `createMany` still
    * guards referential integrity.
