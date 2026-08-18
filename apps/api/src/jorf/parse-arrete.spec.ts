@@ -99,6 +99,95 @@ describe('parseArreteXml', () => {
     });
   });
 
+  describe('annexe shapes the reference fixture does not carry', () => {
+    const row = (cells: string[]) =>
+      `<tr>${cells.map((cell) => `<td><br/>${cell}</td>`).join('')}</tr>`;
+    const table = (headers: string[], rows: string[][]) =>
+      `<table border="1">${row(headers)}${rows.map(row).join('')}</table>`;
+    const HEADERS = [
+      'Département',
+      'Commune',
+      'Phénomène naturel',
+      'Date de début<br/>de l’événement',
+      'Date de fin<br/>de l’événement',
+    ];
+    const AMIGNY = [
+      'Aisne',
+      'Amigny-Rouy',
+      'Inondations',
+      '01/01/2025',
+      '31/12/2025',
+    ];
+    const MUSSIDAN = [
+      'Dordogne',
+      'Mussidan',
+      'Inondations',
+      '02/01/2025',
+      '03/01/2025',
+    ];
+
+    /** A minimal arrêté around one annexe — same tag layout as the DILA fixture, cut down to the annexe under test. */
+    const buildArrete = (annexeContent: string) => `<?xml version="1.0"?>
+      <TEXTE>
+        <NATURE>ARRETE</NATURE>
+        <ID>JORFTEXT000000000001</ID>
+        <NOR>INTE2600001A</NOR>
+        <DATE_TEXTE>2026-06-12</DATE_TEXTE>
+        <DATE_PUBLI>2026-06-13</DATE_PUBLI>
+        <ORIGINE_PUBLI>JORF n°0137 du 13 juin 2026</ORIGINE_PUBLI>
+        <STRUCT>
+          <SECTION_TA>
+            <TITRE_TA>Annexe</TITRE_TA>
+            <ARTICLE><BLOC_TEXTUEL><CONTENU>
+              <p>Communes reconnues en état de catastrophe naturelle</p>
+              ${annexeContent}
+            </CONTENU></BLOC_TEXTUEL></ARTICLE>
+          </SECTION_TA>
+        </STRUCT>
+      </TEXTE>`;
+
+    it('ingests an annexe whose table has no "Motivations" column', () => {
+      const entries = parseArreteXml(
+        buildArrete(table(HEADERS, [AMIGNY])),
+      )?.entries;
+
+      expect(entries).toHaveLength(1);
+      expect(entries?.[0]).toMatchObject({
+        communeLabelRaw: 'Amigny-Rouy',
+        eventStart: '2025-01-01',
+        outcome: ArreteEntryOutcome.RECONNU,
+        motivation: null,
+      });
+    });
+
+    it('reads every table of an annexe split across several', () => {
+      const entries = parseArreteXml(
+        buildArrete(table(HEADERS, [AMIGNY]) + table(HEADERS, [MUSSIDAN])),
+      )?.entries;
+
+      expect(entries?.map((entry) => entry.communeLabelRaw)).toEqual([
+        'Amigny-Rouy',
+        'Mussidan',
+      ]);
+    });
+
+    it('rejects a table missing a column the domain needs', () => {
+      const withoutRisque = HEADERS.filter(
+        (header) => header !== 'Phénomène naturel',
+      );
+
+      expect(() =>
+        parseArreteXml(
+          buildArrete(
+            table(withoutRisque, [
+              AMIGNY.filter((cell) => cell !== 'Inondations'),
+            ]),
+          ),
+        ),
+      ).toThrow('risque');
+    });
+  });
+
   it('computes a stable contentHash from the parsed content', () => {
     expect(parsed?.contentHash).toMatch(/^[0-9a-f]{64}$/);
     expect(parseArreteXml(arreteXml)?.contentHash).toBe(parsed?.contentHash);

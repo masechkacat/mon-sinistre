@@ -58,13 +58,18 @@ const COLUMN_MATCHERS: [ColumnKey, RegExp][] = [
   ['ignored', /^nombre de reconnaissances/],
 ];
 
+/**
+ * Columns a row is unusable without. `motivation` is deliberately not one of
+ * them although every 2026 annexe carries it: an arrêté missing that column
+ * would otherwise be dropped whole — both annexes, every commune — over a
+ * field the domain stores as nullable.
+ */
 const REQUIRED_COLUMNS: ColumnKey[] = [
   'departementRaw',
   'communeLabelRaw',
   'risque',
   'eventStart',
   'eventEnd',
-  'motivation',
 ];
 
 function detectColumnKey(headerCell: XmlElement): ColumnKey {
@@ -161,12 +166,17 @@ function parseAnnexeSection(section: XmlElement): ParsedArreteEntry[] {
     caption ? textWithLineBreaks(caption) : '',
   );
 
-  const [table] = findDescendants(contenu, 'table');
-  if (!table) {
+  // Every table of the section, not just the first: a long annexe split
+  // across several tables would otherwise lose the communes of all but one —
+  // silently, and with the arrêté still counted as fully ingested.
+  const tables = findDescendants(contenu, 'table');
+  if (tables.length === 0) {
     throw new Error('annexe without a table');
   }
 
-  return parseAnnexeTable(table).map((row) => ({ ...row, outcome }));
+  return tables
+    .flatMap((table) => parseAnnexeTable(table))
+    .map((row) => ({ ...row, outcome }));
 }
 
 function compareEntries(a: ParsedArreteEntry, b: ParsedArreteEntry): number {

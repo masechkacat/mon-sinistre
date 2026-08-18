@@ -51,23 +51,22 @@ export function findChildText(
  * the source file's indentation are dropped.
  */
 export function textWithLineBreaks(el: XmlElement): string {
-  const lines: string[] = [];
-  let current = '';
-  for (const child of el.children) {
-    if (child instanceof XmlElement) {
-      if (child.name === 'br') {
-        lines.push(current);
-        current = '';
-      } else {
-        current += child.text;
-      }
-    } else if ('text' in child) {
-      current += child.text;
-    }
-  }
-  lines.push(current);
-  return lines
+  return collectText(el)
+    .split('\n')
     .map((line) => line.trim())
     .filter((line) => line !== '')
     .join('\n');
+}
+
+/** Descends into child elements instead of taking their flattened `.text`, which would drop the `<br/>` nested inside them. */
+function collectText(el: XmlElement): string {
+  let text = '';
+  for (const child of el.children) {
+    if (child instanceof XmlElement) {
+      text += child.name === 'br' ? '\n' : collectText(child);
+    } else if ('text' in child) {
+      text += child.text;
+    }
+  }
+  return text;
 }

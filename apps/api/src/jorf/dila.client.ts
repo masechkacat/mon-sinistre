@@ -69,6 +69,11 @@ export class DilaClient {
     const files = new Map<string, string>();
     const reads: Promise<void>[] = [];
     const parser = new TarParser({
+      // Without `strict`, node-tar reports a corrupt archive as a `'warn'`
+      // event and still emits `'end'`: an error page served with HTTP 200
+      // would come back as zero entries, and the caller would mark the delta
+      // processed forever instead of retrying it.
+      strict: true,
       filter: (path) => CONT_XML_PATH_PATTERN.test(path),
       onReadEntry: (entry) => {
         reads.push(
@@ -83,13 +88,22 @@ export class DilaClient {
     // destination, so a mid-stream network failure must be caught on the
     // source itself — otherwise it throws uncaught instead of rejecting.
     const source = Readable.fromWeb(response.body);
-    await new Promise<void>((resolve, reject) => {
-      source.on('error', reject);
-      parser.on('error', reject);
-      parser.on('end', resolve);
-      source.pipe(parser);
-    });
-    await Promise.all(reads);
+    try {
+      await new Promise<void>((resolve, reject) => {
+        source.on('error', reject);
+        parser.on('error', reject);
+        parser.on('end', resolve);
+        source.pipe(parser);
+      });
+      await Promise.all(reads);
+    } catch (error) {
+      source.destroy();
+      // Entries already being read keep going after the rejection; leaving
+      // those promises unobserved would crash the process with an
+      // unhandledRejection instead of surfacing the failure below.
+      await Promise.allSettled(reads);
+      throw error;
+    }
     return files;
   }
 }

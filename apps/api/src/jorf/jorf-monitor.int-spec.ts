@@ -7,7 +7,7 @@ import { captureLogs } from 'src/mail/mail-log.test-helper';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { DILA_JORFSIMPLE_BASE_URL, DilaClient } from './dila.client';
 import { buildTarball } from './fixtures/build-tarball.test-helper';
-import { JorfMonitorService } from './jorf-monitor.service';
+import { JorfMonitorService, MAX_DELTAS_PER_RUN } from './jorf-monitor.service';
 
 const tocXml = readFileSync(
   join(__dirname, 'fixtures/JORFCONT000054245240.xml'),
@@ -23,6 +23,13 @@ const buildDeltaTarball = (): Promise<Buffer> =>
   buildTarball({
     'jorf/simple/JORF/CONT/2026/06/13/JORFCONT000054245240.xml': tocXml,
     'jorf/simple/JORF/CONT/2026/06/13/JORFTEXT000054245373.xml': arreteXml,
+  });
+
+/** A delta whose issue lists no catnat text: nothing to parse, so a run over many of them costs only their downloads. */
+const buildUnrelatedDeltaTarball = (): Promise<Buffer> =>
+  buildTarball({
+    'jorf/simple/JORF/CONT/2026/06/13/JORFCONT000000000001.xml':
+      '<TEXTELIEN><LIEN_TXT idtxt="JORFTEXT000000000009" titretxt="Arrêté du 12 juin 2026 portant nomination"/></TEXTELIEN>',
   });
 
 /**
@@ -166,5 +173,65 @@ describe('JorfMonitorService.run (integration)', () => {
     expect(await prisma.arrete.count()).toBe(0);
     // The failure is not silent — it is logged, not just swallowed.
     expect(logs.text()).toContain('JORFSIMPLE_20260613-060000.tar.gz');
+  });
+
+  it('processes the newer deltas even when the oldest one keeps failing', async () => {
+    const tarball = await buildDeltaTarball();
+    currentFetch = stubFetch(
+      [
+        'JORFSIMPLE_20260612-060000.tar.gz',
+        'JORFSIMPLE_20260613-060000.tar.gz',
+      ],
+      {
+        // A file DILA never fixes: retrying it first every tick must not stop
+        // everything published after it.
+        'JORFSIMPLE_20260612-060000.tar.gz': new Error('ECONNRESET'),
+        'JORFSIMPLE_20260613-060000.tar.gz': tarball,
+      },
+    );
+
+    await monitor.run();
+
+    expect(await prisma.arrete.count()).toBe(1);
+    expect((await prisma.jorfDelta.findMany()).map((d) => d.fileName)).toEqual([
+      'JORFSIMPLE_20260613-060000.tar.gz',
+    ]);
+  });
+
+  it('caps a cold start at MAX_DELTAS_PER_RUN and takes the rest next run', async () => {
+    const tarball = await buildUnrelatedDeltaTarball();
+    const names = Array.from(
+      { length: MAX_DELTAS_PER_RUN + 2 },
+      (_, index) => `JORFSIMPLE_202606${String(index + 10)}-060000.tar.gz`,
+    );
+    currentFetch = stubFetch(
+      names,
+      Object.fromEntries(names.map((name) => [name, tarball])),
+    );
+
+    await monitor.run();
+
+    expect(
+      (await prisma.jorfDelta.findMany({ orderBy: { fileName: 'asc' } })).map(
+        (d) => d.fileName,
+      ),
+    ).toEqual(names.slice(0, MAX_DELTAS_PER_RUN));
+
+    await monitor.run();
+
+    expect(await prisma.jorfDelta.count()).toBe(names.length);
+  });
+
+  it('logs a text listed in the table of contents but absent from the delta', async () => {
+    currentFetch = stubFetch(['JORFSIMPLE_20260613-060000.tar.gz'], {
+      'JORFSIMPLE_20260613-060000.tar.gz': await buildTarball({
+        'jorf/simple/JORF/CONT/2026/06/13/JORFCONT000054245240.xml': tocXml,
+      }),
+    });
+
+    await monitor.run();
+
+    expect(await prisma.arrete.count()).toBe(0);
+    expect(logs.text()).toContain('JORFTEXT000054245373');
   });
 });

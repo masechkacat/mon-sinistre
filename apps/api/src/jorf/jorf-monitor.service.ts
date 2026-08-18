@@ -12,6 +12,14 @@ import { selectCatnatTextIds } from './select-catnat-texts';
 
 const TOC_BASENAME_PATTERN = /^JORFCONT/;
 
+/**
+ * A cold start finds every delta the catalogue lists (two a day, 28 KB–18 MB
+ * each), so one tick would try to download years of them in a row. The rest
+ * is picked up by the following ticks, oldest first; loading history in bulk
+ * is the backfill script's job, not the monitor's.
+ */
+export const MAX_DELTAS_PER_RUN = 8;
+
 /** UTC midnight of an `IsoDate`, for `@db.Date` columns — the Prisma client requires a full ISO-8601 `Date`, not a bare `YYYY-MM-DD` string. */
 const isoDateToDate = (value: IsoDate): Date => new Date(`${value}T00:00:00Z`);
 
@@ -24,6 +32,7 @@ const isoDateToDate = (value: IsoDate): Date => new Date(`${value}T00:00:00Z`);
 @Injectable()
 export class JorfMonitorService {
   private readonly logger = new Logger(JorfMonitorService.name);
+  private running = false;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -36,6 +45,13 @@ export class JorfMonitorService {
    */
   @Cron('0 6,23 * * *', { timeZone: 'Europe/Paris' })
   async run(): Promise<void> {
+    // A backlog of deltas can outlast the gap between two ticks; two runs at
+    // once would download and ingest the same pending deltas twice.
+    if (this.running) {
+      this.logger.warn('jorf monitor: previous run still going, tick skipped');
+      return;
+    }
+    this.running = true;
     try {
       await this.runOnce();
     } catch (error) {
@@ -43,6 +59,8 @@ export class JorfMonitorService {
         `jorf monitor run failed: ${errorSummary(error)}`,
         stackOf(error),
       );
+    } finally {
+      this.running = false;
     }
   }
 
@@ -56,8 +74,14 @@ export class JorfMonitorService {
     // listDeltas() already returns names sorted ascending; filter() preserves
     // that order, so no second sort is needed here.
     const pending = deltaNames.filter((name) => !processedNames.has(name));
+    const batch = pending.slice(0, MAX_DELTAS_PER_RUN);
+    if (batch.length < pending.length) {
+      this.logger.warn(
+        `jorf monitor: ${pending.length} deltas pending, taking the ${batch.length} oldest this run`,
+      );
+    }
 
-    for (const fileName of pending) {
+    for (const fileName of batch) {
       let files: Map<string, string>;
       try {
         files = await this.dila.downloadDelta(fileName);
@@ -66,11 +90,11 @@ export class JorfMonitorService {
           `jorf monitor: downloading delta ${fileName} failed: ${errorSummary(error)}`,
           stackOf(error),
         );
-        // A network failure this run is likely to hit the remaining deltas
-        // too, and the unmarked delta is retried whole next tick — no point
-        // spending the rest of this tick on downloads that will just repeat
-        // the same error.
-        break;
+        // The delta stays unmarked and is retried next tick. The newer ones
+        // are still processed: deltas run oldest first, so stopping here would
+        // let one permanently broken file — a 404 DILA never fixes — block
+        // every delta behind it for good.
+        continue;
       }
 
       await this.ingestDelta(files, communes);
@@ -124,7 +148,12 @@ export class JorfMonitorService {
     const catnatIds = new Set(tocXmls.flatMap(selectCatnatTextIds));
     for (const id of catnatIds) {
       const xml = textsById.get(id);
-      if (!xml) continue;
+      if (!xml) {
+        this.logger.warn(
+          `jorf monitor: text ${id} is listed in a table of contents but absent from the delta`,
+        );
+        continue;
+      }
 
       try {
         const parsed = parseArreteXml(xml);

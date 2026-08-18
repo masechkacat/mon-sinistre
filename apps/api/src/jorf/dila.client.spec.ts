@@ -109,6 +109,19 @@ describe('DilaClient', () => {
       ).rejects.toThrow('ECONNRESET');
     });
 
+    it('rejects an HTTP 200 whose body is not a tarball at all', async () => {
+      // DILA serving an error page under HTTP 200: a non-strict tar parser
+      // reports it as a warning and ends normally, which would look like an
+      // empty — and therefore fully processed — delta.
+      const client = new DilaClient(
+        fetchOf('<html>503 Service Unavailable</html>'),
+      );
+
+      await expect(
+        client.downloadDelta('JORFSIMPLE_20260613-002012.tar.gz'),
+      ).rejects.toThrow(/archive/i);
+    });
+
     it('propagates a body stream that fails mid-transfer', async () => {
       const body = new ReadableStream({
         start(controller) {
