@@ -1,6 +1,7 @@
 import { PrismaPg } from '@prisma/adapter-pg';
 import { CommuneImportService } from '../src/communes/import/commune-import.service';
 import { GeoApiClient } from '../src/communes/import/geo-api.client';
+import { seedDeadlineRules } from '../src/deadline-rules/deadline-rule.seed';
 import { PrismaClient } from '../src/generated/prisma/client';
 import { databaseUrlFromEnv } from '../src/prisma/database-url-from-env';
 
@@ -30,6 +31,9 @@ async function main(): Promise<void> {
     const importService = new CommuneImportService(prisma, new GeoApiClient());
     const { processed, total } = await importService.run();
     console.log(`Commune import done: ${processed}/${total} upserts.`);
+
+    console.log('Seeding deadline rules…');
+    await seedDeadlineRules(prisma);
   } finally {
     await prisma.$disconnect();
   }

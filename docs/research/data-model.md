@@ -286,8 +286,12 @@ Auth уже решён (api/CLAUDE.md): Passport local + JWT, refresh с рот�
   arrêté.
 - `VeilleFormEmail`: id, emailHash, sentAt; индекс `(emailHash, sentAt)` —
   счётчик писем формы, детали `docs/research/veille-subscription-lifecycle.md`.
-- `VeilleNotification`: veilleId, arreteId, sentAt; `unique(veilleId, arreteId)` —
+- `VeilleNotification`: id, veilleId → Veille (cascade), arreteId → Arrete
+  (restrict), **sentAt nullable** (`id` — uuidv7, § 1 — сортирует и очередь
+  pending, отдельная `createdAt` не нужна); `unique(veilleId, arreteId)` —
   повторный прогон монитора (rectificatif, ретрай) не шлёт письмо дважды.
+  Outbox-паттерн и его обоснование — docs/research/jorf-monitor.md, «Рассылка:
+  outbox на VeilleNotification».
 - `VeilleChange`: неподтверждённая заявка на смену состава коммун — id,
   veilleId → Veille (cascade), changeTokenHash, communeCodes (скалярный
   массив), expiresAt, createdAt. `unique(veilleId)` — у подписки не может
