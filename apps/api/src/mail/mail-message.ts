@@ -10,16 +10,28 @@ export interface MailAddress {
 }
 
 /** A link carries a path, never a full address: the base is joined by the
- * skeleton alone. */
+ * skeleton alone. `externalLink` is the escape hatch for a link that must
+ * leave the site (docs/research/emails.md, "Шаблонизация text + HTML") — it
+ * carries an already-absolute `https://` address instead of a path. */
 export type MailBlock =
   | { readonly kind: 'paragraph'; readonly text: string }
   | { readonly kind: 'link'; readonly text: string; readonly path: string }
+  | {
+      readonly kind: 'externalLink';
+      readonly text: string;
+      readonly url: string;
+    }
   | { readonly kind: 'list'; readonly items: readonly string[] };
 
 /** A block with its address already resolved — what the renderers consume. */
 export type ResolvedMailBlock =
   | { readonly kind: 'paragraph'; readonly text: string }
   | { readonly kind: 'link'; readonly text: string; readonly url: string }
+  | {
+      readonly kind: 'externalLink';
+      readonly text: string;
+      readonly url: string;
+    }
   | { readonly kind: 'list'; readonly items: readonly string[] };
 
 export interface ComposeMailInput {

@@ -19,6 +19,7 @@ const renderBlock = (block: ResolvedMailBlock): string => {
     // The label stays next to its address: a bare URL tells the reader nothing
     // about where it leads, and the label alone is not clickable here.
     case 'link':
+    case 'externalLink':
       return `${block.text}${NBSP}: ${block.url}`;
     case 'list':
       return block.items.map((item) => `- ${item}`).join('\n');

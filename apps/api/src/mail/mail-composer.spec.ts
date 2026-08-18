@@ -1,10 +1,7 @@
 import { fr } from 'src/i18n/fr';
 import { mailLinksOf } from 'src/mail/mail-links.test-helper';
 import { MailCompositionError } from 'src/mail/mail-composition.error';
-import {
-  MailComposer,
-  type MailComposerOptions,
-} from 'src/mail/mail-composer';
+import { MailComposer, type MailComposerOptions } from 'src/mail/mail-composer';
 import type { ComposeMailInput } from 'src/mail/mail-message';
 
 const FRONTEND_URL = 'https://app.example.test';
@@ -64,6 +61,42 @@ describe('MailComposer', () => {
     // block and both renderers must emit it (docs/research/emails.md).
     expect(mailLinksOf(message.text)).toEqual(mailLinksOf(message.html));
     expect(mailLinksOf(message.text).size).toBeGreaterThan(0);
+  });
+
+  it('carries an externalLink verbatim, off the site of FRONTEND_URL', () => {
+    const message = composer().compose(
+      input({
+        blocks: [
+          {
+            kind: 'externalLink',
+            text: 'Consulter le texte complet sur Légifrance',
+            url: 'https://www.legifrance.gouv.fr/jorf/id/JORFTEXT000000000001',
+          },
+        ],
+      }),
+    );
+
+    const url = 'https://www.legifrance.gouv.fr/jorf/id/JORFTEXT000000000001';
+    expect(mailLinksOf(message.text)).toContain(url);
+    expect(mailLinksOf(message.html)).toContain(url);
+    expect(message.html).toContain(`href="${url}"`);
+  });
+
+  it.each([
+    ['a relative path', '/jorf/id/JORFTEXT000000000001'],
+    ['an http address', 'http://www.legifrance.gouv.fr/jorf/id/x'],
+    ['a javascript scheme', 'javascript:alert(1)'],
+    ['a protocol-relative address', '//legifrance.gouv.fr/jorf/id/x'],
+  ])('refuses to compose a message whose externalLink is %s', (_case, url) => {
+    const attempt = () =>
+      composer().compose(
+        input({
+          blocks: [{ kind: 'externalLink', text: 'Voir la source', url }],
+        }),
+      );
+
+    expect(attempt).toThrow(MailCompositionError);
+    expect(attempt).toThrow(/link url/i);
   });
 
   it('keeps the text version free of markup', () => {

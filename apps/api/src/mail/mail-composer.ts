@@ -106,14 +106,52 @@ const footerBlocks = (
   { kind: 'paragraph', text: fr.mail.footer.signature },
 ];
 
-const resolveBlock = (block: MailBlock, baseUrl: string): ResolvedMailBlock =>
-  block.kind === 'link'
-    ? {
+const resolveBlock = (block: MailBlock, baseUrl: string): ResolvedMailBlock => {
+  switch (block.kind) {
+    case 'link':
+      return {
         kind: 'link',
         text: block.text,
         url: resolveUrl(block.path, baseUrl, 'link path'),
-      }
-    : block;
+      };
+    case 'externalLink':
+      return {
+        kind: 'externalLink',
+        text: block.text,
+        url: requireHttpsUrl(block.url, 'link url'),
+      };
+    case 'paragraph':
+    case 'list':
+      return block;
+  }
+};
+
+/**
+ * `externalLink` is the one block whose address does not resolve against
+ * FRONTEND_URL, so it must gate itself: a scheme other than `https:`
+ * (`javascript:`, `data:`, a bare host typed without `https://`) would still
+ * render as a normal-looking link in the HTML version. Parsed with `new URL`,
+ * like `resolveUrl` below, rather than a regex prefix check — a stray control
+ * character or unencoded space in the value would otherwise reach the `href`
+ * attribute verbatim.
+ */
+const requireHttpsUrl = (value: string, field: string): string => {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch (cause) {
+    throw new MailCompositionError(
+      `${field} must be an absolute https:// address`,
+      { cause },
+    );
+  }
+  if (url.protocol !== 'https:') {
+    throw new MailCompositionError(
+      `${field} must be an absolute https:// address`,
+    );
+  }
+  return url.toString();
+};
 
 const resolveUrl = (path: string, baseUrl: string, field: string): string => {
   // The message names the field and never its value — an unsubscribe path

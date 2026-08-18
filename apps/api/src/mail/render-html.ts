@@ -38,6 +38,7 @@ const renderBlock =
       case 'paragraph':
         return `<p style="${style}">${escapeHtml(block.text)}</p>`;
       case 'link':
+      case 'externalLink':
         return `<p style="${style}"><a href="${escapeHtml(block.url)}" style="${LINK}">${escapeHtml(block.text)}</a></p>`;
       case 'list':
         return `<ul style="${style}${INDENT}">${block.items
