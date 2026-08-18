@@ -1,7 +1,7 @@
 {
   "feature": "jorf-monitor",
-  "phases": [2],
-  "maxIterations": 5,
+  "phases": [3],
+  "maxIterations": 8,
   "stallLimit": 2,
   "model": "claude-sonnet-5",
   "maxBudgetUsd": 15,
