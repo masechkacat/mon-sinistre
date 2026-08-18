@@ -83,9 +83,8 @@ function isSameEntry(
 /**
  * The tracer-bullet run: DILA deltas → parsed arrêtés → database, twice a day
  * (docs/research/jorf-monitor.md, "Расписание прогонов"). An annexe that
- * fails to parse alerts the administrator (`MonitorAlert`); an unmatched
- * commune is still only logged — the next issue turns it into its own alert
- * kind.
+ * fails to parse and a commune the referential can't match both alert the
+ * administrator (`MonitorAlert`), never just a log line.
  */
 @Injectable()
 export class JorfMonitorService {
@@ -252,35 +251,7 @@ export class JorfMonitorService {
       include: { entries: true },
     });
 
-    if (!existing) {
-      await this.prisma.arrete.create({
-        data: {
-          nor: parsed.nor,
-          signedAt: isoDateToDate(parsed.signedAt),
-          publishedAt: isoDateToDate(parsed.publishedAt),
-          jorfNumber: parsed.jorfNumber,
-          legifranceUrl: parsed.legifranceUrl,
-          firstSeenAt: now,
-          lastSeenAt: now,
-          contentHash: parsed.contentHash,
-          entries: {
-            create: parsed.entries.map((entry) =>
-              entryData(
-                entry,
-                matchCommune(
-                  communes,
-                  entry.communeLabelRaw,
-                  entry.departementRaw,
-                ),
-              ),
-            ),
-          },
-        },
-      });
-      return;
-    }
-
-    if (existing.contentHash === parsed.contentHash) {
+    if (existing && existing.contentHash === parsed.contentHash) {
       await this.prisma.arrete.update({
         where: { id: existing.id },
         data: { lastSeenAt: now },
@@ -288,7 +259,76 @@ export class JorfMonitorService {
       return;
     }
 
-    await this.applyRectificatif(existing, parsed, communes, now);
+    // Not computed above: the unchanged-content path just returned, before
+    // needing it — matching cost per entry is why ({@link loadCommuneReferential}).
+    const matched = parsed.entries.map((entry) => ({
+      entry,
+      codeInsee: matchCommune(
+        communes,
+        entry.communeLabelRaw,
+        entry.departementRaw,
+      ),
+    }));
+
+    if (!existing) {
+      await this.prisma.$transaction(async (tx) => {
+        const created = await tx.arrete.create({
+          data: {
+            nor: parsed.nor,
+            signedAt: isoDateToDate(parsed.signedAt),
+            publishedAt: isoDateToDate(parsed.publishedAt),
+            jorfNumber: parsed.jorfNumber,
+            legifranceUrl: parsed.legifranceUrl,
+            firstSeenAt: now,
+            lastSeenAt: now,
+            contentHash: parsed.contentHash,
+            entries: {
+              create: matched.map(({ entry, codeInsee }) =>
+                entryData(entry, codeInsee),
+              ),
+            },
+          },
+        });
+        for (const { entry, codeInsee } of matched) {
+          await this.alertIfUnmatched(
+            tx,
+            created.id,
+            parsed.nor,
+            entry,
+            codeInsee,
+          );
+        }
+      });
+      return;
+    }
+
+    await this.applyRectificatif(existing, parsed, matched, now);
+  }
+
+  /**
+   * `MonitorAlert` for an entry the referential couldn't resolve (research,
+   * "Сопоставление коммун со справочником") — the row itself is already
+   * written with `codeInsee: null` by the caller, on both the first-seen and
+   * the rectificatif path, this only makes the gap visible instead of a
+   * silent drop.
+   */
+  private async alertIfUnmatched(
+    tx: Prisma.TransactionClient,
+    arreteId: string,
+    nor: string,
+    entry: ParsedArreteEntry,
+    codeInsee: string | null,
+  ): Promise<void> {
+    if (codeInsee !== null) {
+      return;
+    }
+    await tx.monitorAlert.create({
+      data: {
+        kind: 'UNMATCHED_COMMUNE',
+        arreteId,
+        detail: `NOR ${nor}: ${entry.communeLabelRaw} (${entry.departementRaw}) not matched to a commune`,
+      },
+    });
   }
 
   /**
@@ -297,22 +337,20 @@ export class JorfMonitorService {
    * (created), a matched one is updated in place. A matched entry whose
    * `outcome` flips gets a `MonitorAlert` in the same transaction as the
    * update it describes — decision and consequences in data-model.md § 4.
+   * Either branch can also resolve to `codeInsee: null` (a newly added
+   * commune the referential doesn't know, or a previously matched one the
+   * referential no longer resolves) — {@link alertIfUnmatched} covers both.
    * Entries missing from the new revision are left as-is: the rectificatif
    * format observed never removes a commune, only adds or corrects one.
    */
   private async applyRectificatif(
     existing: ArreteWithEntries,
     parsed: ParsedArrete,
-    communes: CommuneReferentialEntry[],
+    matched: { entry: ParsedArreteEntry; codeInsee: string | null }[],
     now: Date,
   ): Promise<void> {
     await this.prisma.$transaction(async (tx) => {
-      for (const entry of parsed.entries) {
-        const codeInsee = matchCommune(
-          communes,
-          entry.communeLabelRaw,
-          entry.departementRaw,
-        );
+      for (const { entry, codeInsee } of matched) {
         const match = existing.entries.find((candidate) =>
           isSameEntry(candidate, codeInsee, entry),
         );
@@ -321,6 +359,13 @@ export class JorfMonitorService {
           await tx.arreteEntry.create({
             data: { arreteId: existing.id, ...entryData(entry, codeInsee) },
           });
+          await this.alertIfUnmatched(
+            tx,
+            existing.id,
+            parsed.nor,
+            entry,
+            codeInsee,
+          );
           continue;
         }
 
@@ -338,6 +383,13 @@ export class JorfMonitorService {
           where: { id: match.id },
           data: entryData(entry, codeInsee),
         });
+        await this.alertIfUnmatched(
+          tx,
+          existing.id,
+          parsed.nor,
+          entry,
+          codeInsee,
+        );
       }
 
       await tx.arrete.update({

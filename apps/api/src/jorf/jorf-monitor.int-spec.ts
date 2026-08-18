@@ -3,11 +3,61 @@ import { join } from 'node:path';
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { createIntTestApp } from 'src/app.int-helper';
 import type { FetchFn } from 'src/common/fetch-fn';
+import { commune as communeFixture } from 'src/communes/commune.test-helper';
 import { captureLogs } from 'src/mail/mail-log.test-helper';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { DILA_JORFSIMPLE_BASE_URL, DilaClient } from './dila.client';
 import { buildTarball } from './fixtures/build-tarball.test-helper';
 import { JorfMonitorService, MAX_DELTAS_PER_RUN } from './jorf-monitor.service';
+
+/** Row/table/annexe builders shared by the rectificatif and alert describes below — same tag layout as the DILA fixture (parse-arrete.spec.ts), built from scratch so each test controls exactly which entries it puts in. */
+const row = (cells: string[]) =>
+  `<tr>${cells.map((cell) => `<td><br/>${cell}</td>`).join('')}</tr>`;
+const table = (rows: string[][]) =>
+  `<table border="1">${row([
+    'Département',
+    'Commune',
+    'Phénomène naturel',
+    'Date de début',
+    'Date de fin',
+  ])}${rows.map(row).join('')}</table>`;
+const annexeSection = (caption: string, rows: string[][]) =>
+  rows.length === 0
+    ? ''
+    : `<SECTION_TA><TITRE_TA>Annexe</TITRE_TA><ARTICLE><BLOC_TEXTUEL><CONTENU>
+         <p>${caption}</p>
+         ${table(rows)}
+       </CONTENU></BLOC_TEXTUEL></ARTICLE></SECTION_TA>`;
+
+const buildArreteXml = (options: {
+  id: string;
+  nor: string;
+  title: string;
+  reconnues?: string[][];
+  nonReconnues?: string[][];
+}) => `<?xml version="1.0"?>
+  <TEXTE>
+    <NATURE>ARRETE</NATURE>
+    <ID>${options.id}</ID>
+    <NOR>${options.nor}</NOR>
+    <TITREFULL>${options.title}</TITREFULL>
+    <DATE_TEXTE>2026-06-30</DATE_TEXTE>
+    <DATE_PUBLI>2026-07-01</DATE_PUBLI>
+    <ORIGINE_PUBLI>JORF n°0150 du 1 juillet 2026</ORIGINE_PUBLI>
+    <STRUCT>
+      ${annexeSection(
+        'Communes reconnues en état de catastrophe naturelle',
+        options.reconnues ?? [],
+      )}
+      ${annexeSection(
+        'Communes non reconnues en état de catastrophe naturelle',
+        options.nonReconnues ?? [],
+      )}
+    </STRUCT>
+  </TEXTE>`;
+
+const buildTocXml = (id: string, title: string) =>
+  `<TEXTELIEN><LIEN_TXT idtxt="${id}" titretxt="${title}"/></TEXTELIEN>`;
 
 const tocXml = readFileSync(
   join(__dirname, 'fixtures/JORFCONT000054245240.xml'),
@@ -85,7 +135,7 @@ describe('JorfMonitorService.run (integration)', () => {
   });
 
   beforeEach(async () => {
-    await prisma.$executeRaw`TRUNCATE TABLE "Arrete", "JorfDelta", "MonitorAlert" CASCADE`;
+    await prisma.$executeRaw`TRUNCATE TABLE "Arrete", "JorfDelta", "MonitorAlert", "Commune" CASCADE`;
   });
 
   it('creates an Arrete with both annexes and publishedAt from the XML (PRD #1)', async () => {
@@ -254,55 +304,6 @@ describe('JorfMonitorService.run (integration)', () => {
       '04/01/2026',
     ];
 
-    const row = (cells: string[]) =>
-      `<tr>${cells.map((cell) => `<td><br/>${cell}</td>`).join('')}</tr>`;
-    const table = (rows: string[][]) =>
-      `<table border="1">${row([
-        'Département',
-        'Commune',
-        'Phénomène naturel',
-        'Date de début',
-        'Date de fin',
-      ])}${rows.map(row).join('')}</table>`;
-    const annexeSection = (caption: string, rows: string[][]) =>
-      rows.length === 0
-        ? ''
-        : `<SECTION_TA><TITRE_TA>Annexe</TITRE_TA><ARTICLE><BLOC_TEXTUEL><CONTENU>
-             <p>${caption}</p>
-             ${table(rows)}
-           </CONTENU></BLOC_TEXTUEL></ARTICLE></SECTION_TA>`;
-
-    /** Same tag layout as the DILA fixture (parse-arrete.spec.ts), built from scratch so the rectificatif test controls exactly which entries change between revisions. */
-    const buildArreteXml = (options: {
-      id: string;
-      nor: string;
-      title: string;
-      reconnues?: string[][];
-      nonReconnues?: string[][];
-    }) => `<?xml version="1.0"?>
-      <TEXTE>
-        <NATURE>ARRETE</NATURE>
-        <ID>${options.id}</ID>
-        <NOR>${options.nor}</NOR>
-        <TITREFULL>${options.title}</TITREFULL>
-        <DATE_TEXTE>2026-06-30</DATE_TEXTE>
-        <DATE_PUBLI>2026-07-01</DATE_PUBLI>
-        <ORIGINE_PUBLI>JORF n°0150 du 1 juillet 2026</ORIGINE_PUBLI>
-        <STRUCT>
-          ${annexeSection(
-            'Communes reconnues en état de catastrophe naturelle',
-            options.reconnues ?? [],
-          )}
-          ${annexeSection(
-            'Communes non reconnues en état de catastrophe naturelle',
-            options.nonReconnues ?? [],
-          )}
-        </STRUCT>
-      </TEXTE>`;
-
-    const buildTocXml = (id: string, title: string) =>
-      `<TEXTELIEN><LIEN_TXT idtxt="${id}" titretxt="${title}"/></TEXTELIEN>`;
-
     it('upserts entries on a rectificatif and alerts on an outcome change (PRD #3, #11)', async () => {
       const textId = 'JORFTEXT000000000201';
       const tocXml = buildTocXml(textId, RECT_TITLE);
@@ -413,6 +414,214 @@ describe('JorfMonitorService.run (integration)', () => {
       expect(alerts).toHaveLength(1);
       expect(alerts[0]?.detail).toContain(zNor.slice(0, 11));
       expect(alerts[0]?.detail).not.toMatch(/@/);
+    });
+  });
+
+  describe('parsing and matching alerts (issue #101)', () => {
+    it("alerts on an unparseable annexe and still ingests the delta's other arrêté (PRD #9)", async () => {
+      const brokenId = 'JORFTEXT000000000401';
+      const brokenNor = 'INTJ2600004A';
+      const brokenTitle =
+        "Arrêté du 5 juillet 2026 portant reconnaissance de l'état de catastrophe naturelle";
+      // A header this parser doesn't recognize — parseAnnexeTable throws
+      // before any row is read, the same failure a real structural drift
+      // would cause.
+      const brokenXml = `<?xml version="1.0"?>
+        <TEXTE>
+          <NATURE>ARRETE</NATURE>
+          <ID>${brokenId}</ID>
+          <NOR>${brokenNor}</NOR>
+          <TITREFULL>${brokenTitle}</TITREFULL>
+          <DATE_TEXTE>2026-07-04</DATE_TEXTE>
+          <DATE_PUBLI>2026-07-05</DATE_PUBLI>
+          <ORIGINE_PUBLI>JORF n°0151 du 5 juillet 2026</ORIGINE_PUBLI>
+          <STRUCT>
+            <SECTION_TA><TITRE_TA>Annexe</TITRE_TA><ARTICLE><BLOC_TEXTUEL><CONTENU>
+              <p>Communes reconnues en état de catastrophe naturelle</p>
+              <table border="1"><tr><td><br/>Colonne inconnue</td></tr></table>
+            </CONTENU></BLOC_TEXTUEL></ARTICLE></SECTION_TA>
+          </STRUCT>
+        </TEXTE>`;
+
+      const goodId = 'JORFTEXT000000000501';
+      const goodNor = 'INTJ2600005A';
+      const goodTitle =
+        "Arrêté du 5 juillet 2026 portant reconnaissance de l'état de catastrophe naturelle";
+      const goodXml = buildArreteXml({
+        id: goodId,
+        nor: goodNor,
+        title: goodTitle,
+        reconnues: [
+          ['Gironde', 'Bordeaux', 'Inondations', '01/01/2026', '02/01/2026'],
+        ],
+      });
+
+      const tarball = await buildTarball({
+        'jorf/simple/JORF/CONT/2026/07/05/JORFCONT000000000400.xml':
+          buildTocXml(brokenId, brokenTitle),
+        [`jorf/simple/JORF/CONT/2026/07/05/${brokenId}.xml`]: brokenXml,
+        'jorf/simple/JORF/CONT/2026/07/05/JORFCONT000000000500.xml':
+          buildTocXml(goodId, goodTitle),
+        [`jorf/simple/JORF/CONT/2026/07/05/${goodId}.xml`]: goodXml,
+      });
+      currentFetch = stubFetch(['JORFSIMPLE_20260705-060000.tar.gz'], {
+        'JORFSIMPLE_20260705-060000.tar.gz': tarball,
+      });
+
+      await monitor.run();
+
+      const alerts = await prisma.monitorAlert.findMany({
+        where: { kind: 'UNPARSEABLE_ANNEXE' },
+      });
+      expect(alerts).toHaveLength(1);
+      expect(alerts[0]?.detail).toContain(brokenId);
+      expect(alerts[0]?.detail).not.toMatch(/@/);
+
+      expect(
+        await prisma.arrete.findUnique({ where: { nor: goodNor } }),
+      ).not.toBeNull();
+    });
+
+    it('saves an entry with an unmatched commune as codeInsee: null and alerts, matched entries unaffected (PRD #10)', async () => {
+      await prisma.commune.create({
+        data: communeFixture('33063', 'Bordeaux', '33', 'Gironde'),
+      });
+
+      const id = 'JORFTEXT000000000601';
+      const nor = 'INTJ2600006A';
+      const title =
+        "Arrêté du 6 juillet 2026 portant reconnaissance de l'état de catastrophe naturelle";
+      const xml = buildArreteXml({
+        id,
+        nor,
+        title,
+        reconnues: [
+          ['Gironde', 'Bordeaux', 'Inondations', '01/01/2026', '02/01/2026'],
+          [
+            'Département Fictif',
+            'Commune Fictive',
+            'Inondations',
+            '03/01/2026',
+            '04/01/2026',
+          ],
+        ],
+      });
+      const tarball = await buildTarball({
+        'jorf/simple/JORF/CONT/2026/07/06/JORFCONT000000000600.xml':
+          buildTocXml(id, title),
+        [`jorf/simple/JORF/CONT/2026/07/06/${id}.xml`]: xml,
+      });
+      currentFetch = stubFetch(['JORFSIMPLE_20260706-060000.tar.gz'], {
+        'JORFSIMPLE_20260706-060000.tar.gz': tarball,
+      });
+
+      await monitor.run();
+
+      const arrete = await prisma.arrete.findUnique({
+        where: { nor },
+        include: { entries: true },
+      });
+      expect(
+        arrete?.entries.find((e) => e.communeLabelRaw === 'Bordeaux'),
+      ).toMatchObject({ codeInsee: '33063' });
+      expect(
+        arrete?.entries.find((e) => e.communeLabelRaw === 'Commune Fictive'),
+      ).toMatchObject({ codeInsee: null });
+
+      const alerts = await prisma.monitorAlert.findMany({
+        where: { kind: 'UNMATCHED_COMMUNE' },
+      });
+      expect(alerts).toHaveLength(1);
+      expect(alerts[0]).toMatchObject({ arreteId: arrete?.id });
+      expect(alerts[0]?.detail).toContain('Commune Fictive');
+      expect(alerts[0]?.detail).not.toMatch(/@/);
+    });
+
+    it('alerts when a rectificatif updates a previously matched entry to an unmatched commune', async () => {
+      await prisma.commune.create({
+        data: communeFixture('33063', 'Bordeaux', '33', 'Gironde'),
+      });
+
+      const id = 'JORFTEXT000000000701';
+      const nor = 'INTJ2600007A';
+      const title =
+        "Arrêté du 7 juillet 2026 portant reconnaissance de l'état de catastrophe naturelle";
+      const bordeaux = [
+        'Gironde',
+        'Bordeaux',
+        'Inondations',
+        '01/01/2026',
+        '02/01/2026',
+      ];
+      const tocXml = buildTocXml(id, title);
+      const firstTarball = await buildTarball({
+        'jorf/simple/JORF/CONT/2026/07/07/JORFCONT000000000700.xml': tocXml,
+        [`jorf/simple/JORF/CONT/2026/07/07/${id}.xml`]: buildArreteXml({
+          id,
+          nor,
+          title,
+          reconnues: [bordeaux],
+        }),
+      });
+      currentFetch = stubFetch(['JORFSIMPLE_20260707-060000.tar.gz'], {
+        'JORFSIMPLE_20260707-060000.tar.gz': firstTarball,
+      });
+      await monitor.run();
+
+      const matched = await prisma.arrete.findUnique({
+        where: { nor },
+        include: { entries: true },
+      });
+      expect(matched?.entries[0]).toMatchObject({ codeInsee: '33063' });
+
+      // The referential's search key changes under the row (e.g. a COG
+      // rename) between runs — the rectificatif reprints the same label as
+      // before, but this time nothing resolves it; the row can't be deleted
+      // outright, `ArreteEntry.codeInsee` still points at it (RESTRICT). A
+      // second entry is added purely to change the contentHash so the run
+      // takes the rectificatif path, not the unchanged-content shortcut.
+      await prisma.commune.update({
+        where: { codeInsee: '33063' },
+        data: { nameNormalized: 'ex-bordeaux' },
+      });
+      const lyon = ['Rhône', 'Lyon', 'Inondations', '03/01/2026', '04/01/2026'];
+      const secondTarball = await buildTarball({
+        'jorf/simple/JORF/CONT/2026/07/07/JORFCONT000000000700.xml': tocXml,
+        [`jorf/simple/JORF/CONT/2026/07/07/${id}.xml`]: buildArreteXml({
+          id,
+          nor,
+          title,
+          reconnues: [bordeaux, lyon],
+        }),
+      });
+      currentFetch = stubFetch(
+        [
+          'JORFSIMPLE_20260707-060000.tar.gz',
+          'JORFSIMPLE_20260707-230000.tar.gz',
+        ],
+        {
+          'JORFSIMPLE_20260707-060000.tar.gz': firstTarball,
+          'JORFSIMPLE_20260707-230000.tar.gz': secondTarball,
+        },
+      );
+      await monitor.run();
+
+      const rectified = await prisma.arrete.findUnique({
+        where: { nor },
+        include: { entries: true },
+      });
+      expect(rectified?.entries).toHaveLength(2);
+      expect(
+        rectified?.entries.find((e) => e.communeLabelRaw === 'Bordeaux'),
+      ).toMatchObject({ codeInsee: null });
+
+      // Lyon was never in the referential either, so it alerts too — this
+      // asserts specifically on the entry that flipped from matched to
+      // unmatched, not on the total alert count.
+      const bordeauxAlert = await prisma.monitorAlert.findFirst({
+        where: { kind: 'UNMATCHED_COMMUNE', detail: { contains: 'Bordeaux' } },
+      });
+      expect(bordeauxAlert).toMatchObject({ arreteId: rectified?.id });
     });
   });
 });
