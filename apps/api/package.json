@@ -36,6 +36,7 @@
     "@nestjs/throttler": "^6.5.0",
     "@prisma/adapter-pg": "^7.9.1",
     "@prisma/client": "^7.9.1",
+    "@rgrove/parse-xml": "^4.2.3",
     "bcrypt": "^6.0.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.4",
@@ -44,7 +45,8 @@
     "passport-local": "^1.0.0",
     "pg": "^8.22.0",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.2"
+    "rxjs": "^7.8.2",
+    "tar": "^7.5.22"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

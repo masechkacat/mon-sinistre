@@ -187,6 +187,12 @@ PK, `processedAt` timestamptz): прогон листает каталог, бе
 (§ 4) на таблицу `JorfDelta` — правкой `docs/research/data-model.md` в фазе
 схемы.
 
+> **Исправлено при реализации (фаза 1, issue #98; отмечено по ревью PR 110).**
+> «Переигрывается следующим прогоном» описывает дельту, но не очередь: сбой на
+> одной дельте прогон не останавливает, и за прогон берётся не больше
+> `MAX_DELTAS_PER_RUN` дельт. Почему именно так — у обоих решений в
+> `apps/api/src/jorf/jorf-monitor.service.ts`.
+
 ### Рассылка: outbox на VeilleNotification
 
 **Решение:** `VeilleNotification.sentAt` становится **nullable** —

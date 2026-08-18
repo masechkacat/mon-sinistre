@@ -67,7 +67,7 @@ export interface ArreteEntry {
   eventStart: IsoDate;
   eventEnd: IsoDate;
   outcome: ArreteEntryOutcome;
-  /** Refusal motivation from annexe II; null for recognised entries. */
+  /** Decision motivation as printed in the annexe; carried for both outcomes. */
   motivation: string | null;
 }
 

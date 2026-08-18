@@ -8,6 +8,7 @@ import { TokenThrottlerGuard } from './common/token-throttler.guard';
 import { CommunesModule } from './communes/communes.module';
 import { validateEnv } from './config/env.validation';
 import { HealthController } from './health/health.controller';
+import { JorfModule } from './jorf/jorf.module';
 import { MailModule } from './mail/mail.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { VeilleModule } from './veille/veille.module';
@@ -32,6 +33,7 @@ export const GLOBAL_RATE_LIMIT = { ttl: 60_000, limit: 100 } as const;
     MailModule,
     CommunesModule,
     VeilleModule,
+    JorfModule,
   ],
   controllers: [HealthController],
   providers: [
