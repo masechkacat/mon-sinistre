@@ -3,7 +3,7 @@ import { createIntTestPrismaClient } from 'src/prisma/prisma-client.int-helper';
 
 // Schema-level guarantees of the jorf-monitor migration: docs/research/jorf-monitor.md,
 // docs/research/data-model.md § 4.
-describe('Arrete / ArreteEntry / JorfDelta schema (integration)', () => {
+describe('Arrete / ArreteEntry / JorfDelta / MonitorAlert schema (integration)', () => {
   let prisma: PrismaClient;
 
   beforeAll(() => {
@@ -142,5 +142,36 @@ describe('Arrete / ArreteEntry / JorfDelta schema (integration)', () => {
         data: { fileName, processedAt: new Date() },
       }),
     ).rejects.toMatchObject({ code: 'P2002' });
+  });
+
+  it.each([
+    'UNPARSEABLE_ANNEXE',
+    'UNMATCHED_COMMUNE',
+    'OUTCOME_CHANGED',
+  ] as const)('inserts a MonitorAlert of kind %s', async (kind) => {
+    const alert = await prisma.monitorAlert.create({
+      data: { kind, detail: 'NOR INTE2600001A' },
+    });
+
+    expect(alert.kind).toBe(kind);
+    expect(alert.arreteId).toBeNull();
+  });
+
+  it('keeps a MonitorAlert after its arrêté is deleted', async () => {
+    const arrete = await prisma.arrete.create({ data: arreteData() });
+    const alert = await prisma.monitorAlert.create({
+      data: {
+        kind: 'UNMATCHED_COMMUNE',
+        detail: 'commune inconnue',
+        arreteId: arrete.id,
+      },
+    });
+
+    await prisma.arrete.delete({ where: { id: arrete.id } });
+
+    const remaining = await prisma.monitorAlert.findUnique({
+      where: { id: alert.id },
+    });
+    expect(remaining).toMatchObject({ id: alert.id, arreteId: null });
   });
 });
