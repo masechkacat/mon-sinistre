@@ -5,6 +5,8 @@ import { createIntTestApp } from 'src/app.int-helper';
 import type { FetchFn } from 'src/common/fetch-fn';
 import { commune as communeFixture } from 'src/communes/commune.test-helper';
 import { captureLogs } from 'src/mail/mail-log.test-helper';
+import { MAIL_TRANSPORT } from 'src/mail/mail-transport';
+import { RecordingTransport } from 'src/mail/mail-transport.test-helper';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { DILA_JORFSIMPLE_BASE_URL, DilaClient } from './dila.client';
 import { buildTarball } from './fixtures/build-tarball.test-helper';
@@ -623,5 +625,111 @@ describe('JorfMonitorService.run (integration)', () => {
       });
       expect(bordeauxAlert).toMatchObject({ arreteId: rectified?.id });
     });
+  });
+});
+
+describe('admin alert email (issue #102)', () => {
+  const ADMIN_EMAIL = 'admin@mon-sinistre.test';
+  const originalAdminEmail = process.env.ADMIN_EMAIL;
+
+  let app: NestFastifyApplication;
+  let prisma: PrismaService;
+  let monitor: JorfMonitorService;
+  let transport: RecordingTransport;
+  let currentFetch: FetchFn;
+
+  beforeAll(async () => {
+    // Read by ConfigModule when the app below compiles — this describe's own
+    // app, never the one of the outer suite, which boots without it.
+    process.env.ADMIN_EMAIL = ADMIN_EMAIL;
+    transport = new RecordingTransport();
+    app = await createIntTestApp({
+      customize: (builder) =>
+        builder
+          .overrideProvider(DilaClient)
+          .useValue(new DilaClient((...args) => currentFetch(...args)))
+          .overrideProvider(MAIL_TRANSPORT)
+          .useValue(transport),
+    });
+    prisma = app.get(PrismaService);
+    monitor = app.get(JorfMonitorService);
+  });
+
+  afterAll(async () => {
+    await app.close();
+    if (originalAdminEmail === undefined) {
+      delete process.env.ADMIN_EMAIL;
+    } else {
+      process.env.ADMIN_EMAIL = originalAdminEmail;
+    }
+  });
+
+  beforeEach(async () => {
+    transport.sent.length = 0;
+    transport.failNext = false;
+    await prisma.$executeRaw`TRUNCATE TABLE "Arrete", "JorfDelta", "MonitorAlert", "Commune" CASCADE`;
+  });
+
+  /** An arrêté whose one commune the (empty) referential cannot resolve —
+   * the simplest of the three alert kinds to trigger, one UNMATCHED_COMMUNE
+   * row is all either test below needs. */
+  const buildUnmatchedCommuneTarball = (fileSuffix: string) => {
+    const id = `JORFTEXT00000000${fileSuffix}`;
+    const nor = `INTJ260000${fileSuffix}A`;
+    const title =
+      "Arrêté du 10 juillet 2026 portant reconnaissance de l'état de catastrophe naturelle";
+    const xml = buildArreteXml({
+      id,
+      nor,
+      title,
+      reconnues: [
+        [
+          'Département Fictif',
+          'Commune Fictive',
+          'Inondations',
+          '01/01/2026',
+          '02/01/2026',
+        ],
+      ],
+    });
+    return buildTarball({
+      [`jorf/simple/JORF/CONT/2026/07/10/JORFCONT${fileSuffix}.xml`]:
+        buildTocXml(id, title),
+      [`jorf/simple/JORF/CONT/2026/07/10/${id}.xml`]: xml,
+    });
+  };
+
+  it('emails ADMIN_EMAIL for an alert the run creates, without any observer address', async () => {
+    const tarball = await buildUnmatchedCommuneTarball('801');
+    currentFetch = stubFetch(['JORFSIMPLE_20260710-060000.tar.gz'], {
+      'JORFSIMPLE_20260710-060000.tar.gz': tarball,
+    });
+
+    await monitor.run();
+
+    expect(await prisma.monitorAlert.count()).toBe(1);
+    expect(transport.sent).toHaveLength(1);
+    const [message] = transport.sent;
+    if (!message) throw new Error('expected an admin alert email');
+    expect(message.to).toBe(ADMIN_EMAIL);
+    expect(message.text).not.toMatch(/@/);
+  });
+
+  it('keeps the alert in the database and finishes the run when the transport fails', async () => {
+    transport.failNext = true;
+    const tarball = await buildUnmatchedCommuneTarball('901');
+    currentFetch = stubFetch(['JORFSIMPLE_20260710-070000.tar.gz'], {
+      'JORFSIMPLE_20260710-070000.tar.gz': tarball,
+    });
+
+    await expect(monitor.run()).resolves.toBeUndefined();
+
+    expect(await prisma.monitorAlert.count()).toBe(1);
+    expect(transport.sent).toHaveLength(0);
+    expect(
+      await prisma.jorfDelta.findUnique({
+        where: { fileName: 'JORFSIMPLE_20260710-070000.tar.gz' },
+      }),
+    ).not.toBeNull();
   });
 });

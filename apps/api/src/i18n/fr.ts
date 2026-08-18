@@ -62,5 +62,21 @@ export const fr = {
       reason:
         'vous avez laissé votre adresse sur le formulaire de veille de Mon Sinistre',
     },
+    jorf: {
+      alert: {
+        subject: 'Alerte moniteur JORF — Mon Sinistre',
+        intro: 'Le moniteur du Journal Officiel a généré une alerte technique.',
+        kindLabel: {
+          UNPARSEABLE_ANNEXE:
+            'Un texte du Journal Officiel n’a pas pu être analysé automatiquement.',
+          UNMATCHED_COMMUNE:
+            'Une commune citée par un texte du Journal Officiel n’a pas pu être rapprochée du référentiel.',
+          OUTCOME_CHANGED:
+            'Un texte rectificatif a changé l’issue d’une commune déjà enregistrée.',
+        },
+        reason:
+          'vous êtes destinataire des alertes techniques du moniteur JORF de Mon Sinistre',
+      },
+    },
   },
 } as const;

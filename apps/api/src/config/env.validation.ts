@@ -215,6 +215,13 @@ export class EnvironmentVariables {
   @AtSenderDomain()
   MAIL_FROM: string;
 
+  /** Unset means a fresh clone with no admin inbox configured yet: monitor
+   * alerts still land in `MonitorAlert` (src/jorf/), the email is a push
+   * channel on top of that row, not the record of it. */
+  @IsOptional()
+  @IsEmail()
+  ADMIN_EMAIL?: string;
+
   /** Unset means the local transport: a fresh clone needs no provider account. */
   @IsOptional()
   @IsIn(MAIL_TRANSPORT_NAMES)

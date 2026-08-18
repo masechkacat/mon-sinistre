@@ -1,13 +1,20 @@
 import { basename } from 'node:path';
 import { Injectable, Logger } from '@nestjs/common';
 import type { IsoDate } from '@mon-sinistre/contracts';
+import { ConfigService } from '@nestjs/config';
 import { Cron } from '@nestjs/schedule';
 import { errorSummary, stackOf } from 'src/common/error-report';
 import { normalizeCommuneName } from 'src/communes/normalize-commune-name';
+import type { EnvironmentVariables } from 'src/config/env.validation';
 import type { Prisma } from 'src/generated/prisma/client';
+import { MailService } from 'src/mail/mail.service';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { DilaClient } from './dila.client';
 import { type CommuneReferentialEntry, matchCommune } from './match-commune';
+import {
+  type MonitorAlertForMail,
+  monitorAlertMailFor,
+} from './monitor-alert-mail';
 import {
   type ParsedArrete,
   type ParsedArreteEntry,
@@ -83,8 +90,10 @@ function isSameEntry(
 /**
  * The tracer-bullet run: DILA deltas → parsed arrêtés → database, twice a day
  * (docs/research/jorf-monitor.md, "Расписание прогонов"). An annexe that
- * fails to parse and a commune the referential can't match both alert the
- * administrator (`MonitorAlert`), never just a log line.
+ * fails to parse, a commune the referential can't match and a rectificatif
+ * that flips an outcome all alert the administrator (`MonitorAlert` row plus
+ * a best-effort email to `ADMIN_EMAIL`, {@link notifyAdmin}), never just a
+ * log line.
  */
 @Injectable()
 export class JorfMonitorService {
@@ -94,6 +103,8 @@ export class JorfMonitorService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly dila: DilaClient,
+    private readonly mail: MailService,
+    private readonly config: ConfigService<EnvironmentVariables, true>,
   ) {}
 
   /**
@@ -225,12 +236,13 @@ export class JorfMonitorService {
         );
         // Covers the Z-text rectificatif too — docs/research/jorf-monitor.md,
         // "Дедупликация, contentHash и rectificatifs".
-        await this.prisma.monitorAlert.create({
+        const alert = await this.prisma.monitorAlert.create({
           data: {
             kind: 'UNPARSEABLE_ANNEXE',
             detail: `text ${id}: ${error instanceof Error ? error.message : String(error)}`,
           },
         });
+        await this.notifyAdmin([alert]);
       }
     }
   }
@@ -271,6 +283,7 @@ export class JorfMonitorService {
     }));
 
     if (!existing) {
+      const alerts: MonitorAlertForMail[] = [];
       await this.prisma.$transaction(async (tx) => {
         const created = await tx.arrete.create({
           data: {
@@ -292,6 +305,7 @@ export class JorfMonitorService {
         for (const { entry, codeInsee } of matched) {
           await this.alertIfUnmatched(
             tx,
+            alerts,
             created.id,
             parsed.nor,
             entry,
@@ -299,6 +313,7 @@ export class JorfMonitorService {
           );
         }
       });
+      await this.notifyAdmin(alerts);
       return;
     }
 
@@ -310,10 +325,13 @@ export class JorfMonitorService {
    * "Сопоставление коммун со справочником") — the row itself is already
    * written with `codeInsee: null` by the caller, on both the first-seen and
    * the rectificatif path, this only makes the gap visible instead of a
-   * silent drop.
+   * silent drop. Appends to the caller's `alerts` accumulator rather than
+   * returning one, so its three call sites don't each repeat the same
+   * if-and-push.
    */
   private async alertIfUnmatched(
     tx: Prisma.TransactionClient,
+    alerts: MonitorAlertForMail[],
     arreteId: string,
     nor: string,
     entry: ParsedArreteEntry,
@@ -322,13 +340,42 @@ export class JorfMonitorService {
     if (codeInsee !== null) {
       return;
     }
-    await tx.monitorAlert.create({
-      data: {
-        kind: 'UNMATCHED_COMMUNE',
-        arreteId,
-        detail: `NOR ${nor}: ${entry.communeLabelRaw} (${entry.departementRaw}) not matched to a commune`,
-      },
-    });
+    alerts.push(
+      await tx.monitorAlert.create({
+        data: {
+          kind: 'UNMATCHED_COMMUNE',
+          arreteId,
+          detail: `NOR ${nor}: ${entry.communeLabelRaw} (${entry.departementRaw}) not matched to a commune`,
+        },
+      }),
+    );
+  }
+
+  /**
+   * The push channel on top of `MonitorAlert` (research, "Алерты
+   * администратору"): every row here is already committed by the caller, so
+   * a failed send costs only the notification, never the record — pending
+   * alerts stay visible in the table, and no retry is built for the mail
+   * itself. Unset `ADMIN_EMAIL` means a fresh clone with no admin inbox
+   * configured yet.
+   */
+  private async notifyAdmin(
+    alerts: readonly MonitorAlertForMail[],
+  ): Promise<void> {
+    const adminEmail = this.config.get('ADMIN_EMAIL', { infer: true });
+    if (!adminEmail) {
+      return;
+    }
+    for (const alert of alerts) {
+      try {
+        await this.mail.send(monitorAlertMailFor(adminEmail, alert));
+      } catch (error) {
+        this.logger.error(
+          `jorf monitor: alert email to admin failed: ${errorSummary(error)}`,
+          stackOf(error),
+        );
+      }
+    }
   }
 
   /**
@@ -349,6 +396,7 @@ export class JorfMonitorService {
     matched: { entry: ParsedArreteEntry; codeInsee: string | null }[],
     now: Date,
   ): Promise<void> {
+    const alerts: MonitorAlertForMail[] = [];
     await this.prisma.$transaction(async (tx) => {
       for (const { entry, codeInsee } of matched) {
         const match = existing.entries.find((candidate) =>
@@ -361,6 +409,7 @@ export class JorfMonitorService {
           });
           await this.alertIfUnmatched(
             tx,
+            alerts,
             existing.id,
             parsed.nor,
             entry,
@@ -370,13 +419,15 @@ export class JorfMonitorService {
         }
 
         if ((match.outcome as string) !== (entry.outcome as string)) {
-          await tx.monitorAlert.create({
-            data: {
-              kind: 'OUTCOME_CHANGED',
-              arreteId: existing.id,
-              detail: `NOR ${parsed.nor}: ${entry.communeLabelRaw} (${entry.departementRaw}) ${match.outcome} → ${entry.outcome}`,
-            },
-          });
+          alerts.push(
+            await tx.monitorAlert.create({
+              data: {
+                kind: 'OUTCOME_CHANGED',
+                arreteId: existing.id,
+                detail: `NOR ${parsed.nor}: ${entry.communeLabelRaw} (${entry.departementRaw}) ${match.outcome} → ${entry.outcome}`,
+              },
+            }),
+          );
         }
 
         await tx.arreteEntry.update({
@@ -385,6 +436,7 @@ export class JorfMonitorService {
         });
         await this.alertIfUnmatched(
           tx,
+          alerts,
           existing.id,
           parsed.nor,
           entry,
@@ -403,5 +455,6 @@ export class JorfMonitorService {
         },
       });
     });
+    await this.notifyAdmin(alerts);
   }
 }
