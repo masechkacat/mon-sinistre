@@ -120,6 +120,7 @@ model Arrete {
   lastSeenAt    DateTime      @db.Timestamptz(6)
   contentHash   String
   entries       ArreteEntry[]
+  monitorAlerts MonitorAlert[]
 }
 
 // Одна строка annexe арретé — docs/research/data-model.md § 4.
@@ -159,4 +160,21 @@ model ArreteEntry {
 model JorfDelta {
   fileName    String   @id
   processedAt DateTime @db.Timestamptz(6)
+}
+
+enum MonitorAlertKind {
+  UNPARSEABLE_ANNEXE
+  UNMATCHED_COMMUNE
+  OUTCOME_CHANGED
+}
+
+// Повод, который монитор JO не может разрешить сам, — docs/research/jorf-monitor.md,
+// «Алерты администратору»; устройство FK arreteId — data-model.md § 4.
+model MonitorAlert {
+  id        String            @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  kind      MonitorAlertKind
+  detail    String
+  arreteId  String?           @db.Uuid
+  arrete    Arrete?           @relation(fields: [arreteId], references: [id], onDelete: SetNull)
+  createdAt DateTime          @default(now()) @db.Timestamptz(6)
 }

@@ -5,32 +5,9 @@ import {
   Commune,
 } from '@mon-sinistre/contracts';
 import { createIntTestApp } from 'src/app.int-helper';
+import { commune } from 'src/communes/commune.test-helper';
 import { MAX_QUERY_LENGTH } from 'src/communes/dto/search-communes-query.dto';
-import { normalizeCommuneName } from 'src/communes/normalize-commune-name';
 import { PrismaService } from 'src/prisma/prisma.service';
-
-const SOURCE = {
-  sourceUrl: 'https://geo.api.gouv.fr/communes',
-  sourceVerifiedAt: new Date('2026-08-02'),
-};
-
-const commune = (
-  codeInsee: string,
-  name: string,
-  departementCode: string,
-  departementName: string,
-  effectiveTo: string | null = null,
-) => ({
-  codeInsee,
-  name,
-  // The search key is derived here exactly as the import derives it — a
-  // fixture that filled it by hand could hide a mismatch between the two.
-  nameNormalized: normalizeCommuneName(name),
-  departementCode,
-  departementName,
-  effectiveTo: effectiveTo === null ? null : new Date(effectiveTo),
-  ...SOURCE,
-});
 
 describe('GET /communes (integration)', () => {
   let app: NestFastifyApplication;

@@ -188,6 +188,14 @@ entries существующего arrêté; факт изменения лог�
 `processedAt` (timestamptz). Смысл строки и порядок обработки —
 docs/research/jorf-monitor.md, «Расписание прогонов».
 
+### MonitorAlert
+
+id, `kind` enum (`UNPARSEABLE_ANNEXE` / `UNMATCHED_COMMUNE` /
+`OUTCOME_CHANGED`), `detail` text, `arreteId` uuid null → Arrete (**SetNull**,
+не cascade — алерт переживает удаление породившего его arrêté), `createdAt`.
+Поводы и содержимое `detail` — docs/research/jorf-monitor.md, «Алерты
+администратору».
+
 ## 5. Аккаунт и синистр
 
 ### User, RefreshToken
