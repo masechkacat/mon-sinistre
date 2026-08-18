@@ -19,7 +19,9 @@ contracts не нужен — jest подставляет его исходни�
 правила там. Решения фичи veille (схема, токены, лимит писем, чистка) —
 `../../docs/research/veille-subscription-lifecycle.md`; изменение состава
 коммун (заявка `VeilleChange`, эндпоинты `changement`) —
-`../../docs/research/veille-commune-change.md`.
+`../../docs/research/veille-commune-change.md`; монитор Journal Officiel
+(источник DILA, парсинг, расписание, outbox рассылки, алерты) —
+`../../docs/research/jorf-monitor.md`.
 
 ## Единственные точки входа
 
