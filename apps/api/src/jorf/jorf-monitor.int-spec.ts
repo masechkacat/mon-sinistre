@@ -4,10 +4,12 @@ import { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { createIntTestApp } from 'src/app.int-helper';
 import type { FetchFn } from 'src/common/fetch-fn';
 import { commune as communeFixture } from 'src/communes/commune.test-helper';
+import { seedDeadlineRules } from 'src/deadline-rules/deadline-rule.seed';
 import { captureLogs } from 'src/mail/mail-log.test-helper';
 import { MAIL_TRANSPORT } from 'src/mail/mail-transport';
 import { RecordingTransport } from 'src/mail/mail-transport.test-helper';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { createVeille } from 'src/veille/veille.test-helper';
 import { DILA_JORFSIMPLE_BASE_URL, DilaClient } from './dila.client';
 import { buildTarball } from './fixtures/build-tarball.test-helper';
 import { JorfMonitorService, MAX_DELTAS_PER_RUN } from './jorf-monitor.service';
@@ -923,5 +925,271 @@ describe('admin alert email (issue #102)', () => {
         where: { fileName: 'JORFSIMPLE_20260710-070000.tar.gz' },
       }),
     ).not.toBeNull();
+  });
+});
+
+describe('veille notification outbox (issue #106)', () => {
+  const TITLE =
+    "Arrêté du 1er juillet 2026 portant reconnaissance de l'état de catastrophe naturelle";
+  const AMIGNY = [
+    'Aisne',
+    'Amigny-Rouy',
+    'Inondations',
+    '01/01/2026',
+    '02/01/2026',
+  ];
+  const MUSSIDAN = [
+    'Dordogne',
+    'Mussidan',
+    'Inondations',
+    '03/01/2026',
+    '04/01/2026',
+  ];
+
+  let app: NestFastifyApplication;
+  let prisma: PrismaService;
+  let monitor: JorfMonitorService;
+  let transport: RecordingTransport;
+  let currentFetch: FetchFn;
+
+  beforeAll(async () => {
+    transport = new RecordingTransport();
+    app = await createIntTestApp({
+      customize: (builder) =>
+        builder
+          .overrideProvider(DilaClient)
+          .useValue(new DilaClient((...args) => currentFetch(...args)))
+          .overrideProvider(MAIL_TRANSPORT)
+          .useValue(transport),
+    });
+    prisma = app.get(PrismaService);
+    monitor = app.get(JorfMonitorService);
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  beforeEach(async () => {
+    transport.sent.length = 0;
+    transport.failNext = false;
+    await prisma.$executeRaw`TRUNCATE TABLE "Arrete", "JorfDelta", "MonitorAlert", "Commune", "Veille", "DeadlineRule" CASCADE`;
+    await seedDeadlineRules(prisma);
+  });
+
+  /** One delta tarball naming a single arrêté text — id/nor vary per test so `run()` calls across tests in this file never collide on the same NOR. */
+  const buildDelta = (id: string, nor: string, revision: ArreteRevision) =>
+    buildTarball({
+      [`jorf/simple/JORF/CONT/2026/07/01/JORFCONT${id.slice(-4)}.xml`]:
+        buildTocXml(id, TITLE),
+      [`jorf/simple/JORF/CONT/2026/07/01/${id}.xml`]: buildArreteXml({
+        id,
+        nor,
+        title: TITLE,
+        ...revision,
+      }),
+    });
+
+  it('emails a confirmed watcher exactly once, on the run after the one that ingests it (PRD #4)', async () => {
+    await prisma.commune.create({
+      data: communeFixture('02005', 'Amigny-Rouy', '02', 'Aisne'),
+    });
+    const { veilleId } = await createVeille(prisma, {
+      confirmedAt: new Date(),
+      communeCodes: ['02005'],
+    });
+
+    const MORNING = 'JORFSIMPLE_20260701-060000.tar.gz';
+    currentFetch = stubFetch([MORNING], {
+      [MORNING]: await buildDelta('JORFTEXT000000000901', 'INTJ2600009A', {
+        reconnues: [AMIGNY],
+      }),
+    });
+
+    // Ingest queues the row; the outbox is only drained on the following run
+    // (docs/research/jorf-monitor.md: "каждый прогон сначала досылает
+    // pending" — a row created this tick is not pending yet when this tick's
+    // own send step already ran).
+    await monitor.run();
+    expect(transport.sent).toHaveLength(0);
+    expect(await prisma.veilleNotification.count({ where: { veilleId } })).toBe(
+      1,
+    );
+
+    await monitor.run();
+    expect(transport.sent).toHaveLength(1);
+    const veille = await prisma.veille.findUniqueOrThrow({
+      where: { id: veilleId },
+    });
+    expect(transport.sent[0]?.to).toBe(veille.email);
+    const sent = await prisma.veilleNotification.findFirstOrThrow({
+      where: { veilleId },
+    });
+    expect(sent.sentAt).not.toBeNull();
+
+    // The evening delta re-delivers the same NOR, content unchanged — the
+    // ingest short-circuit must not queue, or send, a second notification.
+    const EVENING = 'JORFSIMPLE_20260701-230000.tar.gz';
+    currentFetch = stubFetch([MORNING, EVENING], {
+      [MORNING]: await buildDelta('JORFTEXT000000000901', 'INTJ2600009A', {
+        reconnues: [AMIGNY],
+      }),
+      [EVENING]: await buildDelta('JORFTEXT000000000901', 'INTJ2600009A', {
+        reconnues: [AMIGNY],
+      }),
+    });
+    await monitor.run();
+
+    expect(transport.sent).toHaveLength(1);
+    expect(await prisma.veilleNotification.count()).toBe(1);
+  });
+
+  it("a rectificatif adding a commune emails only that commune's watchers (PRD #3)", async () => {
+    await prisma.commune.create({
+      data: communeFixture('02005', 'Amigny-Rouy', '02', 'Aisne'),
+    });
+    await prisma.commune.create({
+      data: communeFixture('24290', 'Mussidan', '24', 'Dordogne'),
+    });
+    const watcherA = await createVeille(prisma, {
+      confirmedAt: new Date(),
+      communeCodes: ['02005'],
+    });
+    const watcherB = await createVeille(prisma, {
+      confirmedAt: new Date(),
+      communeCodes: ['24290'],
+    });
+
+    const NOR = 'INTJ2600010A';
+    const ID = 'JORFTEXT000000001001';
+    const MORNING = 'JORFSIMPLE_20260702-060000.tar.gz';
+    const EVENING = 'JORFSIMPLE_20260702-230000.tar.gz';
+
+    currentFetch = stubFetch([MORNING], {
+      [MORNING]: await buildDelta(ID, NOR, { reconnues: [AMIGNY] }),
+    });
+    await monitor.run(); // ingest: queues watcherA only
+    await monitor.run(); // send: watcherA's mail goes out
+
+    expect(transport.sent).toHaveLength(1);
+    const veilleA = await prisma.veille.findUniqueOrThrow({
+      where: { id: watcherA.veilleId },
+    });
+    expect(transport.sent[0]?.to).toBe(veilleA.email);
+    transport.sent.length = 0;
+
+    currentFetch = stubFetch([MORNING, EVENING], {
+      [MORNING]: await buildDelta(ID, NOR, { reconnues: [AMIGNY] }),
+      [EVENING]: await buildDelta(ID, NOR, {
+        reconnues: [AMIGNY, MUSSIDAN],
+      }),
+    });
+    // send: nothing pending yet; ingest: the rectificatif adds Mussidan and
+    // queues watcherB only — Amigny-Rouy's watcher already has their row.
+    await monitor.run();
+
+    expect(transport.sent).toHaveLength(0);
+    expect(
+      await prisma.veilleNotification.count({
+        where: { veilleId: watcherA.veilleId },
+      }),
+    ).toBe(1);
+    expect(
+      await prisma.veilleNotification.findFirstOrThrow({
+        where: { veilleId: watcherB.veilleId },
+      }),
+    ).toMatchObject({ sentAt: null });
+
+    await monitor.run(); // send: watcherB's mail goes out
+    expect(transport.sent).toHaveLength(1);
+    const veilleB = await prisma.veille.findUniqueOrThrow({
+      where: { id: watcherB.veilleId },
+    });
+    expect(transport.sent[0]?.to).toBe(veilleB.email);
+  });
+
+  it('a rectificatif that only flips an outcome sends no automatic email (PRD #11)', async () => {
+    await prisma.commune.create({
+      data: communeFixture('02005', 'Amigny-Rouy', '02', 'Aisne'),
+    });
+    const { veilleId } = await createVeille(prisma, {
+      confirmedAt: new Date(),
+      communeCodes: ['02005'],
+    });
+
+    const NOR = 'INTJ2600011A';
+    const ID = 'JORFTEXT000000001101';
+    const MORNING = 'JORFSIMPLE_20260703-060000.tar.gz';
+    const EVENING = 'JORFSIMPLE_20260703-230000.tar.gz';
+
+    currentFetch = stubFetch([MORNING], {
+      [MORNING]: await buildDelta(ID, NOR, { reconnues: [AMIGNY] }),
+    });
+    await monitor.run();
+    await monitor.run();
+    expect(transport.sent).toHaveLength(1);
+    transport.sent.length = 0;
+
+    // The rectificatif flips Amigny-Rouy from reconnu to refusé — an
+    // OUTCOME_CHANGED alert (PRD #11's admin side), but the commune was
+    // already notified, so no new outbox row and no automatic mail.
+    currentFetch = stubFetch([MORNING, EVENING], {
+      [MORNING]: await buildDelta(ID, NOR, { reconnues: [AMIGNY] }),
+      [EVENING]: await buildDelta(ID, NOR, { nonReconnues: [AMIGNY] }),
+    });
+    await monitor.run();
+    await monitor.run();
+
+    expect(transport.sent).toHaveLength(0);
+    expect(await prisma.veilleNotification.count({ where: { veilleId } })).toBe(
+      1,
+    );
+    expect(
+      await prisma.monitorAlert.count({ where: { kind: 'OUTCOME_CHANGED' } }),
+    ).toBe(1);
+  });
+
+  it('a failed send to one recipient does not block the other, and it retries next run (PRD #12)', async () => {
+    await prisma.commune.create({
+      data: communeFixture('02005', 'Amigny-Rouy', '02', 'Aisne'),
+    });
+    await prisma.commune.create({
+      data: communeFixture('24290', 'Mussidan', '24', 'Dordogne'),
+    });
+    await createVeille(prisma, {
+      confirmedAt: new Date(),
+      communeCodes: ['02005'],
+    });
+    await createVeille(prisma, {
+      confirmedAt: new Date(),
+      communeCodes: ['24290'],
+    });
+
+    const NOR = 'INTJ2600012A';
+    const ID = 'JORFTEXT000000001201';
+    const MORNING = 'JORFSIMPLE_20260704-060000.tar.gz';
+    currentFetch = stubFetch([MORNING], {
+      [MORNING]: await buildDelta(ID, NOR, {
+        reconnues: [AMIGNY, MUSSIDAN],
+      }),
+    });
+    await monitor.run();
+    expect(
+      await prisma.veilleNotification.count({ where: { sentAt: null } }),
+    ).toBe(2);
+
+    transport.failNext = true;
+    await monitor.run();
+
+    expect(transport.sent).toHaveLength(1);
+    expect(
+      await prisma.veilleNotification.count({ where: { sentAt: null } }),
+    ).toBe(1);
+
+    await monitor.run();
+    expect(transport.sent).toHaveLength(2);
+    expect(
+      await prisma.veilleNotification.count({ where: { sentAt: null } }),
+    ).toBe(0);
   });
 });

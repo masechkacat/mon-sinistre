@@ -1,5 +1,10 @@
 import { PrismaClient } from 'src/generated/prisma/client';
 
+/** The one spelling of the déclaration-délai `DeadlineRule.code` — the seed
+ * row and every lookup of it (`src/jorf/jorf-monitor.service.ts`) key on this
+ * constant, not a repeated string literal. */
+export const DECLARATION_ASSUREUR_CODE = 'DECLARATION_ASSUREUR';
+
 /**
  * Every legal deadline the app relies on lives here with its source — no
  * hard-coded legal numbers elsewhere (ТЗ § 7). Values verified against the
@@ -8,7 +13,7 @@ import { PrismaClient } from 'src/generated/prisma/client';
  */
 export const DEADLINE_RULE_SEED = [
   {
-    code: 'DECLARATION_ASSUREUR',
+    code: DECLARATION_ASSUREUR_CODE,
     duration: 30,
     unit: 'DAYS' as const,
     anchor: 'DATE_PUBLICATION_ARRETE' as const,

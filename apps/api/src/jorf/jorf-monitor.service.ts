@@ -6,9 +6,12 @@ import { Cron } from '@nestjs/schedule';
 import { errorSummary, stackOf } from 'src/common/error-report';
 import { normalizeCommuneName } from 'src/communes/normalize-commune-name';
 import type { EnvironmentVariables } from 'src/config/env.validation';
+import { DECLARATION_ASSUREUR_CODE } from 'src/deadline-rules/deadline-rule.seed';
+import { dateToIsoDate } from 'src/deadline-rules/resolve-deadline';
 import type { Prisma } from 'src/generated/prisma/client';
 import { MailService } from 'src/mail/mail.service';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { generateVeilleToken } from 'src/veille/veille-token';
 import { DilaClient } from './dila.client';
 import { type CommuneReferentialEntry, matchCommune } from './match-commune';
 import {
@@ -20,7 +23,17 @@ import {
   type ParsedArreteEntry,
   parseArreteXml,
 } from './parse-arrete';
+import {
+  type SubscribedCommune,
+  resolveRecipients,
+} from './resolve-recipients';
 import { selectCatnatTextIds } from './select-catnat-texts';
+import {
+  type ArreteEntryForMail,
+  type ArreteForMail,
+  type DeclarationDeadlineRule,
+  veilleArreteMailFor,
+} from './veille-arrete-mail';
 
 const TOC_BASENAME_PATTERN = /^JORFCONT/;
 
@@ -47,6 +60,9 @@ type StoredArrete = Prisma.ArreteGetPayload<{
   include: { entries: true; monitorAlerts: { select: { detail: true } } };
 }>;
 type StoredEntry = StoredArrete['entries'][number];
+
+/** A pending outbox row, reduced to what {@link JorfMonitorService.sendPendingNotifications} needs to send it. */
+type PendingNotification = { id: string; veilleId: string; arreteId: string };
 
 /** The fields `ArreteEntry` create needs, minus `arreteId` — shared by the first-seen path (nested `entries: { create }`) and the rectificatif path (flat `arreteEntry.create`/`.update`). `codeInsee` is taken as an argument, not recomputed here, so the caller matches ({@link isSameEntry}) and writes with the exact same value. */
 function entryData(
@@ -95,6 +111,11 @@ function isSameEntry(
     : existing.departementRaw === parsed.departementRaw &&
         existing.communeLabelRaw === parsed.communeLabelRaw;
 }
+
+/** The distinct resolved `codeInsee`s of a list of entries — the `entryCodes` {@link resolveRecipients} fans out to, shared by the outbox write ({@link JorfMonitorService.queueNotifications}) and the send step ({@link JorfMonitorService.sendArreteNotifications}), which read it off two different shapes (a bare code list, `ArreteEntry` rows) but want the same dedup-and-drop-null. */
+const uniqueCodes = (codes: readonly (string | null)[]): string[] => [
+  ...new Set(codes.filter((code): code is string => code !== null)),
+];
 
 /** The `detail` of an UNMATCHED_COMMUNE alert, written once because it is also the key the alert is deduplicated by ({@link JorfMonitorService.alertIfUnmatched}). */
 const unmatchedDetail = (nor: string, entry: ParsedArreteEntry): string =>
@@ -257,10 +278,18 @@ export class JorfMonitorService {
   }
 
   private async runOnce(): Promise<void> {
-    const [deltaNames, processed, communes] = await Promise.all([
+    // Sent first, ahead of this tick's own ingest — a row an earlier run
+    // queued gets its shot at going out before anything new is added to the
+    // outbox (docs/research/jorf-monitor.md, "Рассылка: outbox на
+    // VeilleNotification": "каждый прогон сначала досылает pending").
+    const successorOf = await this.loadSuccessorMap();
+    await this.sendPendingNotifications(successorOf);
+
+    const [deltaNames, processed, communes, subscriptions] = await Promise.all([
       this.dila.listDeltas(),
       this.prisma.jorfDelta.findMany({ select: { fileName: true } }),
       this.loadCommuneReferential(),
+      this.loadConfirmedSubscriptions(),
     ]);
     const processedNames = new Set(processed.map((delta) => delta.fileName));
     // listDeltas() already returns names sorted ascending; filter() preserves
@@ -289,7 +318,9 @@ export class JorfMonitorService {
         continue;
       }
 
-      if (!(await this.ingestDelta(files, communes))) {
+      if (
+        !(await this.ingestDelta(files, communes, successorOf, subscriptions))
+      ) {
         // Same reason as the download failure above, and the same shape:
         // unmarked, retried next tick, newer deltas still processed. Marking
         // it here would bury the arrêté — nothing looks at that text again.
@@ -339,6 +370,8 @@ export class JorfMonitorService {
   private async ingestDelta(
     files: Map<string, string>,
     communes: CommuneReferentialEntry[],
+    successorOf: ReadonlyMap<string, string>,
+    subscriptions: readonly SubscribedCommune[],
   ): Promise<boolean> {
     const textsById = new Map<string, string>();
     const tocXmls: string[] = [];
@@ -393,7 +426,7 @@ export class JorfMonitorService {
       }
 
       try {
-        await this.ingestArrete(parsed, communes);
+        await this.ingestArrete(parsed, communes, successorOf, subscriptions);
       } catch (error) {
         this.logger.error(
           `jorf monitor: text ${id} failed to ingest: ${errorSummary(error)}`,
@@ -414,6 +447,8 @@ export class JorfMonitorService {
   private async ingestArrete(
     parsed: ParsedArrete,
     communes: CommuneReferentialEntry[],
+    successorOf: ReadonlyMap<string, string>,
+    subscriptions: readonly SubscribedCommune[],
   ): Promise<void> {
     const now = new Date();
     const existing = await this.prisma.arrete.findUnique({
@@ -475,6 +510,13 @@ export class JorfMonitorService {
               codeInsee,
             );
           }
+          await this.queueNotifications(
+            tx,
+            created.id,
+            matched.map((m) => m.codeInsee),
+            successorOf,
+            subscriptions,
+          );
         },
         { timeout: INGEST_TX_TIMEOUT_MS },
       );
@@ -482,7 +524,56 @@ export class JorfMonitorService {
       return;
     }
 
-    await this.applyRectificatif(existing, parsed, matched, now);
+    await this.applyRectificatif(
+      existing,
+      parsed,
+      matched,
+      now,
+      successorOf,
+      subscriptions,
+    );
+  }
+
+  /**
+   * The outbox write of {@link resolveRecipients} (docs/research/
+   * jorf-monitor.md, "Рассылка: outbox на VeilleNotification") — a pending
+   * `VeilleNotification` per (veille, arrêté), created in the same
+   * transaction as the entries that make the recipient eligible. `codes` is
+   * the set an arrêté revision actually adds: every matched entry on the
+   * first-seen path, only the newly added ones on a rectificatif ({@link
+   * applyRectificatif}) — a rectificatif that merely corrects or flips the
+   * outcome of an already-notified commune must not re-notify its watchers.
+   * `skipDuplicates` is what makes that rectificatif path safe: a watcher of
+   * an already-notified commune who also watches the newly added one would
+   * otherwise collide with their own pending/sent row on `unique(veilleId,
+   * arreteId)` and abort the whole transaction.
+   */
+  private async queueNotifications(
+    tx: Prisma.TransactionClient,
+    arreteId: string,
+    codes: readonly (string | null)[],
+    successorOf: ReadonlyMap<string, string>,
+    subscriptions: readonly SubscribedCommune[],
+  ): Promise<void> {
+    const entryCodes = uniqueCodes(codes);
+    if (entryCodes.length === 0) {
+      return;
+    }
+    const recipients = resolveRecipients(
+      entryCodes,
+      successorOf,
+      subscriptions,
+    );
+    if (recipients.length === 0) {
+      return;
+    }
+    await tx.veilleNotification.createMany({
+      data: recipients.map((recipient) => ({
+        veilleId: recipient.veilleId,
+        arreteId,
+      })),
+      skipDuplicates: true,
+    });
   }
 
   /**
@@ -566,6 +657,8 @@ export class JorfMonitorService {
     parsed: ParsedArrete,
     matched: { entry: ParsedArreteEntry; codeInsee: string | null }[],
     now: Date,
+    successorOf: ReadonlyMap<string, string>,
+    subscriptions: readonly SubscribedCommune[],
   ): Promise<void> {
     const alerts: MonitorAlertForMail[] = [];
     const recorded = new Set(existing.monitorAlerts.map((a) => a.detail));
@@ -579,6 +672,12 @@ export class JorfMonitorService {
         `jorf monitor: NOR ${parsed.nor} publication date ${existing.publishedAt.toISOString().slice(0, 10)} → ${parsed.publishedAt}`,
       );
     }
+    // Only a pair with no stored match is a commune this revision adds — the
+    // set {@link queueNotifications} fans out to, so a rectificatif that only
+    // corrects or flips the outcome of an already-notified commune (PRD
+    // critère "смена исхода... не порождает автоматических писем") never
+    // reaches it.
+    const addedCodes: (string | null)[] = [];
     await this.prisma.$transaction(
       async (tx) => {
         for (const { entry, codeInsee, match } of pairs) {
@@ -586,6 +685,7 @@ export class JorfMonitorService {
             await tx.arreteEntry.create({
               data: { arreteId: existing.id, ...entryData(entry, codeInsee) },
             });
+            addedCodes.push(codeInsee);
           } else {
             if ((match.outcome as string) !== (entry.outcome as string)) {
               alerts.push(
@@ -615,6 +715,13 @@ export class JorfMonitorService {
             codeInsee,
           );
         }
+        await this.queueNotifications(
+          tx,
+          existing.id,
+          addedCodes,
+          successorOf,
+          subscriptions,
+        );
 
         await tx.arrete.update({
           where: { id: existing.id },
@@ -631,5 +738,278 @@ export class JorfMonitorService {
       { timeout: INGEST_TX_TIMEOUT_MS },
     );
     await this.notifyAdmin(alerts);
+  }
+
+  /** `Commune.successorCodeInsee` reduced to a map, read once per run for both the outbox write ({@link queueNotifications}, via {@link resolveRecipients}) and the send step below — only rows that merged carry one, so this is a small fraction of the referential. */
+  private async loadSuccessorMap(): Promise<Map<string, string>> {
+    const rows = await this.prisma.commune.findMany({
+      where: { successorCodeInsee: { not: null } },
+      select: { codeInsee: true, successorCodeInsee: true },
+    });
+    return new Map(
+      rows
+        .filter(
+          (row): row is { codeInsee: string; successorCodeInsee: string } =>
+            row.successorCodeInsee !== null,
+        )
+        .map((row) => [row.codeInsee, row.successorCodeInsee]),
+    );
+  }
+
+  /** Every confirmed `VeilleCommune` in the database, read once per run — the pool {@link resolveRecipients} draws an arrêté's recipients from on the outbox write. Confirmed by the query itself (critère "неподтверждённая veille писем не получает"), so every row is `confirmed: true` by construction. */
+  private async loadConfirmedSubscriptions(): Promise<SubscribedCommune[]> {
+    const rows = await this.prisma.veilleCommune.findMany({
+      where: { veille: { confirmedAt: { not: null } } },
+      select: { veilleId: true, codeInsee: true },
+    });
+    return rows.map((row) => ({ ...row, confirmed: true as const }));
+  }
+
+  /**
+   * The send half of the outbox (docs/research/jorf-monitor.md, "Рассылка:
+   * outbox на VeilleNotification"): every `VeilleNotification` still
+   * `sentAt: null`, grouped by arrêté since that is what a recipient's
+   * entries and the déclaration deadline are resolved against
+   * ({@link sendArreteNotifications}). Run first, ahead of this tick's own
+   * ingest — {@link runOnce}.
+   */
+  private async sendPendingNotifications(
+    successorOf: ReadonlyMap<string, string>,
+  ): Promise<void> {
+    const pending = await this.prisma.veilleNotification.findMany({
+      where: { sentAt: null },
+      select: { id: true, veilleId: true, arreteId: true },
+    });
+    if (pending.length === 0) {
+      return;
+    }
+
+    // Rotated once per watcher this run, not once per pending row: a
+    // watcher with two pending rows in the same run (two arrêtés queued
+    // before either was sent) must get the same link in both mails —
+    // rotating again per row would overwrite `unsubscribeTokenHash` before
+    // the first mail's link is ever used, dead-ending its one-click
+    // unsubscribe (ТЗ § 7).
+    const recipients = new Map<
+      string,
+      { email: string; unsubscribeToken: string } | null
+    >();
+    for (const veilleId of new Set(pending.map((n) => n.veilleId))) {
+      recipients.set(veilleId, await this.rotateUnsubscribeToken(veilleId));
+    }
+
+    const byArrete = new Map<string, PendingNotification[]>();
+    for (const notification of pending) {
+      const forArrete = byArrete.get(notification.arreteId) ?? [];
+      forArrete.push(notification);
+      byArrete.set(notification.arreteId, forArrete);
+    }
+
+    for (const [arreteId, notifications] of byArrete) {
+      await this.sendArreteNotifications(
+        arreteId,
+        notifications,
+        successorOf,
+        recipients,
+      );
+    }
+  }
+
+  /**
+   * Rotates one watcher's unsubscribe token for this run's mail(s), same
+   * pattern as `VeilleService.rotateAndSendChangeMail`
+   * (`apps/api/src/veille/veille.service.ts`) — only `unsubscribeTokenHash`
+   * is stored, so the plaintext token a mail can link to only ever exists
+   * right after this write. `null` means the watcher's row is gone (cascaded
+   * away with the Veille) or no longer confirmed — Veille never reverts
+   * `confirmedAt` once set (`apps/api/src/veille/CLAUDE.md`, "Жизненный цикл
+   * подписки"), so this is the same defensive race guard
+   * `rotateAndSendChangeMail` takes, not a reachable branch under normal
+   * operation.
+   */
+  private async rotateUnsubscribeToken(
+    veilleId: string,
+  ): Promise<{ email: string; unsubscribeToken: string } | null> {
+    return this.prisma.$transaction(async (tx) => {
+      const unsubscribe = generateVeilleToken();
+      const result = await tx.veille.updateMany({
+        where: { id: veilleId, confirmedAt: { not: null } },
+        data: { unsubscribeTokenHash: unsubscribe.hash },
+      });
+      if (result.count === 0) {
+        return null;
+      }
+      const veille = await tx.veille.findUniqueOrThrow({
+        where: { id: veilleId },
+        select: { email: true },
+      });
+      return { email: veille.email, unsubscribeToken: unsubscribe.token };
+    });
+  }
+
+  /**
+   * Sends every pending notification of one arrêté. The commune set a
+   * recipient's mail carries is not stored on `VeilleNotification` — it is
+   * recomputed here via {@link resolveRecipients}, the same function the
+   * outbox write used, scoped to just these `veilleId`s so this stays one
+   * query regardless of how many other watchers the database holds
+   * (critère "не дублировать"). A failed send is logged and left `sentAt:
+   * null` (critère № 12: the next recipient still gets theirs, the row goes
+   * out next run) — a `try/catch` per recipient, not around the loop.
+   */
+  private async sendArreteNotifications(
+    arreteId: string,
+    notifications: readonly PendingNotification[],
+    successorOf: ReadonlyMap<string, string>,
+    recipients: ReadonlyMap<
+      string,
+      { email: string; unsubscribeToken: string } | null
+    >,
+  ): Promise<void> {
+    const arrete = await this.prisma.arrete.findUnique({
+      where: { id: arreteId },
+      include: { entries: { include: { commune: true } } },
+    });
+    if (!arrete) {
+      // Arrete.notifications is onDelete: Restrict — an Arrete referenced by
+      // a pending row cannot actually be deleted — but findUnique still
+      // wants a null check to type-check.
+      return;
+    }
+
+    const entryCodes = uniqueCodes(
+      arrete.entries.map((entry) => entry.codeInsee),
+    );
+    const subscriptionRows = await this.prisma.veilleCommune.findMany({
+      where: {
+        veilleId: { in: notifications.map((n) => n.veilleId) },
+        veille: { confirmedAt: { not: null } },
+      },
+      select: { veilleId: true, codeInsee: true },
+    });
+    const subscriptions: SubscribedCommune[] = subscriptionRows.map((row) => ({
+      ...row,
+      confirmed: true as const,
+    }));
+    const codesByVeille = new Map(
+      resolveRecipients(entryCodes, successorOf, subscriptions).map(
+        (recipient) => [recipient.veilleId, recipient.codeInsee],
+      ),
+    );
+
+    const declarationRule = await this.loadDeclarationRule(arrete.publishedAt);
+    const arreteForMail: ArreteForMail = {
+      publishedAt: dateToIsoDate(arrete.publishedAt),
+      legifranceUrl: arrete.legifranceUrl,
+    };
+
+    for (const notification of notifications) {
+      const recipient = recipients.get(notification.veilleId);
+      if (!recipient) {
+        continue;
+      }
+
+      const codes = codesByVeille.get(notification.veilleId) ?? [];
+      if (codes.length === 0) {
+        // The watcher unsubscribed or dropped every commune this arrêté
+        // names since the row was queued — nothing left to mail. Marking it
+        // sent drains the row instead of retrying forever.
+        await this.prisma.veilleNotification.update({
+          where: { id: notification.id },
+          data: { sentAt: new Date() },
+        });
+        continue;
+      }
+
+      const entries: ArreteEntryForMail[] = [];
+      for (const entry of arrete.entries) {
+        if (
+          entry.codeInsee === null ||
+          !codes.includes(entry.codeInsee) ||
+          !entry.commune
+        ) {
+          continue;
+        }
+        entries.push({
+          commune: {
+            name: entry.commune.name,
+            departementName: entry.commune.departementName,
+          },
+          risque: entry.risque,
+          eventStart: dateToIsoDate(entry.eventStart),
+          eventEnd: dateToIsoDate(entry.eventEnd),
+          outcome: entry.outcome,
+        });
+      }
+
+      try {
+        await this.sendOneNotification(
+          notification,
+          recipient,
+          entries,
+          arreteForMail,
+          declarationRule,
+        );
+      } catch (error) {
+        this.logger.error(
+          `jorf monitor: notification email failed: ${errorSummary(error)}`,
+          stackOf(error),
+        );
+      }
+    }
+  }
+
+  /**
+   * One recipient's mail. `sentAt` is stamped only after `MailService.send`
+   * resolves — a thrown `MailDeliveryError` leaves the row pending for the
+   * next run, and the caller's `try/catch` moves on to the next recipient.
+   */
+  private async sendOneNotification(
+    notification: PendingNotification,
+    recipient: { email: string; unsubscribeToken: string },
+    entries: readonly ArreteEntryForMail[],
+    arrete: ArreteForMail,
+    declarationRule: DeclarationDeadlineRule,
+  ): Promise<void> {
+    await this.mail.send(
+      veilleArreteMailFor(
+        recipient.email,
+        recipient.unsubscribeToken,
+        arrete,
+        entries,
+        declarationRule,
+      ),
+    );
+
+    await this.prisma.veilleNotification.update({
+      where: { id: notification.id },
+      data: { sentAt: new Date() },
+    });
+  }
+
+  /**
+   * The active `DECLARATION_ASSUREUR` `DeadlineRule` for a given arrêté
+   * (resolved by `publishedAt`, the anchor `DATE_PUBLICATION_ARRETE` — same
+   * field {@link resolveDeadline} adds the duration to). Legal deadlines
+   * come only from this table (ТЗ § 7); an environment whose seed never ran
+   * throws here rather than falling back to a hard-coded number.
+   */
+  private async loadDeclarationRule(
+    publishedAt: Date,
+  ): Promise<DeclarationDeadlineRule> {
+    const rule = await this.prisma.deadlineRule.findFirst({
+      where: {
+        code: DECLARATION_ASSUREUR_CODE,
+        effectiveFrom: { lte: publishedAt },
+        OR: [{ effectiveTo: null }, { effectiveTo: { gte: publishedAt } }],
+      },
+      select: { duration: true, unit: true },
+    });
+    if (!rule) {
+      throw new Error(
+        `jorf monitor: no active DeadlineRule ${DECLARATION_ASSUREUR_CODE} for ${publishedAt.toISOString().slice(0, 10)}`,
+      );
+    }
+    return rule;
   }
 }
