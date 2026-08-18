@@ -158,7 +158,7 @@ Sinistre при слиянии **никогда не переписываютс�
 | risque                          | text                     |                                                                                                               |
 | eventStart, eventEnd            | date                     |                                                                                                               |
 | outcome                         | enum RECONNU/REFUSE      |                                                                                                               |
-| motivation                      | text, null               | только для REFUSE                                                                                             |
+| motivation                      | text, null               | для обеих annexes (доказательный текст), не только REFUSE                                                     |
 | createdAt                       | timestamptz              | иммутабелен: когда строка появилась из JO — звено доказательной цепочки                                       |
 | updatedAt                       | timestamptz              | **технический** («строку кто-то потрогал», включая ручную починку mapping'а) — в доказательствах не участвует |
 
@@ -181,6 +181,12 @@ entries существующего arrêté; факт изменения лог�
 автоматически не получают (`unique(veilleId, arreteId)`, § 6), решение об их
 повторном уведомлении принимает человек при разборе алерта (решение
 02.08.2026).
+
+### JorfDelta
+
+`fileName` (text PK, имя дельты `JORFSIMPLE_YYYYMMDD-HHMMSS.tar.gz`),
+`processedAt` (timestamptz). Смысл строки и порядок обработки —
+docs/research/jorf-monitor.md, «Расписание прогонов».
 
 ## 5. Аккаунт и синистр
 

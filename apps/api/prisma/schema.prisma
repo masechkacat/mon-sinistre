@@ -32,6 +32,7 @@ model Commune {
   sourceUrl          String
   sourceVerifiedAt   DateTime        @db.Date
   veilleCommunes     VeilleCommune[]
+  arreteEntries      ArreteEntry[]
 
   // Префиксный поиск и сортировка: колонка объявлена COLLATE "C" (миграция
   // normalize_collation), поэтому обычный btree обслуживает и LIKE 'q%', и
@@ -94,4 +95,68 @@ model VeilleFormEmail {
   // sentAt: ведущая колонка составного индекса ей не подходит.
   @@index([emailHash, sentAt])
   @@index([sentAt])
+}
+
+enum ArreteEntryOutcome {
+  RECONNU
+  REFUSE
+}
+
+// Arrêté portant reconnaissance de l'état de catastrophe naturelle, найденный
+// монитором JO. contentHash — по распарсенному содержимому, не сырому XML —
+// почему: docs/research/jorf-monitor.md, «Дедупликация, contentHash и rectificatifs».
+model Arrete {
+  id            String        @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  // Ключ дедупликации.
+  nor           String        @unique
+  signedAt      DateTime      @db.Date
+  // Только из XML JORF — не дата появления файла в выгрузке DILA и не GASPAR
+  // (жёсткое ограничение проекта).
+  publishedAt   DateTime      @db.Date
+  jorfNumber    String
+  legifranceUrl String
+  // Когда монитор впервые/последний раз встретил этот NOR в дельтах DILA.
+  firstSeenAt   DateTime      @db.Timestamptz(6)
+  lastSeenAt    DateTime      @db.Timestamptz(6)
+  contentHash   String
+  entries       ArreteEntry[]
+}
+
+// Одна строка annexe арретé — docs/research/data-model.md § 4.
+model ArreteEntry {
+  id        String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  arreteId  String   @db.Uuid
+  arrete    Arrete   @relation(fields: [arreteId], references: [id], onDelete: Cascade)
+  // null = коммуна annexe не сопоставлена со справочником → алерт (фаза 2).
+  codeInsee String?
+  commune   Commune? @relation(fields: [codeInsee], references: [codeInsee], onDelete: Restrict)
+  // Как напечатано в annexe — след для сверки и разбора несопоставленных строк.
+  communeLabelRaw String
+  departementRaw  String
+  risque          String
+  eventStart      DateTime           @db.Date
+  eventEnd        DateTime           @db.Date
+  outcome         ArreteEntryOutcome
+  // Мотивация решения — хранится для обеих annexes (доказательный текст,
+  // терять незачем), не только REFUSE — docs/research/jorf-monitor.md,
+  // «Ограничения и риски».
+  motivation      String?
+  // Иммутабелен: когда строка появилась из JO — звено доказательной цепочки.
+  createdAt       DateTime           @default(now()) @db.Timestamptz(6)
+  // Технический — «строку кто-то потрогал», включая ручную починку mapping'а;
+  // в доказательствах не участвует (data-model § 4).
+  updatedAt       DateTime           @updatedAt @db.Timestamptz(6)
+
+  // unique(arreteId, codeInsee, risque, eventStart, eventEnd) где codeInsee
+  // сопоставлен — партиальный unique, Prisma такое не выражает: CREATE UNIQUE
+  // INDEX руками в миграции (общее правило § 1 data-model), дрейфом не
+  // считается — как collation у Commune.nameNormalized выше.
+}
+
+// Прогресс монитора по дельтам DILA — docs/research/jorf-monitor.md,
+// «Расписание прогонов». Строка появляется, когда дельта полностью
+// обработана; необработанные дельты в таблице не отражены.
+model JorfDelta {
+  fileName    String   @id
+  processedAt DateTime @db.Timestamptz(6)
 }
