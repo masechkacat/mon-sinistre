@@ -31,20 +31,23 @@ const annexeSection = (caption: string, rows: string[][]) =>
          ${table(rows)}
        </CONTENU></BLOC_TEXTUEL></ARTICLE></SECTION_TA>`;
 
-const buildArreteXml = (options: {
-  id: string;
-  nor: string;
-  title: string;
+interface ArreteRevision {
   reconnues?: string[][];
   nonReconnues?: string[][];
-}) => `<?xml version="1.0"?>
+  /** Only a rectificatif that moves the déclaration deadline names it. */
+  publishedAt?: string;
+}
+
+const buildArreteXml = (
+  options: ArreteRevision & { id: string; nor: string; title: string },
+) => `<?xml version="1.0"?>
   <TEXTE>
     <NATURE>ARRETE</NATURE>
     <ID>${options.id}</ID>
     <NOR>${options.nor}</NOR>
     <TITREFULL>${options.title}</TITREFULL>
     <DATE_TEXTE>2026-06-30</DATE_TEXTE>
-    <DATE_PUBLI>2026-07-01</DATE_PUBLI>
+    <DATE_PUBLI>${options.publishedAt ?? '2026-07-01'}</DATE_PUBLI>
     <ORIGINE_PUBLI>JORF n°0150 du 1 juillet 2026</ORIGINE_PUBLI>
     <STRUCT>
       ${annexeSection(
@@ -305,22 +308,44 @@ describe('JorfMonitorService.run (integration)', () => {
       '03/01/2026',
       '04/01/2026',
     ];
+    const AMIGNY_JUSQU_AU_5 = [
+      'Aisne',
+      'Amigny-Rouy',
+      'Inondations',
+      '01/01/2026',
+      '05/01/2026',
+    ];
+    const MORNING = 'JORFSIMPLE_20260701-060000.tar.gz';
+    const EVENING = 'JORFSIMPLE_20260701-230000.tar.gz';
+    const TEXT_ID = 'JORFTEXT000000000201';
 
-    it('upserts entries on a rectificatif and alerts on an outcome change (PRD #3, #11)', async () => {
-      const textId = 'JORFTEXT000000000201';
-      const tocXml = buildTocXml(textId, RECT_TITLE);
-      const firstTarball = await buildTarball({
-        'jorf/simple/JORF/CONT/2026/07/01/JORFCONT000000000200.xml': tocXml,
-        [`jorf/simple/JORF/CONT/2026/07/01/${textId}.xml`]: buildArreteXml({
-          id: textId,
+    let served: Record<string, Buffer>;
+    beforeEach(() => {
+      served = {};
+    });
+
+    /**
+     * Publishes one revision of the same NOR as the named delta, keeping the
+     * deltas published before it on the listing the way DILA does: a
+     * rectificatif is two runs — the morning delta, then the evening one
+     * carrying the corrected text.
+     */
+    const serve = async (delta: string, revision: ArreteRevision) => {
+      served[delta] = await buildTarball({
+        'jorf/simple/JORF/CONT/2026/07/01/JORFCONT000000000200.xml':
+          buildTocXml(TEXT_ID, RECT_TITLE),
+        [`jorf/simple/JORF/CONT/2026/07/01/${TEXT_ID}.xml`]: buildArreteXml({
+          id: TEXT_ID,
           nor: RECT_NOR,
           title: RECT_TITLE,
-          reconnues: [AMIGNY],
+          ...revision,
         }),
       });
-      currentFetch = stubFetch(['JORFSIMPLE_20260701-060000.tar.gz'], {
-        'JORFSIMPLE_20260701-060000.tar.gz': firstTarball,
-      });
+      currentFetch = stubFetch(Object.keys(served), served);
+    };
+
+    it('upserts entries on a rectificatif and alerts on an outcome change (PRD #3, #11)', async () => {
+      await serve(MORNING, { reconnues: [AMIGNY] });
       await monitor.run();
 
       const original = await prisma.arrete.findUnique({
@@ -336,26 +361,7 @@ describe('JorfMonitorService.run (integration)', () => {
       // The rectificatif flips Amigny-Rouy to refusé (outcome change on an
       // existing entry) and adds Mussidan as a newly recognized commune —
       // both entries change, so the parsed contentHash differs too.
-      const secondTarball = await buildTarball({
-        'jorf/simple/JORF/CONT/2026/07/01/JORFCONT000000000200.xml': tocXml,
-        [`jorf/simple/JORF/CONT/2026/07/01/${textId}.xml`]: buildArreteXml({
-          id: textId,
-          nor: RECT_NOR,
-          title: RECT_TITLE,
-          reconnues: [MUSSIDAN],
-          nonReconnues: [AMIGNY],
-        }),
-      });
-      currentFetch = stubFetch(
-        [
-          'JORFSIMPLE_20260701-060000.tar.gz',
-          'JORFSIMPLE_20260701-230000.tar.gz',
-        ],
-        {
-          'JORFSIMPLE_20260701-060000.tar.gz': firstTarball,
-          'JORFSIMPLE_20260701-230000.tar.gz': secondTarball,
-        },
-      );
+      await serve(EVENING, { reconnues: [MUSSIDAN], nonReconnues: [AMIGNY] });
       await monitor.run();
 
       expect(await prisma.arrete.count()).toBe(1);
@@ -380,7 +386,137 @@ describe('JorfMonitorService.run (integration)', () => {
       expect(alerts[0]?.detail).not.toMatch(/@/);
     });
 
-    it('does not create an Arrete for a rectificatif Z-text and alerts referencing the original NOR', async () => {
+    it('moves the dates of a corrected entry instead of adding a second row', async () => {
+      await serve(MORNING, { reconnues: [AMIGNY] });
+      await monitor.run();
+
+      // « Au lieu de : du 1er au 2 janvier, lire : du 1er au 5 janvier » — the
+      // everyday rectificatif, and the one that moves the very dates an entry
+      // is identified by.
+      await serve(EVENING, { reconnues: [AMIGNY_JUSQU_AU_5] });
+      await monitor.run();
+
+      const entries = await prisma.arreteEntry.findMany();
+      expect(entries).toHaveLength(1);
+      expect(entries[0]?.eventEnd.toISOString().slice(0, 10)).toBe(
+        '2026-01-05',
+      );
+    });
+
+    it('adds a line for a risque the commune was not listed under, correcting the one it was', async () => {
+      await serve(MORNING, { reconnues: [AMIGNY] });
+      await monitor.run();
+
+      // Same commune, two lines: the flood dates are corrected and a landslide
+      // is added. A phenomenon this arrêté never listed for the commune is an
+      // addition, not a correction — reading it as one would overwrite the
+      // flood line and lose it.
+      const AMIGNY_GLISSEMENT = [
+        'Aisne',
+        'Amigny-Rouy',
+        'Mouvements de terrain',
+        '01/01/2026',
+        '02/01/2026',
+      ];
+      await serve(EVENING, {
+        reconnues: [AMIGNY_JUSQU_AU_5, AMIGNY_GLISSEMENT],
+      });
+      await monitor.run();
+
+      const entries = await prisma.arreteEntry.findMany();
+      expect(
+        entries
+          .map((e) => `${e.risque} → ${e.eventEnd.toISOString().slice(0, 10)}`)
+          .sort(),
+      ).toEqual([
+        'Inondations → 2026-01-05',
+        'Mouvements de terrain → 2026-01-02',
+      ]);
+    });
+
+    it('leaves the rows a rectificatif does not mention untouched', async () => {
+      await serve(MORNING, { reconnues: [AMIGNY] });
+      await monitor.run();
+      const before = await prisma.arreteEntry.findFirstOrThrow();
+
+      await serve(EVENING, { reconnues: [AMIGNY, MUSSIDAN] });
+      await monitor.run();
+
+      // updatedAt means "someone touched this row" (schema.prisma): rewriting
+      // every line of a real arrêté — ~720 of them — would erase that signal
+      // and spend the transaction on rows the rectificatif never named.
+      const after = await prisma.arreteEntry.findUniqueOrThrow({
+        where: { id: before.id },
+      });
+      expect(after.updatedAt).toEqual(before.updatedAt);
+      expect(await prisma.arreteEntry.count()).toBe(2);
+    });
+
+    it('rewrites the misprinted commune of an unmatched line instead of adding a second one', async () => {
+      await prisma.commune.create({
+        data: communeFixture('02005', 'Amigny-Rouy', '02', 'Aisne'),
+      });
+      // Printed with a typo, so the referential resolves nothing and the line
+      // is stored unmatched — the label is both what went wrong and the only
+      // thing left to recognize the line by.
+      await serve(MORNING, {
+        reconnues: [
+          ['Aisne', 'Amigni-Roui', 'Inondations', '01/01/2026', '02/01/2026'],
+        ],
+      });
+      await monitor.run();
+      expect(await prisma.arreteEntry.findFirstOrThrow()).toMatchObject({
+        codeInsee: null,
+      });
+
+      await serve(EVENING, { reconnues: [AMIGNY] });
+      await monitor.run();
+
+      const entries = await prisma.arreteEntry.findMany();
+      expect(entries).toHaveLength(1);
+      expect(entries[0]).toMatchObject({
+        codeInsee: '02005',
+        communeLabelRaw: 'Amigny-Rouy',
+      });
+    });
+
+    it('alerts once about a commune the referential keeps failing to resolve', async () => {
+      await serve(MORNING, { reconnues: [AMIGNY] });
+      await monitor.run();
+
+      await serve(EVENING, { reconnues: [AMIGNY, MUSSIDAN] });
+      await monitor.run();
+
+      // Amigny-Rouy is unmatched in both revisions — a fusion the COG doesn't
+      // carry yet never resolves, and the operator works through this table by
+      // hand. Mussidan is new, so it does alert.
+      const alerts = await prisma.monitorAlert.findMany({
+        where: { kind: 'UNMATCHED_COMMUNE' },
+      });
+      expect(
+        alerts.filter((alert) => alert.detail.includes('Amigny-Rouy')),
+      ).toHaveLength(1);
+      expect(alerts).toHaveLength(2);
+    });
+
+    it('takes the publication date of the corrected text', async () => {
+      await serve(MORNING, { reconnues: [AMIGNY] });
+      await monitor.run();
+
+      await serve(EVENING, { reconnues: [AMIGNY], publishedAt: '2026-07-02' });
+      await monitor.run();
+
+      // The anchor of the 30-day déclaration deadline: it comes from the XML
+      // and nowhere else, and contentHash is computed over it, so a row that
+      // kept the old date would no longer be described by its own hash.
+      const arrete = await prisma.arrete.findUniqueOrThrow({
+        where: { nor: RECT_NOR },
+      });
+      expect(arrete.publishedAt.toISOString().slice(0, 10)).toBe('2026-07-02');
+      expect(logs.text()).toContain('publication date');
+    });
+
+    it('does not create an Arrete for a rectificatif Z-text, and alerts about it once', async () => {
       const zNor = 'INTJ2600002Z';
       const zTitle =
         "Arrêté du 1er juillet 2026 portant reconnaissance de l'état de catastrophe naturelle (rectificatif)";
@@ -401,10 +537,14 @@ describe('JorfMonitorService.run (integration)', () => {
         'jorf/simple/JORF/CONT/2026/07/01/JORFCONT000000000300.xml': tocXml,
         [`jorf/simple/JORF/CONT/2026/07/01/${zId}.xml`]: zXml,
       });
-      currentFetch = stubFetch(['JORFSIMPLE_20260701-060000.tar.gz'], {
-        'JORFSIMPLE_20260701-060000.tar.gz': tarball,
+      currentFetch = stubFetch([MORNING], { [MORNING]: tarball });
+      await monitor.run();
+      // DILA re-delivers the text in the evening delta, and in every later one
+      // it belongs to: the same unread text must not fill the table row by row.
+      currentFetch = stubFetch([MORNING, EVENING], {
+        [MORNING]: tarball,
+        [EVENING]: tarball,
       });
-
       await monitor.run();
 
       expect(
@@ -482,6 +622,36 @@ describe('JorfMonitorService.run (integration)', () => {
       expect(
         await prisma.arrete.findUnique({ where: { nor: goodNor } }),
       ).not.toBeNull();
+    });
+
+    it('leaves the delta unmarked when a parsed text cannot be written, and ingests it next run', async () => {
+      const tarball = await buildDeltaTarball();
+      currentFetch = stubFetch(['JORFSIMPLE_20260613-060000.tar.gz'], {
+        'JORFSIMPLE_20260613-060000.tar.gz': tarball,
+      });
+      // The text parses; the write behind it doesn't go through — a dropped
+      // connection, a statement timeout. Nothing about the JO is wrong here.
+      const transaction = jest
+        .spyOn(prisma, '$transaction')
+        .mockRejectedValueOnce(new Error('P1001 database unreachable'));
+
+      await monitor.run();
+
+      expect(await prisma.arrete.count()).toBe(0);
+      // Marking it would retire the delta with the arrêté still unread, and
+      // an UNPARSEABLE_ANNEXE alert would send the operator after a parser
+      // that works.
+      expect(await prisma.jorfDelta.count()).toBe(0);
+      expect(await prisma.monitorAlert.count()).toBe(0);
+      expect(logs.text()).toContain('JORFTEXT000054245373');
+
+      transaction.mockRestore();
+      await monitor.run();
+
+      expect(
+        await prisma.arrete.findUnique({ where: { nor: 'INTE2615534A' } }),
+      ).not.toBeNull();
+      expect(await prisma.jorfDelta.count()).toBe(1);
     });
 
     it('saves an entry with an unmatched commune as codeInsee: null and alerts, matched entries unaffected (PRD #10)', async () => {
@@ -670,10 +840,13 @@ describe('admin alert email (issue #102)', () => {
     await prisma.$executeRaw`TRUNCATE TABLE "Arrete", "JorfDelta", "MonitorAlert", "Commune" CASCADE`;
   });
 
-  /** An arrêté whose one commune the (empty) referential cannot resolve —
-   * the simplest of the three alert kinds to trigger, one UNMATCHED_COMMUNE
-   * row is all either test below needs. */
-  const buildUnmatchedCommuneTarball = (fileSuffix: string) => {
+  /** An arrêté whose communes the (empty) referential cannot resolve — the
+   * simplest of the three alert kinds to trigger, one UNMATCHED_COMMUNE row
+   * per commune named. */
+  const buildUnmatchedCommuneTarball = (
+    fileSuffix: string,
+    communes: string[] = ['Commune Fictive'],
+  ) => {
     const id = `JORFTEXT00000000${fileSuffix}`;
     const nor = `INTJ260000${fileSuffix}A`;
     const title =
@@ -682,15 +855,13 @@ describe('admin alert email (issue #102)', () => {
       id,
       nor,
       title,
-      reconnues: [
-        [
-          'Département Fictif',
-          'Commune Fictive',
-          'Inondations',
-          '01/01/2026',
-          '02/01/2026',
-        ],
-      ],
+      reconnues: communes.map((commune) => [
+        'Département Fictif',
+        commune,
+        'Inondations',
+        '01/01/2026',
+        '02/01/2026',
+      ]),
     });
     return buildTarball({
       [`jorf/simple/JORF/CONT/2026/07/10/JORFCONT${fileSuffix}.xml`]:
@@ -713,6 +884,27 @@ describe('admin alert email (issue #102)', () => {
     if (!message) throw new Error('expected an admin alert email');
     expect(message.to).toBe(ADMIN_EMAIL);
     expect(message.text).not.toMatch(/@/);
+  });
+
+  it('sends one message for everything an arrêté raised, not one per alert', async () => {
+    const tarball = await buildUnmatchedCommuneTarball('811', [
+      'Commune Fictive',
+      'Autre Fictive',
+    ]);
+    currentFetch = stubFetch(['JORFSIMPLE_20260710-080000.tar.gz'], {
+      'JORFSIMPLE_20260710-080000.tar.gz': tarball,
+    });
+
+    await monitor.run();
+
+    // A real arrêté lists hundreds of communes: a message per alert row would
+    // be hundreds of messages for one publication, and the provider would stop
+    // accepting them partway through.
+    expect(await prisma.monitorAlert.count()).toBe(2);
+    expect(transport.sent).toHaveLength(1);
+    const [message] = transport.sent;
+    expect(message?.text).toContain('Commune Fictive');
+    expect(message?.text).toContain('Autre Fictive');
   });
 
   it('keeps the alert in the database and finishes the run when the transport fails', async () => {
