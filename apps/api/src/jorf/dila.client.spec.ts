@@ -1,14 +1,7 @@
-import {
-  mkdtempSync,
-  mkdirSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
-import { tmpdir } from 'node:os';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import * as tar from 'tar';
 import { DILA_JORFSIMPLE_BASE_URL, DilaClient } from './dila.client';
+import { buildTarball } from './fixtures/build-tarball.test-helper';
 
 const indexHtml = readFileSync(
   join(__dirname, 'fixtures/dila-index.html'),
@@ -27,35 +20,18 @@ const fetchOf = (body: string | Uint8Array, status = 200) =>
   jest.fn(() => Promise.resolve(new Response(body, { status })));
 
 /**
- * Builds a `tar.gz` in memory with the same layout as a real DILA delta:
- * the two wanted XML files under `jorf/simple/JORF/CONT/…` plus decoy paths
- * that a correct client must never read — a non-XML file inside the CONT
- * tree, and an XML file under `jorf/simple/JORF/` but outside CONT.
+ * The same layout as a real DILA delta: the two wanted XML files under
+ * `jorf/simple/JORF/CONT/…` plus decoy paths that a correct client must never
+ * read — a non-XML file inside the CONT tree, and an XML file under
+ * `jorf/simple/JORF/` but outside CONT.
  */
-async function buildDeltaTarball(): Promise<Buffer> {
-  const dir = mkdtempSync(join(tmpdir(), 'dila-client-spec-'));
-  try {
-    const contDir = join(dir, 'jorf/simple/JORF/CONT/2026/06/13');
-    mkdirSync(contDir, { recursive: true });
-    writeFileSync(join(contDir, 'JORFCONT000054245240.xml'), tocXml);
-    writeFileSync(join(contDir, 'JORFTEXT000054245373.xml'), arreteXml);
-    writeFileSync(join(contDir, 'notes.txt'), 'not an xml file');
-    mkdirSync(join(dir, 'jorf/simple/JORF/OTHER'), { recursive: true });
-    writeFileSync(
-      join(dir, 'jorf/simple/JORF/OTHER/JORFTEXT999999999.xml'),
-      '<TEXTE/>',
-    );
-
-    const pack = tar.create({ gzip: true, cwd: dir }, ['jorf']);
-    const chunks: Buffer[] = [];
-    for await (const chunk of pack) {
-      chunks.push(chunk);
-    }
-    return Buffer.concat(chunks);
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
-  }
-}
+const buildDeltaTarball = (): Promise<Buffer> =>
+  buildTarball({
+    'jorf/simple/JORF/CONT/2026/06/13/JORFCONT000054245240.xml': tocXml,
+    'jorf/simple/JORF/CONT/2026/06/13/JORFTEXT000054245373.xml': arreteXml,
+    'jorf/simple/JORF/CONT/2026/06/13/notes.txt': 'not an xml file',
+    'jorf/simple/JORF/OTHER/JORFTEXT999999999.xml': '<TEXTE/>',
+  });
 
 describe('DilaClient', () => {
   describe('listDeltas', () => {

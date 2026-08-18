@@ -1,10 +1,16 @@
 import { normalizeCommuneName } from '../communes/normalize-commune-name';
 
-/** The referential fields `matchCommune` needs, independent of how the caller fetched them. */
+/**
+ * The referential fields `matchCommune` needs, independent of how the caller
+ * fetched them. `departementNameNormalized` is precomputed by the caller
+ * (not just `departementName` raw): a caller matching hundreds of entries
+ * against the same referential must normalize it once, not once per entry
+ * per candidate commune.
+ */
 export interface CommuneReferentialEntry {
   codeInsee: string;
   nameNormalized: string | null;
-  departementName: string;
+  departementNameNormalized: string;
   /** null = the code is effective in the current COG. */
   effectiveTo: Date | null;
 }
@@ -25,7 +31,7 @@ export function matchCommune(
   const candidates = communes.filter(
     (commune) =>
       commune.nameNormalized === nameKey &&
-      normalizeCommuneName(commune.departementName) === departementKey,
+      commune.departementNameNormalized === departementKey,
   );
 
   const current = candidates.filter((commune) => commune.effectiveTo === null);

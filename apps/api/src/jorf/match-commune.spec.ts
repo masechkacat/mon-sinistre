@@ -2,14 +2,18 @@ import { normalizeCommuneName } from '../communes/normalize-commune-name';
 import { CommuneReferentialEntry, matchCommune } from './match-commune';
 
 function entry(
-  overrides: Partial<CommuneReferentialEntry> & { name: string },
+  overrides: Partial<CommuneReferentialEntry> & {
+    name: string;
+    departementName?: string;
+  },
 ): CommuneReferentialEntry {
+  const { name, departementName, ...rest } = overrides;
   return {
     codeInsee: '00000',
-    nameNormalized: normalizeCommuneName(overrides.name),
-    departementName: 'Gard',
+    nameNormalized: normalizeCommuneName(name),
+    departementNameNormalized: normalizeCommuneName(departementName ?? 'Gard'),
     effectiveTo: null,
-    ...overrides,
+    ...rest,
   };
 }
 
