@@ -4,10 +4,15 @@ import type { IsoDate } from '@mon-sinistre/contracts';
 import { Cron } from '@nestjs/schedule';
 import { errorSummary, stackOf } from 'src/common/error-report';
 import { normalizeCommuneName } from 'src/communes/normalize-commune-name';
+import type { Prisma } from 'src/generated/prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { DilaClient } from './dila.client';
 import { type CommuneReferentialEntry, matchCommune } from './match-commune';
-import { type ParsedArrete, parseArreteXml } from './parse-arrete';
+import {
+  type ParsedArrete,
+  type ParsedArreteEntry,
+  parseArreteXml,
+} from './parse-arrete';
 import { selectCatnatTextIds } from './select-catnat-texts';
 
 const TOC_BASENAME_PATTERN = /^JORFCONT/;
@@ -23,11 +28,64 @@ export const MAX_DELTAS_PER_RUN = 8;
 /** UTC midnight of an `IsoDate`, for `@db.Date` columns — the Prisma client requires a full ISO-8601 `Date`, not a bare `YYYY-MM-DD` string. */
 const isoDateToDate = (value: IsoDate): Date => new Date(`${value}T00:00:00Z`);
 
+type ArreteWithEntries = Prisma.ArreteGetPayload<{
+  include: { entries: true };
+}>;
+
+/** The fields `ArreteEntry` create needs, minus `arreteId` — shared by the first-seen path (nested `entries: { create }`) and the rectificatif path (flat `arreteEntry.create`/`.update`). `codeInsee` is taken as an argument, not recomputed here, so the caller matches ({@link isSameEntry}) and writes with the exact same value. */
+function entryData(
+  entry: ParsedArreteEntry,
+  codeInsee: string | null,
+): Omit<Prisma.ArreteEntryUncheckedCreateInput, 'arreteId'> {
+  return {
+    codeInsee,
+    communeLabelRaw: entry.communeLabelRaw,
+    departementRaw: entry.departementRaw,
+    risque: entry.risque,
+    eventStart: isoDateToDate(entry.eventStart),
+    eventEnd: isoDateToDate(entry.eventEnd),
+    outcome: entry.outcome,
+    motivation: entry.motivation,
+  };
+}
+
+/**
+ * The identity a commune line keeps across a rectificatif — `outcome` is
+ * deliberately excluded: it is exactly the field a rectificatif may flip, so
+ * matching on it would read an outcome change as a removed row plus an
+ * unrelated new one instead of an update (docs/research/jorf-monitor.md,
+ * "Дедупликация, contentHash и rectificatifs"). A matched commune is
+ * identified by its stable `codeInsee`, not the printed label, so a
+ * rectificatif that only corrects a spelling still updates the row instead
+ * of colliding with it on `ArreteEntry`'s partial unique index
+ * (schema.prisma). Only when either side has no resolved code is there
+ * nothing stable to key on, so the raw label as printed is the fallback.
+ */
+function isSameEntry(
+  existing: ArreteWithEntries['entries'][number],
+  parsedCodeInsee: string | null,
+  parsed: ParsedArreteEntry,
+): boolean {
+  if (
+    existing.risque !== parsed.risque ||
+    existing.eventStart.getTime() !==
+      isoDateToDate(parsed.eventStart).getTime() ||
+    existing.eventEnd.getTime() !== isoDateToDate(parsed.eventEnd).getTime()
+  ) {
+    return false;
+  }
+  return existing.codeInsee && parsedCodeInsee
+    ? existing.codeInsee === parsedCodeInsee
+    : existing.departementRaw === parsed.departementRaw &&
+        existing.communeLabelRaw === parsed.communeLabelRaw;
+}
+
 /**
  * The tracer-bullet run: DILA deltas → parsed arrêtés → database, twice a day
- * (docs/research/jorf-monitor.md, "Расписание прогонов"). No alerts and no
- * mail yet — an unmatched commune or an unparseable annexe is only logged
- * (phase 2 turns them into `MonitorAlert` rows).
+ * (docs/research/jorf-monitor.md, "Расписание прогонов"). An annexe that
+ * fails to parse alerts the administrator (`MonitorAlert`); an unmatched
+ * commune is still only logged — the next issue turns it into its own alert
+ * kind.
  */
 @Injectable()
 export class JorfMonitorService {
@@ -125,10 +183,11 @@ export class JorfMonitorService {
   /**
    * Selects the catastrophe-naturelle texts of a delta via its table(s) of
    * contents, then parses and ingests each one. A text that fails to parse
-   * (unrecognized annexe structure, missing metadata) is logged and skipped —
-   * the rest of the delta is still processed and the delta is still marked
-   * done (research, "Отбор текстов и структура annexe": a parse failure is
-   * not a download failure).
+   * (unrecognized annexe structure, missing metadata) is logged, alerted
+   * (`MonitorAlert`, kind `UNPARSEABLE_ANNEXE`) and skipped — the rest of the
+   * delta is still processed and the delta is still marked done (research,
+   * "Отбор текстов и структура annexe": a parse failure is not a download
+   * failure).
    */
   private async ingestDelta(
     files: Map<string, string>,
@@ -165,15 +224,23 @@ export class JorfMonitorService {
           `jorf monitor: text ${id} failed to parse: ${errorSummary(error)}`,
           stackOf(error),
         );
+        // Covers the Z-text rectificatif too — docs/research/jorf-monitor.md,
+        // "Дедупликация, contentHash и rectificatifs".
+        await this.prisma.monitorAlert.create({
+          data: {
+            kind: 'UNPARSEABLE_ANNEXE',
+            detail: `text ${id}: ${error instanceof Error ? error.message : String(error)}`,
+          },
+        });
       }
     }
   }
 
   /**
    * NOR-dedup (research, "Дедупликация, contentHash и rectificatifs"): a new
-   * NOR is created with both annexes; a NOR already in the database only gets
-   * its `lastSeenAt` bumped — upserting entries on a changed `contentHash`
-   * (the rectificatif path) is phase 2's job, not this tracer bullet's.
+   * NOR is created with both annexes; an unchanged `contentHash` only bumps
+   * `lastSeenAt`; a changed `contentHash` is a rectificatif — entries are
+   * upserted, not replaced wholesale ({@link applyRectificatif}).
    */
   private async ingestArrete(
     parsed: ParsedArrete,
@@ -182,9 +249,38 @@ export class JorfMonitorService {
     const now = new Date();
     const existing = await this.prisma.arrete.findUnique({
       where: { nor: parsed.nor },
-      select: { id: true },
+      include: { entries: true },
     });
-    if (existing) {
+
+    if (!existing) {
+      await this.prisma.arrete.create({
+        data: {
+          nor: parsed.nor,
+          signedAt: isoDateToDate(parsed.signedAt),
+          publishedAt: isoDateToDate(parsed.publishedAt),
+          jorfNumber: parsed.jorfNumber,
+          legifranceUrl: parsed.legifranceUrl,
+          firstSeenAt: now,
+          lastSeenAt: now,
+          contentHash: parsed.contentHash,
+          entries: {
+            create: parsed.entries.map((entry) =>
+              entryData(
+                entry,
+                matchCommune(
+                  communes,
+                  entry.communeLabelRaw,
+                  entry.departementRaw,
+                ),
+              ),
+            ),
+          },
+        },
+      });
+      return;
+    }
+
+    if (existing.contentHash === parsed.contentHash) {
       await this.prisma.arrete.update({
         where: { id: existing.id },
         data: { lastSeenAt: now },
@@ -192,33 +288,68 @@ export class JorfMonitorService {
       return;
     }
 
-    await this.prisma.arrete.create({
-      data: {
-        nor: parsed.nor,
-        signedAt: isoDateToDate(parsed.signedAt),
-        publishedAt: isoDateToDate(parsed.publishedAt),
-        jorfNumber: parsed.jorfNumber,
-        legifranceUrl: parsed.legifranceUrl,
-        firstSeenAt: now,
-        lastSeenAt: now,
-        contentHash: parsed.contentHash,
-        entries: {
-          create: parsed.entries.map((entry) => ({
-            codeInsee: matchCommune(
-              communes,
-              entry.communeLabelRaw,
-              entry.departementRaw,
-            ),
-            communeLabelRaw: entry.communeLabelRaw,
-            departementRaw: entry.departementRaw,
-            risque: entry.risque,
-            eventStart: isoDateToDate(entry.eventStart),
-            eventEnd: isoDateToDate(entry.eventEnd),
-            outcome: entry.outcome,
-            motivation: entry.motivation,
-          })),
+    await this.applyRectificatif(existing, parsed, communes, now);
+  }
+
+  /**
+   * Entries are matched to their existing row by {@link isSameEntry}, not
+   * replaced wholesale: an unmatched parsed entry is a newly added commune
+   * (created), a matched one is updated in place. A matched entry whose
+   * `outcome` flips gets a `MonitorAlert` in the same transaction as the
+   * update it describes — decision and consequences in data-model.md § 4.
+   * Entries missing from the new revision are left as-is: the rectificatif
+   * format observed never removes a commune, only adds or corrects one.
+   */
+  private async applyRectificatif(
+    existing: ArreteWithEntries,
+    parsed: ParsedArrete,
+    communes: CommuneReferentialEntry[],
+    now: Date,
+  ): Promise<void> {
+    await this.prisma.$transaction(async (tx) => {
+      for (const entry of parsed.entries) {
+        const codeInsee = matchCommune(
+          communes,
+          entry.communeLabelRaw,
+          entry.departementRaw,
+        );
+        const match = existing.entries.find((candidate) =>
+          isSameEntry(candidate, codeInsee, entry),
+        );
+
+        if (!match) {
+          await tx.arreteEntry.create({
+            data: { arreteId: existing.id, ...entryData(entry, codeInsee) },
+          });
+          continue;
+        }
+
+        if ((match.outcome as string) !== (entry.outcome as string)) {
+          await tx.monitorAlert.create({
+            data: {
+              kind: 'OUTCOME_CHANGED',
+              arreteId: existing.id,
+              detail: `NOR ${parsed.nor}: ${entry.communeLabelRaw} (${entry.departementRaw}) ${match.outcome} → ${entry.outcome}`,
+            },
+          });
+        }
+
+        await tx.arreteEntry.update({
+          where: { id: match.id },
+          data: entryData(entry, codeInsee),
+        });
+      }
+
+      await tx.arrete.update({
+        where: { id: existing.id },
+        data: {
+          contentHash: parsed.contentHash,
+          lastSeenAt: now,
+          signedAt: isoDateToDate(parsed.signedAt),
+          jorfNumber: parsed.jorfNumber,
+          legifranceUrl: parsed.legifranceUrl,
         },
-      },
+      });
     });
   }
 }
