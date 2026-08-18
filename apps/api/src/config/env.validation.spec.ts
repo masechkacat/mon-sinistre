@@ -120,6 +120,15 @@ describe('validateEnv', () => {
     ).toThrow(/ADMIN_EMAIL/);
   });
 
+  it('rejects an ADMIN_EMAIL written and left blank — empty is not unset', () => {
+    // Which is why .env.example ships the line commented out: dotenv hands a
+    // written-but-blank variable over as '', and @IsOptional() only skips
+    // undefined. Turning alerts off is deleting the line, not emptying it.
+    expect(() => validateEnv({ ...validEnv, ADMIN_EMAIL: '' })).toThrow(
+      /ADMIN_EMAIL/,
+    );
+  });
+
   it('listens on the port and host of the schema when .env names neither', () => {
     // The values themselves, not the constants that hold them: what this
     // guards is that a fresh clone comes up where the README says it does.
