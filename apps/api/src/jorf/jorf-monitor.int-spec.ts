@@ -298,7 +298,7 @@ describe('JorfMonitorService.run (integration)', () => {
       });
       currentFetch = stubFetch([], { [SECOND]: await buildDeltaTarball() });
 
-      await monitor.run(false, { deltaNames: [FIRST, SECOND] });
+      await monitor.run({ notify: false, deltaNames: [FIRST, SECOND] });
 
       expect(
         (await prisma.jorfDelta.findMany({ orderBy: { fileName: 'asc' } })).map(
@@ -331,7 +331,8 @@ describe('JorfMonitorService.run (integration)', () => {
       });
       currentFetch = stubFetch([], { [DELTA]: tarball });
 
-      await monitor.run(false, {
+      await monitor.run({
+        notify: false,
         deltaNames: [DELTA],
         minPublishedAt: toIsoDate('2026-01-01'),
       });
@@ -363,7 +364,7 @@ describe('JorfMonitorService.run (integration)', () => {
       const backfill = randomUUID();
       expect(await monitor.acquireIngestLock(backfill)).toBe(true);
 
-      await monitor.run(false, { deltaNames: [DELTA], lockOwner: backfill });
+      await monitor.run({ notify: false, deltaNames: [DELTA], lockOwner: backfill });
 
       expect(await prisma.jorfDelta.count()).toBe(1);
       // Still held: the next scheduled tick would keep skipping itself.
@@ -1558,7 +1559,7 @@ describe('veille notification outbox (issue #106)', () => {
         [BACKFILL]: await buildDelta(ID, NOR, revision),
       });
 
-      await monitor.run(false);
+      await monitor.run({ notify: false });
 
       expect(await prisma.arrete.count()).toBe(1);
       expect(await prisma.veilleNotification.count()).toBe(0);

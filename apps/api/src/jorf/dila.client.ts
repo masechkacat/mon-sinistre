@@ -1,4 +1,5 @@
 import { Readable } from 'node:stream';
+import type { IsoDate } from '@mon-sinistre/contracts';
 import { Parser as TarParser, ReadEntry } from 'tar';
 import type { FetchFn } from 'src/common/fetch-fn';
 
@@ -14,6 +15,16 @@ export const DILA_JORFSIMPLE_BASE_URL =
 
 /** Delta names double as their generation timestamp, so ascending name order is chronological order. */
 const DELTA_NAME_PATTERN = /JORFSIMPLE_\d{8}-\d{6}\.tar\.gz/g;
+
+/**
+ * The name a delta generated at `date`'s midnight would carry — the same
+ * format {@link DELTA_NAME_PATTERN} matches, written once: a feed rename
+ * fixed only in the pattern would leave a caller's hand-built boundary name
+ * comparing against a shape `listDeltas` no longer returns.
+ */
+export function deltaNameFor(date: IsoDate): string {
+  return `JORFSIMPLE_${date.replace(/-/g, '')}-000000.tar.gz`;
+}
 
 /**
  * Only the issue table-of-contents and text files matter to the monitor —

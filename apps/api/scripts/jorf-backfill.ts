@@ -71,7 +71,8 @@ async function main(): Promise<void> {
         console.log(
           `jorf backfill: ${remaining.length} delta(s) left, oldest ${remaining[0]}…`,
         );
-        await monitor.run(false, {
+        await monitor.run({
+          notify: false,
           deltaNames: remaining,
           minPublishedAt: BACKFILL_MIN_PUBLISHED_AT,
           lockOwner,

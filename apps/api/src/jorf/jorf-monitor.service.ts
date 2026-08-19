@@ -60,11 +60,19 @@ const INGEST_LOCK_TTL_MS = 60 * 60 * 1000;
 
 /**
  * Backfill-only knobs (docs/research/jorf-monitor.md, "Бэкфилл с
- * 01.01.2026") — all empty for the scheduled tick, which considers every
- * delta the catalogue lists and never skips an arrêté on its date.
+ * 01.01.2026") — all empty for the scheduled tick, which notifies, considers
+ * every delta the catalogue lists and never skips an arrêté on its date.
  * `apps/api/scripts/jorf-backfill.ts` is the only caller that sets them.
  */
 export type RunOptions = {
+  /**
+   * `false` suppresses the outbox write entirely — no `VeilleNotification`
+   * row is created for anything the run ingests, so nothing is ever mailed
+   * for it ({@link JorfMonitorService.queueNotifications}, the one place
+   * this knob is honored). The backfill's «не отправляет ни одного письма»
+   * holds by this construction, not by a date check.
+   */
+  notify?: boolean;
   /** Restricts which deltas this run may pick up, already filtered to the backfill's date boundary — `this.dila.listDeltas()` is not called at all when this is set. */
   deltaNames?: readonly string[];
   /**
@@ -329,12 +337,14 @@ export class JorfMonitorService {
 
   /**
    * Catches its own failures, same reason as `VeilleService.cleanupExpired`
-   * (`apps/api/CLAUDE.md`, "Необработанные ошибки"). `notify` and `options`
-   * are the backfill script's hooks (docs/research/jorf-monitor.md,
-   * "Бэкфилл с 01.01.2026") — the scheduled tick never passes either.
+   * (`apps/api/CLAUDE.md`, "Необработанные ошибки"). `options` is the
+   * backfill script's hook (docs/research/jorf-monitor.md, "Бэкфилл с
+   * 01.01.2026") — the scheduled tick never passes it: cron's own callback
+   * argument arrives instead, whose every property reads `undefined`, i.e.
+   * every default.
    */
   @Cron('0 6,23 * * *', { timeZone: 'Europe/Paris' })
-  async run(notify = true, options: RunOptions = {}): Promise<void> {
+  async run(options: RunOptions = {}): Promise<void> {
     // A backlog of deltas can outlast the gap between two ticks; two runs at
     // once would download and ingest the same pending deltas twice. The flag
     // covers this process, the ingest lock below covers the backfill script
@@ -353,7 +363,7 @@ export class JorfMonitorService {
         return;
       }
       try {
-        await this.runOnce(notify, options);
+        await this.runOnce(options);
       } finally {
         // A backfill-owned lease outlives the run — the script releases it
         // after its last iteration ({@link RunOptions.lockOwner}).
@@ -436,14 +446,18 @@ export class JorfMonitorService {
    * (root `CLAUDE.md`, "не дублировать").
    */
   async pendingDeltas(candidates: readonly string[]): Promise<string[]> {
+    // Narrowed to the candidates: the table grows forever (~730 rows a year
+    // plus the backfill), the answer never needs more than the list asked
+    // about.
     const processed = await this.prisma.jorfDelta.findMany({
+      where: { fileName: { in: [...candidates] } },
       select: { fileName: true },
     });
     const processedNames = new Set(processed.map((delta) => delta.fileName));
     return candidates.filter((name) => !processedNames.has(name));
   }
 
-  private async runOnce(notify: boolean, options: RunOptions): Promise<void> {
+  private async runOnce(options: RunOptions): Promise<void> {
     // Drained before this tick's own ingest — a row an earlier run queued
     // gets its shot at going out before anything new is added to the outbox
     // (docs/research/jorf-monitor.md, "Рассылка: outbox на
@@ -491,13 +505,7 @@ export class JorfMonitorService {
       }
 
       if (
-        !(await this.ingestDelta(
-          files,
-          communes,
-          pass.successorOf,
-          notify,
-          options.minPublishedAt,
-        ))
+        !(await this.ingestDelta(files, communes, pass.successorOf, options))
       ) {
         // Same reason as the download failure above, and the same shape:
         // unmarked, retried next tick, newer deltas still processed. Marking
@@ -570,8 +578,7 @@ export class JorfMonitorService {
     files: Map<string, string>,
     communes: CommuneReferentialEntry[],
     successorOf: ReadonlyMap<string, string>,
-    notify: boolean,
-    minPublishedAt: IsoDate | undefined,
+    options: RunOptions,
   ): Promise<boolean> {
     const textsById = new Map<string, string>();
     const tocXmls: string[] = [];
@@ -626,13 +633,7 @@ export class JorfMonitorService {
       }
 
       try {
-        await this.ingestArrete(
-          parsed,
-          communes,
-          successorOf,
-          notify,
-          minPublishedAt,
-        );
+        await this.ingestArrete(parsed, communes, successorOf, options);
       } catch (error) {
         this.logger.error(
           `jorf monitor: text ${id} failed to ingest: ${errorSummary(error)}`,
@@ -654,8 +655,7 @@ export class JorfMonitorService {
     parsed: ParsedArrete,
     communes: CommuneReferentialEntry[],
     successorOf: ReadonlyMap<string, string>,
-    notify: boolean,
-    minPublishedAt: IsoDate | undefined,
+    options: RunOptions,
   ): Promise<void> {
     const now = new Date();
     const existing = await this.prisma.arrete.findUnique({
@@ -673,15 +673,15 @@ export class JorfMonitorService {
 
     if (
       !existing &&
-      minPublishedAt !== undefined &&
-      parsed.publishedAt < minPublishedAt
+      options.minPublishedAt !== undefined &&
+      parsed.publishedAt < options.minPublishedAt
     ) {
       // A rectificatif for a NOR the backfill has not created yet: the
       // corrected text's own publishedAt would otherwise create an arrêté
       // predating the backfill's declared start (research, "Бэкфилл с
       // 01.01.2026"). The delta is still fully handled, not left unmarked.
       this.logger.log(
-        `jorf monitor: NOR ${parsed.nor} published ${parsed.publishedAt}, before the backfill floor ${minPublishedAt} — skipped`,
+        `jorf monitor: NOR ${parsed.nor} published ${parsed.publishedAt}, before the backfill floor ${options.minPublishedAt} — skipped`,
       );
       return;
     }
@@ -732,14 +732,13 @@ export class JorfMonitorService {
               codeInsee,
             );
           }
-          if (notify) {
-            await this.queueNotifications(
-              tx,
-              created.id,
-              matched.map((m) => m.codeInsee),
-              successorOf,
-            );
-          }
+          await this.queueNotifications(
+            tx,
+            created.id,
+            matched.map((m) => m.codeInsee),
+            successorOf,
+            options,
+          );
         },
         { timeout: INGEST_TX_TIMEOUT_MS },
       );
@@ -753,7 +752,7 @@ export class JorfMonitorService {
       matched,
       now,
       successorOf,
-      notify,
+      options,
     );
   }
 
@@ -776,13 +775,21 @@ export class JorfMonitorService {
    * confirms in that window would otherwise be missing from the snapshot —
    * and since the outbox is only ever written at ingest time, they would
    * never receive this arrêté at all.
+   *
+   * {@link RunOptions.notify} is honored here, not at the call sites: an
+   * ingest path that forgot a copy of the guard would mail watchers during
+   * a backfill — the exact bug the knob exists to prevent.
    */
   private async queueNotifications(
     tx: Prisma.TransactionClient,
     arreteId: string,
     codes: readonly (string | null)[],
     successorOf: ReadonlyMap<string, string>,
+    options: RunOptions,
   ): Promise<void> {
+    if (options.notify === false) {
+      return;
+    }
     const entryCodes = uniqueCodes(codes);
     if (entryCodes.length === 0) {
       return;
@@ -886,7 +893,7 @@ export class JorfMonitorService {
     matched: { entry: ParsedArreteEntry; codeInsee: string | null }[],
     now: Date,
     successorOf: ReadonlyMap<string, string>,
-    notify: boolean,
+    options: RunOptions,
   ): Promise<void> {
     const alerts: MonitorAlertForMail[] = [];
     const recorded = new Set(existing.monitorAlerts.map((a) => a.detail));
@@ -950,14 +957,13 @@ export class JorfMonitorService {
             codeInsee,
           );
         }
-        if (notify) {
-          await this.queueNotifications(
-            tx,
-            existing.id,
-            addedCodes,
-            successorOf,
-          );
-        }
+        await this.queueNotifications(
+          tx,
+          existing.id,
+          addedCodes,
+          successorOf,
+          options,
+        );
 
         await tx.arrete.update({
           where: { id: existing.id },

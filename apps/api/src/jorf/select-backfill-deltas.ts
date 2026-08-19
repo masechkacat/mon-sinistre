@@ -1,4 +1,5 @@
 import { toIsoDate, type IsoDate } from '@mon-sinistre/contracts';
+import { deltaNameFor } from './dila.client';
 
 /**
  * The 2026 backfill's declared start (docs/research/jorf-monitor.md,
@@ -11,10 +12,10 @@ export const BACKFILL_MIN_PUBLISHED_AT: IsoDate = toIsoDate('2026-01-01');
 
 /**
  * The first delta the 2026 backfill reads — deltas are timestamped in their
- * file name (`DilaClient`), so the date above doubles as the boundary a
+ * file name (`deltaNameFor`), so the date above doubles as the boundary a
  * plain string comparison can filter on.
  */
-export const BACKFILL_START_DELTA = `JORFSIMPLE_${BACKFILL_MIN_PUBLISHED_AT.replace(/-/g, '')}-000000.tar.gz`;
+export const BACKFILL_START_DELTA = deltaNameFor(BACKFILL_MIN_PUBLISHED_AT);
 
 /** Deltas in scope for the 2026 backfill, in whatever order they arrived — the catalogue also lists deltas from before the current Freemium regeneration, which the backfill has no business touching. */
 export function selectBackfillDeltas(names: readonly string[]): string[] {
