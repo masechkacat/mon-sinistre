@@ -79,11 +79,34 @@ export const fr = {
             'Une commune citée par un texte du Journal Officiel n’a pas pu être rapprochée du référentiel.',
           OUTCOME_CHANGED:
             'Un texte rectificatif a changé l’issue d’une commune déjà enregistrée.',
+          NOTIFICATION_STUCK:
+            'Un courriel de veille n’a pas pu être remis après plusieurs tentatives.',
         },
         more: (count: string) =>
           `${count} autres alertes ne sont pas détaillées ici. Toutes sont enregistrées et consultables côté serveur.`,
         reason:
           'vous êtes destinataire des alertes techniques du moniteur JORF de Mon Sinistre',
+      },
+      notification: {
+        subject: 'Catastrophe naturelle — suivi de votre commune',
+        intro: (publishedDate: string) =>
+          `Le Journal officiel du ${publishedDate} publie ${ARRETE_CATNAT}, qui concerne au moins une des communes que vous suivez.`,
+        entryLine: (
+          commune: string,
+          risque: string,
+          eventStart: string,
+          eventEnd: string,
+          outcome: string,
+        ) =>
+          `${commune} — ${risque}, du ${eventStart} au ${eventEnd} — ${outcome}.`,
+        outcomeLabel: {
+          RECONNU: 'état de catastrophe naturelle reconnu',
+          REFUSE: 'état de catastrophe naturelle non reconnu (demande refusée)',
+        },
+        deadline: (date: string) =>
+          `Vous disposez d’un délai légal pour déclarer le sinistre à votre assurance, au plus tard le ${date}.`,
+        legifranceLink: 'Consulter le texte complet sur Légifrance',
+        reason: 'vous suivez une ou plusieurs communes concernées par ce texte',
       },
     },
   },

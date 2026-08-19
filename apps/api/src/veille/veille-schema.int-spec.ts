@@ -1,6 +1,7 @@
 import { PrismaClient } from 'src/generated/prisma/client';
 import { isForeignKeyViolation } from 'src/prisma/prisma-error';
 import { createIntTestPrismaClient } from 'src/prisma/prisma-client.int-helper';
+import { veilleData } from './veille.test-helper';
 
 // Schema-level guarantees of the veille migration:
 // docs/research/veille-subscription-lifecycle.md.
@@ -39,15 +40,6 @@ describe('Veille / VeilleCommune schema (integration)', () => {
         sourceVerifiedAt: new Date('2026-08-15'),
       },
     });
-  }
-
-  function veilleData(overrides: Partial<{ email: string }> = {}) {
-    return {
-      email: overrides.email ?? 'riverain@example.fr',
-      confirmTokenHash: `confirm-${Math.random()}`,
-      unsubscribeTokenHash: `unsubscribe-${Math.random()}`,
-      confirmExpiresAt: new Date('2026-08-22'),
-    };
   }
 
   it('cascades: deleting a Veille removes its VeilleCommune rows', async () => {

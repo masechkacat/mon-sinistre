@@ -1,5 +1,6 @@
 import { PrismaClient } from 'src/generated/prisma/client';
 import { createIntTestPrismaClient } from 'src/prisma/prisma-client.int-helper';
+import { arreteData } from './arrete.test-helper';
 
 // Schema-level guarantees of the jorf-monitor migration: docs/research/jorf-monitor.md,
 // docs/research/data-model.md § 4.
@@ -29,20 +30,6 @@ describe('Arrete / ArreteEntry / JorfDelta / MonitorAlert schema (integration)',
         sourceVerifiedAt: new Date('2026-08-15'),
       },
     });
-  }
-
-  function arreteData(overrides: Partial<{ nor: string }> = {}) {
-    return {
-      nor: overrides.nor ?? `INTE${Math.random()}`,
-      signedAt: new Date('2026-06-10'),
-      publishedAt: new Date('2026-06-12'),
-      jorfNumber: 'JORF n°0137 du 13 juin 2026',
-      legifranceUrl:
-        'https://www.legifrance.gouv.fr/jorf/id/JORFTEXT000054245373',
-      firstSeenAt: new Date('2026-06-13T06:00:00Z'),
-      lastSeenAt: new Date('2026-06-13T06:00:00Z'),
-      contentHash: 'hash-1',
-    };
   }
 
   function entryData(

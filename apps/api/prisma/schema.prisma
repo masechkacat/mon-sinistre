@@ -56,6 +56,7 @@ model Veille {
   createdAt            DateTime        @default(now()) @db.Timestamptz(6)
   communes             VeilleCommune[]
   change               VeilleChange?
+  notifications        VeilleNotification[]
 
   // Индекс под часовую чистку — частичный, Prisma такие не выражает: CREATE
   // INDEX и причина живут в миграции veille_cleanup_indexes, дрейфом это не
@@ -82,6 +83,24 @@ model VeilleCommune {
 
   @@id([veilleId, codeInsee])
   @@index([codeInsee])
+}
+
+// Outbox рассылки наблюдателям — docs/research/data-model.md § 6. Строка
+// создаётся в транзакции ingest с sentAt: null; отправка проставляет sentAt
+// вторым шагом. unique(veilleId, arreteId) — идемпотентность: повторный
+// прогон, ретрай и rectificatif не порождают повторных писем одному
+// наблюдателю по одному arrêté.
+model VeilleNotification {
+  id       String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  veilleId String    @db.Uuid
+  veille   Veille    @relation(fields: [veilleId], references: [id], onDelete: Cascade)
+  arreteId String    @db.Uuid
+  arrete   Arrete    @relation(fields: [arreteId], references: [id], onDelete: Restrict)
+  sentAt   DateTime? @db.Timestamptz(6)
+  // Неудачных попыток отправки — data-model.md § 6.
+  attempts Int       @default(0)
+
+  @@unique([veilleId, arreteId])
 }
 
 // Счётчик писем формы veille (лимит частоты, фаза 3) —
@@ -121,6 +140,7 @@ model Arrete {
   contentHash   String
   entries       ArreteEntry[]
   monitorAlerts MonitorAlert[]
+  notifications VeilleNotification[]
 }
 
 // Одна строка annexe арретé — docs/research/data-model.md § 4.
@@ -166,6 +186,7 @@ enum MonitorAlertKind {
   UNPARSEABLE_ANNEXE
   UNMATCHED_COMMUNE
   OUTCOME_CHANGED
+  NOTIFICATION_STUCK
 }
 
 // Повод, который монитор JO не может разрешить сам, — docs/research/jorf-monitor.md,
@@ -177,4 +198,40 @@ model MonitorAlert {
   arreteId  String?           @db.Uuid
   arrete    Arrete?           @relation(fields: [arreteId], references: [id], onDelete: SetNull)
   createdAt DateTime          @default(now()) @db.Timestamptz(6)
+}
+
+enum DurationUnit {
+  DAYS
+  MONTHS
+}
+
+// Опорная дата, от которой отсчитывается срок шага — docs/research/data-model.md § 3.
+enum StepAnchor {
+  DATE_SINISTRE
+  DATE_PUBLICATION_ARRETE
+  DATE_DECLARATION
+}
+
+// Справочник юридических сроков, effective-dated — docs/research/data-model.md
+// § 3. Строки не редактируются задним числом: новая версия = новая строка +
+// закрытие предыдущей (effectiveTo).
+model DeadlineRule {
+  id               String       @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  // Семейство правила, например DECLARATION_ASSUREUR.
+  code             String
+  // Вместе с unit; месяц ≠ 30 дней — сроки страховщика в законе
+  // формулируются в месяцах.
+  duration         Int
+  unit             DurationUnit
+  anchor           StepAnchor
+  effectiveFrom    DateTime     @db.Date
+  // null = действует
+  effectiveTo      DateTime?    @db.Date
+  sourceUrl        String
+  sourceVerifiedAt DateTime     @db.Date
+
+  // Непересечение интервалов одного code — exclusion-ограничение по
+  // daterange (btree_gist), Prisma не выражает: SQL руками в миграции
+  // (data-model.md § 1, § 3).
+  @@unique([code, effectiveFrom])
 }

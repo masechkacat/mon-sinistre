@@ -11,3 +11,11 @@ export function parseFrenchDate(value: string): IsoDate {
   const [, day, month, year] = match;
   return toIsoDate(`${year}-${month}-${day}`);
 }
+
+/** The inverse of {@link parseFrenchDate} — how a domain date is shown to a
+ * French reader (mail bodies), matching the annexe cells it originally came
+ * from. */
+export function formatFrenchDate(date: IsoDate): string {
+  const [year, month, day] = date.split('-');
+  return `${day}/${month}/${year}`;
+}

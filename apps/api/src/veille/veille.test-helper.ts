@@ -31,6 +31,20 @@ export const createFormEmail = async (
 };
 
 /**
+ * Minimal `Veille` row for schema-level int-specs — no token generation, no
+ * service dependency. `createVeille` below is for specs that exercise the
+ * service's own confirm/change flow.
+ */
+export function veilleData(overrides: Partial<{ email: string }> = {}) {
+  return {
+    email: overrides.email ?? `riverain-${Math.random()}@example.fr`,
+    confirmTokenHash: `confirm-${Math.random()}`,
+    unsubscribeTokenHash: `unsubscribe-${Math.random()}`,
+    confirmExpiresAt: new Date('2026-08-22'),
+  };
+}
+
+/**
  * One subscription factory for every veille int-spec. Communes are opt-in and
  * their rows are the caller's business (`communeFixture` above): only the
  * cascade test needs them, and the FK insert is not free.

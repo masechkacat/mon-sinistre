@@ -191,7 +191,7 @@ docs/research/jorf-monitor.md, «Расписание прогонов».
 ### MonitorAlert
 
 id, `kind` enum (`UNPARSEABLE_ANNEXE` / `UNMATCHED_COMMUNE` /
-`OUTCOME_CHANGED`), `detail` text, `arreteId` uuid null → Arrete (**SetNull**,
+`OUTCOME_CHANGED` / `NOTIFICATION_STUCK`), `detail` text, `arreteId` uuid null → Arrete (**SetNull**,
 не cascade — алерт переживает удаление породившего его arrêté), `createdAt`.
 Поводы и содержимое `detail` — docs/research/jorf-monitor.md, «Алерты
 администратору».
@@ -286,8 +286,14 @@ Auth уже решён (api/CLAUDE.md): Passport local + JWT, refresh с рот�
   arrêté.
 - `VeilleFormEmail`: id, emailHash, sentAt; индекс `(emailHash, sentAt)` —
   счётчик писем формы, детали `docs/research/veille-subscription-lifecycle.md`.
-- `VeilleNotification`: veilleId, arreteId, sentAt; `unique(veilleId, arreteId)` —
+- `VeilleNotification`: id, veilleId → Veille (cascade), arreteId → Arrete
+  (restrict), **sentAt nullable** (`id` — uuidv7, § 1 — сортирует и очередь
+  pending, отдельная `createdAt` не нужна), `attempts` int — счётчик неудачных
+  отправок, по которому строка, падающая детерминированно, становится алертом
+  вместо вечного молчаливого ретрая; `unique(veilleId, arreteId)` —
   повторный прогон монитора (rectificatif, ретрай) не шлёт письмо дважды.
+  Outbox-паттерн и его обоснование — docs/research/jorf-monitor.md, «Рассылка:
+  outbox на VeilleNotification».
 - `VeilleChange`: неподтверждённая заявка на смену состава коммун — id,
   veilleId → Veille (cascade), changeTokenHash, communeCodes (скалярный
   массив), expiresAt, createdAt. `unique(veilleId)` — у подписки не может

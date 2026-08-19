@@ -1,4 +1,5 @@
-import { parseFrenchDate } from './french-date';
+import { toIsoDate } from '@mon-sinistre/contracts';
+import { formatFrenchDate, parseFrenchDate } from './french-date';
 
 describe('parseFrenchDate', () => {
   it('converts a DD/MM/YYYY annexe date cell to IsoDate', () => {
@@ -13,5 +14,12 @@ describe('parseFrenchDate', () => {
 
   it('throws on a date that does not exist', () => {
     expect(() => parseFrenchDate('30/02/2025')).toThrow();
+  });
+});
+
+describe('formatFrenchDate', () => {
+  it('is the inverse of parseFrenchDate', () => {
+    expect(formatFrenchDate(toIsoDate('2025-01-01'))).toBe('01/01/2025');
+    expect(formatFrenchDate(toIsoDate('2025-12-31'))).toBe('31/12/2025');
   });
 });
