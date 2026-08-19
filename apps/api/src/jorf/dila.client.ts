@@ -15,8 +15,15 @@ export const DILA_JORFSIMPLE_BASE_URL =
 /** Delta names double as their generation timestamp, so ascending name order is chronological order. */
 const DELTA_NAME_PATTERN = /JORFSIMPLE_\d{8}-\d{6}\.tar\.gz/g;
 
-/** Only the issue table-of-contents and text files matter to the monitor — everything else in the tarball is discarded unread. */
-const CONT_XML_PATH_PATTERN = /^jorf\/simple\/JORF\/CONT\/.*\.xml$/;
+/**
+ * Only the issue table-of-contents and text files matter to the monitor —
+ * everything else in the tarball is discarded unread. The leading directory
+ * is the delta's own timestamp (`20260613-002012/jorf/simple/JORF/CONT/…`):
+ * DILA wraps every archive in it, so anchoring on `jorf/` matches nothing at
+ * all and the delta silently yields zero files.
+ */
+const CONT_XML_PATH_PATTERN =
+  /^\d{8}-\d{6}\/jorf\/simple\/JORF\/CONT\/.*\.xml$/;
 
 const LISTING_TIMEOUT_MS = 60_000;
 
