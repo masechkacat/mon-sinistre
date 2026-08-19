@@ -1435,4 +1435,47 @@ describe('veille notification outbox (issue #106)', () => {
     await monitor.run();
     expect(transport.sent).toHaveLength(1);
   });
+
+  describe('backfill notify: false (issue #107)', () => {
+    it('queues no notification for a backfill run, and a later normal run of the same NOR queues none either (PRD #13)', async () => {
+      await prisma.commune.create({
+        data: communeFixture('02005', 'Amigny-Rouy', '02', 'Aisne'),
+      });
+      await createVeille(prisma, {
+        confirmedAt: new Date(),
+        communeCodes: ['02005'],
+      });
+
+      const NOR = 'INTJ2600020A';
+      const ID = 'JORFTEXT000000001901';
+      const revision: ArreteRevision = {
+        reconnues: [AMIGNY],
+        publishedAt: '2026-01-01',
+      };
+      const BACKFILL = 'JORFSIMPLE_20260101-060000.tar.gz';
+      currentFetch = stubFetch([BACKFILL], {
+        [BACKFILL]: await buildDelta(ID, NOR, revision),
+      });
+
+      await monitor.run(false);
+
+      expect(await prisma.arrete.count()).toBe(1);
+      expect(await prisma.veilleNotification.count()).toBe(0);
+      expect(transport.sent).toHaveLength(0);
+
+      // The evening delta the normal monitor picks up next re-delivers the
+      // same NOR unchanged — the same short-circuit issue #106 relies on
+      // (only lastSeenAt bumps), so there is still nothing to queue even
+      // though a confirmed watcher exists.
+      const NEXT = 'JORFSIMPLE_20260101-230000.tar.gz';
+      currentFetch = stubFetch([BACKFILL, NEXT], {
+        [BACKFILL]: await buildDelta(ID, NOR, revision),
+        [NEXT]: await buildDelta(ID, NOR, revision),
+      });
+      await monitor.run();
+
+      expect(await prisma.veilleNotification.count()).toBe(0);
+      expect(transport.sent).toHaveLength(0);
+    });
+  });
 });

@@ -288,10 +288,11 @@ export class JorfMonitorService {
 
   /**
    * Catches its own failures, same reason as `VeilleService.cleanupExpired`
-   * (`apps/api/CLAUDE.md`, "Необработанные ошибки").
+   * (`apps/api/CLAUDE.md`, "Необработанные ошибки"). `notify` is the backfill
+   * script's hook (docs/research/jorf-monitor.md, "Бэкфилл с 01.01.2026").
    */
   @Cron('0 6,23 * * *', { timeZone: 'Europe/Paris' })
-  async run(): Promise<void> {
+  async run(notify = true): Promise<void> {
     // A backlog of deltas can outlast the gap between two ticks; two runs at
     // once would download and ingest the same pending deltas twice.
     if (this.running) {
@@ -300,7 +301,7 @@ export class JorfMonitorService {
     }
     this.running = true;
     try {
-      await this.runOnce();
+      await this.runOnce(notify);
     } catch (error) {
       this.logger.error(
         `jorf monitor run failed: ${errorSummary(error)}`,
@@ -311,7 +312,7 @@ export class JorfMonitorService {
     }
   }
 
-  private async runOnce(): Promise<void> {
+  private async runOnce(notify: boolean): Promise<void> {
     // Drained before this tick's own ingest — a row an earlier run queued
     // gets its shot at going out before anything new is added to the outbox
     // (docs/research/jorf-monitor.md, "Рассылка: outbox на
@@ -358,7 +359,9 @@ export class JorfMonitorService {
         continue;
       }
 
-      if (!(await this.ingestDelta(files, communes, pass.successorOf))) {
+      if (
+        !(await this.ingestDelta(files, communes, pass.successorOf, notify))
+      ) {
         // Same reason as the download failure above, and the same shape:
         // unmarked, retried next tick, newer deltas still processed. Marking
         // it here would bury the arrêté — nothing looks at that text again.
@@ -430,6 +433,7 @@ export class JorfMonitorService {
     files: Map<string, string>,
     communes: CommuneReferentialEntry[],
     successorOf: ReadonlyMap<string, string>,
+    notify: boolean,
   ): Promise<boolean> {
     const textsById = new Map<string, string>();
     const tocXmls: string[] = [];
@@ -484,7 +488,7 @@ export class JorfMonitorService {
       }
 
       try {
-        await this.ingestArrete(parsed, communes, successorOf);
+        await this.ingestArrete(parsed, communes, successorOf, notify);
       } catch (error) {
         this.logger.error(
           `jorf monitor: text ${id} failed to ingest: ${errorSummary(error)}`,
@@ -506,6 +510,7 @@ export class JorfMonitorService {
     parsed: ParsedArrete,
     communes: CommuneReferentialEntry[],
     successorOf: ReadonlyMap<string, string>,
+    notify: boolean,
   ): Promise<void> {
     const now = new Date();
     const existing = await this.prisma.arrete.findUnique({
@@ -567,12 +572,14 @@ export class JorfMonitorService {
               codeInsee,
             );
           }
-          await this.queueNotifications(
-            tx,
-            created.id,
-            matched.map((m) => m.codeInsee),
-            successorOf,
-          );
+          if (notify) {
+            await this.queueNotifications(
+              tx,
+              created.id,
+              matched.map((m) => m.codeInsee),
+              successorOf,
+            );
+          }
         },
         { timeout: INGEST_TX_TIMEOUT_MS },
       );
@@ -580,7 +587,14 @@ export class JorfMonitorService {
       return;
     }
 
-    await this.applyRectificatif(existing, parsed, matched, now, successorOf);
+    await this.applyRectificatif(
+      existing,
+      parsed,
+      matched,
+      now,
+      successorOf,
+      notify,
+    );
   }
 
   /**
@@ -712,6 +726,7 @@ export class JorfMonitorService {
     matched: { entry: ParsedArreteEntry; codeInsee: string | null }[],
     now: Date,
     successorOf: ReadonlyMap<string, string>,
+    notify: boolean,
   ): Promise<void> {
     const alerts: MonitorAlertForMail[] = [];
     const recorded = new Set(existing.monitorAlerts.map((a) => a.detail));
@@ -775,7 +790,14 @@ export class JorfMonitorService {
             codeInsee,
           );
         }
-        await this.queueNotifications(tx, existing.id, addedCodes, successorOf);
+        if (notify) {
+          await this.queueNotifications(
+            tx,
+            existing.id,
+            addedCodes,
+            successorOf,
+          );
+        }
 
         await tx.arrete.update({
           where: { id: existing.id },
