@@ -77,6 +77,65 @@ describe('matchCommune', () => {
     expect(matchCommune(communes, 'Sainte-Colombe', 'Gard')).toBe('30300');
   });
 
+  describe('the postpositioned article of an annexe label', () => {
+    const communes = [
+      entry({
+        name: 'Les Lucs-sur-Boulogne',
+        codeInsee: '85129',
+        departementName: 'Vendée',
+      }),
+      entry({ name: 'Le Pouzin', codeInsee: '07181', departementName: 'Ardèche' }),
+      entry({
+        name: "La Cadière-d'Azur",
+        codeInsee: '83034',
+        departementName: 'Var',
+      }),
+      entry({
+        name: "L'Escarène",
+        codeInsee: '06057',
+        departementName: 'Alpes-Maritimes',
+      }),
+      entry({ name: 'Faux', codeInsee: '08165', departementName: 'Ardennes' }),
+    ];
+
+    it('is moved back to the front, with no space after the elided article', () => {
+      expect(matchCommune(communes, 'Lucs-sur-Boulogne (Les)', 'Vendée')).toBe(
+        '85129',
+      );
+      expect(matchCommune(communes, 'Pouzin (Le)', 'Ardèche')).toBe('07181');
+      expect(matchCommune(communes, "Cadière-d'Azur (La)", 'Var')).toBe('83034');
+      expect(matchCommune(communes, "Escarène (L')", 'Alpes-Maritimes')).toBe(
+        '06057',
+      );
+    });
+
+    it('leaves a label that already reads in COG order alone', () => {
+      expect(matchCommune(communes, 'Le Pouzin', 'Ardèche')).toBe('07181');
+      expect(matchCommune(communes, 'Faux', 'Ardennes')).toBe('08165');
+    });
+
+    it('is not invented for a commune that has none', () => {
+      expect(matchCommune(communes, 'Faux (Le)', 'Ardennes')).toBeNull();
+    });
+
+    it('does not confuse two communes sharing a name in different départements', () => {
+      const bothColombes = [
+        entry({
+          name: 'La Colombe',
+          codeInsee: '41051',
+          departementName: 'Loir-et-Cher',
+        }),
+        entry({
+          name: 'La Colombe',
+          codeInsee: '50127',
+          departementName: 'Manche',
+        }),
+      ];
+
+      expect(matchCommune(bothColombes, 'Colombe (La)', 'Manche')).toBe('50127');
+    });
+  });
+
   it('gives null for an unknown commune', () => {
     const communes = [
       entry({ name: 'Nîmes', codeInsee: '30189', departementName: 'Gard' }),
