@@ -1,4 +1,5 @@
 import { Readable } from 'node:stream';
+import type { IsoDate } from '@mon-sinistre/contracts';
 import { Parser as TarParser, ReadEntry } from 'tar';
 import type { FetchFn } from 'src/common/fetch-fn';
 
@@ -15,8 +16,30 @@ export const DILA_JORFSIMPLE_BASE_URL =
 /** Delta names double as their generation timestamp, so ascending name order is chronological order. */
 const DELTA_NAME_PATTERN = /JORFSIMPLE_\d{8}-\d{6}\.tar\.gz/g;
 
-/** Only the issue table-of-contents and text files matter to the monitor — everything else in the tarball is discarded unread. */
-const CONT_XML_PATH_PATTERN = /^jorf\/simple\/JORF\/CONT\/.*\.xml$/;
+/**
+ * The name a delta generated at `date`'s midnight would carry — the same
+ * format {@link DELTA_NAME_PATTERN} matches, written once: a feed rename
+ * fixed only in the pattern would leave a caller's hand-built boundary name
+ * comparing against a shape `listDeltas` no longer returns.
+ */
+export function deltaNameFor(date: IsoDate): string {
+  return `JORFSIMPLE_${date.replace(/-/g, '')}-000000.tar.gz`;
+}
+
+/**
+ * Only the issue table-of-contents and text files matter to the monitor —
+ * everything else in the tarball is discarded unread. DILA currently wraps
+ * every archive in a directory named after the delta's own timestamp
+ * (`20260613-002012/jorf/simple/JORF/CONT/…`), but the wrapper is optional
+ * here: DILA has already changed the layout once without notice, and a
+ * filter that requires it would answer a dropped wrapper with zero files —
+ * which {@link DilaClient.downloadDelta} could not tell from a delta that
+ * really has none, so the caller would mark the delta processed and lose
+ * every arrêté in it. The guard below backs this up for layout changes the
+ * tolerance does not cover.
+ */
+const CONT_XML_PATH_PATTERN =
+  /^(?:\d{8}-\d{6}\/)?jorf\/simple\/JORF\/CONT\/.*\.xml$/;
 
 const LISTING_TIMEOUT_MS = 60_000;
 
@@ -68,13 +91,17 @@ export class DilaClient {
 
     const files = new Map<string, string>();
     const reads: Promise<void>[] = [];
+    let entryCount = 0;
     const parser = new TarParser({
       // Without `strict`, node-tar reports a corrupt archive as a `'warn'`
       // event and still emits `'end'`: an error page served with HTTP 200
       // would come back as zero entries, and the caller would mark the delta
       // processed forever instead of retrying it.
       strict: true,
-      filter: (path) => CONT_XML_PATH_PATTERN.test(path),
+      filter: (path) => {
+        entryCount += 1;
+        return CONT_XML_PATH_PATTERN.test(path);
+      },
       onReadEntry: (entry) => {
         reads.push(
           readEntryText(entry).then((content) => {
@@ -103,6 +130,14 @@ export class DilaClient {
       // unhandledRejection instead of surfacing the failure below.
       await Promise.allSettled(reads);
       throw error;
+    }
+    // Same reasoning as `strict` above, for the failure `strict` cannot see:
+    // an intact archive whose paths no longer match the filter. Rejecting
+    // keeps the delta unmarked and retried instead of silently losing it.
+    if (files.size === 0 && entryCount > 0) {
+      throw new Error(
+        `DILA delta ${fileName} has ${entryCount} entries but none under the JORF CONT layout — did the archive layout change?`,
+      );
     }
     return files;
   }

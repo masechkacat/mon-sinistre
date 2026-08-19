@@ -1,6 +1,8 @@
+import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
+import { toIsoDate } from '@mon-sinistre/contracts';
 import { createIntTestApp } from 'src/app.int-helper';
 import type { FetchFn } from 'src/common/fetch-fn';
 import { commune as communeFixture } from 'src/communes/commune.test-helper';
@@ -147,7 +149,7 @@ describe('JorfMonitorService.run (integration)', () => {
   });
 
   beforeEach(async () => {
-    await prisma.$executeRaw`TRUNCATE TABLE "Arrete", "JorfDelta", "MonitorAlert", "Commune" CASCADE`;
+    await prisma.$executeRaw`TRUNCATE TABLE "Arrete", "JorfDelta", "MonitorLock", "MonitorAlert", "Commune" CASCADE`;
   });
 
   it('creates an Arrete with both annexes and publishedAt from the XML (PRD #1)', async () => {
@@ -282,6 +284,106 @@ describe('JorfMonitorService.run (integration)', () => {
     await monitor.run();
 
     expect(await prisma.jorfDelta.count()).toBe(names.length);
+  });
+
+  describe('backfill scope (issue #108)', () => {
+    it('resumes only the delta an interrupted backfill left unprocessed', async () => {
+      const FIRST = 'JORFSIMPLE_20260101-060000.tar.gz';
+      const SECOND = 'JORFSIMPLE_20260613-060000.tar.gz';
+      // Simulates an earlier run of the script that got through FIRST and
+      // was then interrupted, same as a normal tick's JorfDelta bookkeeping —
+      // the backfill script relies on nothing more than this.
+      await prisma.jorfDelta.create({
+        data: { fileName: FIRST, processedAt: new Date() },
+      });
+      currentFetch = stubFetch([], { [SECOND]: await buildDeltaTarball() });
+
+      await monitor.run({ notify: false, deltaNames: [FIRST, SECOND] });
+
+      expect(
+        (await prisma.jorfDelta.findMany({ orderBy: { fileName: 'asc' } })).map(
+          (d) => d.fileName,
+        ),
+      ).toEqual([FIRST, SECOND]);
+      expect(await prisma.arrete.count()).toBe(1);
+    });
+
+    it('skips creating an arrêté whose publication predates the backfill floor', async () => {
+      const DELTA = 'JORFSIMPLE_20260101-060000.tar.gz';
+      const NOR = 'INTJ2600099A';
+      const ID = 'JORFTEXT000000009901';
+      const TITLE =
+        "Arrêté du 20 décembre 2025 portant reconnaissance de l'état de catastrophe naturelle";
+      const tarball = await buildTarball({
+        'jorf/simple/JORF/CONT/2026/01/01/JORFCONT9901.xml': buildTocXml(
+          ID,
+          TITLE,
+        ),
+        [`jorf/simple/JORF/CONT/2026/01/01/${ID}.xml`]: buildArreteXml({
+          id: ID,
+          nor: NOR,
+          title: TITLE,
+          publishedAt: '2025-12-20',
+          reconnues: [
+            ['Aisne', 'Amigny-Rouy', 'Inondations', '01/12/2025', '02/12/2025'],
+          ],
+        }),
+      });
+      currentFetch = stubFetch([], { [DELTA]: tarball });
+
+      await monitor.run({
+        notify: false,
+        deltaNames: [DELTA],
+        minPublishedAt: toIsoDate('2026-01-01'),
+      });
+
+      expect(await prisma.arrete.count()).toBe(0);
+      // The text was still dealt with — the delta is marked, not retried.
+      expect(await prisma.jorfDelta.count()).toBe(1);
+    });
+  });
+
+  describe('cross-process ingest lock', () => {
+    const DELTA = 'JORFSIMPLE_20260613-060000.tar.gz';
+
+    it("skips the tick while another process's lease is live, and runs once it is released", async () => {
+      currentFetch = stubFetch([DELTA], { [DELTA]: await buildDeltaTarball() });
+      const backfill = randomUUID();
+      expect(await monitor.acquireIngestLock(backfill)).toBe(true);
+
+      await monitor.run();
+      expect(await prisma.jorfDelta.count()).toBe(0);
+
+      await monitor.releaseIngestLock(backfill);
+      await monitor.run();
+      expect(await prisma.jorfDelta.count()).toBe(1);
+    });
+
+    it('a run under the backfill owner renews the lease instead of releasing it', async () => {
+      currentFetch = stubFetch([], { [DELTA]: await buildDeltaTarball() });
+      const backfill = randomUUID();
+      expect(await monitor.acquireIngestLock(backfill)).toBe(true);
+
+      await monitor.run({ notify: false, deltaNames: [DELTA], lockOwner: backfill });
+
+      expect(await prisma.jorfDelta.count()).toBe(1);
+      // Still held: the next scheduled tick would keep skipping itself.
+      expect(await monitor.acquireIngestLock(randomUUID())).toBe(false);
+      await monitor.releaseIngestLock(backfill);
+    });
+
+    it('takes over an expired lease and releases its own after the run', async () => {
+      currentFetch = stubFetch([DELTA], { [DELTA]: await buildDeltaTarball() });
+      expect(await monitor.acquireIngestLock(randomUUID())).toBe(true);
+      await prisma.monitorLock.updateMany({
+        data: { expiresAt: new Date(Date.now() - 1000) },
+      });
+
+      await monitor.run();
+
+      expect(await prisma.jorfDelta.count()).toBe(1);
+      expect(await monitor.acquireIngestLock(randomUUID())).toBe(true);
+    });
   });
 
   it('logs a text listed in the table of contents but absent from the delta', async () => {
@@ -844,7 +946,7 @@ describe('admin alert email (issue #102)', () => {
   beforeEach(async () => {
     transport.sent.length = 0;
     transport.failNext = false;
-    await prisma.$executeRaw`TRUNCATE TABLE "Arrete", "JorfDelta", "MonitorAlert", "Commune" CASCADE`;
+    await prisma.$executeRaw`TRUNCATE TABLE "Arrete", "JorfDelta", "MonitorLock", "MonitorAlert", "Commune" CASCADE`;
   });
 
   /** An arrêté whose communes the (empty) referential cannot resolve — the
@@ -978,7 +1080,7 @@ describe('veille notification outbox (issue #106)', () => {
   beforeEach(async () => {
     transport.sent.length = 0;
     transport.failNext = false;
-    await prisma.$executeRaw`TRUNCATE TABLE "Arrete", "JorfDelta", "MonitorAlert", "Commune", "Veille", "DeadlineRule" CASCADE`;
+    await prisma.$executeRaw`TRUNCATE TABLE "Arrete", "JorfDelta", "MonitorLock", "MonitorAlert", "Commune", "Veille", "DeadlineRule" CASCADE`;
     await seedDeadlineRules(prisma);
   });
 
@@ -1434,5 +1536,48 @@ describe('veille notification outbox (issue #106)', () => {
     await seedDeadlineRules(prisma);
     await monitor.run();
     expect(transport.sent).toHaveLength(1);
+  });
+
+  describe('backfill notify: false (issue #107)', () => {
+    it('queues no notification for a backfill run, and a later normal run of the same NOR queues none either (PRD #13)', async () => {
+      await prisma.commune.create({
+        data: communeFixture('02005', 'Amigny-Rouy', '02', 'Aisne'),
+      });
+      await createVeille(prisma, {
+        confirmedAt: new Date(),
+        communeCodes: ['02005'],
+      });
+
+      const NOR = 'INTJ2600020A';
+      const ID = 'JORFTEXT000000001901';
+      const revision: ArreteRevision = {
+        reconnues: [AMIGNY],
+        publishedAt: '2026-01-01',
+      };
+      const BACKFILL = 'JORFSIMPLE_20260101-060000.tar.gz';
+      currentFetch = stubFetch([BACKFILL], {
+        [BACKFILL]: await buildDelta(ID, NOR, revision),
+      });
+
+      await monitor.run({ notify: false });
+
+      expect(await prisma.arrete.count()).toBe(1);
+      expect(await prisma.veilleNotification.count()).toBe(0);
+      expect(transport.sent).toHaveLength(0);
+
+      // The evening delta the normal monitor picks up next re-delivers the
+      // same NOR unchanged — the same short-circuit issue #106 relies on
+      // (only lastSeenAt bumps), so there is still nothing to queue even
+      // though a confirmed watcher exists.
+      const NEXT = 'JORFSIMPLE_20260101-230000.tar.gz';
+      currentFetch = stubFetch([BACKFILL, NEXT], {
+        [BACKFILL]: await buildDelta(ID, NOR, revision),
+        [NEXT]: await buildDelta(ID, NOR, revision),
+      });
+      await monitor.run();
+
+      expect(await prisma.veilleNotification.count()).toBe(0);
+      expect(transport.sent).toHaveLength(0);
+    });
   });
 });

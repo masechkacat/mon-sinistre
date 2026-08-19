@@ -1,7 +1,10 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DILA_JORFSIMPLE_BASE_URL, DilaClient } from './dila.client';
-import { buildTarball } from './fixtures/build-tarball.test-helper';
+import {
+  buildTarball,
+  TARBALL_ROOT_DIR,
+} from './fixtures/build-tarball.test-helper';
 
 const indexHtml = readFileSync(
   join(__dirname, 'fixtures/dila-index.html'),
@@ -20,10 +23,10 @@ const fetchOf = (body: string | Uint8Array, status = 200) =>
   jest.fn(() => Promise.resolve(new Response(body, { status })));
 
 /**
- * The same layout as a real DILA delta: the two wanted XML files under
- * `jorf/simple/JORF/CONT/…` plus decoy paths that a correct client must never
- * read — a non-XML file inside the CONT tree, and an XML file under
- * `jorf/simple/JORF/` but outside CONT.
+ * The same layout as a real DILA delta ({@link TARBALL_ROOT_DIR} wraps every
+ * path): the two wanted XML files under `jorf/simple/JORF/CONT/…` plus decoy
+ * paths that a correct client must never read — a non-XML file inside the CONT
+ * tree, and an XML file under `jorf/simple/JORF/` but outside CONT.
  */
 const buildDeltaTarball = (): Promise<Buffer> =>
   buildTarball({
@@ -79,16 +82,43 @@ describe('DilaClient', () => {
         `${DILA_JORFSIMPLE_BASE_URL}JORFSIMPLE_20260613-002012.tar.gz`,
         expect.objectContaining({ signal: expect.any(AbortSignal) as unknown }),
       );
-      expect([...result.keys()].sort()).toEqual([
+      const toc = `${TARBALL_ROOT_DIR}/jorf/simple/JORF/CONT/2026/06/13/JORFCONT000054245240.xml`;
+      const arrete = `${TARBALL_ROOT_DIR}/jorf/simple/JORF/CONT/2026/06/13/JORFTEXT000054245373.xml`;
+      expect([...result.keys()].sort()).toEqual([toc, arrete]);
+      expect(result.get(arrete)).toBe(arreteXml);
+      expect(result.get(toc)).toBe(tocXml);
+    });
+
+    it('accepts an archive without the timestamp wrapper directory', async () => {
+      // DILA changed the layout once already (the wrapper appeared unannounced);
+      // this is the same delta with the wrapper dropped again.
+      const tarball = await buildTarball(
+        { 'jorf/simple/JORF/CONT/2026/06/13/JORFCONT000054245240.xml': tocXml },
+        '',
+      );
+
+      const result = await new DilaClient(
+        fetchOf(new Uint8Array(tarball)),
+      ).downloadDelta('JORFSIMPLE_20260613-002012.tar.gz');
+
+      expect([...result.keys()]).toEqual([
         'jorf/simple/JORF/CONT/2026/06/13/JORFCONT000054245240.xml',
-        'jorf/simple/JORF/CONT/2026/06/13/JORFTEXT000054245373.xml',
       ]);
-      expect(
-        result.get('jorf/simple/JORF/CONT/2026/06/13/JORFTEXT000054245373.xml'),
-      ).toBe(arreteXml);
-      expect(
-        result.get('jorf/simple/JORF/CONT/2026/06/13/JORFCONT000054245240.xml'),
-      ).toBe(tocXml);
+    });
+
+    it('rejects an intact archive none of whose entries match the CONT layout', async () => {
+      // A renamed tree would otherwise look like an empty — and therefore
+      // fully processed — delta, the same silent loss `strict` guards
+      // against for corrupt archives.
+      const tarball = await buildTarball({
+        'jorf/renamed/JORF/CONT/2026/06/13/JORFCONT000054245240.xml': tocXml,
+      });
+
+      await expect(
+        new DilaClient(fetchOf(new Uint8Array(tarball))).downloadDelta(
+          'JORFSIMPLE_20260613-002012.tar.gz',
+        ),
+      ).rejects.toThrow(/layout/i);
     });
 
     it('rejects a non-2xx response', async () => {

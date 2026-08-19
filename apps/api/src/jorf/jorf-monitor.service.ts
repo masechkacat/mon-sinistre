@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { basename } from 'node:path';
 import { Injectable, Logger } from '@nestjs/common';
 import type { IsoDate } from '@mon-sinistre/contracts';
@@ -10,6 +11,7 @@ import { DECLARATION_ASSUREUR_CODE } from 'src/deadline-rules/deadline-rule.seed
 import { dateToIsoDate } from 'src/deadline-rules/resolve-deadline';
 import type { Prisma } from 'src/generated/prisma/client';
 import { MailService } from 'src/mail/mail.service';
+import { isUniqueViolationOn } from 'src/prisma/prisma-error';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { generateVeilleToken } from 'src/veille/veille-token';
 import { DilaClient } from './dila.client';
@@ -44,6 +46,53 @@ const TOC_BASENAME_PATTERN = /^JORFCONT/;
  * is the backfill script's job, not the monitor's.
  */
 export const MAX_DELTAS_PER_RUN = 8;
+
+const INGEST_LOCK_NAME = 'jorf-monitor';
+
+/**
+ * Longer than one run can take ({@link MAX_DELTAS_PER_RUN} downloads capped
+ * at 2 min each, plus ingest), so a live holder never loses the lease
+ * mid-run — the backfill renews it on every iteration — while a crashed
+ * holder blocks the other process for at most this long, well under the gap
+ * between two scheduled ticks.
+ */
+const INGEST_LOCK_TTL_MS = 60 * 60 * 1000;
+
+/**
+ * Backfill-only knobs (docs/research/jorf-monitor.md, "Бэкфилл с
+ * 01.01.2026") — all empty for the scheduled tick, which notifies, considers
+ * every delta the catalogue lists and never skips an arrêté on its date.
+ * `apps/api/scripts/jorf-backfill.ts` is the only caller that sets them.
+ */
+export type RunOptions = {
+  /**
+   * `false` suppresses the outbox write entirely — no `VeilleNotification`
+   * row is created for anything the run ingests, so nothing is ever mailed
+   * for it ({@link JorfMonitorService.queueNotifications}, the one place
+   * this knob is honored). The backfill's «не отправляет ни одного письма»
+   * holds by this construction, not by a date check.
+   */
+  notify?: boolean;
+  /** Restricts which deltas this run may pick up, already filtered to the backfill's date boundary — `this.dila.listDeltas()` is not called at all when this is set. */
+  deltaNames?: readonly string[];
+  /**
+   * An arrêté first seen with `publishedAt` older than this is skipped
+   * instead of created. Guards a rectificatif inside an otherwise in-scope
+   * delta whose NOR the backfill has not created yet: without the floor it
+   * would be created with the corrected text's own `publishedAt`, which can
+   * predate the backfill's declared start.
+   */
+  minPublishedAt?: IsoDate;
+  /**
+   * The ingest-lock owner the backfill script acquired before its loop —
+   * {@link JorfMonitorService.acquireIngestLock}. A run under it renews that
+   * lease instead of taking and releasing one of its own, so the lock spans
+   * the whole backfill, not each iteration: released between iterations, a
+   * scheduled tick could slip in and ingest the script's still-pending
+   * deltas with notifications on.
+   */
+  lockOwner?: string;
+};
 
 /**
  * Prisma's 5 s default for an interactive transaction is sized for a handful
@@ -288,19 +337,40 @@ export class JorfMonitorService {
 
   /**
    * Catches its own failures, same reason as `VeilleService.cleanupExpired`
-   * (`apps/api/CLAUDE.md`, "Необработанные ошибки").
+   * (`apps/api/CLAUDE.md`, "Необработанные ошибки"). `options` is the
+   * backfill script's hook (docs/research/jorf-monitor.md, "Бэкфилл с
+   * 01.01.2026") — the scheduled tick never passes it: cron's own callback
+   * argument arrives instead, whose every property reads `undefined`, i.e.
+   * every default.
    */
   @Cron('0 6,23 * * *', { timeZone: 'Europe/Paris' })
-  async run(): Promise<void> {
+  async run(options: RunOptions = {}): Promise<void> {
     // A backlog of deltas can outlast the gap between two ticks; two runs at
-    // once would download and ingest the same pending deltas twice.
+    // once would download and ingest the same pending deltas twice. The flag
+    // covers this process, the ingest lock below covers the backfill script
+    // running against the same database.
     if (this.running) {
       this.logger.warn('jorf monitor: previous run still going, tick skipped');
       return;
     }
     this.running = true;
     try {
-      await this.runOnce();
+      const owner = options.lockOwner ?? randomUUID();
+      if (!(await this.acquireIngestLock(owner))) {
+        this.logger.warn(
+          'jorf monitor: ingest lock held by another process, tick skipped',
+        );
+        return;
+      }
+      try {
+        await this.runOnce(options);
+      } finally {
+        // A backfill-owned lease outlives the run — the script releases it
+        // after its last iteration ({@link RunOptions.lockOwner}).
+        if (options.lockOwner === undefined) {
+          await this.releaseIngestLock(owner);
+        }
+      }
     } catch (error) {
       this.logger.error(
         `jorf monitor run failed: ${errorSummary(error)}`,
@@ -311,7 +381,83 @@ export class JorfMonitorService {
     }
   }
 
-  private async runOnce(): Promise<void> {
+  /**
+   * Cross-process mutual exclusion of ingest runs, backed by a leased
+   * `MonitorLock` row: a deployed app's scheduled tick and the backfill
+   * script must never ingest concurrently, or the tick picks up the
+   * script's still-pending deltas with notifications on and mails watchers
+   * months-old arrêtés — the exact thing the script's `notify: false`
+   * exists to prevent (docs/research/jorf-monitor.md, «Бэкфилл с
+   * 01.01.2026»). The `running` flag above cannot see another process, so
+   * this guard lives in the database. Re-acquiring under the same `owner`
+   * renews the lease; an expired lease is taken over ({@link
+   * INGEST_LOCK_TTL_MS}).
+   */
+  async acquireIngestLock(owner: string): Promise<boolean> {
+    const now = new Date();
+    const lease = {
+      owner,
+      expiresAt: new Date(now.getTime() + INGEST_LOCK_TTL_MS),
+    };
+    const renewed = await this.prisma.monitorLock.updateMany({
+      where: {
+        name: INGEST_LOCK_NAME,
+        OR: [{ owner }, { expiresAt: { lte: now } }],
+      },
+      data: lease,
+    });
+    if (renewed.count > 0) {
+      return true;
+    }
+    const held = await this.prisma.monitorLock.findUnique({
+      where: { name: INGEST_LOCK_NAME },
+      select: { name: true },
+    });
+    if (held) {
+      // The updateMany above did not match: someone else's live lease.
+      return false;
+    }
+    try {
+      await this.prisma.monitorLock.create({
+        data: { name: INGEST_LOCK_NAME, ...lease },
+      });
+      return true;
+    } catch (error) {
+      // The other process created the row between the read and this write.
+      if (isUniqueViolationOn(error, 'name')) {
+        return false;
+      }
+      throw error;
+    }
+  }
+
+  /** No-op when the lease already expired and was taken over: only `owner`'s own row is deleted. */
+  async releaseIngestLock(owner: string): Promise<void> {
+    await this.prisma.monitorLock.deleteMany({
+      where: { name: INGEST_LOCK_NAME, owner },
+    });
+  }
+
+  /**
+   * `candidates` not yet recorded in `JorfDelta`, order preserved — the same
+   * "already done" question {@link runOnce} asks of its own delta list,
+   * exposed so `apps/api/scripts/jorf-backfill.ts` can ask it of a name it is
+   * about to hand `run()` as `deltaNames`, instead of re-deriving the filter
+   * (root `CLAUDE.md`, "не дублировать").
+   */
+  async pendingDeltas(candidates: readonly string[]): Promise<string[]> {
+    // Narrowed to the candidates: the table grows forever (~730 rows a year
+    // plus the backfill), the answer never needs more than the list asked
+    // about.
+    const processed = await this.prisma.jorfDelta.findMany({
+      where: { fileName: { in: [...candidates] } },
+      select: { fileName: true },
+    });
+    const processedNames = new Set(processed.map((delta) => delta.fileName));
+    return candidates.filter((name) => !processedNames.has(name));
+  }
+
+  private async runOnce(options: RunOptions): Promise<void> {
     // Drained before this tick's own ingest — a row an earlier run queued
     // gets its shot at going out before anything new is added to the outbox
     // (docs/research/jorf-monitor.md, "Рассылка: outbox на
@@ -326,15 +472,15 @@ export class JorfMonitorService {
     };
     await this.drainOutbox(pass);
 
-    const [deltaNames, processed, communes] = await Promise.all([
-      this.dila.listDeltas(),
-      this.prisma.jorfDelta.findMany({ select: { fileName: true } }),
+    const [deltaNames, communes] = await Promise.all([
+      options.deltaNames
+        ? Promise.resolve(options.deltaNames)
+        : this.dila.listDeltas(),
       this.loadCommuneReferential(),
     ]);
-    const processedNames = new Set(processed.map((delta) => delta.fileName));
-    // listDeltas() already returns names sorted ascending; filter() preserves
-    // that order, so no second sort is needed here.
-    const pending = deltaNames.filter((name) => !processedNames.has(name));
+    // listDeltas() already returns names sorted ascending; pendingDeltas()
+    // preserves that order, so no second sort is needed here.
+    const pending = await this.pendingDeltas(deltaNames);
     const batch = pending.slice(0, MAX_DELTAS_PER_RUN);
     if (batch.length < pending.length) {
       this.logger.warn(
@@ -358,7 +504,9 @@ export class JorfMonitorService {
         continue;
       }
 
-      if (!(await this.ingestDelta(files, communes, pass.successorOf))) {
+      if (
+        !(await this.ingestDelta(files, communes, pass.successorOf, options))
+      ) {
         // Same reason as the download failure above, and the same shape:
         // unmarked, retried next tick, newer deltas still processed. Marking
         // it here would bury the arrêté — nothing looks at that text again.
@@ -430,6 +578,7 @@ export class JorfMonitorService {
     files: Map<string, string>,
     communes: CommuneReferentialEntry[],
     successorOf: ReadonlyMap<string, string>,
+    options: RunOptions,
   ): Promise<boolean> {
     const textsById = new Map<string, string>();
     const tocXmls: string[] = [];
@@ -484,7 +633,7 @@ export class JorfMonitorService {
       }
 
       try {
-        await this.ingestArrete(parsed, communes, successorOf);
+        await this.ingestArrete(parsed, communes, successorOf, options);
       } catch (error) {
         this.logger.error(
           `jorf monitor: text ${id} failed to ingest: ${errorSummary(error)}`,
@@ -506,6 +655,7 @@ export class JorfMonitorService {
     parsed: ParsedArrete,
     communes: CommuneReferentialEntry[],
     successorOf: ReadonlyMap<string, string>,
+    options: RunOptions,
   ): Promise<void> {
     const now = new Date();
     const existing = await this.prisma.arrete.findUnique({
@@ -518,6 +668,21 @@ export class JorfMonitorService {
         where: { id: existing.id },
         data: { lastSeenAt: now },
       });
+      return;
+    }
+
+    if (
+      !existing &&
+      options.minPublishedAt !== undefined &&
+      parsed.publishedAt < options.minPublishedAt
+    ) {
+      // A rectificatif for a NOR the backfill has not created yet: the
+      // corrected text's own publishedAt would otherwise create an arrêté
+      // predating the backfill's declared start (research, "Бэкфилл с
+      // 01.01.2026"). The delta is still fully handled, not left unmarked.
+      this.logger.log(
+        `jorf monitor: NOR ${parsed.nor} published ${parsed.publishedAt}, before the backfill floor ${options.minPublishedAt} — skipped`,
+      );
       return;
     }
 
@@ -572,6 +737,7 @@ export class JorfMonitorService {
             created.id,
             matched.map((m) => m.codeInsee),
             successorOf,
+            options,
           );
         },
         { timeout: INGEST_TX_TIMEOUT_MS },
@@ -580,7 +746,14 @@ export class JorfMonitorService {
       return;
     }
 
-    await this.applyRectificatif(existing, parsed, matched, now, successorOf);
+    await this.applyRectificatif(
+      existing,
+      parsed,
+      matched,
+      now,
+      successorOf,
+      options,
+    );
   }
 
   /**
@@ -602,13 +775,21 @@ export class JorfMonitorService {
    * confirms in that window would otherwise be missing from the snapshot —
    * and since the outbox is only ever written at ingest time, they would
    * never receive this arrêté at all.
+   *
+   * {@link RunOptions.notify} is honored here, not at the call sites: an
+   * ingest path that forgot a copy of the guard would mail watchers during
+   * a backfill — the exact bug the knob exists to prevent.
    */
   private async queueNotifications(
     tx: Prisma.TransactionClient,
     arreteId: string,
     codes: readonly (string | null)[],
     successorOf: ReadonlyMap<string, string>,
+    options: RunOptions,
   ): Promise<void> {
+    if (options.notify === false) {
+      return;
+    }
     const entryCodes = uniqueCodes(codes);
     if (entryCodes.length === 0) {
       return;
@@ -712,6 +893,7 @@ export class JorfMonitorService {
     matched: { entry: ParsedArreteEntry; codeInsee: string | null }[],
     now: Date,
     successorOf: ReadonlyMap<string, string>,
+    options: RunOptions,
   ): Promise<void> {
     const alerts: MonitorAlertForMail[] = [];
     const recorded = new Set(existing.monitorAlerts.map((a) => a.detail));
@@ -775,7 +957,13 @@ export class JorfMonitorService {
             codeInsee,
           );
         }
-        await this.queueNotifications(tx, existing.id, addedCodes, successorOf);
+        await this.queueNotifications(
+          tx,
+          existing.id,
+          addedCodes,
+          successorOf,
+          options,
+        );
 
         await tx.arrete.update({
           where: { id: existing.id },
