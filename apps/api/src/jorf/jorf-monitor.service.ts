@@ -46,6 +46,25 @@ const TOC_BASENAME_PATTERN = /^JORFCONT/;
 export const MAX_DELTAS_PER_RUN = 8;
 
 /**
+ * Backfill-only knobs (docs/research/jorf-monitor.md, "Бэкфилл с
+ * 01.01.2026") — both empty for the scheduled tick, which considers every
+ * delta the catalogue lists and never skips an arrêté on its date.
+ * `apps/api/scripts/jorf-backfill.ts` is the only caller that sets them.
+ */
+export type RunOptions = {
+  /** Restricts which deltas this run may pick up, already filtered to the backfill's date boundary — `this.dila.listDeltas()` is not called at all when this is set. */
+  deltaNames?: readonly string[];
+  /**
+   * An arrêté first seen with `publishedAt` older than this is skipped
+   * instead of created. Guards a rectificatif inside an otherwise in-scope
+   * delta whose NOR the backfill has not created yet: without the floor it
+   * would be created with the corrected text's own `publishedAt`, which can
+   * predate the backfill's declared start.
+   */
+  minPublishedAt?: IsoDate;
+};
+
+/**
  * Prisma's 5 s default for an interactive transaction is sized for a handful
  * of statements: one arrêté carries up to ~720 annexe rows, and a first-seen
  * one whose communes the referential can't resolve writes an alert per row.
@@ -288,11 +307,12 @@ export class JorfMonitorService {
 
   /**
    * Catches its own failures, same reason as `VeilleService.cleanupExpired`
-   * (`apps/api/CLAUDE.md`, "Необработанные ошибки"). `notify` is the backfill
-   * script's hook (docs/research/jorf-monitor.md, "Бэкфилл с 01.01.2026").
+   * (`apps/api/CLAUDE.md`, "Необработанные ошибки"). `notify` and `options`
+   * are the backfill script's hooks (docs/research/jorf-monitor.md,
+   * "Бэкфилл с 01.01.2026") — the scheduled tick never passes either.
    */
   @Cron('0 6,23 * * *', { timeZone: 'Europe/Paris' })
-  async run(notify = true): Promise<void> {
+  async run(notify = true, options: RunOptions = {}): Promise<void> {
     // A backlog of deltas can outlast the gap between two ticks; two runs at
     // once would download and ingest the same pending deltas twice.
     if (this.running) {
@@ -301,7 +321,7 @@ export class JorfMonitorService {
     }
     this.running = true;
     try {
-      await this.runOnce(notify);
+      await this.runOnce(notify, options);
     } catch (error) {
       this.logger.error(
         `jorf monitor run failed: ${errorSummary(error)}`,
@@ -312,7 +332,22 @@ export class JorfMonitorService {
     }
   }
 
-  private async runOnce(notify: boolean): Promise<void> {
+  /**
+   * `candidates` not yet recorded in `JorfDelta`, order preserved — the same
+   * "already done" question {@link runOnce} asks of its own delta list,
+   * exposed so `apps/api/scripts/jorf-backfill.ts` can ask it of a name it is
+   * about to hand `run()` as `deltaNames`, instead of re-deriving the filter
+   * (root `CLAUDE.md`, "не дублировать").
+   */
+  async pendingDeltas(candidates: readonly string[]): Promise<string[]> {
+    const processed = await this.prisma.jorfDelta.findMany({
+      select: { fileName: true },
+    });
+    const processedNames = new Set(processed.map((delta) => delta.fileName));
+    return candidates.filter((name) => !processedNames.has(name));
+  }
+
+  private async runOnce(notify: boolean, options: RunOptions): Promise<void> {
     // Drained before this tick's own ingest — a row an earlier run queued
     // gets its shot at going out before anything new is added to the outbox
     // (docs/research/jorf-monitor.md, "Рассылка: outbox на
@@ -327,15 +362,15 @@ export class JorfMonitorService {
     };
     await this.drainOutbox(pass);
 
-    const [deltaNames, processed, communes] = await Promise.all([
-      this.dila.listDeltas(),
-      this.prisma.jorfDelta.findMany({ select: { fileName: true } }),
+    const [deltaNames, communes] = await Promise.all([
+      options.deltaNames
+        ? Promise.resolve(options.deltaNames)
+        : this.dila.listDeltas(),
       this.loadCommuneReferential(),
     ]);
-    const processedNames = new Set(processed.map((delta) => delta.fileName));
-    // listDeltas() already returns names sorted ascending; filter() preserves
-    // that order, so no second sort is needed here.
-    const pending = deltaNames.filter((name) => !processedNames.has(name));
+    // listDeltas() already returns names sorted ascending; pendingDeltas()
+    // preserves that order, so no second sort is needed here.
+    const pending = await this.pendingDeltas(deltaNames);
     const batch = pending.slice(0, MAX_DELTAS_PER_RUN);
     if (batch.length < pending.length) {
       this.logger.warn(
@@ -360,7 +395,13 @@ export class JorfMonitorService {
       }
 
       if (
-        !(await this.ingestDelta(files, communes, pass.successorOf, notify))
+        !(await this.ingestDelta(
+          files,
+          communes,
+          pass.successorOf,
+          notify,
+          options.minPublishedAt,
+        ))
       ) {
         // Same reason as the download failure above, and the same shape:
         // unmarked, retried next tick, newer deltas still processed. Marking
@@ -434,6 +475,7 @@ export class JorfMonitorService {
     communes: CommuneReferentialEntry[],
     successorOf: ReadonlyMap<string, string>,
     notify: boolean,
+    minPublishedAt: IsoDate | undefined,
   ): Promise<boolean> {
     const textsById = new Map<string, string>();
     const tocXmls: string[] = [];
@@ -488,7 +530,13 @@ export class JorfMonitorService {
       }
 
       try {
-        await this.ingestArrete(parsed, communes, successorOf, notify);
+        await this.ingestArrete(
+          parsed,
+          communes,
+          successorOf,
+          notify,
+          minPublishedAt,
+        );
       } catch (error) {
         this.logger.error(
           `jorf monitor: text ${id} failed to ingest: ${errorSummary(error)}`,
@@ -511,6 +559,7 @@ export class JorfMonitorService {
     communes: CommuneReferentialEntry[],
     successorOf: ReadonlyMap<string, string>,
     notify: boolean,
+    minPublishedAt: IsoDate | undefined,
   ): Promise<void> {
     const now = new Date();
     const existing = await this.prisma.arrete.findUnique({
@@ -523,6 +572,21 @@ export class JorfMonitorService {
         where: { id: existing.id },
         data: { lastSeenAt: now },
       });
+      return;
+    }
+
+    if (
+      !existing &&
+      minPublishedAt !== undefined &&
+      parsed.publishedAt < minPublishedAt
+    ) {
+      // A rectificatif for a NOR the backfill has not created yet: the
+      // corrected text's own publishedAt would otherwise create an arrêté
+      // predating the backfill's declared start (research, "Бэкфилл с
+      // 01.01.2026"). The delta is still fully handled, not left unmarked.
+      this.logger.log(
+        `jorf monitor: NOR ${parsed.nor} published ${parsed.publishedAt}, before the backfill floor ${minPublishedAt} — skipped`,
+      );
       return;
     }
 

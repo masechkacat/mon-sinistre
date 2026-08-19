@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
+import { toIsoDate } from '@mon-sinistre/contracts';
 import { createIntTestApp } from 'src/app.int-helper';
 import type { FetchFn } from 'src/common/fetch-fn';
 import { commune as communeFixture } from 'src/communes/commune.test-helper';
@@ -282,6 +283,62 @@ describe('JorfMonitorService.run (integration)', () => {
     await monitor.run();
 
     expect(await prisma.jorfDelta.count()).toBe(names.length);
+  });
+
+  describe('backfill scope (issue #108)', () => {
+    it('resumes only the delta an interrupted backfill left unprocessed', async () => {
+      const FIRST = 'JORFSIMPLE_20260101-060000.tar.gz';
+      const SECOND = 'JORFSIMPLE_20260613-060000.tar.gz';
+      // Simulates an earlier run of the script that got through FIRST and
+      // was then interrupted, same as a normal tick's JorfDelta bookkeeping —
+      // the backfill script relies on nothing more than this.
+      await prisma.jorfDelta.create({
+        data: { fileName: FIRST, processedAt: new Date() },
+      });
+      currentFetch = stubFetch([], { [SECOND]: await buildDeltaTarball() });
+
+      await monitor.run(false, { deltaNames: [FIRST, SECOND] });
+
+      expect(
+        (await prisma.jorfDelta.findMany({ orderBy: { fileName: 'asc' } })).map(
+          (d) => d.fileName,
+        ),
+      ).toEqual([FIRST, SECOND]);
+      expect(await prisma.arrete.count()).toBe(1);
+    });
+
+    it('skips creating an arrêté whose publication predates the backfill floor', async () => {
+      const DELTA = 'JORFSIMPLE_20260101-060000.tar.gz';
+      const NOR = 'INTJ2600099A';
+      const ID = 'JORFTEXT000000009901';
+      const TITLE =
+        "Arrêté du 20 décembre 2025 portant reconnaissance de l'état de catastrophe naturelle";
+      const tarball = await buildTarball({
+        'jorf/simple/JORF/CONT/2026/01/01/JORFCONT9901.xml': buildTocXml(
+          ID,
+          TITLE,
+        ),
+        [`jorf/simple/JORF/CONT/2026/01/01/${ID}.xml`]: buildArreteXml({
+          id: ID,
+          nor: NOR,
+          title: TITLE,
+          publishedAt: '2025-12-20',
+          reconnues: [
+            ['Aisne', 'Amigny-Rouy', 'Inondations', '01/12/2025', '02/12/2025'],
+          ],
+        }),
+      });
+      currentFetch = stubFetch([], { [DELTA]: tarball });
+
+      await monitor.run(false, {
+        deltaNames: [DELTA],
+        minPublishedAt: toIsoDate('2026-01-01'),
+      });
+
+      expect(await prisma.arrete.count()).toBe(0);
+      // The text was still dealt with — the delta is marked, not retried.
+      expect(await prisma.jorfDelta.count()).toBe(1);
+    });
   });
 
   it('logs a text listed in the table of contents but absent from the delta', async () => {

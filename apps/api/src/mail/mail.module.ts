@@ -9,7 +9,8 @@ import { MAIL_TRANSPORT, type MailTransport } from 'src/mail/mail-transport';
 import { MailService } from 'src/mail/mail.service';
 import { ScalewayMailTransport } from 'src/mail/scaleway-mail.transport';
 
-const composerOptionsFrom = (
+/** Exported for `apps/api/scripts/jorf-backfill.ts` (образец seed): the only caller outside this module building a `MailService` without Nest DI — the two belong here and not next to it, so the factory a bootstrapped app uses and the one the backfill script uses never drift apart. */
+export const composerOptionsFrom = (
   config: ConfigService<EnvironmentVariables, true>,
 ): MailComposerOptions => ({
   baseUrl: config.get('FRONTEND_URL', { infer: true }),
@@ -17,7 +18,7 @@ const composerOptionsFrom = (
 });
 
 /** Reading the environment happens here and nowhere else in the module. */
-const transportFor = (
+export const transportFor = (
   config: ConfigService<EnvironmentVariables, true>,
 ): MailTransport => {
   if (config.get('MAIL_TRANSPORT', { infer: true }) !== SENDING_TRANSPORT) {
