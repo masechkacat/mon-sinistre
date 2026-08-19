@@ -92,7 +92,12 @@ function parseAnnexeTable(table: XmlElement): RawAnnexeEntry[] {
     throw new Error('annexe table has no header row');
   }
 
-  const columns = findChildren(headerRow, 'td').map(detectColumnKey);
+  // JORF marks the header row up either way — `th` in the January 2026
+  // arrêtés, `td` in the June ones — and nothing in the text says which.
+  const headerCells = findChildren(headerRow, 'th');
+  const columns = (
+    headerCells.length > 0 ? headerCells : findChildren(headerRow, 'td')
+  ).map(detectColumnKey);
   for (const key of REQUIRED_COLUMNS) {
     if (!columns.includes(key)) {
       throw new Error(`annexe table is missing the "${key}" column`);

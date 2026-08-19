@@ -7,6 +7,11 @@ const arreteXml = readFileSync(
   join(__dirname, 'fixtures/JORFTEXT000054245373.xml'),
   'utf-8',
 );
+/** The same arrêté shape published seven months earlier, whose annexes mark the header row up with `th` instead of `td` — JORF uses both. */
+const thHeaderArreteXml = readFileSync(
+  join(__dirname, 'fixtures/JORFTEXT000053398028.xml'),
+  'utf-8',
+);
 
 describe('parseArreteXml', () => {
   const parsed = parseArreteXml(arreteXml);
@@ -185,6 +190,42 @@ describe('parseArreteXml', () => {
           ),
         ),
       ).toThrow('risque');
+    });
+  });
+
+  describe('an annexe whose header row is marked up with th', () => {
+    const thParsed = parseArreteXml(thHeaderArreteXml);
+    const bothAnnexes = (outcome: ArreteEntryOutcome) =>
+      thParsed?.entries.filter((entry) => entry.outcome === outcome) ?? [];
+
+    it('parses the metadata', () => {
+      expect(thParsed?.nor).toBe('INTE2601369A');
+      expect(thParsed?.publishedAt).toBe('2026-01-24');
+      expect(thParsed?.signedAt).toBe('2026-01-19');
+    });
+
+    it('reads both annexes, whose column counts differ', () => {
+      const reconnu = bothAnnexes(ArreteEntryOutcome.RECONNU);
+      const refuse = bothAnnexes(ArreteEntryOutcome.REFUSE);
+
+      expect(reconnu).toHaveLength(76);
+      expect(refuse).toHaveLength(64);
+      expect(reconnu[0]).toMatchObject({
+        departementRaw: 'Ardèche',
+        communeLabelRaw: 'Baix',
+        risque: 'Inondations et coulées de boue',
+        eventStart: '2025-11-16',
+        eventEnd: '2025-11-17',
+      });
+      expect(reconnu[75]).toMatchObject({
+        departementRaw: 'Guadeloupe',
+        communeLabelRaw: 'Saint-François',
+      });
+      expect(refuse[63]).toMatchObject({
+        departementRaw: "Val-d'Oise",
+        communeLabelRaw: 'Saint-Prix',
+        risque: 'Vents cycloniques',
+      });
     });
   });
 
