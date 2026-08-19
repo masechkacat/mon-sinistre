@@ -14,9 +14,9 @@ export function findChild(
   return childElements(el).find((child) => child.name === name);
 }
 
-/** Direct child elements named `name`, in document order. */
-export function findChildren(el: XmlElement, name: string): XmlElement[] {
-  return childElements(el).filter((child) => child.name === name);
+/** Direct child elements named any of `names`, in document order. */
+export function findChildren(el: XmlElement, ...names: string[]): XmlElement[] {
+  return childElements(el).filter((child) => names.includes(child.name));
 }
 
 /** Depth-first descendants named `name`, anywhere under `el`. */

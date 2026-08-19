@@ -176,6 +176,25 @@ describe('parseArreteXml', () => {
       ]);
     });
 
+    it('reads a header row that mixes th and td cells', () => {
+      // JORF switched header markup once already (th in January 2026, td in
+      // June); a half-converted row must not cost the whole arrêté.
+      const [first, ...rest] = HEADERS;
+      const mixedHeader = `<tr><th><br/>${first}</th>${rest
+        .map((header) => `<td><br/>${header}</td>`)
+        .join('')}</tr>`;
+
+      const entries = parseArreteXml(
+        buildArrete(`<table border="1">${mixedHeader}${row(AMIGNY)}</table>`),
+      )?.entries;
+
+      expect(entries).toHaveLength(1);
+      expect(entries?.[0]).toMatchObject({
+        departementRaw: 'Aisne',
+        communeLabelRaw: 'Amigny-Rouy',
+      });
+    });
+
     it('rejects a table missing a column the domain needs', () => {
       const withoutRisque = HEADERS.filter(
         (header) => header !== 'Phénomène naturel',

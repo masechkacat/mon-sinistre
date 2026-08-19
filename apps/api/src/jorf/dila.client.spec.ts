@@ -89,6 +89,38 @@ describe('DilaClient', () => {
       expect(result.get(toc)).toBe(tocXml);
     });
 
+    it('accepts an archive without the timestamp wrapper directory', async () => {
+      // DILA changed the layout once already (the wrapper appeared unannounced);
+      // this is the same delta with the wrapper dropped again.
+      const tarball = await buildTarball(
+        { 'jorf/simple/JORF/CONT/2026/06/13/JORFCONT000054245240.xml': tocXml },
+        '',
+      );
+
+      const result = await new DilaClient(
+        fetchOf(new Uint8Array(tarball)),
+      ).downloadDelta('JORFSIMPLE_20260613-002012.tar.gz');
+
+      expect([...result.keys()]).toEqual([
+        'jorf/simple/JORF/CONT/2026/06/13/JORFCONT000054245240.xml',
+      ]);
+    });
+
+    it('rejects an intact archive none of whose entries match the CONT layout', async () => {
+      // A renamed tree would otherwise look like an empty — and therefore
+      // fully processed — delta, the same silent loss `strict` guards
+      // against for corrupt archives.
+      const tarball = await buildTarball({
+        'jorf/renamed/JORF/CONT/2026/06/13/JORFCONT000054245240.xml': tocXml,
+      });
+
+      await expect(
+        new DilaClient(fetchOf(new Uint8Array(tarball))).downloadDelta(
+          'JORFSIMPLE_20260613-002012.tar.gz',
+        ),
+      ).rejects.toThrow(/layout/i);
+    });
+
     it('rejects a non-2xx response', async () => {
       const client = new DilaClient(fetchOf('', 404));
 

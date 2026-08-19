@@ -12,23 +12,33 @@ import * as tar from 'tar';
 export const TARBALL_ROOT_DIR = '20260613-002012';
 
 /**
- * Packs `files` (keyed by their path below {@link TARBALL_ROOT_DIR}, e.g.
+ * Packs `files` (keyed by their path below `rootDir`, e.g.
  * `jorf/simple/JORF/CONT/2026/06/13/JORFTEXT000054245373.xml`) into an
  * in-memory `tar.gz`, the shape every DILA delta fixture needs — shared by
  * `dila.client.spec.ts` and `jorf-monitor.int-spec.ts` so neither keeps its
- * own copy of the packing step.
+ * own copy of the packing step. `rootDir: ''` builds an archive without the
+ * wrapper directory — the layout `DilaClient` must also accept.
  */
 export async function buildTarball(
   files: Record<string, string>,
+  rootDir: string = TARBALL_ROOT_DIR,
 ): Promise<Buffer> {
   const dir = mkdtempSync(join(tmpdir(), 'dila-tarball-'));
   try {
     for (const [path, content] of Object.entries(files)) {
-      const filePath = join(dir, TARBALL_ROOT_DIR, path);
+      const filePath = join(dir, rootDir, path);
       mkdirSync(dirname(filePath), { recursive: true });
       writeFileSync(filePath, content);
     }
-    const pack = tar.create({ gzip: true, cwd: dir }, [TARBALL_ROOT_DIR]);
+    const topLevel =
+      rootDir === ''
+        ? [
+            ...new Set(
+              Object.keys(files).map((path) => path.replace(/\/.*$/, '')),
+            ),
+          ]
+        : [rootDir];
+    const pack = tar.create({ gzip: true, cwd: dir }, topLevel);
     const chunks: Buffer[] = [];
     for await (const chunk of pack) {
       chunks.push(chunk);
