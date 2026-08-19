@@ -87,9 +87,9 @@ model VeilleCommune {
 
 // Outbox рассылки наблюдателям — docs/research/data-model.md § 6. Строка
 // создаётся в транзакции ingest с sentAt: null; отправка проставляет sentAt
-// вторым шагом, каждый прогон сначала досылает pending. unique(veilleId,
-// arreteId) — идемпотентность: повторный прогон, ретрай и rectificatif не
-// порождают повторных писем одному наблюдателю по одному arrêté.
+// вторым шагом. unique(veilleId, arreteId) — идемпотентность: повторный
+// прогон, ретрай и rectificatif не порождают повторных писем одному
+// наблюдателю по одному arrêté.
 model VeilleNotification {
   id       String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
   veilleId String    @db.Uuid
@@ -97,6 +97,8 @@ model VeilleNotification {
   arreteId String    @db.Uuid
   arrete   Arrete    @relation(fields: [arreteId], references: [id], onDelete: Restrict)
   sentAt   DateTime? @db.Timestamptz(6)
+  // Неудачных попыток отправки — data-model.md § 6.
+  attempts Int       @default(0)
 
   @@unique([veilleId, arreteId])
 }
@@ -184,6 +186,7 @@ enum MonitorAlertKind {
   UNPARSEABLE_ANNEXE
   UNMATCHED_COMMUNE
   OUTCOME_CHANGED
+  NOTIFICATION_STUCK
 }
 
 // Повод, который монитор JO не может разрешить сам, — docs/research/jorf-monitor.md,

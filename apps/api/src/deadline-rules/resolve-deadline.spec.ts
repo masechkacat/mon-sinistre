@@ -20,10 +20,22 @@ describe('resolveDeadline', () => {
     );
   });
 
-  // Overflow behaviour explained in resolveDeadline's docblock.
-  it('rolls a month-end overflow into the next month', () => {
+  // Why clamping and not JS Date's roll-forward — resolveDeadline's docblock.
+  it('clamps a month-end overflow to the last day of the target month', () => {
     expect(resolveDeadline(toIsoDate('2026-01-31'), 1, 'MONTHS')).toBe(
-      '2026-03-03',
+      '2026-02-28',
+    );
+  });
+
+  it('clamps to 29 February in a leap year', () => {
+    expect(resolveDeadline(toIsoDate('2028-01-31'), 1, 'MONTHS')).toBe(
+      '2028-02-29',
+    );
+  });
+
+  it('crosses a year boundary in months without drifting a day', () => {
+    expect(resolveDeadline(toIsoDate('2026-10-31'), 4, 'MONTHS')).toBe(
+      '2027-02-28',
     );
   });
 });

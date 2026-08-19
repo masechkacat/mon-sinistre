@@ -79,6 +79,8 @@ export const fr = {
             'Une commune citée par un texte du Journal Officiel n’a pas pu être rapprochée du référentiel.',
           OUTCOME_CHANGED:
             'Un texte rectificatif a changé l’issue d’une commune déjà enregistrée.',
+          NOTIFICATION_STUCK:
+            'Un courriel de veille n’a pas pu être remis après plusieurs tentatives.',
         },
         more: (count: string) =>
           `${count} autres alertes ne sont pas détaillées ici. Toutes sont enregistrées et consultables côté serveur.`,
