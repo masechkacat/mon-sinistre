@@ -182,6 +182,16 @@ model JorfDelta {
   processedAt DateTime @db.Timestamptz(6)
 }
 
+// Аренда, взаимно исключающая процессы ingest: штатный тик и бэкфилл-скрипт
+// не должны работать одновременно, иначе тик разошлёт уведомления по дельтам,
+// до которых бэкфилл ещё не дошёл, — docs/research/jorf-monitor.md,
+// «Бэкфилл с 01.01.2026».
+model MonitorLock {
+  name      String   @id
+  owner     String   @db.Uuid
+  expiresAt DateTime @db.Timestamptz(6)
+}
+
 enum MonitorAlertKind {
   UNPARSEABLE_ANNEXE
   UNMATCHED_COMMUNE

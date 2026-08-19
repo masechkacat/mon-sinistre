@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { basename } from 'node:path';
 import { Injectable, Logger } from '@nestjs/common';
 import type { IsoDate } from '@mon-sinistre/contracts';
@@ -10,6 +11,7 @@ import { DECLARATION_ASSUREUR_CODE } from 'src/deadline-rules/deadline-rule.seed
 import { dateToIsoDate } from 'src/deadline-rules/resolve-deadline';
 import type { Prisma } from 'src/generated/prisma/client';
 import { MailService } from 'src/mail/mail.service';
+import { isUniqueViolationOn } from 'src/prisma/prisma-error';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { generateVeilleToken } from 'src/veille/veille-token';
 import { DilaClient } from './dila.client';
@@ -45,9 +47,20 @@ const TOC_BASENAME_PATTERN = /^JORFCONT/;
  */
 export const MAX_DELTAS_PER_RUN = 8;
 
+const INGEST_LOCK_NAME = 'jorf-monitor';
+
+/**
+ * Longer than one run can take ({@link MAX_DELTAS_PER_RUN} downloads capped
+ * at 2 min each, plus ingest), so a live holder never loses the lease
+ * mid-run — the backfill renews it on every iteration — while a crashed
+ * holder blocks the other process for at most this long, well under the gap
+ * between two scheduled ticks.
+ */
+const INGEST_LOCK_TTL_MS = 60 * 60 * 1000;
+
 /**
  * Backfill-only knobs (docs/research/jorf-monitor.md, "Бэкфилл с
- * 01.01.2026") — both empty for the scheduled tick, which considers every
+ * 01.01.2026") — all empty for the scheduled tick, which considers every
  * delta the catalogue lists and never skips an arrêté on its date.
  * `apps/api/scripts/jorf-backfill.ts` is the only caller that sets them.
  */
@@ -62,6 +75,15 @@ export type RunOptions = {
    * predate the backfill's declared start.
    */
   minPublishedAt?: IsoDate;
+  /**
+   * The ingest-lock owner the backfill script acquired before its loop —
+   * {@link JorfMonitorService.acquireIngestLock}. A run under it renews that
+   * lease instead of taking and releasing one of its own, so the lock spans
+   * the whole backfill, not each iteration: released between iterations, a
+   * scheduled tick could slip in and ingest the script's still-pending
+   * deltas with notifications on.
+   */
+  lockOwner?: string;
 };
 
 /**
@@ -314,14 +336,31 @@ export class JorfMonitorService {
   @Cron('0 6,23 * * *', { timeZone: 'Europe/Paris' })
   async run(notify = true, options: RunOptions = {}): Promise<void> {
     // A backlog of deltas can outlast the gap between two ticks; two runs at
-    // once would download and ingest the same pending deltas twice.
+    // once would download and ingest the same pending deltas twice. The flag
+    // covers this process, the ingest lock below covers the backfill script
+    // running against the same database.
     if (this.running) {
       this.logger.warn('jorf monitor: previous run still going, tick skipped');
       return;
     }
     this.running = true;
     try {
-      await this.runOnce(notify, options);
+      const owner = options.lockOwner ?? randomUUID();
+      if (!(await this.acquireIngestLock(owner))) {
+        this.logger.warn(
+          'jorf monitor: ingest lock held by another process, tick skipped',
+        );
+        return;
+      }
+      try {
+        await this.runOnce(notify, options);
+      } finally {
+        // A backfill-owned lease outlives the run — the script releases it
+        // after its last iteration ({@link RunOptions.lockOwner}).
+        if (options.lockOwner === undefined) {
+          await this.releaseIngestLock(owner);
+        }
+      }
     } catch (error) {
       this.logger.error(
         `jorf monitor run failed: ${errorSummary(error)}`,
@@ -330,6 +369,63 @@ export class JorfMonitorService {
     } finally {
       this.running = false;
     }
+  }
+
+  /**
+   * Cross-process mutual exclusion of ingest runs, backed by a leased
+   * `MonitorLock` row: a deployed app's scheduled tick and the backfill
+   * script must never ingest concurrently, or the tick picks up the
+   * script's still-pending deltas with notifications on and mails watchers
+   * months-old arrêtés — the exact thing the script's `notify: false`
+   * exists to prevent (docs/research/jorf-monitor.md, «Бэкфилл с
+   * 01.01.2026»). The `running` flag above cannot see another process, so
+   * this guard lives in the database. Re-acquiring under the same `owner`
+   * renews the lease; an expired lease is taken over ({@link
+   * INGEST_LOCK_TTL_MS}).
+   */
+  async acquireIngestLock(owner: string): Promise<boolean> {
+    const now = new Date();
+    const lease = {
+      owner,
+      expiresAt: new Date(now.getTime() + INGEST_LOCK_TTL_MS),
+    };
+    const renewed = await this.prisma.monitorLock.updateMany({
+      where: {
+        name: INGEST_LOCK_NAME,
+        OR: [{ owner }, { expiresAt: { lte: now } }],
+      },
+      data: lease,
+    });
+    if (renewed.count > 0) {
+      return true;
+    }
+    const held = await this.prisma.monitorLock.findUnique({
+      where: { name: INGEST_LOCK_NAME },
+      select: { name: true },
+    });
+    if (held) {
+      // The updateMany above did not match: someone else's live lease.
+      return false;
+    }
+    try {
+      await this.prisma.monitorLock.create({
+        data: { name: INGEST_LOCK_NAME, ...lease },
+      });
+      return true;
+    } catch (error) {
+      // The other process created the row between the read and this write.
+      if (isUniqueViolationOn(error, 'name')) {
+        return false;
+      }
+      throw error;
+    }
+  }
+
+  /** No-op when the lease already expired and was taken over: only `owner`'s own row is deleted. */
+  async releaseIngestLock(owner: string): Promise<void> {
+    await this.prisma.monitorLock.deleteMany({
+      where: { name: INGEST_LOCK_NAME, owner },
+    });
   }
 
   /**

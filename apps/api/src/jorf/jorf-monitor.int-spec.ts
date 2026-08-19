@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
@@ -148,7 +149,7 @@ describe('JorfMonitorService.run (integration)', () => {
   });
 
   beforeEach(async () => {
-    await prisma.$executeRaw`TRUNCATE TABLE "Arrete", "JorfDelta", "MonitorAlert", "Commune" CASCADE`;
+    await prisma.$executeRaw`TRUNCATE TABLE "Arrete", "JorfDelta", "MonitorLock", "MonitorAlert", "Commune" CASCADE`;
   });
 
   it('creates an Arrete with both annexes and publishedAt from the XML (PRD #1)', async () => {
@@ -338,6 +339,49 @@ describe('JorfMonitorService.run (integration)', () => {
       expect(await prisma.arrete.count()).toBe(0);
       // The text was still dealt with — the delta is marked, not retried.
       expect(await prisma.jorfDelta.count()).toBe(1);
+    });
+  });
+
+  describe('cross-process ingest lock', () => {
+    const DELTA = 'JORFSIMPLE_20260613-060000.tar.gz';
+
+    it("skips the tick while another process's lease is live, and runs once it is released", async () => {
+      currentFetch = stubFetch([DELTA], { [DELTA]: await buildDeltaTarball() });
+      const backfill = randomUUID();
+      expect(await monitor.acquireIngestLock(backfill)).toBe(true);
+
+      await monitor.run();
+      expect(await prisma.jorfDelta.count()).toBe(0);
+
+      await monitor.releaseIngestLock(backfill);
+      await monitor.run();
+      expect(await prisma.jorfDelta.count()).toBe(1);
+    });
+
+    it('a run under the backfill owner renews the lease instead of releasing it', async () => {
+      currentFetch = stubFetch([], { [DELTA]: await buildDeltaTarball() });
+      const backfill = randomUUID();
+      expect(await monitor.acquireIngestLock(backfill)).toBe(true);
+
+      await monitor.run(false, { deltaNames: [DELTA], lockOwner: backfill });
+
+      expect(await prisma.jorfDelta.count()).toBe(1);
+      // Still held: the next scheduled tick would keep skipping itself.
+      expect(await monitor.acquireIngestLock(randomUUID())).toBe(false);
+      await monitor.releaseIngestLock(backfill);
+    });
+
+    it('takes over an expired lease and releases its own after the run', async () => {
+      currentFetch = stubFetch([DELTA], { [DELTA]: await buildDeltaTarball() });
+      expect(await monitor.acquireIngestLock(randomUUID())).toBe(true);
+      await prisma.monitorLock.updateMany({
+        data: { expiresAt: new Date(Date.now() - 1000) },
+      });
+
+      await monitor.run();
+
+      expect(await prisma.jorfDelta.count()).toBe(1);
+      expect(await monitor.acquireIngestLock(randomUUID())).toBe(true);
     });
   });
 
@@ -901,7 +945,7 @@ describe('admin alert email (issue #102)', () => {
   beforeEach(async () => {
     transport.sent.length = 0;
     transport.failNext = false;
-    await prisma.$executeRaw`TRUNCATE TABLE "Arrete", "JorfDelta", "MonitorAlert", "Commune" CASCADE`;
+    await prisma.$executeRaw`TRUNCATE TABLE "Arrete", "JorfDelta", "MonitorLock", "MonitorAlert", "Commune" CASCADE`;
   });
 
   /** An arrêté whose communes the (empty) referential cannot resolve — the
@@ -1035,7 +1079,7 @@ describe('veille notification outbox (issue #106)', () => {
   beforeEach(async () => {
     transport.sent.length = 0;
     transport.failNext = false;
-    await prisma.$executeRaw`TRUNCATE TABLE "Arrete", "JorfDelta", "MonitorAlert", "Commune", "Veille", "DeadlineRule" CASCADE`;
+    await prisma.$executeRaw`TRUNCATE TABLE "Arrete", "JorfDelta", "MonitorLock", "MonitorAlert", "Commune", "Veille", "DeadlineRule" CASCADE`;
     await seedDeadlineRules(prisma);
   });
 

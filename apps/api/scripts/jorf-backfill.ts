@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { ConfigService } from '@nestjs/config';
 import {
   validateEnv,
@@ -54,25 +55,40 @@ async function main(): Promise<void> {
       return;
     }
 
-    let remaining = await monitor.pendingDeltas(backfillDeltas);
-    while (remaining.length > 0) {
-      console.log(
-        `jorf backfill: ${remaining.length} delta(s) left, oldest ${remaining[0]}…`,
+    // Held across the whole loop, not per run(): a deployed app's scheduled
+    // tick sharing this database would otherwise ingest the still-pending
+    // historical deltas with notifications on. While the script holds the
+    // lease (each run() below renews it), the tick skips itself.
+    const lockOwner = randomUUID();
+    if (!(await monitor.acquireIngestLock(lockOwner))) {
+      throw new Error(
+        'jorf backfill: another process holds the ingest lock (a deployed app mid-run?) — wait for its tick to finish or stop the app, then re-run',
       );
-      await monitor.run(false, {
-        deltaNames: remaining,
-        minPublishedAt: BACKFILL_MIN_PUBLISHED_AT,
-      });
-      const next = await monitor.pendingDeltas(backfillDeltas);
-      if (next.length === remaining.length) {
-        // Every remaining delta failed the same way this run (download error
-        // or a text that parsed but could not be written) — run() already
-        // logged why. Retrying it right away would just repeat the failure.
-        throw new Error(
-          `jorf backfill: stuck on ${next.length} delta(s), starting with ${next[0]} — see the errors above, then re-run the script`,
+    }
+    try {
+      let remaining = await monitor.pendingDeltas(backfillDeltas);
+      while (remaining.length > 0) {
+        console.log(
+          `jorf backfill: ${remaining.length} delta(s) left, oldest ${remaining[0]}…`,
         );
+        await monitor.run(false, {
+          deltaNames: remaining,
+          minPublishedAt: BACKFILL_MIN_PUBLISHED_AT,
+          lockOwner,
+        });
+        const next = await monitor.pendingDeltas(backfillDeltas);
+        if (next.length === remaining.length) {
+          // Every remaining delta failed the same way this run (download error
+          // or a text that parsed but could not be written) — run() already
+          // logged why. Retrying it right away would just repeat the failure.
+          throw new Error(
+            `jorf backfill: stuck on ${next.length} delta(s), starting with ${next[0]} — see the errors above, then re-run the script`,
+          );
+        }
+        remaining = next;
       }
-      remaining = next;
+    } finally {
+      await monitor.releaseIngestLock(lockOwner);
     }
 
     const [arretes, entries, unmatched, alerts] = await Promise.all([
