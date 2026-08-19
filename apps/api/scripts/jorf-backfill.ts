@@ -5,7 +5,10 @@ import {
   type EnvironmentVariables,
 } from '../src/config/env.validation';
 import { DilaClient } from '../src/jorf/dila.client';
-import { JorfMonitorService } from '../src/jorf/jorf-monitor.service';
+import {
+  JorfMonitorService,
+  MAX_DELTAS_PER_RUN,
+} from '../src/jorf/jorf-monitor.service';
 import {
   BACKFILL_MIN_PUBLISHED_AT,
   selectBackfillDeltas,
@@ -65,8 +68,16 @@ async function main(): Promise<void> {
         'jorf backfill: another process holds the ingest lock (a deployed app mid-run?) — wait for its tick to finish or stop the app, then re-run',
       );
     }
+    const before = await tableCounts(prisma);
     try {
       let remaining = await monitor.pendingDeltas(backfillDeltas);
+      // One run() ingests only the oldest MAX_DELTAS_PER_RUN of `remaining`,
+      // so a single pass with no progress says nothing about the deltas
+      // behind that batch — and a transient network hiccup fails a whole
+      // batch at once. One free retry tells the two apart; a second
+      // no-progress pass means the same deltas failed the same way twice,
+      // and run() already logged why.
+      let stalledPasses = 0;
       while (remaining.length > 0) {
         console.log(
           `jorf backfill: ${remaining.length} delta(s) left, oldest ${remaining[0]}…`,
@@ -78,12 +89,11 @@ async function main(): Promise<void> {
           lockOwner,
         });
         const next = await monitor.pendingDeltas(backfillDeltas);
-        if (next.length === remaining.length) {
-          // Every remaining delta failed the same way this run (download error
-          // or a text that parsed but could not be written) — run() already
-          // logged why. Retrying it right away would just repeat the failure.
+        stalledPasses =
+          next.length === remaining.length ? stalledPasses + 1 : 0;
+        if (stalledPasses === 2) {
           throw new Error(
-            `jorf backfill: stuck on ${next.length} delta(s), starting with ${next[0]} — see the errors above, then re-run the script`,
+            `jorf backfill: no progress in two passes over the oldest ${Math.min(next.length, MAX_DELTAS_PER_RUN)} of ${next.length} pending delta(s), starting with ${next[0]} — see the errors above, then re-run the script`,
           );
         }
         remaining = next;
@@ -92,18 +102,26 @@ async function main(): Promise<void> {
       await monitor.releaseIngestLock(lockOwner);
     }
 
-    const [arretes, entries, unmatched, alerts] = await Promise.all([
-      prisma.arrete.count(),
-      prisma.arreteEntry.count(),
-      prisma.arreteEntry.count({ where: { codeInsee: null } }),
-      prisma.monitorAlert.count(),
-    ]);
+    // Only this run's contribution: on a database the monitor already
+    // populated — or on a re-run after an abort — whole-table totals would
+    // credit the backfill with rows it never touched.
+    const after = await tableCounts(prisma);
     console.log(
-      `jorf backfill done: ${arretes} arrêtés, ${entries} entries, ${unmatched} unmatched, ${alerts} alerts.`,
+      `jorf backfill done: +${after.arretes - before.arretes} arrêtés (${after.arretes} total), +${after.entries - before.entries} entries, +${after.unmatched - before.unmatched} unmatched, +${after.alerts - before.alerts} alerts.`,
     );
   } finally {
     await prisma.$disconnect();
   }
+}
+
+async function tableCounts(prisma: PrismaService) {
+  const [arretes, entries, unmatched, alerts] = await Promise.all([
+    prisma.arrete.count(),
+    prisma.arreteEntry.count(),
+    prisma.arreteEntry.count({ where: { codeInsee: null } }),
+    prisma.monitorAlert.count(),
+  ]);
+  return { arretes, entries, unmatched, alerts };
 }
 
 main().catch((error: unknown) => {
