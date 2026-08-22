@@ -1,5 +1,6 @@
 import { PrismaClient } from 'src/generated/prisma/client';
 import { createIntTestPrismaClient } from 'src/prisma/prisma-client.int-helper';
+import { userData } from './user-data.test-helper';
 
 // Schema-level guarantees of the User / RefreshToken migration:
 // docs/research/user-account.md, docs/research/data-model.md § 5.
@@ -17,15 +18,6 @@ describe('User / RefreshToken schema (integration)', () => {
   beforeEach(async () => {
     await prisma.$executeRaw`TRUNCATE TABLE "User", "RefreshToken" CASCADE`;
   });
-
-  function userData(overrides: Partial<{ email: string }> = {}) {
-    return {
-      email: overrides.email ?? `victime-${Math.random()}@example.fr`,
-      passwordHash: 'bcrypt-hash',
-      confirmTokenHash: `confirm-${Math.random()}`,
-      confirmExpiresAt: new Date('2026-08-29'),
-    };
-  }
 
   it('rejects a second account for the same email via the unique index', async () => {
     await prisma.user.create({

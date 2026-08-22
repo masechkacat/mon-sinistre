@@ -90,6 +90,9 @@ export const VEILLE_CONFIRM_TTL_DAYS = 7;
 /** How long an account confirmation link stays valid, in days. */
 export const ACCOUNT_CONFIRM_TTL_DAYS = 7;
 
+/** How long a password reset link stays valid, in hours. */
+export const PASSWORD_RESET_TTL_HOURS = 24;
+
 /**
  * Days of session inactivity before a refresh token is no longer honoured.
  * Rotation on every refresh means the session itself never has a fixed
