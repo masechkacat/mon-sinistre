@@ -87,6 +87,9 @@ export const COMMUNE_SEARCH_MIN_QUERY_LENGTH = 2;
 /** How long a veille confirmation link stays valid, in days. */
 export const VEILLE_CONFIRM_TTL_DAYS = 7;
 
+/** How long an account confirmation link stays valid, in days. */
+export const ACCOUNT_CONFIRM_TTL_DAYS = 7;
+
 /** Upper bound on communes a single veille subscription may track. */
 export const VEILLE_MAX_COMMUNES = 20;
 
@@ -146,3 +149,14 @@ export const VEILLE_CHANGE_STATUSES = [
   'invalid',
 ] as const;
 export type VeilleChangeStatus = (typeof VEILLE_CHANGE_STATUSES)[number];
+
+/**
+ * Activation is idempotent by design: `confirmed` covers both the first
+ * activation and any repeat call, which gets the same success answer, never
+ * an error. `invalid` covers both an unknown token and an expired one — the
+ * two causes are never told apart in the response (anti-enumeration), same
+ * principle as `VEILLE_CONFIRMATION_STATUSES` above.
+ */
+export const ACCOUNT_CONFIRMATION_STATUSES = ['confirmed', 'invalid'] as const;
+export type AccountConfirmationStatus =
+  (typeof ACCOUNT_CONFIRMATION_STATUSES)[number];
