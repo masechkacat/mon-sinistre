@@ -5,6 +5,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { AllExceptionsFilter } from './common/all-exceptions.filter';
 import { TokenThrottlerGuard } from './common/token-throttler.guard';
+import { AuthModule } from './auth/auth.module';
 import { CommunesModule } from './communes/communes.module';
 import { validateEnv } from './config/env.validation';
 import { HealthController } from './health/health.controller';
@@ -31,6 +32,7 @@ export const GLOBAL_RATE_LIMIT = { ttl: 60_000, limit: 100 } as const;
     ThrottlerModule.forRoot([GLOBAL_RATE_LIMIT]),
     PrismaModule,
     MailModule,
+    AuthModule,
     CommunesModule,
     VeilleModule,
     JorfModule,

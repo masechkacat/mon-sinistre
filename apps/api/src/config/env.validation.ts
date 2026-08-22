@@ -42,6 +42,9 @@ const NODE_ENV_NAMES = ['development', 'test', 'production'] as const;
 const DEFAULT_PORT = 3001;
 const DEFAULT_HOST = '0.0.0.0';
 
+/** docs/research/user-account.md, «Хеширование пароля». */
+const DEFAULT_SALT_ROUNDS = 12;
+
 /** 0 means "let the kernel pick one", which a reachable service never wants. */
 const MAX_PORT = 65535;
 const IsPortNumber = () =>
@@ -187,12 +190,12 @@ export class EnvironmentVariables {
   @IsSecret()
   VEILLE_EMAIL_HASH_SECRET: string;
 
-  @IsOptional()
+  /** bcrypt cost factor; default lives here so callers never need `?? 12`. */
   @Type(() => Number)
   @IsInt()
   @Min(4)
   @Max(31)
-  SALT_ROUNDS?: number;
+  SALT_ROUNDS: number = DEFAULT_SALT_ROUNDS;
 
   @IsOptional()
   @IsString()

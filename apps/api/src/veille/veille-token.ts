@@ -1,27 +1,12 @@
-import { createHash, randomBytes } from 'node:crypto';
-
 /**
- * 256 bits of entropy, matching `RefreshToken.tokenHash`
- * (docs/research/data-model.md § 5): a token this size cannot be brute-forced,
- * so the hash below needs no salt.
+ * The token/hash mechanics (256-bit `randomBytes` → base64url, SHA-256 hex for
+ * storage) live in `src/common/secure-token.ts` — shared with account
+ * confirmation tokens (`src/auth/`). This module re-exports them under the
+ * names veille's own code already calls; behaviour is untouched, tested at the
+ * shared implementation (`secure-token.spec.ts`).
  */
-const TOKEN_BYTES = 32;
-
-/** base64url length of a generated token — the bound the DTO holds inputs to. */
-export const VEILLE_TOKEN_LENGTH = Math.ceil((TOKEN_BYTES * 4) / 3);
-
-export interface VeilleToken {
-  /** Goes out in the mail link; never stored. */
-  readonly token: string;
-  /** SHA-256 hex digest — what `Veille.confirmTokenHash` /
-   * `unsubscribeTokenHash` actually holds. */
-  readonly hash: string;
-}
-
-export const generateVeilleToken = (): VeilleToken => {
-  const token = randomBytes(TOKEN_BYTES).toString('base64url');
-  return { token, hash: hashVeilleToken(token) };
-};
-
-export const hashVeilleToken = (token: string): string =>
-  createHash('sha256').update(token).digest('hex');
+export {
+  generateSecureToken as generateVeilleToken,
+  hashSecureToken as hashVeilleToken,
+  SECURE_TOKEN_LENGTH as VEILLE_TOKEN_LENGTH,
+} from 'src/common/secure-token';

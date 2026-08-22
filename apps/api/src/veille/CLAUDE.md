@@ -40,8 +40,10 @@
 - `veille-token.ts` — единственный способ получить пару токен/хеш
   (`generateVeilleToken`) и пересчитать хеш по токену (`hashVeilleToken`,
   используется и статусом подтверждения, и отпиской — оба ищут `Veille` по
-  своему хешу): `randomBytes(32).base64url` в письмо, `sha256` hex в базу,
-  второй генерации не заводить.
+  своему хешу): `randomBytes(32).base64url` в письмо, `sha256` hex в базу.
+  Сама механика — в `src/common/secure-token.ts` (общая с токеном
+  подтверждения аккаунта, `src/auth/`); этот файл — только переименование под
+  привычные здесь имена, второй генерации не заводить.
 - `veille-email-hash.ts` (`hashVeilleFormEmail`) — единственный способ
   получить `VeilleFormEmail.emailHash` (HMAC-SHA256 на
   `VEILLE_EMAIL_HASH_SECRET`); второй свёртки адреса не заводить.

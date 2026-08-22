@@ -120,6 +120,31 @@ export const VEILLE_CHANGE_PATH = '/veille/changement';
 export const VEILLE_CHANGE_TTL_DAYS = 7;
 
 /**
+ * Path of the account confirmation page, relative to `FRONTEND_URL` — the link
+ * the confirmation mail carries (docs/research/user-account.md). Declared here
+ * even though the page itself ships later (phase 5): the mail that needs it
+ * ships first (phase 1).
+ */
+export const ACCOUNT_CONFIRM_PATH = '/confirmation';
+
+/**
+ * Every account mail (confirmation, password reset, "you already have an
+ * account") is transactional — one address, one action, no ongoing
+ * subscription to cancel. `unsubscribePath` is still mandatory on every
+ * message the API sends and its `List-Unsubscribe-Post` header still gets a
+ * real RFC 8058 one-click `POST` from mail clients (`src/mail/CLAUDE.md`), so
+ * this cannot reuse another account mail's single-use token (a client that
+ * prefetches List-Unsubscribe links would spend a confirmation or reset token
+ * before its owner ever acts on it) nor point at a page path such as
+ * `ACCOUNT_CONFIRM_PATH` or the site's home page: a Next.js route segment
+ * cannot serve both a page and a `route.ts` handler, so a page path can never
+ * grow the `POST` handler this needs. This path is reserved for that handler
+ * alone — no page is ever planned here — and answers a no-op `200`: nothing
+ * about a transactional account mail is actually cancelled by it.
+ */
+export const ACCOUNT_MAIL_UNSUBSCRIBE_PATH = '/compte/desabonnement';
+
+/**
  * `pending`/`active` reflect `Veille.confirmedAt`; `invalid` covers both an
  * unknown token and an expired, still-unconfirmed one — the two causes are
  * never told apart in the response (anti-enumeration).
