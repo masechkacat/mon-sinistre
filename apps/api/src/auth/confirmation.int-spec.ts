@@ -3,6 +3,7 @@ import { createIntTestApp } from 'src/app.int-helper';
 import { DAY_MS } from 'src/common/time';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { hashSecureToken, SECURE_TOKEN_LENGTH } from 'src/common/secure-token';
+import { createUser as createUserIn } from './session.test-helper';
 
 describe('POST /auth/confirmation (integration)', () => {
   let app: NestFastifyApplication;
@@ -15,22 +16,16 @@ describe('POST /auth/confirmation (integration)', () => {
       payload: { token },
     });
 
+  /** Unconfirmed unless said otherwise — the opposite default from the
+   * helper's, this being the endpoint that confirms. Returns the token. */
   const createUser = async (
-    overrides: {
-      confirmedAt?: Date | null;
-      confirmExpiresAt?: Date;
-    } = {},
+    overrides: { confirmedAt?: Date | null; confirmExpiresAt?: Date } = {},
   ): Promise<string> => {
     const token = 'a'.repeat(SECURE_TOKEN_LENGTH);
-    await prisma.user.create({
-      data: {
-        email: `victime-${Math.random()}@example.fr`,
-        passwordHash: 'bcrypt-hash',
-        confirmTokenHash: hashSecureToken(token),
-        confirmExpiresAt:
-          overrides.confirmExpiresAt ?? new Date(Date.now() + DAY_MS),
-        confirmedAt: overrides.confirmedAt ?? null,
-      },
+    await createUserIn(prisma, {
+      confirmTokenHash: hashSecureToken(token),
+      confirmExpiresAt: overrides.confirmExpiresAt,
+      confirmedAt: overrides.confirmedAt ?? null,
     });
     return token;
   };

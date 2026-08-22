@@ -1,6 +1,7 @@
 import { validateEnv } from './env.validation';
 
 const SECRET = 'x'.repeat(48);
+const OTHER_SECRET = 'y'.repeat(48);
 
 const validEnv = {
   DB_HOST: 'localhost',
@@ -11,7 +12,7 @@ const validEnv = {
   FRONTEND_URL: 'http://localhost:3000',
   MAIL_FROM: 'no-reply@mon-sinistre.test',
   JWT_SECRET: SECRET,
-  JWT_REFRESH_SECRET: SECRET,
+  JWT_REFRESH_SECRET: OTHER_SECRET,
   COOKIE_SECRET: SECRET,
   VEILLE_EMAIL_HASH_SECRET: SECRET,
 };
@@ -46,6 +47,12 @@ describe('validateEnv', () => {
     expect(() => validateEnv({ ...validEnv, JWT_SECRET: 'short' })).toThrow(
       /JWT_SECRET/,
     );
+  });
+
+  it('rejects one secret used for both access and refresh tokens', () => {
+    expect(() =>
+      validateEnv({ ...validEnv, JWT_REFRESH_SECRET: SECRET }),
+    ).toThrow(/JWT_REFRESH_SECRET/);
   });
 
   it('does not leak values in the error message', () => {
@@ -163,14 +170,9 @@ describe('validateEnv', () => {
     expect(() => validateEnv({ ...validEnv, PORT: value })).toThrow(/PORT/);
   });
 
-  it('accepts token lifetimes in ms syntax with a unit', () => {
-    const env = validateEnv({
-      ...validEnv,
-      ACCESS_TOKEN_EXPIRY: '900s',
-      REFRESH_TOKEN_EXPIRY: '4w',
-    });
+  it('accepts a token lifetime in ms syntax with a unit', () => {
+    const env = validateEnv({ ...validEnv, ACCESS_TOKEN_EXPIRY: '900s' });
     expect(env.ACCESS_TOKEN_EXPIRY).toBe('900s');
-    expect(env.REFRESH_TOKEN_EXPIRY).toBe('4w');
   });
 
   it.each([
@@ -180,14 +182,14 @@ describe('validateEnv', () => {
     ['without a unit', '900'],
     ['with a unit ms does not know', '15min'],
     ['zero', '0m'],
-  ])('rejects a token lifetime %s at bootstrap, not at first login', (_case, value) => {
-    expect(() =>
-      validateEnv({ ...validEnv, ACCESS_TOKEN_EXPIRY: value }),
-    ).toThrow(/ACCESS_TOKEN_EXPIRY/);
-    expect(() =>
-      validateEnv({ ...validEnv, REFRESH_TOKEN_EXPIRY: value }),
-    ).toThrow(/REFRESH_TOKEN_EXPIRY/);
-  });
+  ])(
+    'rejects a token lifetime %s at bootstrap, not at first login',
+    (_case, value) => {
+      expect(() =>
+        validateEnv({ ...validEnv, ACCESS_TOKEN_EXPIRY: value }),
+      ).toThrow(/ACCESS_TOKEN_EXPIRY/);
+    },
+  );
 });
 
 describe('validateEnv, mail transport', () => {
@@ -410,7 +412,9 @@ describe('validateEnv, mail transport', () => {
       env.HTTPS_ENABLED = value;
     }
     expect(() => validateEnv(env)).toThrow(/HTTPS_ENABLED/);
-    expect(() => validateEnv({ ...validEnv, HTTPS_ENABLED: 'false' })).not.toThrow();
+    expect(() =>
+      validateEnv({ ...validEnv, HTTPS_ENABLED: 'false' }),
+    ).not.toThrow();
   });
 
   it('rejects an unknown NODE_ENV', () => {

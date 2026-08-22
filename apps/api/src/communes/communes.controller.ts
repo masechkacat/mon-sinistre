@@ -10,6 +10,7 @@ import {
   COMMUNE_SEARCH_MIN_QUERY_LENGTH,
   Commune,
 } from '@mon-sinistre/contracts';
+import { Public } from 'src/auth/public.decorator';
 import { CommunesService } from './communes.service';
 import { CommuneResponseDto } from './dto/commune-response.dto';
 import {
@@ -18,6 +19,7 @@ import {
 } from './dto/search-communes-query.dto';
 
 /** Public commune search — no authentication: it powers the veille signup. */
+@Public()
 @ApiTags('communes')
 @Controller('communes')
 export class CommunesController {

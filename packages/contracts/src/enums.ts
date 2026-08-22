@@ -90,6 +90,16 @@ export const VEILLE_CONFIRM_TTL_DAYS = 7;
 /** How long an account confirmation link stays valid, in days. */
 export const ACCOUNT_CONFIRM_TTL_DAYS = 7;
 
+/**
+ * Days of session inactivity before a refresh token is no longer honoured.
+ * Rotation on every refresh means the session itself never has a fixed
+ * expiry — each new refresh token is valid for this many days from the
+ * moment it is issued, so the limit is on the gap between two visits, not on
+ * the session's total age. Not an environment variable on purpose: the web
+ * client tells people this number, and an override would make it a lie.
+ */
+export const SESSION_INACTIVITY_DAYS = 30;
+
 /** Upper bound on communes a single veille subscription may track. */
 export const VEILLE_MAX_COMMUNES = 20;
 

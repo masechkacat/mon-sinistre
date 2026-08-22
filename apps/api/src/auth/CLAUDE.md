@@ -2,8 +2,9 @@
 
 Аккаунт пострадавшего: регистрация, подтверждение, вход, сессия. Решения
 фичи — `docs/research/user-account.md`; разбивка по фазам —
-`docs/plan/user-account.md`. Модуль пока (фаза 1) реализует регистрацию,
-подтверждение и вход; остальные точки входа добавляются фаза за фазой,
+`docs/plan/user-account.md`. Модуль пока (фаза 2) реализует регистрацию,
+подтверждение, вход, ротацию refresh, выход, чтение текущего пользователя и
+удаление аккаунта; остальные точки входа добавляются фаза за фазой,
 документируются здесь по мере появления.
 
 ## Точки входа
@@ -59,13 +60,83 @@
   (`dummyPasswordHash`), чтобы отсутствующая строка не отвечала заметно
   быстрее существующей. Успешный вход — `AuthService.login`: access
   (`JWT_SECRET`, `ACCESS_TOKEN_EXPIRY`) в теле ответа, refresh
-  (`JWT_REFRESH_SECRET`, `REFRESH_TOKEN_EXPIRY`) — httpOnly-cookie
+  (`JWT_REFRESH_SECRET`, срок — `SESSION_INACTIVITY_DAYS` из contracts, не
+  переменная окружения: это число web показывает людям) — httpOnly-cookie
   `refresh_token` (`path=/auth`, `SameSite=Strict`, `secure` по
   `HTTPS_ENABLED` — в production он обязателен, `env.validation.ts`
   отказывает старту без него; подписана `COOKIE_SECRET`); `RefreshToken.expiresAt`
   читается из `exp` только что подписанного JWT, не пересчитывается заново —
-  строка не может разойтись с токеном, чей хеш она хранит. Ротация и чтение
-  cookie — `docs/plan/user-account.md`, фаза 2.
+  строка не может разойтись с токеном, чей хеш она хранит. Оба JWT несут
+  `typ` (`TOKEN_TYPE`, `auth.service.ts`): `JwtStrategy` принимает только
+  `access`, `refresh` — только `refresh`, а `env.validation.ts` вдобавок
+  отказывает старту при `JWT_SECRET === JWT_REFRESH_SECRET` — два замка на
+  одну дверь «30-дневная cookie как bearer».
+- `POST /auth/refresh` → `AuthService.refresh`. Без тела — токен только из
+  cookie `refresh_token`; отсутствующая или не прошедшая проверку подписи
+  (`req.unsignCookie`) отвечает `401` (`fr.auth.session.expired`) прямо в
+  контроллере, до вызова сервиса. Ротация — одна транзакция: условный
+  `updateMany` (`revokedAt: null` в `where`, не read-then-update) и вставка
+  новой пары `issueTokens` (общий с `login`). Гонка двух предъявлений одного
+  токена решается в базе: проигравший `updateMany` ждёт блокировки строки,
+  и к моменту, когда он читает ноль, строка победителя уже закоммичена —
+  ветка reuse ниже её не пропустит; сбой вставки откатывает и отзыв, токен
+  остаётся действующим. **Инвариант: `revokedAt` ставит только ротация**, всё
+  остальное, что кончает токен (`logout`, чистка цепочки, каскад удаления
+  аккаунта), строку удаляет. Поэтому `count === 0` при найденной строке
+  читается по `revokedAt`: моложе `REFRESH_ROTATION_GRACE_MS` — вторая вкладка
+  или ретрай клиента, выдаётся своя свежая пара; старше — replay
+  украденного токена, `deleteMany` всех живых строк пользователя и `401`.
+  Неизвестный `tokenHash` (никогда не выпускался, либо удалён `logout`'ом;
+  чистка просроченных строк по расписанию — `docs/plan/user-account.md`,
+  фаза 4) отвечает тем же `401` без цепочки. Один ответ на все причины —
+  истёкшая подпись, просроченный JWT, чужой `typ`, реюз, неизвестный токен,
+  аккаунт удалён между отзывом и вставкой (`P2003` в `issueTokens`) — тот же
+  anti-enumeration принцип, что у `login` выше. `setRefreshCookie` — общий
+  приватный метод контроллера, ставит cookie одинаково после `login` и после
+  `refresh`. `@Throttle(SESSION_RATE_LIMIT)` на `refresh` и `logout` поверх
+  глобального лимита — почему именно на них, сказано у константы.
+- `POST /auth/logout` → `AuthService.logout`. Без тела — токен так же только
+  из cookie `refresh_token`. В отличие от `refresh`, невалидная (отсутствующая,
+  нераспознанная подпись, просроченная) или неизвестная строка токена не
+  отвечает `401` — эндпоинт всегда `204`: выход — не место для
+  anti-enumeration-ответа `refresh`, вызывающему всё равно нечего узнать из
+  различия. Строка удаляется (`deleteMany` по `tokenHash`, инвариант выше):
+  запоздалый «тихий» refresh с той же cookie после выхода находит неизвестный
+  токен, а не отозванный, и цепочку не гасит — сам факт выхода не сигнал
+  кражи. Уходит только предъявленный токен (другие сессии остаются
+  вошедшими). Cookie чистится всегда, тем же `clearCookie` с тем же
+  `path=/auth`, что и её установка — иначе браузер не найдёт совпадающую
+  cookie для удаления.
+- Глобальный `JwtAuthGuard` (`jwt-auth.guard.ts`) — зарегистрирован как
+  `APP_GUARD` в `app.module.ts`, оборачивает passport-стратегию `jwt`
+  (`jwt.strategy.ts`, тот же `JWT_SECRET`, что подписывает access-токен в
+  `AuthService.issueTokens`): без валидного `Authorization: Bearer` любой
+  эндпоинт отвечает 401. `JwtStrategy.validate` сверх подписи и срока
+  проверяет `typ`, `sub` и существование аккаунта — зачем, в его докблоке.
+  `public.decorator.ts` (`@Public()`, метаданные + `Reflector`) —
+  единственный способ исключить эндпоинт; `JwtAuthGuard.canActivate`
+  проверяет её сначала на хендлере, потом на классе контроллера. На классе
+  она висит только там, где публичны все точки входа (`CommunesController`,
+  `HealthController`, `VeilleController`); в `AuthController` — на каждом из
+  четырёх публичных методов отдельно, чтобы новый хендлер модуля наследовал
+  замок, а не исключение.
+- `GET /auth/me` → `AuthController.me` → `AuthService.currentUser`;
+  возвращает email владельца access-токена (espace personnel). Без
+  `@Public()` — проходит через глобальный `JwtAuthGuard`, как любой новый
+  эндпоинт по умолчанию. `req.user.id` берётся из `JwtUser`
+  (`jwt.strategy.ts`, тот же тип, что кладёт guard на запрос); стратегия уже
+  убедилась, что аккаунт есть, так что `P2025` → `404` из `findUniqueOrThrow`
+  остаётся только гонке с удалением между guard'ом и запросом — второй ветки
+  «не найден» здесь не заводить.
+- `DELETE /auth/me` → `AuthController.deleteAccount` → `AuthService.deleteAccount`
+  (RGPD, PRD «Ограничения»). Немедленное и физическое удаление —
+  `prisma.user.delete`, не soft-delete; `RefreshToken` уходит каскадом по схеме
+  (`onDelete: Cascade`), второй запрос на отзыв здесь не нужен. Подтверждение
+  действия («вы уверены?») — забота web (`docs/plan/user-account.md`, фаза 5);
+  эндпоинт сам ничего не переспрашивает. Cookie `refresh_token` чистится тем
+  же приватным `clearRefreshCookie`, что у `logout`, независимо от того, была
+  ли она вообще предъявлена. Повторный вызов на уже удалённом аккаунте —
+  `401` от `JwtStrategy`, как у `GET /auth/me`.
 - `@fastify/cookie` регистрируется общей функцией `registerCookiePlugin`
   (`src/config/fastify-cookie.ts`) — и в `main.ts`, и в `createIntTestApp`
   (`src/app.int-helper.ts`): без неё `reply.setCookie` не существует ни в

@@ -114,6 +114,11 @@ export interface LoginResponse {
   accessToken: string;
 }
 
+/** Response body of the current-user endpoint (`GET /auth/me`). */
+export interface CurrentUserResponse {
+  email: string;
+}
+
 /** One insurance claim being accompanied. */
 export interface Sinistre {
   id: string;

@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { createIntTestApp } from 'src/app.int-helper';
+import { Public } from 'src/auth/public.decorator';
 import { Prisma } from 'src/generated/prisma/client';
 
 const ADDRESS = 'destinataire@example.test';
@@ -15,8 +16,11 @@ const ADDRESS = 'destinataire@example.test';
  * A route per way of failing. It is added to the testing module, not to
  * AppModule: the filter under test is registered globally in AppModule, so a
  * controller declared beside it is covered by the very registration this spec
- * exists to prove.
+ * exists to prove. `@Public()` — the filter is what's under test here, not
+ * the global JwtAuthGuard; without it every route below would 401 before
+ * ever reaching the filter.
  */
+@Public()
 @Controller('boom')
 class BoomController {
   @Get('unhandled')

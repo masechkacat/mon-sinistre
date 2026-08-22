@@ -19,6 +19,7 @@ import type {
   VeilleChangeResponse,
   VeilleConfirmationResponse,
 } from '@mon-sinistre/contracts';
+import { Public } from 'src/auth/public.decorator';
 import { ThrottleByToken } from 'src/common/token-throttler.guard';
 import { CreateVeilleDto } from './dto/create-veille.dto';
 import { VeilleTokenDto } from './dto/veille-token.dto';
@@ -36,6 +37,7 @@ import { VeilleService } from './veille.service';
 export const VEILLE_FORM_RATE_LIMIT = { ttl: 60_000, limit: 5 } as const;
 
 /** Public — no authentication: anyone with an email may subscribe. */
+@Public()
 @ApiTags('veille')
 @Controller('veille')
 export class VeilleController {

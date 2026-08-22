@@ -19,7 +19,7 @@ const VALID_ENV: Record<string, string> = {
   FRONTEND_URL: 'http://localhost:3000',
   MAIL_FROM: 'no-reply@mon-sinistre.test',
   JWT_SECRET: 'x'.repeat(48),
-  JWT_REFRESH_SECRET: 'x'.repeat(48),
+  JWT_REFRESH_SECRET: 'y'.repeat(48),
   COOKIE_SECRET: 'x'.repeat(48),
   VEILLE_EMAIL_HASH_SECRET: 'x'.repeat(48),
 };

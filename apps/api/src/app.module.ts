@@ -6,6 +6,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
 import { AllExceptionsFilter } from './common/all-exceptions.filter';
 import { TokenThrottlerGuard } from './common/token-throttler.guard';
 import { AuthModule } from './auth/auth.module';
+import { JwtAuthGuard } from './auth/jwt-auth.guard';
 import { CommunesModule } from './communes/communes.module';
 import { validateEnv } from './config/env.validation';
 import { HealthController } from './health/health.controller';
@@ -21,7 +22,8 @@ export const GLOBAL_RATE_LIMIT = { ttl: 60_000, limit: 100 } as const;
  * The throttler guard is global; auth endpoints need stricter per-route limits
  * via @Throttle(), and a route reached through the web server rather than by
  * the user counts per token via @ThrottleByToken() — hence TokenThrottlerGuard
- * in place of the stock one. AllExceptionsFilter is registered here rather
+ * in place of the stock one. JwtAuthGuard is global too — mechanics in
+ * `src/auth/CLAUDE.md`. AllExceptionsFilter is registered here rather
  * than in main.ts so it reaches the integration tests, which bootstrap
  * AppModule and never run main.ts.
  */
@@ -40,6 +42,7 @@ export const GLOBAL_RATE_LIMIT = { ttl: 60_000, limit: 100 } as const;
   controllers: [HealthController],
   providers: [
     { provide: APP_GUARD, useClass: TokenThrottlerGuard },
+    { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
   ],
 })
