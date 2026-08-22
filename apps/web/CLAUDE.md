@@ -15,7 +15,9 @@ Next.js 16 (App Router, `src/app/`), React 19, Tailwind CSS 4 (через PostCS
 `../../docs/research/web-foundation.md`; фазы применяют их, не перевыбирая.
 Решения фичи veille (страницы, combobox коммун, one-click отписка) —
 `../../docs/research/veille-subscription-lifecycle.md`; страница подтверждения
-изменения состава — `../../docs/research/veille-commune-change.md`.
+изменения состава — `../../docs/research/veille-commune-change.md`; аккаунт
+(access-токен в памяти слоя API, тихий refresh, клиентский guard) —
+`../../docs/research/user-account.md`.
 
 ## Команды
 

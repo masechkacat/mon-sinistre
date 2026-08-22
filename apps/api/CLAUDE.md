@@ -21,7 +21,9 @@ contracts не нужен — jest подставляет его исходни�
 коммун (заявка `VeilleChange`, эндпоинты `changement`) —
 `../../docs/research/veille-commune-change.md`; монитор Journal Officiel
 (источник DILA, парсинг, расписание, outbox рассылки, алерты) —
-`../../docs/research/jorf-monitor.md`.
+`../../docs/research/jorf-monitor.md`; аккаунт пострадавшего (правила пароля
+CNIL, bcrypt, JWT-сессии с ротацией, глобальный guard, лимиты попыток и
+писем) — `../../docs/research/user-account.md`.
 
 ## Единственные точки входа
 
