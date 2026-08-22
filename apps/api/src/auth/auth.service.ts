@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService, type JwtSignOptions } from '@nestjs/jwt';
@@ -7,6 +9,7 @@ import {
   type AccountConfirmationStatus,
   type LoginResponse,
 } from '@mon-sinistre/contracts';
+import { awaitingConfirmation } from 'src/common/confirmation-window';
 import { generateSecureToken, hashSecureToken } from 'src/common/secure-token';
 import { addDays } from 'src/common/time';
 import type { EnvironmentVariables } from 'src/config/env.validation';
@@ -39,8 +42,14 @@ export interface LoginResult {
  * runs anyway so an unknown address costs the same wall-clock time as a wrong
  * password (`src/auth/CLAUDE.md`, anti-enumeration): skipping the compare
  * entirely for a missing row would make a nonexistent address answer
- * measurably faster than an existing one.
+ * measurably faster than an existing one. The salt and digest are fixed
+ * bytes; only the cost prefix follows `SALT_ROUNDS`, which is what sets the
+ * compare's duration — hashing one at bootstrap would block the event loop
+ * for the same ~250 ms on every start and in every integration spec.
  */
+const dummyPasswordHashFor = (saltRounds: number): string =>
+  `$2b$${String(saltRounds).padStart(2, '0')}$Sl5dUvnMCS0DyTZ0ed19W.cKAQkPrP5TbTPsYIqXEfP63Ahn8RLsu`;
+
 @Injectable()
 export class AuthService {
   private readonly saltRounds: number;
@@ -48,10 +57,9 @@ export class AuthService {
   private readonly jwtSecret: string;
   private readonly jwtRefreshSecret: string;
   /**
-   * `ACCESS_TOKEN_EXPIRY`/`REFRESH_TOKEN_EXPIRY` are validated as plain
-   * strings (`env.validation.ts` has no reason to depend on `ms`'s type); the
-   * cast to `ms`'s branded `StringValue` happens once here, not at every
-   * `sign` call below.
+   * `env.validation.ts` guarantees the `ms` shape without depending on `ms`'s
+   * type; the cast to its branded `StringValue` happens once here, not at
+   * every `sign` call below.
    */
   private readonly accessTokenExpiry: JwtSignOptions['expiresIn'];
   private readonly refreshTokenExpiry: JwtSignOptions['expiresIn'];
@@ -63,10 +71,7 @@ export class AuthService {
     config: ConfigService<EnvironmentVariables, true>,
   ) {
     this.saltRounds = config.get('SALT_ROUNDS', { infer: true });
-    this.dummyPasswordHash = bcrypt.hashSync(
-      'no-account-uses-this-password',
-      this.saltRounds,
-    );
+    this.dummyPasswordHash = dummyPasswordHashFor(this.saltRounds);
     this.jwtSecret = config.get('JWT_SECRET', { infer: true });
     this.jwtRefreshSecret = config.get('JWT_REFRESH_SECRET', { infer: true });
     this.accessTokenExpiry = config.get('ACCESS_TOKEN_EXPIRY', {
@@ -87,32 +92,35 @@ export class AuthService {
    * password and re-mailing it, or mailing a confirmed one its "vous avez
    * déjà un compte" link, is docs/plan/user-account.md phase 3. This issue
    * only guarantees the row stays unique and the caller never sees an error
-   * either way. Response *timing* still differs between the two branches
-   * (the new-address branch additionally awaits `mail.send()`) until phase 3
-   * gives the duplicate branch mail of its own to send — CLAUDE.md, «Anti-
-   * enumeration: временная асимметрия по времени ответа».
+   * either way (the timing gap between the branches: `src/auth/CLAUDE.md`,
+   * «Anti-enumeration: временная асимметрия по времени ответа»).
+   *
+   * The row and the mail are one transaction, as in veille's
+   * `upsertChangeRequest`: a delivery failure rolls the account back, so the
+   * retry the caller makes once mail is up again registers normally instead
+   * of hitting the duplicate branch — 204 and no link, for an address whose
+   * only token is unreachable until phase 3 adds the re-send.
    */
   async register(dto: RegisterDto): Promise<void> {
     const passwordHash = await bcrypt.hash(dto.password, this.saltRounds);
     const confirm = generateSecureToken();
 
     try {
-      await this.prisma.user.create({
-        data: {
-          email: dto.email,
-          passwordHash,
-          confirmTokenHash: confirm.hash,
-          confirmExpiresAt: nextConfirmExpiresAt(),
-        },
+      await this.prisma.$transaction(async (tx) => {
+        await tx.user.create({
+          data: {
+            email: dto.email,
+            passwordHash,
+            confirmTokenHash: confirm.hash,
+            confirmExpiresAt: nextConfirmExpiresAt(),
+          },
+        });
+        await this.mail.send(confirmationMailFor(dto.email, confirm.token));
       });
     } catch (error) {
       if (isUniqueViolationOn(error, 'email')) return;
       throw error;
     }
-
-    // Sent after the row is written: a delivery failure must not undo an
-    // account the caller will otherwise never see again.
-    await this.mail.send(confirmationMailFor(dto.email, confirm.token));
   }
 
   /**
@@ -127,11 +135,7 @@ export class AuthService {
   async confirm(token: string): Promise<AccountConfirmationStatus> {
     const tokenHash = hashSecureToken(token);
     const activated = await this.prisma.user.updateMany({
-      where: {
-        confirmTokenHash: tokenHash,
-        confirmedAt: null,
-        confirmExpiresAt: { gte: new Date() },
-      },
+      where: { confirmTokenHash: tokenHash, ...awaitingConfirmation() },
       data: { confirmedAt: new Date() },
     });
     if (activated.count > 0) return 'confirmed';
@@ -166,7 +170,10 @@ export class AuthService {
    * Issues both tokens and records the refresh one. `expiresAt` of the
    * `RefreshToken` row is read off the freshly signed JWT's own `exp` claim,
    * not recomputed from `REFRESH_TOKEN_EXPIRY` a second time — the row can
-   * never disagree with the token it stores the hash of.
+   * never disagree with the token it stores the hash of. The `jti` is what
+   * keeps two logins of one user within the same second from signing the
+   * identical token: `iat`/`exp` have second resolution, and
+   * `RefreshToken.tokenHash` is unique.
    */
   async login(userId: string): Promise<LoginResult> {
     const payload = { sub: userId };
@@ -177,6 +184,7 @@ export class AuthService {
     const refreshToken = await this.jwt.signAsync(payload, {
       secret: this.jwtRefreshSecret,
       expiresIn: this.refreshTokenExpiry,
+      jwtid: randomUUID(),
     });
     const { exp } = this.jwt.decode<{ exp: number }>(refreshToken);
     const expiresAt = new Date(exp * 1000);

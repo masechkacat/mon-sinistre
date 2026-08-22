@@ -1,4 +1,3 @@
-import { ApiProperty } from '@nestjs/swagger';
 import type { LoginResponse } from '@mon-sinistre/contracts';
 
 /**
@@ -7,6 +6,5 @@ import type { LoginResponse } from '@mon-sinistre/contracts';
  * appears here: it goes out as an httpOnly cookie, not in the body.
  */
 export class LoginResponseDto implements LoginResponse {
-  @ApiProperty()
   accessToken: string;
 }

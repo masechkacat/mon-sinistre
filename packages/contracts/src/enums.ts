@@ -139,8 +139,9 @@ export const ACCOUNT_CONFIRM_PATH = '/confirmation';
  * `ACCOUNT_CONFIRM_PATH` or the site's home page: a Next.js route segment
  * cannot serve both a page and a `route.ts` handler, so a page path can never
  * grow the `POST` handler this needs. This path is reserved for that handler
- * alone — no page is ever planned here — and answers a no-op `200`: nothing
- * about a transactional account mail is actually cancelled by it.
+ * alone — no page is ever planned here — and its `route.ts` in the web app
+ * answers a no-op `200`: nothing about a transactional account mail is
+ * actually cancelled by it.
  */
 export const ACCOUNT_MAIL_UNSUBSCRIBE_PATH = '/compte/desabonnement';
 

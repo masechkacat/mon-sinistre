@@ -162,6 +162,32 @@ describe('validateEnv', () => {
     );
     expect(() => validateEnv({ ...validEnv, PORT: value })).toThrow(/PORT/);
   });
+
+  it('accepts token lifetimes in ms syntax with a unit', () => {
+    const env = validateEnv({
+      ...validEnv,
+      ACCESS_TOKEN_EXPIRY: '900s',
+      REFRESH_TOKEN_EXPIRY: '4w',
+    });
+    expect(env.ACCESS_TOKEN_EXPIRY).toBe('900s');
+    expect(env.REFRESH_TOKEN_EXPIRY).toBe('4w');
+  });
+
+  it.each([
+    ['left blank', ''],
+    // jsonwebtoken reads a bare number as milliseconds: 900 is 0.9 s, an
+    // access token that has expired by the time it is issued.
+    ['without a unit', '900'],
+    ['with a unit ms does not know', '15min'],
+    ['zero', '0m'],
+  ])('rejects a token lifetime %s at bootstrap, not at first login', (_case, value) => {
+    expect(() =>
+      validateEnv({ ...validEnv, ACCESS_TOKEN_EXPIRY: value }),
+    ).toThrow(/ACCESS_TOKEN_EXPIRY/);
+    expect(() =>
+      validateEnv({ ...validEnv, REFRESH_TOKEN_EXPIRY: value }),
+    ).toThrow(/REFRESH_TOKEN_EXPIRY/);
+  });
 });
 
 describe('validateEnv, mail transport', () => {
@@ -173,6 +199,11 @@ describe('validateEnv, mail transport', () => {
     MAIL_SENDER_DOMAIN: 'mon-sinistre.test',
     SCW_SECRET_KEY: 'scw-secret',
     SCW_PROJECT_ID: '11111111-2222-4333-8444-555555555555',
+  };
+  const productionEnv = {
+    ...providerEnv,
+    NODE_ENV: 'production',
+    HTTPS_ENABLED: 'true',
   };
 
   it.each([
@@ -353,10 +384,7 @@ describe('validateEnv, mail transport', () => {
     // reader of an arrêté is never notified and finds out by missing the
     // 30-day deadline. An unset transport is the local one, so it is refused
     // just the same.
-    const env: Record<string, unknown> = {
-      ...providerEnv,
-      NODE_ENV: 'production',
-    };
+    const env: Record<string, unknown> = { ...productionEnv };
     if (transport === undefined) {
       delete env.MAIL_TRANSPORT;
     } else {
@@ -365,10 +393,24 @@ describe('validateEnv, mail transport', () => {
     expect(() => validateEnv(env)).toThrow(/MAIL_TRANSPORT/);
   });
 
-  it('accepts a production start that sends through the provider', () => {
-    expect(() =>
-      validateEnv({ ...providerEnv, NODE_ENV: 'production' }),
-    ).not.toThrow();
+  it('accepts a production start that sends through the provider over HTTPS', () => {
+    expect(() => validateEnv(productionEnv)).not.toThrow();
+  });
+
+  it.each([
+    ['unset', undefined],
+    ['false', 'false'],
+  ])('refuses a production start with HTTPS_ENABLED %s', (_case, value) => {
+    // The refresh cookie is marked Secure only when HTTPS_ENABLED is true; a
+    // production that forgets it would send a 30-day cookie over plain HTTP.
+    const env: Record<string, unknown> = { ...productionEnv };
+    if (value === undefined) {
+      delete env.HTTPS_ENABLED;
+    } else {
+      env.HTTPS_ENABLED = value;
+    }
+    expect(() => validateEnv(env)).toThrow(/HTTPS_ENABLED/);
+    expect(() => validateEnv({ ...validEnv, HTTPS_ENABLED: 'false' })).not.toThrow();
   });
 
   it('rejects an unknown NODE_ENV', () => {

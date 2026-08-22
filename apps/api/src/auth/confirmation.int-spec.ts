@@ -1,5 +1,6 @@
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { createIntTestApp } from 'src/app.int-helper';
+import { DAY_MS } from 'src/common/time';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { hashSecureToken, SECURE_TOKEN_LENGTH } from 'src/common/secure-token';
 
@@ -27,7 +28,7 @@ describe('POST /auth/confirmation (integration)', () => {
         passwordHash: 'bcrypt-hash',
         confirmTokenHash: hashSecureToken(token),
         confirmExpiresAt:
-          overrides.confirmExpiresAt ?? new Date(Date.now() + 86_400_000),
+          overrides.confirmExpiresAt ?? new Date(Date.now() + DAY_MS),
         confirmedAt: overrides.confirmedAt ?? null,
       },
     });
@@ -75,7 +76,7 @@ describe('POST /auth/confirmation (integration)', () => {
     await post(token);
 
     await prisma.user.updateMany({
-      data: { confirmExpiresAt: new Date(Date.now() - 86_400_000) },
+      data: { confirmExpiresAt: new Date(Date.now() - DAY_MS) },
     });
     const res = await post(token);
 
@@ -85,7 +86,7 @@ describe('POST /auth/confirmation (integration)', () => {
 
   it('does not activate an expired, unconfirmed account and answers "invalid"', async () => {
     const token = await createUser({
-      confirmExpiresAt: new Date(Date.now() - 86_400_000),
+      confirmExpiresAt: new Date(Date.now() - DAY_MS),
     });
 
     const res = await post(token);

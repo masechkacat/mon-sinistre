@@ -5,18 +5,9 @@ import { ACCOUNT_CONFIRM_PATH } from '@mon-sinistre/contracts';
 import { createIntTestApp } from 'src/app.int-helper';
 import { captureLogs } from 'src/mail/mail-log.test-helper';
 import { tokenFrom } from 'src/mail/mail-links.test-helper';
-import type { MailMessage } from 'src/mail/mail-message';
-import { MAIL_TRANSPORT, type MailTransport } from 'src/mail/mail-transport';
+import { MAIL_TRANSPORT } from 'src/mail/mail-transport';
+import { RecordingTransport } from 'src/mail/mail-transport.test-helper';
 import { PrismaService } from 'src/prisma/prisma.service';
-
-class RecordingTransport implements MailTransport {
-  readonly sent: MailMessage[] = [];
-
-  send(message: MailMessage): Promise<void> {
-    this.sent.push(message);
-    return Promise.resolve();
-  }
-}
 
 describe('POST /auth/register (integration)', () => {
   let app: NestFastifyApplication;
@@ -69,6 +60,20 @@ describe('POST /auth/register (integration)', () => {
     );
     // The database holds the hash, never the token that went out in the link.
     expect(user.confirmTokenHash).not.toBe(confirmToken);
+  });
+
+  it('keeps no account when the confirmation mail fails, so a retry registers normally', async () => {
+    const body = { email: 'victime@example.fr', password: 'Abc12345' };
+    transport.failNext = true;
+
+    const failed = await post(body);
+    expect(failed.statusCode).toBe(500);
+    expect(await prisma.user.count()).toBe(0);
+
+    const retried = await post(body);
+    expect(retried.statusCode).toBe(204);
+    expect(await prisma.user.count()).toBe(1);
+    expect(transport.sent).toHaveLength(1);
   });
 
   it('creates exactly one account for two spellings of the same address', async () => {

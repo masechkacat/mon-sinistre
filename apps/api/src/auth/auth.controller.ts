@@ -20,6 +20,7 @@ import type {
   AccountConfirmationResponse,
   LoginResponse,
 } from '@mon-sinistre/contracts';
+import type { FastifyReply } from 'fastify';
 import type { EnvironmentVariables } from 'src/config/env.validation';
 import type { AuthenticatedUser } from './auth.service';
 import { AuthService } from './auth.service';
@@ -35,29 +36,6 @@ import { LocalAuthGuard } from './local-auth.guard';
 export const REFRESH_COOKIE_NAME = 'refresh_token';
 const REFRESH_COOKIE_PATH = '/auth';
 
-/**
- * Declared rather than imported: fastify arrives under
- * `@nestjs/platform-fastify` and `@fastify/cookie` and is not a direct
- * dependency of this package (same reasoning as `HttpReply`/`HttpRequest` in
- * `src/common/all-exceptions.filter.ts`). `setCookie`'s shape is
- * `@fastify/cookie`'s `CookieSerializeOptions`, narrowed to what this
- * endpoint actually passes.
- */
-interface ReplyWithCookie {
-  setCookie(
-    name: string,
-    value: string,
-    options: {
-      path: string;
-      httpOnly: boolean;
-      sameSite: 'strict';
-      secure: boolean;
-      signed: boolean;
-      expires: Date;
-    },
-  ): unknown;
-}
-
 interface RequestWithUser {
   readonly user: AuthenticatedUser;
 }
@@ -72,6 +50,7 @@ export class AuthController {
     private readonly auth: AuthService,
     config: ConfigService<EnvironmentVariables, true>,
   ) {
+    // `env.validation.ts` refuses a production start without it.
     this.cookieSecure = config.get('HTTPS_ENABLED', { infer: true }) === true;
   }
 
@@ -129,7 +108,7 @@ export class AuthController {
     // (apps/api/CLAUDE.md, «Правила проекта»).
     @Body() _dto: LoginDto,
     @Req() req: RequestWithUser,
-    @Res({ passthrough: true }) reply: ReplyWithCookie,
+    @Res({ passthrough: true }) reply: FastifyReply,
   ): Promise<LoginResponse> {
     const { access, refresh } = await this.auth.login(req.user.id);
 

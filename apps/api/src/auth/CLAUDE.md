@@ -14,7 +14,9 @@
   дублирующей строки, ни ошибки, ни второго письма. Переписать пароль
   неподтверждённого аккаунта и переслать письмо, либо отправить подтверждённому
   адресу письмо «у вас уже есть аккаунт» — `docs/plan/user-account.md`,
-  фаза 3, пока не реализовано.
+  фаза 3, пока не реализовано. Строка и письмо — одна транзакция: при сбое
+  отправки аккаунт откатывается, и повтор формы регистрирует заново, а не
+  попадает в ветку дубля без письма.
 - `POST /auth/confirmation` → `AuthService.confirm`; мутация — визит по
   ссылке (`GET`, например предзагрузка почтовым клиентом) её не активирует, у
   эндпоинта нет `GET`-пары в отличие от `veille`. Идемпотентен: повторный
@@ -23,7 +25,9 @@
   аккаунт остаётся `confirmed` и после `confirmExpiresAt`. Неизвестный и
   просроченный неподтверждённый токен дают одинаковый `{ status: 'invalid' }`
   — причина не раскрывается (anti-enumeration, тот же принцип, что у
-  `VeilleService.confirm`). `dto/account-token.dto.ts` (`AccountTokenDto`) —
+  `VeilleService.confirm`). Окно подтверждения сравнивается с «сейчас» в одном
+  месте на оба модуля — `awaitingConfirmation`
+  (`src/common/confirmation-window.ts`). `dto/account-token.dto.ts` (`AccountTokenDto`) —
   пустой класс, наследующий валидацию тела у общего `TokenDto`
   (`src/common/token.dto.ts`, общий с `VeilleTokenDto`); второй копии правила
   не заводить, DTO смены пароля по токену (фаза 3) наследует от того же
@@ -44,7 +48,9 @@
   `AuthService.validateCredentials`. Гвард выполняется раньше пайпа — тело
   запроса он читает сырым, а не через провалидированный `LoginDto`, поэтому
   `LocalStrategy.validate` нормализует адрес сам (`normalizeEmail`,
-  `src/common/normalize-email.decorator.ts`), а `LoginDto` в сигнатуре
+  `src/common/normalize-email.decorator.ts`) и сам же берёт поля из тела
+  (`passReqToCallback`): запасной источник passport-local — query string — не
+  используется, пароль в URL попал бы в access-логи. `LoginDto` в сигнатуре
   контроллера остаётся только ради `forbidNonWhitelisted` и Swagger. Один
   ответ `401` на все три причины отказа — неизвестный адрес, неверный
   пароль, неподтверждённый аккаунт (`fr.auth.login.invalid`) —
@@ -55,7 +61,8 @@
   (`JWT_SECRET`, `ACCESS_TOKEN_EXPIRY`) в теле ответа, refresh
   (`JWT_REFRESH_SECRET`, `REFRESH_TOKEN_EXPIRY`) — httpOnly-cookie
   `refresh_token` (`path=/auth`, `SameSite=Strict`, `secure` по
-  `HTTPS_ENABLED`, подписана `COOKIE_SECRET`); `RefreshToken.expiresAt`
+  `HTTPS_ENABLED` — в production он обязателен, `env.validation.ts`
+  отказывает старту без него; подписана `COOKIE_SECRET`); `RefreshToken.expiresAt`
   читается из `exp` только что подписанного JWT, не пересчитывается заново —
   строка не может разойтись с токеном, чей хеш она хранит. Ротация и чтение
   cookie — `docs/plan/user-account.md`, фаза 2.
@@ -68,10 +75,9 @@
   `List-Unsubscribe` некоторыми почтовыми клиентами потратила бы токен
   подтверждения или сброса раньше владельца), ни страничный путь вроде
   `ACCOUNT_CONFIRM_PATH` или главной (`route.ts` не уживается с `page.tsx` в
-  одном сегменте Next.js — обработчика там никогда не будет). Когда веб
-  добавит страницы аккаунта (фаза 5, `docs/plan/user-account.md`), этому пути
-  нужен `route.ts`, отвечающий `POST` пустым `200` — в план фазы 5 эта задача
-  пока не внесена, отдельной страницы «désabonnement» там нет.
+  одном сегменте Next.js — обработчика там никогда не будет). Обработчик —
+  `apps/web/src/app/compte/desabonnement/route.ts`: `POST` отвечает пустым
+  `200`, `GET` уводит человека на главную.
 
 ## Anti-enumeration: временная асимметрия по времени ответа
 

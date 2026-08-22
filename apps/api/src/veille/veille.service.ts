@@ -8,6 +8,11 @@ import {
   type VeilleChangeResponse,
   type VeilleConfirmationStatus,
 } from '@mon-sinistre/contracts';
+import {
+  awaitingConfirmation,
+  expiredUnconfirmed,
+  isStillOpen,
+} from 'src/common/confirmation-window';
 import { errorSummary, stackOf } from 'src/common/error-report';
 import { addDays, DAY_MS } from 'src/common/time';
 import type { EnvironmentVariables } from 'src/config/env.validation';
@@ -38,28 +43,6 @@ export const nextConfirmExpiresAt = (): Date =>
   addDays(VEILLE_CONFIRM_TTL_DAYS);
 
 export const nextChangeExpiresAt = (): Date => addDays(VEILLE_CHANGE_TTL_DAYS);
-
-/**
- * The one comparison of the confirmation deadline with "now", in the two
- * languages that ask for it: `isStillOpen` for a row already read,
- * `awaitingConfirmation` for the write that confirms one. `expiredUnconfirmed`
- * is its exact complement — the deletion criterion of the hourly cleanup — and
- * spells the comparison out instead of negating the fragment above:
- * `NOT (… >= now)` is not an indexable clause, and that delete runs through a
- * partial index.
- */
-const isStillOpen = (confirmExpiresAt: Date): boolean =>
-  confirmExpiresAt >= new Date();
-
-const awaitingConfirmation = () => ({
-  confirmedAt: null,
-  confirmExpiresAt: { gte: new Date() },
-});
-
-const expiredUnconfirmed = () => ({
-  confirmedAt: null,
-  confirmExpiresAt: { lt: new Date() },
-});
 
 /**
  * Single source of the pending/active/invalid decision — `GET` reads it

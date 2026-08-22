@@ -49,6 +49,19 @@ const DEFAULT_SALT_ROUNDS = 12;
 const DEFAULT_ACCESS_TOKEN_EXPIRY = '15m';
 const DEFAULT_REFRESH_TOKEN_EXPIRY = '30d';
 
+/**
+ * The subset of `ms` syntax a token lifetime may use. A unit is mandatory:
+ * `jsonwebtoken` reads a bare number string as milliseconds (`900` → 0.9 s),
+ * and a malformed value surfaces only at the first login — bootstrap is where
+ * it must fail instead.
+ */
+const TOKEN_EXPIRY = /^[1-9]\d*(ms|s|m|h|d|w|y)$/;
+const IsTokenExpiry = () =>
+  Matches(TOKEN_EXPIRY, {
+    message: ({ property }: ValidationArguments) =>
+      `${property} must be a positive integer with a unit (ms, s, m, h, d, w, y), e.g. 15m`,
+  });
+
 /** 0 means "let the kernel pick one", which a reachable service never wants. */
 const MAX_PORT = 65535;
 const IsPortNumber = () =>
@@ -69,26 +82,52 @@ const sendsForReal = (env: EnvironmentVariables): boolean =>
   env.MAIL_TRANSPORT === SENDING_TRANSPORT;
 
 /**
- * A production writing emails to the local outbox comes up perfectly healthy
- * and tells nobody an arrêté was published. Unset counts as local, because that
- * is what the factory makes of it.
+ * Checks that hold for `NODE_ENV=production` only, run at bootstrap — where a
+ * misconfigured production has to fail rather than come up healthy and
+ * misbehave on the first request. `holds` sees the whole validated object.
  */
-function SendsForRealInProduction() {
+function InProduction(
+  name: string,
+  holds: (env: EnvironmentVariables) => boolean,
+  message: string,
+) {
   return (object: object, propertyName: string): void => {
     registerDecorator({
-      name: 'sendsForRealInProduction',
+      name,
       target: object.constructor,
       propertyName,
       validator: {
         validate: (value: unknown, args: ValidationArguments): boolean =>
-          value !== 'production' ||
-          sendsForReal(args.object as EnvironmentVariables),
-        defaultMessage: () =>
-          `MAIL_TRANSPORT must be "${SENDING_TRANSPORT}" when NODE_ENV is production: the local transport writes messages to files and sends nothing`,
+          value !== 'production' || holds(args.object as EnvironmentVariables),
+        defaultMessage: () => message,
       },
     });
   };
 }
+
+/**
+ * A production writing emails to the local outbox comes up perfectly healthy
+ * and tells nobody an arrêté was published. Unset counts as local, because that
+ * is what the factory makes of it.
+ */
+const SendsForRealInProduction = () =>
+  InProduction(
+    'sendsForRealInProduction',
+    sendsForReal,
+    `MAIL_TRANSPORT must be "${SENDING_TRANSPORT}" when NODE_ENV is production: the local transport writes messages to files and sends nothing`,
+  );
+
+/**
+ * The refresh cookie's `Secure` flag follows `HTTPS_ENABLED` alone
+ * (`src/auth/auth.controller.ts`); a production that forgets the variable
+ * would hand out a 30-day cookie a plain-HTTP request can carry.
+ */
+const ServesHttpsInProduction = () =>
+  InProduction(
+    'servesHttpsInProduction',
+    (env) => env.HTTPS_ENABLED === true,
+    'HTTPS_ENABLED must be true when NODE_ENV is production: the refresh cookie is only marked Secure when it is',
+  );
 
 const domainOf = (address: string): string =>
   address.slice(address.lastIndexOf('@') + 1).toLowerCase();
@@ -134,6 +173,7 @@ export class EnvironmentVariables {
   @IsOptional()
   @IsIn(NODE_ENV_NAMES)
   @SendsForRealInProduction()
+  @ServesHttpsInProduction()
   NODE_ENV?: (typeof NODE_ENV_NAMES)[number];
 
   // --- база данных ---
@@ -201,10 +241,10 @@ export class EnvironmentVariables {
   @Max(31)
   SALT_ROUNDS: number = DEFAULT_SALT_ROUNDS;
 
-  @IsString()
+  @IsTokenExpiry()
   ACCESS_TOKEN_EXPIRY: string = DEFAULT_ACCESS_TOKEN_EXPIRY;
 
-  @IsString()
+  @IsTokenExpiry()
   REFRESH_TOKEN_EXPIRY: string = DEFAULT_REFRESH_TOKEN_EXPIRY;
 
   @IsOptional()
