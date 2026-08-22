@@ -202,7 +202,9 @@ id, `kind` enum (`UNPARSEABLE_ANNEXE` / `UNMATCHED_COMMUNE` /
 
 Auth уже решён (api/CLAUDE.md): Passport local + JWT, refresh с ротацией.
 
-- `User`: id, email `unique`, passwordHash, createdAt. Email в логи не попадает.
+- `User`: id, email `unique`, passwordHash, `confirmedAt` (null = не
+  подтверждён, вход невозможен), `confirmTokenHash` `unique`,
+  `confirmExpiresAt`, createdAt. Email в логи не попадает.
 - `RefreshToken`: id, userId → User (cascade), tokenHash `unique`, expiresAt,
   revokedAt null. Ротация = вставка нового + revoke старого; чистка истёкших —
   фоновая задача.

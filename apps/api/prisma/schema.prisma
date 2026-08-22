@@ -42,6 +42,32 @@ model Commune {
   @@index([nameNormalized])
 }
 
+// Аккаунт пострадавшего — docs/research/user-account.md, data-model.md § 5.
+model User {
+  id               String         @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  email            String         @unique
+  passwordHash     String
+  // null = аккаунт не подтверждён, вход невозможен
+  confirmedAt      DateTime?      @db.Timestamptz(6)
+  confirmTokenHash String         @unique
+  confirmExpiresAt DateTime       @db.Timestamptz(6)
+  createdAt        DateTime       @default(now()) @db.Timestamptz(6)
+  refreshTokens    RefreshToken[]
+}
+
+// docs/research/user-account.md, data-model.md § 5.
+model RefreshToken {
+  id        String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  userId    String    @db.Uuid
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  expiresAt DateTime  @db.Timestamptz(6)
+  // null = ещё действует
+  revokedAt DateTime? @db.Timestamptz(6)
+
+  @@index([userId])
+}
+
 // Подписка на уведомления об arrêté по выбранным коммунам — схема и решения:
 // docs/research/veille-subscription-lifecycle.md. Токены хранятся хешами.
 model Veille {
