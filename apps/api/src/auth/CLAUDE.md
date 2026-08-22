@@ -1,10 +1,11 @@
 # CLAUDE.md — `src/auth`
 
-Аккаунт пострадавшего: регистрация, подтверждение, вход, сессия. Решения
-фичи — `docs/research/user-account.md`; разбивка по фазам —
-`docs/plan/user-account.md`. Модуль пока (фаза 2) реализует регистрацию,
-подтверждение, вход, ротацию refresh, выход, чтение текущего пользователя и
-удаление аккаунта; остальные точки входа добавляются фаза за фазой,
+Аккаунт пострадавшего: регистрация, подтверждение, вход, сессия, сброс пароля.
+Решения фичи — `docs/research/user-account.md`; разбивка по фазам —
+`docs/plan/user-account.md`. Модуль реализует регистрацию, подтверждение,
+вход, ротацию refresh, выход, чтение текущего пользователя, удаление
+аккаунта (фаза 2) и запрос сброса пароля (фаза 3, начата); смена пароля по
+токену и повторная регистрация — та же фаза, ещё не реализованы;
 документируются здесь по мере появления.
 
 ## Точки входа
@@ -44,6 +45,19 @@
   `hashSecureToken` (`src/common/secure-token.ts`, общий с veille):
   `randomBytes(32).base64url` в письмо, `sha256` hex в базу; второй генерации
   здесь не заводить.
+- `POST /auth/password-reset` → `AuthService.requestPasswordReset`; always
+  `204`, whatever the address turns out to be — anti-enumeration, same
+  principle as `register` above. An unknown address does nothing and returns
+  at once; a known one — confirmed or not, the confirmation flow above is a
+  separate concern — gets a fresh `PasswordReset` row and its mail, one
+  transaction (row and mail roll back together on delivery failure, same as
+  `register`); `P2003` on the insert — the account deleted between the
+  lookup and the write — answers the same as an unknown address, same
+  reasoning as `issueTokens`'s own `P2003` handling above. `password-reset-mail.ts`
+  (`passwordResetMailFor`) is the one build of that mail; it reuses
+  `fr.mail.account.reason` rather than restating why the person is on the
+  list. The token endpoint that spends this row —
+  `docs/plan/user-account.md`, phase 3, next issue.
 - `POST /auth/login` → `LocalAuthGuard` (`local-auth.guard.ts`, оборачивает
   `passport-local`) → `LocalStrategy` (`local.strategy.ts`) →
   `AuthService.validateCredentials`. Гвард выполняется раньше пайпа — тело
@@ -117,9 +131,9 @@
   единственный способ исключить эндпоинт; `JwtAuthGuard.canActivate`
   проверяет её сначала на хендлере, потом на классе контроллера. На классе
   она висит только там, где публичны все точки входа (`CommunesController`,
-  `HealthController`, `VeilleController`); в `AuthController` — на каждом из
-  четырёх публичных методов отдельно, чтобы новый хендлер модуля наследовал
-  замок, а не исключение.
+  `HealthController`, `VeilleController`); в `AuthController` — на каждом
+  публичном методе отдельно, чтобы новый хендлер модуля наследовал замок, а
+  не исключение.
 - `GET /auth/me` → `AuthController.me` → `AuthService.currentUser`;
   возвращает email владельца access-токена (espace personnel). Без
   `@Public()` — проходит через глобальный `JwtAuthGuard`, как любой новый
@@ -152,12 +166,18 @@
 
 ## Anti-enumeration: временная асимметрия по времени ответа
 
-Ветка нового адреса (`register` создаёт строку и ждёт `mail.send()`) и ветка
-уже занятого адреса (`isUniqueViolationOn` ловит `P2002` и отвечает сразу)
-занимают разное время: у veille все три ветки `upsertSubscription`
-дожидаются какой-нибудь отправки письма ради этого самого равенства, а здесь
-переписать пароль и переслать письмо неподтверждённому адресу — фаза 3
-(`docs/plan/user-account.md`), которой в этой фазе нет. До неё разница во
-времени ответа отличает существующий адрес от нового; PRD требует
-неразличимости ответа (кода и тела), временной канал — известный, пока не
-закрытый пробел, а не то, что тесты этой фазы проверяют.
+Две пары веток занимают разное время, обе — известный, пока не закрытый
+пробел: PRD требует неразличимости ответа (кода и тела), временной канал в
+это требование не входит и тестами не проверяется.
+
+- `register`: ветка нового адреса создаёт строку и ждёт `mail.send()`, ветка
+  уже занятого адреса (`isUniqueViolationOn` ловит `P2002`) отвечает сразу.
+  У veille все три ветки `upsertSubscription` дожидаются какой-нибудь
+  отправки письма ради этого самого равенства; здесь так же выровнять
+  ветку занятого адреса — переписать пароль и переслать письмо
+  неподтверждённому адресу — `docs/plan/user-account.md`, фаза 3, ещё не
+  реализовано.
+- `requestPasswordReset`: ветка известного адреса создаёт `PasswordReset` и
+  ждёт `mail.send()`, ветка неизвестного отвечает сразу — тот же пробел, по
+  той же причине, без встречной задачи фазы 3, которая его закрыла бы:
+  неизвестному адресу писать попросту нечего.

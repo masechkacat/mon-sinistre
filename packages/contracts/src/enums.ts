@@ -141,6 +141,14 @@ export const VEILLE_CHANGE_TTL_DAYS = 7;
 export const ACCOUNT_CONFIRM_PATH = '/confirmation';
 
 /**
+ * Path of the "new password" page, relative to `FRONTEND_URL` — the link the
+ * password-reset mail carries (docs/research/user-account.md). Declared here
+ * even though the page itself ships later (phase 5), same reason as
+ * `ACCOUNT_CONFIRM_PATH` above: the mail that needs it ships first.
+ */
+export const ACCOUNT_RESET_PATH = '/reinitialisation';
+
+/**
  * Every account mail (confirmation, password reset, "you already have an
  * account") is transactional — one address, one action, no ongoing
  * subscription to cancel. `unsubscribePath` is still mandatory on every

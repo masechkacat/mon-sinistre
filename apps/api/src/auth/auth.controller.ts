@@ -36,6 +36,7 @@ import { CurrentUserResponseDto } from './dto/current-user-response.dto';
 import { LoginDto } from './dto/login.dto';
 import { LoginResponseDto } from './dto/login-response.dto';
 import { RegisterDto } from './dto/register.dto';
+import { RequestPasswordResetDto } from './dto/request-password-reset.dto';
 import type { JwtUser } from './jwt.strategy';
 import { LocalAuthGuard } from './local-auth.guard';
 import { Public } from './public.decorator';
@@ -66,9 +67,9 @@ interface RequestWithJwtUser {
 /**
  * `@Public()` is per handler, never on the class: the global `JwtAuthGuard`
  * is fail-closed, and a handler added here later must inherit the lock, not
- * the exemption. The four marked are public by their nature — nobody has a
- * session before register/confirmation/login, and refresh/logout identify
- * the caller by the cookie, not by a bearer.
+ * the exemption. The ones marked are public by their nature — nobody has a
+ * session before register/confirmation/login/password-reset, and
+ * refresh/logout identify the caller by the cookie, not by a bearer.
  */
 @ApiTags('auth')
 @Controller('auth')
@@ -116,6 +117,23 @@ export class AuthController {
     @Body() body: AccountTokenDto,
   ): Promise<AccountConfirmationResponse> {
     return { status: await this.auth.confirm(body.token) };
+  }
+
+  @Public()
+  @Post('password-reset')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: 'Request a password-reset link',
+    description:
+      'Always 204, whatever the address turns out to be — ' +
+      'anti-enumeration (docs/prd/user-account.md). A mail with a reset ' +
+      'link goes out only when the address matches an existing account.',
+  })
+  @ApiNoContentResponse()
+  async requestPasswordReset(
+    @Body() dto: RequestPasswordResetDto,
+  ): Promise<void> {
+    await this.auth.requestPasswordReset(dto.email);
   }
 
   @Public()

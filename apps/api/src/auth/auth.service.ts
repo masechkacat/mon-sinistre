@@ -6,6 +6,7 @@ import { JwtService, type JwtSignOptions } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import {
   ACCOUNT_CONFIRM_TTL_DAYS,
+  PASSWORD_RESET_TTL_HOURS,
   SESSION_INACTIVITY_DAYS,
   type AccountConfirmationStatus,
   type CurrentUserResponse,
@@ -13,7 +14,7 @@ import {
 } from '@mon-sinistre/contracts';
 import { awaitingConfirmation } from 'src/common/confirmation-window';
 import { generateSecureToken, hashSecureToken } from 'src/common/secure-token';
-import { addDays } from 'src/common/time';
+import { addDays, addHours } from 'src/common/time';
 import type { EnvironmentVariables } from 'src/config/env.validation';
 import { fr } from 'src/i18n/fr';
 import { MailService } from 'src/mail/mail.service';
@@ -25,8 +26,11 @@ import {
 import { PrismaService } from 'src/prisma/prisma.service';
 import { confirmationMailFor } from './account-confirmation-mail';
 import type { RegisterDto } from './dto/register.dto';
+import { passwordResetMailFor } from './password-reset-mail';
 
 const nextConfirmExpiresAt = (): Date => addDays(ACCOUNT_CONFIRM_TTL_DAYS);
+const nextPasswordResetExpiresAt = (): Date =>
+  addHours(PASSWORD_RESET_TTL_HOURS);
 
 /**
  * `typ` claim: the two token kinds share a signer and a payload shape, and
@@ -174,6 +178,33 @@ export class AuthService {
       select: { confirmedAt: true },
     });
     return user?.confirmedAt ? 'confirmed' : 'invalid';
+  }
+
+  /** Anti-enumeration (PRD, «Ограничения») — behaviour, the `P2003` race and
+   * the accepted timing gap are all `src/auth/CLAUDE.md`. */
+  async requestPasswordReset(email: string): Promise<void> {
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+      select: { id: true },
+    });
+    if (!user) return;
+
+    const reset = generateSecureToken();
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        await tx.passwordReset.create({
+          data: {
+            userId: user.id,
+            tokenHash: reset.hash,
+            expiresAt: nextPasswordResetExpiresAt(),
+          },
+        });
+        await this.mail.send(passwordResetMailFor(email, reset.token));
+      });
+    } catch (error) {
+      if (isForeignKeyViolation(error)) return;
+      throw error;
+    }
   }
 
   /**

@@ -76,6 +76,14 @@ export const fr = {
         expiresIn: (days: string) =>
           `Ce lien de confirmation est valable ${days} jours.`,
       },
+      passwordReset: {
+        subject: 'Réinitialisation de votre mot de passe Mon Sinistre',
+        intro:
+          'Vous avez demandé la réinitialisation du mot de passe de votre ' +
+          'compte Mon Sinistre.',
+        resetLink: 'Choisir un nouveau mot de passe',
+        expiresIn: (hours: string) => `Ce lien est valable ${hours} heures.`,
+      },
       reason: 'vous avez créé un compte sur Mon Sinistre avec cette adresse',
     },
     veille: {
