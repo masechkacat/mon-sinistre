@@ -8,6 +8,12 @@
  * maxWorkers: 1 is mandatory while all tests share one database; if the run
  * ever gets slow, switch to a database per worker via JEST_WORKER_ID — not to
  * testcontainers (docs/research/commune-referential.md).
+ *
+ * The `test:int` script runs Jest under `--experimental-vm-modules`, without
+ * which no suite that boots the app can run at all: `@fastify/cookie`
+ * registers via `await import('cookie')`, and Jest throws on any dynamic
+ * `import()` inside its sandbox unless that flag is set. Node outside Jest
+ * needs nothing (`main.ts` registers the same plugin unmodified).
  */
 module.exports = {
   moduleFileExtensions: ['js', 'json', 'ts'],

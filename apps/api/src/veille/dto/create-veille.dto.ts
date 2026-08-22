@@ -1,5 +1,4 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { Transform } from 'class-transformer';
 import {
   ArrayMaxSize,
   ArrayMinSize,
@@ -9,6 +8,7 @@ import {
   Length,
 } from 'class-validator';
 import { VEILLE_MAX_COMMUNES } from '@mon-sinistre/contracts';
+import { NormalizeEmail } from 'src/common/normalize-email.decorator';
 
 const INSEE_CODE_LENGTH = 5;
 
@@ -19,9 +19,7 @@ export class CreateVeilleDto {
    * address (docs/research/veille-subscription-lifecycle.md).
    */
   @ApiProperty({ example: 'riverain@example.fr' })
-  @Transform(({ value }): unknown =>
-    typeof value === 'string' ? value.trim().toLowerCase() : value,
-  )
+  @NormalizeEmail()
   @IsEmail()
   email: string;
 

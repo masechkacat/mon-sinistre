@@ -1,4 +1,5 @@
 import {
+  AccountConfirmationStatus,
   ArreteEntryOutcome,
   DurationUnit,
   FileKind,
@@ -98,6 +99,19 @@ export interface VeilleConfirmationResponse {
 export interface VeilleChangeResponse {
   status: VeilleChangeStatus;
   communes?: Pick<Commune, 'name' | 'departementName'>[];
+}
+
+/** Response body of the account confirmation endpoint (`POST`). */
+export interface AccountConfirmationResponse {
+  status: AccountConfirmationStatus;
+}
+
+/**
+ * Response body of the login endpoint. The refresh token is never in the
+ * body — it is set as an httpOnly cookie (`apps/api/CLAUDE.md`).
+ */
+export interface LoginResponse {
+  accessToken: string;
 }
 
 /** One insurance claim being accompanied. */

@@ -8,7 +8,13 @@ import {
   type VeilleChangeResponse,
   type VeilleConfirmationStatus,
 } from '@mon-sinistre/contracts';
+import {
+  awaitingConfirmation,
+  expiredUnconfirmed,
+  isStillOpen,
+} from 'src/common/confirmation-window';
 import { errorSummary, stackOf } from 'src/common/error-report';
+import { addDays, DAY_MS } from 'src/common/time';
 import type { EnvironmentVariables } from 'src/config/env.validation';
 import type { Prisma } from 'src/generated/prisma/client';
 import { MailCompositionError } from 'src/mail/mail-composition.error';
@@ -28,36 +34,15 @@ import {
 import { hashVeilleFormEmail } from './veille-email-hash';
 import { generateVeilleToken, hashVeilleToken } from './veille-token';
 
-/** Both exported for the veille specs, so none of them keeps its own copy. */
-export const DAY_MS = 24 * 60 * 60 * 1000;
+/** Re-exported for the veille specs, which import it from here — the single
+ * definition lives in src/common/time.ts (shared with account confirmation),
+ * so none of them keeps its own copy. */
+export { DAY_MS };
 
 export const nextConfirmExpiresAt = (): Date =>
-  new Date(Date.now() + VEILLE_CONFIRM_TTL_DAYS * DAY_MS);
+  addDays(VEILLE_CONFIRM_TTL_DAYS);
 
-export const nextChangeExpiresAt = (): Date =>
-  new Date(Date.now() + VEILLE_CHANGE_TTL_DAYS * DAY_MS);
-
-/**
- * The one comparison of the confirmation deadline with "now", in the two
- * languages that ask for it: `isStillOpen` for a row already read,
- * `awaitingConfirmation` for the write that confirms one. `expiredUnconfirmed`
- * is its exact complement — the deletion criterion of the hourly cleanup — and
- * spells the comparison out instead of negating the fragment above:
- * `NOT (… >= now)` is not an indexable clause, and that delete runs through a
- * partial index.
- */
-const isStillOpen = (confirmExpiresAt: Date): boolean =>
-  confirmExpiresAt >= new Date();
-
-const awaitingConfirmation = () => ({
-  confirmedAt: null,
-  confirmExpiresAt: { gte: new Date() },
-});
-
-const expiredUnconfirmed = () => ({
-  confirmedAt: null,
-  confirmExpiresAt: { lt: new Date() },
-});
+export const nextChangeExpiresAt = (): Date => addDays(VEILLE_CHANGE_TTL_DAYS);
 
 /**
  * Single source of the pending/active/invalid decision — `GET` reads it

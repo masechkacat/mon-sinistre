@@ -15,8 +15,8 @@ contracts не нужен — jest подставляет его исходни�
 
 ## Модули
 
-Свои `CLAUDE.md` у `src/prisma/`, `src/communes/`, `src/mail/`, `src/veille/` —
-правила там. Решения фичи veille (схема, токены, лимит писем, чистка) —
+Свои `CLAUDE.md` у `src/prisma/`, `src/communes/`, `src/mail/`, `src/veille/`,
+`src/auth/` — правила там. Решения фичи veille (схема, токены, лимит писем, чистка) —
 `../../docs/research/veille-subscription-lifecycle.md`; изменение состава
 коммун (заявка `VeilleChange`, эндпоинты `changement`) —
 `../../docs/research/veille-commune-change.md`; монитор Journal Officiel
@@ -30,14 +30,15 @@ CNIL, bcrypt, JWT-сессии с ротацией, глобальный guard, 
 Второй реализации не заводить — нужно тому, кто пишет **новый** модуль и в чужой
 `CLAUDE.md` не заглядывает. Устройство и оговорки — в модуле:
 
-| Задача                  | Только через                                |
-| ----------------------- | ------------------------------------------- |
-| отправка письма         | `MailService.send()` (`src/mail/`)          |
-| экранирование LIKE      | `escapeLikePattern` (`src/prisma/`)         |
-| поисковый ключ коммуны  | `normalizeCommuneName` (`src/communes/`)    |
-| описание ошибки в логе  | `errorSummary`/`stackOf` (`src/common/`)    |
-| строки для пользователя | `src/i18n/fr.ts`                            |
-| чтение окружения        | `ConfigService<EnvironmentVariables, true>` |
+| Задача                   | Только через                                            |
+| ------------------------ | ------------------------------------------------------- |
+| отправка письма          | `MailService.send()` (`src/mail/`)                      |
+| экранирование LIKE       | `escapeLikePattern` (`src/prisma/`)                     |
+| поисковый ключ коммуны   | `normalizeCommuneName` (`src/communes/`)                |
+| одноразовый токен ссылки | `generateSecureToken`/`hashSecureToken` (`src/common/`) |
+| описание ошибки в логе   | `errorSummary`/`stackOf` (`src/common/`)                |
+| строки для пользователя  | `src/i18n/fr.ts`                                        |
+| чтение окружения         | `ConfigService<EnvironmentVariables, true>`             |
 
 Исключение из строки про ошибки одно, и оно осознанное: недоставленное письмо
 `MailService` описывает своим отчётом — с цепочкой `cause` и вычищенным адресом

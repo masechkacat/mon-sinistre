@@ -7,9 +7,9 @@ import {
 } from '@nestjs/platform-fastify';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from '@fastify/helmet';
-import fastifyCookie from '@fastify/cookie';
 import { AppModule } from './app.module';
 import type { EnvironmentVariables } from './config/env.validation';
+import { registerCookiePlugin } from './config/fastify-cookie';
 import { createGlobalValidationPipe } from './config/validation-pipe';
 
 async function bootstrap() {
@@ -29,10 +29,7 @@ async function bootstrap() {
   app.enableShutdownHooks();
 
   await app.register(helmet, { contentSecurityPolicy: false });
-  // A binding, not inline: the option accepts a union of half a dozen types and
-  // inferring the lookup against it lands on unknown.
-  const cookieSecret = config.get('COOKIE_SECRET', { infer: true });
-  await app.register(fastifyCookie, { secret: cookieSecret });
+  await registerCookiePlugin(app, config.get('COOKIE_SECRET', { infer: true }));
 
   app.enableCors({
     origin: config.get('FRONTEND_URL', { infer: true }),

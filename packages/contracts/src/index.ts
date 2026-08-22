@@ -10,3 +10,4 @@
 export * from './enums';
 export * from './iso-date';
 export * from './models';
+export * from './password';

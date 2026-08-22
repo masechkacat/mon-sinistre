@@ -17,6 +17,33 @@ const because = (reason: string): string =>
     : `parce que ${reason}`;
 
 export const fr = {
+  auth: {
+    password: {
+      /**
+       * Names every requirement at once (docs/research/user-account.md,
+       * «Правила пароля» — «Как применять»): a rejected password should not
+       * make the visitor guess which rule it broke. Concatenated, not a
+       * template literal: no-irregular-whitespace exempts plain strings but
+       * not templates, and the space before ":" must stay a literal U+00A0
+       * (French typography, see fr.mail.footer.noReply below).
+       */
+      requirements: (minLength: string, minClasses: string) =>
+        'Le mot de passe doit compter au moins ' +
+        minLength +
+        ' caractères et combiner au moins ' +
+        minClasses +
+        ' des catégories suivantes : majuscule, minuscule, chiffre, caractère spécial.',
+    },
+    login: {
+      /**
+       * One message for every rejection reason (unknown address, wrong
+       * password, unconfirmed account) — anti-enumeration
+       * (`src/auth/CLAUDE.md`): a distinct wording per cause would tell a
+       * caller which one applied.
+       */
+      invalid: 'Adresse e-mail ou mot de passe incorrect.',
+    },
+  },
   mail: {
     senderName: 'Mon Sinistre',
     terms: {
@@ -32,6 +59,16 @@ export const fr = {
       unsubscribe: 'Ne plus recevoir de messages',
       signature:
         'Mon Sinistre — être accompagné après une catastrophe naturelle',
+    },
+    account: {
+      confirmation: {
+        subject: 'Confirmez votre adresse pour votre compte Mon Sinistre',
+        intro: 'Vous avez créé un compte sur Mon Sinistre avec cette adresse.',
+        confirmLink: 'Confirmer mon compte',
+        expiresIn: (days: string) =>
+          `Ce lien de confirmation est valable ${days} jours.`,
+      },
+      reason: 'vous avez créé un compte sur Mon Sinistre avec cette adresse',
     },
     veille: {
       confirmation: {
