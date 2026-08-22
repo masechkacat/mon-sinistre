@@ -6,6 +6,7 @@ import { JwtService, type JwtSignOptions } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import {
   ACCOUNT_CONFIRM_TTL_DAYS,
+  SESSION_INACTIVITY_DAYS,
   type AccountConfirmationStatus,
   type CurrentUserResponse,
   type LoginResponse,
@@ -16,12 +17,41 @@ import { addDays } from 'src/common/time';
 import type { EnvironmentVariables } from 'src/config/env.validation';
 import { fr } from 'src/i18n/fr';
 import { MailService } from 'src/mail/mail.service';
-import { isUniqueViolationOn } from 'src/prisma/prisma-error';
+import type { Prisma } from 'src/generated/prisma/client';
+import {
+  isForeignKeyViolation,
+  isUniqueViolationOn,
+} from 'src/prisma/prisma-error';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { confirmationMailFor } from './account-confirmation-mail';
 import type { RegisterDto } from './dto/register.dto';
 
 const nextConfirmExpiresAt = (): Date => addDays(ACCOUNT_CONFIRM_TTL_DAYS);
+
+/**
+ * `typ` claim: the two token kinds share a signer and a payload shape, and
+ * `JwtStrategy` must be able to refuse a refresh token presented as a bearer
+ * even if the two secrets were ever the same (`env.validation.ts` refuses
+ * that too — this is the second lock, not the first).
+ */
+export const TOKEN_TYPE = { access: 'access', refresh: 'refresh' } as const;
+export type TokenType = (typeof TOKEN_TYPE)[keyof typeof TOKEN_TYPE];
+
+export interface TokenPayload {
+  sub: string;
+  typ: TokenType;
+}
+
+/**
+ * How long after a rotation the rotated-out token is still honoured. Two
+ * tabs whose access tokens expire together both refresh with the same
+ * cookie within milliseconds; a client retrying a request the network
+ * dropped presents the same cookie again seconds later. Neither is theft,
+ * and treating them as theft (`refresh` below) logs the person out of every
+ * device. Within this window a second presentation gets its own fresh pair;
+ * after it, it kills the chain. Exported for the spec, not for tuning.
+ */
+export const REFRESH_ROTATION_GRACE_MS = 10_000;
 
 /** What `LocalStrategy` attaches to the request as `req.user`. */
 export interface AuthenticatedUser {
@@ -64,7 +94,7 @@ export class AuthService {
    * every `sign` call below.
    */
   private readonly accessTokenExpiry: JwtSignOptions['expiresIn'];
-  private readonly refreshTokenExpiry: JwtSignOptions['expiresIn'];
+  private readonly refreshTokenExpiry: JwtSignOptions['expiresIn'] = `${SESSION_INACTIVITY_DAYS}d`;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -77,9 +107,6 @@ export class AuthService {
     this.jwtSecret = config.get('JWT_SECRET', { infer: true });
     this.jwtRefreshSecret = config.get('JWT_REFRESH_SECRET', { infer: true });
     this.accessTokenExpiry = config.get('ACCESS_TOKEN_EXPIRY', {
-      infer: true,
-    });
-    this.refreshTokenExpiry = config.get('REFRESH_TOKEN_EXPIRY', {
       infer: true,
     });
   }
@@ -171,34 +198,52 @@ export class AuthService {
   /**
    * Issues both tokens and records the refresh one. `expiresAt` of the
    * `RefreshToken` row is read off the freshly signed JWT's own `exp` claim,
-   * not recomputed from `REFRESH_TOKEN_EXPIRY` a second time — the row can
+   * not recomputed from `SESSION_INACTIVITY_DAYS` a second time — the row can
    * never disagree with the token it stores the hash of. The `jti` is what
    * keeps two logins (or refreshes) of one user within the same second from
    * signing the identical token: `iat`/`exp` have second resolution, and
    * `RefreshToken.tokenHash` is unique. Shared by `login` and `refresh` —
-   * the only two places that ever mint a fresh pair.
+   * the only two places that ever mint a fresh pair; `refresh` hands in its
+   * transaction so the revoke of the old row and the insert of the new one
+   * commit together.
+   *
+   * `P2003` on the insert means the account was deleted between the caller's
+   * read and this write (`DELETE /auth/me` racing a refresh) — for the caller
+   * that is a session that no longer exists, the same 401 as any other.
    */
-  private async issueTokens(userId: string): Promise<LoginResult> {
-    const payload = { sub: userId };
-    const accessToken = await this.jwt.signAsync(payload, {
-      secret: this.jwtSecret,
-      expiresIn: this.accessTokenExpiry,
-    });
-    const refreshToken = await this.jwt.signAsync(payload, {
-      secret: this.jwtRefreshSecret,
-      expiresIn: this.refreshTokenExpiry,
-      jwtid: randomUUID(),
-    });
+  private async issueTokens(
+    userId: string,
+    db: Prisma.TransactionClient = this.prisma,
+  ): Promise<LoginResult> {
+    const accessToken = await this.jwt.signAsync(
+      { sub: userId, typ: TOKEN_TYPE.access } satisfies TokenPayload,
+      { secret: this.jwtSecret, expiresIn: this.accessTokenExpiry },
+    );
+    const refreshToken = await this.jwt.signAsync(
+      { sub: userId, typ: TOKEN_TYPE.refresh } satisfies TokenPayload,
+      {
+        secret: this.jwtRefreshSecret,
+        expiresIn: this.refreshTokenExpiry,
+        jwtid: randomUUID(),
+      },
+    );
     const { exp } = this.jwt.decode<{ exp: number }>(refreshToken);
     const expiresAt = new Date(exp * 1000);
 
-    await this.prisma.refreshToken.create({
-      data: {
-        userId,
-        tokenHash: hashSecureToken(refreshToken),
-        expiresAt,
-      },
-    });
+    try {
+      await db.refreshToken.create({
+        data: {
+          userId,
+          tokenHash: hashSecureToken(refreshToken),
+          expiresAt,
+        },
+      });
+    } catch (error) {
+      if (isForeignKeyViolation(error)) {
+        throw new UnauthorizedException(fr.auth.session.expired);
+      }
+      throw error;
+    }
 
     return {
       access: { accessToken },
@@ -211,57 +256,74 @@ export class AuthService {
   }
 
   /**
-   * The revoke is the conditional `updateMany` itself, not read-then-update:
-   * it can only ever revoke a row that is still `revokedAt: null`, so two
-   * concurrent presentations of the same token race for that `count`, and at
-   * most one wins — the loser falls into the reuse branch below exactly like
-   * an attacker replaying an already-rotated token would (`src/auth/CLAUDE.md`).
+   * Rotation is one transaction: the conditional `updateMany` (`revokedAt:
+   * null` in `where`, not read-then-update) and the insert of the
+   * replacement. Two concurrent presentations of the same token race for
+   * that `count` in the database and at most one wins; the loser's
+   * `updateMany` waits on the winner's row lock, so by the time it reads
+   * zero the winner's replacement row is committed and visible — the
+   * reuse branch below can never miss it. A failed insert rolls the revoke
+   * back: the presented token stays valid rather than the session vanishing.
+   *
+   * `revokedAt` is set by rotation and by nothing else — `logout` and the
+   * reuse sweep delete rows outright (`src/auth/CLAUDE.md`). That is what
+   * lets the loser's branch tell a harmless second presentation (two tabs, a
+   * retry: revoked seconds ago, `REFRESH_ROTATION_GRACE_MS`) from a replay of
+   * a token that had been rotated out long before, which is the signal of
+   * theft and kills the whole chain.
    */
   async refresh(token: string): Promise<LoginResult> {
-    let payload: { sub: string };
+    let payload: TokenPayload;
     try {
-      payload = await this.jwt.verifyAsync<{ sub: string }>(token, {
+      payload = await this.jwt.verifyAsync<TokenPayload>(token, {
         secret: this.jwtRefreshSecret,
       });
     } catch {
       throw new UnauthorizedException(fr.auth.session.expired);
     }
-
-    const tokenHash = hashSecureToken(token);
-    const rotated = await this.prisma.refreshToken.updateMany({
-      where: { tokenHash, revokedAt: null },
-      data: { revokedAt: new Date() },
-    });
-
-    if (rotated.count === 0) {
-      const reused = await this.prisma.refreshToken.findUnique({
-        where: { tokenHash },
-      });
-      if (reused) {
-        await this.prisma.refreshToken.updateMany({
-          where: { userId: reused.userId, revokedAt: null },
-          data: { revokedAt: new Date() },
-        });
-      }
+    if (payload.typ !== TOKEN_TYPE.refresh) {
       throw new UnauthorizedException(fr.auth.session.expired);
     }
 
-    return this.issueTokens(payload.sub);
+    const tokenHash = hashSecureToken(token);
+    const rotated = await this.prisma.$transaction(async (tx) => {
+      const { count } = await tx.refreshToken.updateMany({
+        where: { tokenHash, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+      return count === 0 ? null : this.issueTokens(payload.sub, tx);
+    });
+    if (rotated) return rotated;
+
+    const reused = await this.prisma.refreshToken.findUnique({
+      where: { tokenHash },
+      select: { userId: true, revokedAt: true },
+    });
+    if (!reused) {
+      throw new UnauthorizedException(fr.auth.session.expired);
+    }
+    const sinceRotation = Date.now() - (reused.revokedAt?.getTime() ?? 0);
+    if (sinceRotation < REFRESH_ROTATION_GRACE_MS) {
+      return this.issueTokens(reused.userId);
+    }
+    await this.prisma.refreshToken.deleteMany({
+      where: { userId: reused.userId, revokedAt: null },
+    });
+    throw new UnauthorizedException(fr.auth.session.expired);
   }
 
   /**
-   * Idempotent by construction, not by checking the result: revoking a token
-   * hash that is unknown or already revoked simply matches zero rows in the
-   * conditional `updateMany` (`revokedAt: null` in `where`) — repeat logout,
-   * or logout after the session already died some other way, is not an
-   * error. Only the one presented token is revoked, not the whole chain —
+   * Deletes the row rather than marking it revoked — why: `refresh` above.
+   * Idempotent by construction: a token hash that is unknown, already
+   * rotated out or already logged out matches zero rows, and repeat logout
+   * is not an error. Only the presented token goes, not the whole chain —
    * unlike refresh's reuse case, presenting a token at `/auth/logout` is not
-   * itself a signal of theft.
+   * itself a signal of theft, and neither is its later replay at
+   * `/auth/refresh`: with the row gone, that replay is an unknown token.
    */
   async logout(token: string): Promise<void> {
-    await this.prisma.refreshToken.updateMany({
-      where: { tokenHash: hashSecureToken(token), revokedAt: null },
-      data: { revokedAt: new Date() },
+    await this.prisma.refreshToken.deleteMany({
+      where: { tokenHash: hashSecureToken(token) },
     });
   }
 

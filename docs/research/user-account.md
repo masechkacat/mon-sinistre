@@ -12,7 +12,8 @@ PostgreSQL 18; **весь auth-стек уже установлен и наст�
 `bcrypt` 6, `passport` + `passport-local` + `passport-jwt`, `@nestjs/jwt`,
 `@nestjs/passport`, `@fastify/cookie`, `@nestjs/throttler`, а
 `env.validation.ts` уже содержит `JWT_SECRET`, `JWT_REFRESH_SECRET`,
-`COOKIE_SECRET`, `SALT_ROUNDS`, `ACCESS_TOKEN_EXPIRY`, `REFRESH_TOKEN_EXPIRY`.
+`COOKIE_SECRET`, `SALT_ROUNDS`, `ACCESS_TOKEN_EXPIRY`, `REFRESH_TOKEN_EXPIRY`
+(последняя с тех пор убрана — врезка ниже).
 Web — Next.js 16.2, React 19.2, TanStack Query 5.101, Playwright + axe.
 **Новых зависимостей не требуется ни одной** — офлайн-предусловие Ralph Loop
 выполнено из коробки; новая переменная окружения одна (см. § «Ограничение
@@ -104,6 +105,16 @@ Redis/памяти — новая инфраструктура, при рест�
 закрывает CSRF на refresh-эндпоинте (web и API — same-site: localhost:3000/3001
 в dev, поддомены одного домена в проде). Повторное использование уже
 отозванного refresh-токена — признак кражи: revoke всей цепочки пользователя.
+
+> **Расхождение с реализацией (фаза 2, ревью PR 140).** `REFRESH_TOKEN_EXPIRY`
+> как переменной нет: срок берётся из `SESSION_INACTIVITY_DAYS` (contracts),
+> чтобы число, которое web показывает людям, не могло разойтись с реальным.
+> Повторное предъявление отозванного токена — кража только по истечении
+> короткого grace-окна после ротации; раньше — вторая вкладка или ретрай, и
+> ей выдаётся своя пара. Выход и чистка цепочки удаляют строки, не помечают:
+> иначе запоздалый refresh после logout выглядел бы как кража. Как именно —
+> `apps/api/src/auth/CLAUDE.md`.
+
 **Отброшено:** access в localStorage — доступен XSS; сессии в базе вместо JWT —
 второй механизм при уже выбранном и заведённом в env JWT; `SameSite=Lax` —
 Strict работает для same-site fetch, а большего не нужно.

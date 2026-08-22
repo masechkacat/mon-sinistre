@@ -1,14 +1,13 @@
-import * as bcrypt from 'bcrypt';
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { createIntTestApp } from 'src/app.int-helper';
-import { DAY_MS } from 'src/common/time';
 import { captureLogs } from 'src/mail/mail-log.test-helper';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { REFRESH_COOKIE_NAME } from './auth.controller';
-
-/** Cheap on purpose — this is a test fixture's cost, not a real account's. */
-const TEST_SALT_ROUNDS = 4;
-const PASSWORD = 'Abc12345';
+import {
+  createUser as createUserIn,
+  PASSWORD,
+  refreshSetCookieOf,
+} from './session.test-helper';
 
 describe('POST /auth/login (integration)', () => {
   let app: NestFastifyApplication;
@@ -18,24 +17,8 @@ describe('POST /auth/login (integration)', () => {
   const post = (body: object) =>
     app.inject({ method: 'POST', url: '/auth/login', payload: body });
 
-  const createUser = async (
-    overrides: { email?: string; confirmedAt?: Date | null } = {},
-  ): Promise<string> => {
-    const email = overrides.email ?? `victime-${Math.random()}@example.fr`;
-    await prisma.user.create({
-      data: {
-        email,
-        passwordHash: await bcrypt.hash(PASSWORD, TEST_SALT_ROUNDS),
-        confirmTokenHash: `token-${Math.random()}`,
-        confirmExpiresAt: new Date(Date.now() + DAY_MS),
-        confirmedAt:
-          overrides.confirmedAt === undefined
-            ? new Date()
-            : overrides.confirmedAt,
-      },
-    });
-    return email;
-  };
+  const createUser = (overrides?: Parameters<typeof createUserIn>[1]) =>
+    createUserIn(prisma, overrides);
 
   beforeAll(async () => {
     app = await createIntTestApp();
@@ -60,8 +43,7 @@ describe('POST /auth/login (integration)', () => {
     expect(typeof body.accessToken).toBe('string');
     expect(body.accessToken.length).toBeGreaterThan(0);
 
-    const setCookie = res.headers['set-cookie'];
-    const cookie = Array.isArray(setCookie) ? setCookie.join(';') : setCookie;
+    const cookie = refreshSetCookieOf(res);
     expect(cookie).toContain(`${REFRESH_COOKIE_NAME}=`);
     expect(cookie).toMatch(/HttpOnly/i);
     expect(cookie).toMatch(/Path=\/auth/i);

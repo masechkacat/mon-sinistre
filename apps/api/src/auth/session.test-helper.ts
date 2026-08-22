@@ -5,23 +5,35 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { REFRESH_COOKIE_NAME } from './auth.controller';
 
 /** Cheap on purpose — this is a test fixture's cost, not a real account's. */
-export const TEST_SALT_ROUNDS = 4;
+const TEST_SALT_ROUNDS = 4;
 export const PASSWORD = 'Abc12345';
 
-/** Shared by every `*.int-spec.ts` that needs a session already open —
- * `refresh` and `logout` today. Creates a confirmed account so `login`
- * succeeds. */
-export const createConfirmedUser = async (
+/**
+ * The one `User` fixture of every auth `*.int-spec.ts`: confirmed unless
+ * `confirmedAt: null`, password `PASSWORD`, a confirmation window still open
+ * unless overridden. Returns the address, which is what `login` needs.
+ */
+export const createUser = async (
   prisma: PrismaService,
+  overrides: {
+    email?: string;
+    confirmedAt?: Date | null;
+    confirmTokenHash?: string;
+    confirmExpiresAt?: Date;
+  } = {},
 ): Promise<string> => {
-  const email = `victime-${Math.random()}@example.fr`;
+  const email = overrides.email ?? `victime-${Math.random()}@example.fr`;
   await prisma.user.create({
     data: {
       email,
       passwordHash: await bcrypt.hash(PASSWORD, TEST_SALT_ROUNDS),
-      confirmTokenHash: `token-${Math.random()}`,
-      confirmExpiresAt: new Date(Date.now() + DAY_MS),
-      confirmedAt: new Date(),
+      confirmTokenHash: overrides.confirmTokenHash ?? `token-${Math.random()}`,
+      confirmExpiresAt:
+        overrides.confirmExpiresAt ?? new Date(Date.now() + DAY_MS),
+      confirmedAt:
+        overrides.confirmedAt === undefined
+          ? new Date()
+          : overrides.confirmedAt,
     },
   });
   return email;
@@ -34,25 +46,34 @@ export const login = (app: NestFastifyApplication, email: string) =>
     payload: { email, password: PASSWORD },
   });
 
-/** The `name=value` segment of a `Set-Cookie` response header, ready to be
- * replayed as the `Cookie` request header — the signature suffix
- * `@fastify/cookie` appended stays untouched either way. */
-export const refreshCookieOf = (res: {
-  headers: Record<string, unknown>;
-}): string => {
-  const setCookie = res.headers['set-cookie'];
-  const raw = (Array.isArray(setCookie) ? setCookie : [setCookie]).find(
-    (value): value is string =>
-      typeof value === 'string' && value.startsWith(`${REFRESH_COOKIE_NAME}=`),
-  );
-  if (!raw) throw new Error('no refresh cookie in response');
-  return raw.split(';')[0] ?? raw;
-};
+/** Empty `cookie` sends no `Cookie` header at all. */
+const withCookie = (cookie: string) => (cookie ? { cookie } : {});
 
-/** The `Set-Cookie` header a `clearCookie(REFRESH_COOKIE_NAME, ...)` response
- * carries — shared by `logout.int-spec.ts` and `delete-account.int-spec.ts`,
- * the two endpoints that end a session by clearing the cookie. */
-export const clearedRefreshCookieOf = (res: {
+export const refresh = (app: NestFastifyApplication, cookie: string) =>
+  app.inject({
+    method: 'POST',
+    url: '/auth/refresh',
+    headers: withCookie(cookie),
+  });
+
+export const logout = (app: NestFastifyApplication, cookie: string) =>
+  app.inject({
+    method: 'POST',
+    url: '/auth/logout',
+    headers: withCookie(cookie),
+  });
+
+/** `undefined` sends no `Authorization` header at all. */
+export const withBearer = (accessToken?: string) =>
+  accessToken ? { authorization: `Bearer ${accessToken}` } : {};
+
+export const accessTokenOf = (res: { payload: string }): string =>
+  (JSON.parse(res.payload) as { accessToken: string }).accessToken;
+
+/** The whole `Set-Cookie` header for the refresh cookie, or `undefined` when
+ * the response carries none — a `clearCookie` response has one too, with an
+ * empty value and `Max-Age=0`. */
+export const refreshSetCookieOf = (res: {
   headers: Record<string, unknown>;
 }): string | undefined => {
   const setCookie = res.headers['set-cookie'];
@@ -60,4 +81,15 @@ export const clearedRefreshCookieOf = (res: {
     (value): value is string =>
       typeof value === 'string' && value.startsWith(`${REFRESH_COOKIE_NAME}=`),
   );
+};
+
+/** The `name=value` segment only, ready to be replayed as the `Cookie`
+ * request header — the signature suffix `@fastify/cookie` appended stays
+ * inside the value. */
+export const refreshCookieOf = (res: {
+  headers: Record<string, unknown>;
+}): string => {
+  const raw = refreshSetCookieOf(res);
+  if (!raw) throw new Error('no refresh cookie in response');
+  return raw.replace(/;.*$/, '');
 };

@@ -2,7 +2,14 @@ import { Controller, Get } from '@nestjs/common';
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { createIntTestApp } from 'src/app.int-helper';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { createConfirmedUser, login } from './session.test-helper';
+import { REFRESH_COOKIE_NAME } from './auth.controller';
+import {
+  accessTokenOf,
+  createUser,
+  login,
+  refreshCookieOf,
+  withBearer,
+} from './session.test-helper';
 import { Public } from './public.decorator';
 
 /**
@@ -64,19 +71,46 @@ describe('JwtAuthGuard (integration)', () => {
   });
 
   it('lets a valid access token through on an endpoint without @Public()', async () => {
-    const email = await createConfirmedUser(prisma);
-    const loginRes = await login(app, email);
-    const { accessToken } = JSON.parse(loginRes.payload) as {
-      accessToken: string;
-    };
+    const email = await createUser(prisma);
+    const accessToken = accessTokenOf(await login(app, email));
 
     const res = await app.inject({
       method: 'GET',
       url: '/guard-test/protected',
-      headers: { authorization: `Bearer ${accessToken}` },
+      headers: withBearer(accessToken),
     });
 
     expect(res.statusCode).toBe(200);
+  });
+
+  it('refuses a refresh token presented as the bearer', async () => {
+    const email = await createUser(prisma);
+    const loginRes = await login(app, email);
+    const refreshJwt = refreshCookieOf(loginRes)
+      .slice(REFRESH_COOKIE_NAME.length + 1)
+      .replace(/\.[^.]*$/, '');
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/guard-test/protected',
+      headers: withBearer(refreshJwt),
+    });
+
+    expect(res.statusCode).toBe(401);
+  });
+
+  it('refuses a bearer whose sub no longer names an account', async () => {
+    const email = await createUser(prisma);
+    const accessToken = accessTokenOf(await login(app, email));
+    await prisma.user.deleteMany();
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/guard-test/protected',
+      headers: withBearer(accessToken),
+    });
+
+    expect(res.statusCode).toBe(401);
   });
 
   it('answers 200 with no token on an endpoint marked @Public()', async () => {

@@ -1,6 +1,5 @@
 import { applyDecorators } from '@nestjs/common';
 import { plainToInstance, Transform, Type } from 'class-transformer';
-import { SESSION_INACTIVITY_DAYS } from '@mon-sinistre/contracts';
 import {
   IsBoolean,
   IsEmail,
@@ -46,10 +45,10 @@ const DEFAULT_HOST = '0.0.0.0';
 /** docs/research/user-account.md, «Хеширование пароля». */
 const DEFAULT_SALT_ROUNDS = 12;
 
-/** docs/research/user-account.md, «Сессия: access 15 минут … refresh 30 дней». */
+/** docs/research/user-account.md, «Сессия: access 15 минут … refresh 30 дней»;
+ * the refresh lifetime is `SESSION_INACTIVITY_DAYS` (contracts), not a
+ * variable — see `AuthService`. */
 const DEFAULT_ACCESS_TOKEN_EXPIRY = '15m';
-// SESSION_INACTIVITY_DAYS (contracts) is the one place the "30" lives.
-const DEFAULT_REFRESH_TOKEN_EXPIRY = `${SESSION_INACTIVITY_DAYS}d`;
 
 /**
  * The subset of `ms` syntax a token lifetime may use. A unit is mandatory:
@@ -79,6 +78,28 @@ const IsPortNumber = () =>
 const MIN_SECRET_LENGTH = 32;
 const IsSecret = () =>
   applyDecorators(IsString(), MinLength(MIN_SECRET_LENGTH));
+
+/**
+ * `JwtStrategy` verifies an access token with `JWT_SECRET` alone; were the two
+ * secrets equal, a refresh token would verify there too and the `typ` claim
+ * would be the only thing left between a 30-day cookie and a 15-minute bearer.
+ * Refused at bootstrap, where a copy-pasted .env line is cheap to notice.
+ */
+function DistinctFrom(other: keyof EnvironmentVariables) {
+  return (object: object, propertyName: string): void => {
+    registerDecorator({
+      name: 'distinctFrom',
+      target: object.constructor,
+      propertyName,
+      validator: {
+        validate: (value: unknown, args: ValidationArguments): boolean =>
+          value !== (args.object as EnvironmentVariables)[other],
+        defaultMessage: () =>
+          `${propertyName} must differ from ${other}: with one secret for both, a refresh token would pass as an access token`,
+      },
+    });
+  };
+}
 
 const sendsForReal = (env: EnvironmentVariables): boolean =>
   env.MAIL_TRANSPORT === SENDING_TRANSPORT;
@@ -225,6 +246,7 @@ export class EnvironmentVariables {
   JWT_SECRET: string;
 
   @IsSecret()
+  @DistinctFrom('JWT_SECRET')
   JWT_REFRESH_SECRET: string;
 
   @IsSecret()
@@ -245,9 +267,6 @@ export class EnvironmentVariables {
 
   @IsTokenExpiry()
   ACCESS_TOKEN_EXPIRY: string = DEFAULT_ACCESS_TOKEN_EXPIRY;
-
-  @IsTokenExpiry()
-  REFRESH_TOKEN_EXPIRY: string = DEFAULT_REFRESH_TOKEN_EXPIRY;
 
   @IsOptional()
   @Transform(({ value }) => value === 'true' || value === true)

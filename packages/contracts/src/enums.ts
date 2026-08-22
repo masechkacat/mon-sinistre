@@ -95,9 +95,8 @@ export const ACCOUNT_CONFIRM_TTL_DAYS = 7;
  * Rotation on every refresh means the session itself never has a fixed
  * expiry — each new refresh token is valid for this many days from the
  * moment it is issued, so the limit is on the gap between two visits, not on
- * the session's total age. `env.validation.ts`'s `REFRESH_TOKEN_EXPIRY`
- * default is derived from this constant rather than repeating the number as
- * a separate `'30d'` literal.
+ * the session's total age. Not an environment variable on purpose: the web
+ * client tells people this number, and an override would make it a lie.
  */
 export const SESSION_INACTIVITY_DAYS = 30;
 

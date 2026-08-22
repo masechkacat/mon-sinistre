@@ -5,10 +5,13 @@ import { RecordingTransport } from 'src/mail/mail-transport.test-helper';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { REFRESH_COOKIE_NAME } from './auth.controller';
 import {
-  clearedRefreshCookieOf,
-  createConfirmedUser,
+  accessTokenOf,
+  createUser,
   login,
+  refresh as refreshWith,
   refreshCookieOf,
+  refreshSetCookieOf,
+  withBearer,
 } from './session.test-helper';
 
 describe('DELETE /auth/me (integration)', () => {
@@ -20,15 +23,10 @@ describe('DELETE /auth/me (integration)', () => {
     app.inject({
       method: 'DELETE',
       url: '/auth/me',
-      headers: accessToken ? { authorization: `Bearer ${accessToken}` } : {},
+      headers: withBearer(accessToken),
     });
 
-  const refresh = (cookie: string) =>
-    app.inject({
-      method: 'POST',
-      url: '/auth/refresh',
-      headers: cookie ? { cookie } : {},
-    });
+  const refresh = (cookie: string) => refreshWith(app, cookie);
 
   beforeAll(async () => {
     transport = new RecordingTransport();
@@ -51,11 +49,9 @@ describe('DELETE /auth/me (integration)', () => {
   /** A logged-in account, then its deletion — the starting point every test
    * below asserts a consequence of. */
   const loginAndDelete = async () => {
-    const email = await createConfirmedUser(prisma);
+    const email = await createUser(prisma);
     const loginRes = await login(app, email);
-    const { accessToken } = JSON.parse(loginRes.payload) as {
-      accessToken: string;
-    };
+    const accessToken = accessTokenOf(loginRes);
     const cookie = refreshCookieOf(loginRes);
 
     const res = await deleteAccount(accessToken);
@@ -101,7 +97,7 @@ describe('DELETE /auth/me (integration)', () => {
   it('clears the refresh cookie on the response', async () => {
     const { res } = await loginAndDelete();
 
-    const cleared = clearedRefreshCookieOf(res);
+    const cleared = refreshSetCookieOf(res);
     expect(cleared).toMatch(`${REFRESH_COOKIE_NAME}=;`);
     expect(cleared).toMatch(/Max-Age=0/);
   });
