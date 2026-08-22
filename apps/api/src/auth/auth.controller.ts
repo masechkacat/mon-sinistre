@@ -6,6 +6,7 @@ import {
   Post,
   Req,
   Res,
+  UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -20,9 +21,10 @@ import type {
   AccountConfirmationResponse,
   LoginResponse,
 } from '@mon-sinistre/contracts';
-import type { FastifyReply } from 'fastify';
+import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { EnvironmentVariables } from 'src/config/env.validation';
-import type { AuthenticatedUser } from './auth.service';
+import { fr } from 'src/i18n/fr';
+import type { AuthenticatedUser, RefreshTokenIssued } from './auth.service';
 import { AuthService } from './auth.service';
 import { AccountConfirmationResponseDto } from './dto/account-confirmation-response.dto';
 import { AccountTokenDto } from './dto/account-token.dto';
@@ -31,8 +33,8 @@ import { LoginResponseDto } from './dto/login-response.dto';
 import { RegisterDto } from './dto/register.dto';
 import { LocalAuthGuard } from './local-auth.guard';
 
-/** Name and path shared by every place that writes or will clear the refresh
- * cookie — only login today, refresh and logout follow in phase 2. */
+/** Name and path shared by every place that writes or clears the refresh
+ * cookie — login and refresh today, logout follows in phase 2. */
 export const REFRESH_COOKIE_NAME = 'refresh_token';
 const REFRESH_COOKIE_PATH = '/auth';
 
@@ -111,7 +113,43 @@ export class AuthController {
     @Res({ passthrough: true }) reply: FastifyReply,
   ): Promise<LoginResponse> {
     const { access, refresh } = await this.auth.login(req.user.id);
+    this.setRefreshCookie(reply, refresh);
+    return access;
+  }
 
+  @Post('refresh')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Rotate the refresh cookie and issue a fresh access token',
+    description:
+      'No body — the refresh token comes only from the httpOnly cookie. ' +
+      'The presented token is revoked and replaced by a new one (rotation): ' +
+      'reusing it afterwards, or presenting a missing/invalid/expired ' +
+      'cookie, answers 401 with one generic message. Reusing an ' +
+      'already-rotated token additionally revokes every other live refresh ' +
+      'token of that account — src/auth/CLAUDE.md.',
+  })
+  @ApiOkResponse({ type: LoginResponseDto })
+  @ApiUnauthorizedResponse()
+  async refresh(
+    @Req() req: FastifyRequest,
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ): Promise<LoginResponse> {
+    const raw = req.cookies[REFRESH_COOKIE_NAME];
+    const unsigned = raw ? req.unsignCookie(raw) : undefined;
+    if (!unsigned?.valid) {
+      throw new UnauthorizedException(fr.auth.session.expired);
+    }
+
+    const { access, refresh } = await this.auth.refresh(unsigned.value);
+    this.setRefreshCookie(reply, refresh);
+    return access;
+  }
+
+  private setRefreshCookie(
+    reply: FastifyReply,
+    refresh: RefreshTokenIssued,
+  ): void {
     reply.setCookie(REFRESH_COOKIE_NAME, refresh.token, {
       path: REFRESH_COOKIE_PATH,
       httpOnly: true,
@@ -120,7 +158,5 @@ export class AuthController {
       signed: true,
       expires: refresh.expiresAt,
     });
-
-    return access;
   }
 }

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService, type JwtSignOptions } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
@@ -13,6 +13,7 @@ import { awaitingConfirmation } from 'src/common/confirmation-window';
 import { generateSecureToken, hashSecureToken } from 'src/common/secure-token';
 import { addDays } from 'src/common/time';
 import type { EnvironmentVariables } from 'src/config/env.validation';
+import { fr } from 'src/i18n/fr';
 import { MailService } from 'src/mail/mail.service';
 import { isUniqueViolationOn } from 'src/prisma/prisma-error';
 import { PrismaService } from 'src/prisma/prisma.service';
@@ -171,11 +172,12 @@ export class AuthService {
    * `RefreshToken` row is read off the freshly signed JWT's own `exp` claim,
    * not recomputed from `REFRESH_TOKEN_EXPIRY` a second time — the row can
    * never disagree with the token it stores the hash of. The `jti` is what
-   * keeps two logins of one user within the same second from signing the
-   * identical token: `iat`/`exp` have second resolution, and
-   * `RefreshToken.tokenHash` is unique.
+   * keeps two logins (or refreshes) of one user within the same second from
+   * signing the identical token: `iat`/`exp` have second resolution, and
+   * `RefreshToken.tokenHash` is unique. Shared by `login` and `refresh` —
+   * the only two places that ever mint a fresh pair.
    */
-  async login(userId: string): Promise<LoginResult> {
+  private async issueTokens(userId: string): Promise<LoginResult> {
     const payload = { sub: userId };
     const accessToken = await this.jwt.signAsync(payload, {
       secret: this.jwtSecret,
@@ -201,5 +203,48 @@ export class AuthService {
       access: { accessToken },
       refresh: { token: refreshToken, expiresAt },
     };
+  }
+
+  async login(userId: string): Promise<LoginResult> {
+    return this.issueTokens(userId);
+  }
+
+  /**
+   * The revoke is the conditional `updateMany` itself, not read-then-update:
+   * it can only ever revoke a row that is still `revokedAt: null`, so two
+   * concurrent presentations of the same token race for that `count`, and at
+   * most one wins — the loser falls into the reuse branch below exactly like
+   * an attacker replaying an already-rotated token would (`src/auth/CLAUDE.md`).
+   */
+  async refresh(token: string): Promise<LoginResult> {
+    let payload: { sub: string };
+    try {
+      payload = await this.jwt.verifyAsync<{ sub: string }>(token, {
+        secret: this.jwtRefreshSecret,
+      });
+    } catch {
+      throw new UnauthorizedException(fr.auth.session.expired);
+    }
+
+    const tokenHash = hashSecureToken(token);
+    const rotated = await this.prisma.refreshToken.updateMany({
+      where: { tokenHash, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+
+    if (rotated.count === 0) {
+      const reused = await this.prisma.refreshToken.findUnique({
+        where: { tokenHash },
+      });
+      if (reused) {
+        await this.prisma.refreshToken.updateMany({
+          where: { userId: reused.userId, revokedAt: null },
+          data: { revokedAt: new Date() },
+        });
+      }
+      throw new UnauthorizedException(fr.auth.session.expired);
+    }
+
+    return this.issueTokens(payload.sub);
   }
 }

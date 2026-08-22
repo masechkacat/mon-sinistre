@@ -43,6 +43,14 @@ export const fr = {
        */
       invalid: 'Adresse e-mail ou mot de passe incorrect.',
     },
+    session: {
+      /** Covers every refresh rejection — missing cookie, bad signature,
+       * expired or already-rotated token, reuse of a revoked one — the same
+       * one message, for the same anti-enumeration reason as login.invalid
+       * above: a distinct wording per cause would tell a caller which one
+       * applied. */
+      expired: 'Votre session a expiré, veuillez vous reconnecter.',
+    },
   },
   mail: {
     senderName: 'Mon Sinistre',

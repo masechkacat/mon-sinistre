@@ -64,8 +64,24 @@
   `HTTPS_ENABLED` — в production он обязателен, `env.validation.ts`
   отказывает старту без него; подписана `COOKIE_SECRET`); `RefreshToken.expiresAt`
   читается из `exp` только что подписанного JWT, не пересчитывается заново —
-  строка не может разойтись с токеном, чей хеш она хранит. Ротация и чтение
-  cookie — `docs/plan/user-account.md`, фаза 2.
+  строка не может разойтись с токеном, чей хеш она хранит.
+- `POST /auth/refresh` → `AuthService.refresh`. Без тела — токен только из
+  cookie `refresh_token`; отсутствующая или не прошедшая проверку подписи
+  (`req.unsignCookie`) отвечает `401` (`fr.auth.session.expired`) прямо в
+  контроллере, до вызова сервиса. Ротация — предъявленный токен `revoke`'ится
+  условным `updateMany` (`revokedAt: null` в `where`, не read-then-update: гонка
+  двух одновременных предъявлений одного токена решается в базе, выигрывает
+  ровно один `count`), затем `AuthService`-приватный `issueTokens` (общий с
+  `login`) выпускает новую пару. Reuse уже отозванного токена — `count` этого
+  `updateMany` равен нулю, а строка с таким `tokenHash` при этом находится:
+  сигнал кражи, гасится вся цепочка (`updateMany` по `userId` без разбора,
+  какой из токенов ещё не тронут). Неизвестный `tokenHash` (никогда не
+  выпускался — чистка отозванных и просроченных строк по расписанию ещё не
+  реализована, `docs/plan/user-account.md`, фаза 4) отвечает тем же `401` без
+  цепочки — чистить нечего. Один ответ на все причины — истёкшая подпись, просроченный
+  JWT, реюз, неизвестный токен — тот же anti-enumeration принцип, что у
+  `login` выше. `setRefreshCookie` — общий приватный метод контроллера,
+  ставит cookie одинаково после `login` и после `refresh`.
 - `@fastify/cookie` регистрируется общей функцией `registerCookiePlugin`
   (`src/config/fastify-cookie.ts`) — и в `main.ts`, и в `createIntTestApp`
   (`src/app.int-helper.ts`): без неё `reply.setCookie` не существует ни в

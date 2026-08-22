@@ -1,5 +1,6 @@
 import { applyDecorators } from '@nestjs/common';
 import { plainToInstance, Transform, Type } from 'class-transformer';
+import { SESSION_INACTIVITY_DAYS } from '@mon-sinistre/contracts';
 import {
   IsBoolean,
   IsEmail,
@@ -47,7 +48,8 @@ const DEFAULT_SALT_ROUNDS = 12;
 
 /** docs/research/user-account.md, «Сессия: access 15 минут … refresh 30 дней». */
 const DEFAULT_ACCESS_TOKEN_EXPIRY = '15m';
-const DEFAULT_REFRESH_TOKEN_EXPIRY = '30d';
+// SESSION_INACTIVITY_DAYS (contracts) is the one place the "30" lives.
+const DEFAULT_REFRESH_TOKEN_EXPIRY = `${SESSION_INACTIVITY_DAYS}d`;
 
 /**
  * The subset of `ms` syntax a token lifetime may use. A unit is mandatory:
