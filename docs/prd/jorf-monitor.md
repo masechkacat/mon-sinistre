@@ -1,7 +1,7 @@
 # PRD: Монитор Journal Officiel
 
 **Дата**: 2026-08-18
-**Статус**: approved <!-- draft → approved → done; в реализацию берётся только approved -->
+**Статус**: done <!-- draft → approved → done; в реализацию берётся только approved -->
 
 ## Цель
 
