@@ -32,6 +32,7 @@ import { LoginDto } from './dto/login.dto';
 import { LoginResponseDto } from './dto/login-response.dto';
 import { RegisterDto } from './dto/register.dto';
 import { LocalAuthGuard } from './local-auth.guard';
+import { Public } from './public.decorator';
 
 /** Name and path shared by every place that writes or clears the refresh
  * cookie — login, refresh and logout. */
@@ -42,7 +43,14 @@ interface RequestWithUser {
   readonly user: AuthenticatedUser;
 }
 
-/** Public — no authentication: anyone may attempt to register or log in. */
+/**
+ * Public — no authentication: anyone may attempt to register or log in.
+ * `login` is also gated by `LocalAuthGuard`, and `refresh`/`logout` read
+ * their own token off the cookie — none of the four go through the global
+ * `JwtAuthGuard`'s bearer-token check, so the whole controller carries
+ * `@Public()` rather than repeating it endpoint by endpoint.
+ */
+@Public()
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {

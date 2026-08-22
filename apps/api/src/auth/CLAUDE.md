@@ -94,6 +94,20 @@
   остаются вошедшими). Cookie чистится всегда, тем же `clearCookie` с тем же
   `path=/auth`, что и её установка — иначе браузер не найдёт совпадающую
   cookie для удаления.
+- Глобальный `JwtAuthGuard` (`jwt-auth.guard.ts`) — зарегистрирован как
+  `APP_GUARD` в `app.module.ts`, оборачивает passport-стратегию `jwt`
+  (`jwt.strategy.ts`, тот же `JWT_SECRET`, что подписывает access-токен в
+  `AuthService.issueTokens`): без валидного `Authorization: Bearer` любой
+  эндпоинт отвечает 401. `public.decorator.ts` (`@Public()`, метаданные +
+  `Reflector`) — единственный способ исключить эндпоинт; `JwtAuthGuard.canActivate`
+  проверяет её сначала на хендлере, потом на классе контроллера, поэтому
+  контроллер, где публичны все точки входа (`AuthController`,
+  `CommunesController`, `HealthController`, `VeilleController`), помечен
+  целиком, а не построчно. Все четыре точки входа этого модуля публичны сами
+  по себе — `register`/`confirmation` не требуют сессии по смыслу, `login`
+  проверяется отдельным `LocalAuthGuard`, `refresh`/`logout` читают токен из
+  cookie, а не из заголовка `Authorization`, — поэтому `@Public()` здесь
+  висит на классе `AuthController`.
 - `@fastify/cookie` регистрируется общей функцией `registerCookiePlugin`
   (`src/config/fastify-cookie.ts`) — и в `main.ts`, и в `createIntTestApp`
   (`src/app.int-helper.ts`): без неё `reply.setCookie` не существует ни в
