@@ -34,7 +34,7 @@ import { RegisterDto } from './dto/register.dto';
 import { LocalAuthGuard } from './local-auth.guard';
 
 /** Name and path shared by every place that writes or clears the refresh
- * cookie — login and refresh today, logout follows in phase 2. */
+ * cookie — login, refresh and logout. */
 export const REFRESH_COOKIE_NAME = 'refresh_token';
 const REFRESH_COOKIE_PATH = '/auth';
 
@@ -135,15 +135,36 @@ export class AuthController {
     @Req() req: FastifyRequest,
     @Res({ passthrough: true }) reply: FastifyReply,
   ): Promise<LoginResponse> {
-    const raw = req.cookies[REFRESH_COOKIE_NAME];
-    const unsigned = raw ? req.unsignCookie(raw) : undefined;
-    if (!unsigned?.valid) {
+    const token = this.readRefreshCookie(req);
+    if (!token) {
       throw new UnauthorizedException(fr.auth.session.expired);
     }
 
-    const { access, refresh } = await this.auth.refresh(unsigned.value);
+    const { access, refresh } = await this.auth.refresh(token);
     this.setRefreshCookie(reply, refresh);
     return access;
+  }
+
+  @Post('logout')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: "Log out: revoke the cookie's refresh token and clear the cookie",
+    description:
+      'No body — same source as refresh, the httpOnly cookie. Always ' +
+      'answers 204: a missing, tampered, expired or already-revoked token ' +
+      'is not an error — repeating logout, or logging out with no session ' +
+      'at all, is not a failure. The cookie is cleared either way.',
+  })
+  @ApiNoContentResponse()
+  async logout(
+    @Req() req: FastifyRequest,
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ): Promise<void> {
+    const token = this.readRefreshCookie(req);
+    if (token) {
+      await this.auth.logout(token);
+    }
+    reply.clearCookie(REFRESH_COOKIE_NAME, { path: REFRESH_COOKIE_PATH });
   }
 
   private setRefreshCookie(
@@ -158,5 +179,14 @@ export class AuthController {
       signed: true,
       expires: refresh.expiresAt,
     });
+  }
+
+  /** Shared by `refresh` and `logout` — the only two places that read the
+   * refresh cookie back off a request. `undefined` covers every invalid
+   * shape alike: missing, unsigned or a signature that fails to verify. */
+  private readRefreshCookie(req: FastifyRequest): string | undefined {
+    const raw = req.cookies[REFRESH_COOKIE_NAME];
+    const unsigned = raw ? req.unsignCookie(raw) : undefined;
+    return unsigned?.valid ? unsigned.value : undefined;
   }
 }

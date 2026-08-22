@@ -247,4 +247,20 @@ export class AuthService {
 
     return this.issueTokens(payload.sub);
   }
+
+  /**
+   * Idempotent by construction, not by checking the result: revoking a token
+   * hash that is unknown or already revoked simply matches zero rows in the
+   * conditional `updateMany` (`revokedAt: null` in `where`) — repeat logout,
+   * or logout after the session already died some other way, is not an
+   * error. Only the one presented token is revoked, not the whole chain —
+   * unlike refresh's reuse case, presenting a token at `/auth/logout` is not
+   * itself a signal of theft.
+   */
+  async logout(token: string): Promise<void> {
+    await this.prisma.refreshToken.updateMany({
+      where: { tokenHash: hashSecureToken(token), revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+  }
 }

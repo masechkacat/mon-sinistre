@@ -1,24 +1,15 @@
-import * as bcrypt from 'bcrypt';
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { createIntTestApp } from 'src/app.int-helper';
-import { DAY_MS } from 'src/common/time';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { REFRESH_COOKIE_NAME } from './auth.controller';
-
-/** Cheap on purpose — this is a test fixture's cost, not a real account's. */
-const TEST_SALT_ROUNDS = 4;
-const PASSWORD = 'Abc12345';
+import {
+  createConfirmedUser,
+  login,
+  refreshCookieOf,
+} from './session.test-helper';
 
 describe('POST /auth/refresh (integration)', () => {
   let app: NestFastifyApplication;
   let prisma: PrismaService;
-
-  const login = (email: string) =>
-    app.inject({
-      method: 'POST',
-      url: '/auth/login',
-      payload: { email, password: PASSWORD },
-    });
 
   const refresh = (cookie: string) =>
     app.inject({
@@ -26,36 +17,6 @@ describe('POST /auth/refresh (integration)', () => {
       url: '/auth/refresh',
       headers: cookie ? { cookie } : {},
     });
-
-  /** The `name=value` segment of a `Set-Cookie` response header, ready to be
-   * replayed as the `Cookie` request header — the signature suffix
-   * `@fastify/cookie` appended stays untouched either way. */
-  const refreshCookieOf = (res: {
-    headers: Record<string, unknown>;
-  }): string => {
-    const setCookie = res.headers['set-cookie'];
-    const raw = (Array.isArray(setCookie) ? setCookie : [setCookie]).find(
-      (value): value is string =>
-        typeof value === 'string' &&
-        value.startsWith(`${REFRESH_COOKIE_NAME}=`),
-    );
-    if (!raw) throw new Error('no refresh cookie in response');
-    return raw.split(';')[0] ?? raw;
-  };
-
-  const createUser = async (): Promise<string> => {
-    const email = `victime-${Math.random()}@example.fr`;
-    await prisma.user.create({
-      data: {
-        email,
-        passwordHash: await bcrypt.hash(PASSWORD, TEST_SALT_ROUNDS),
-        confirmTokenHash: `token-${Math.random()}`,
-        confirmExpiresAt: new Date(Date.now() + DAY_MS),
-        confirmedAt: new Date(),
-      },
-    });
-    return email;
-  };
 
   beforeAll(async () => {
     app = await createIntTestApp();
@@ -71,8 +32,8 @@ describe('POST /auth/refresh (integration)', () => {
   });
 
   it('rotates: revokes the presented token, issues a fresh access token and a new cookie', async () => {
-    const email = await createUser();
-    const loginRes = await login(email);
+    const email = await createConfirmedUser(prisma);
+    const loginRes = await login(app, email);
     const oldCookie = refreshCookieOf(loginRes);
     const oldTokenHash = (await prisma.refreshToken.findFirstOrThrow())
       .tokenHash;
@@ -97,8 +58,8 @@ describe('POST /auth/refresh (integration)', () => {
   });
 
   it('does not require a password to obtain a new access token', async () => {
-    const email = await createUser();
-    const cookie = refreshCookieOf(await login(email));
+    const email = await createConfirmedUser(prisma);
+    const cookie = refreshCookieOf(await login(app, email));
 
     const res = await refresh(cookie);
 
@@ -106,8 +67,8 @@ describe('POST /auth/refresh (integration)', () => {
   });
 
   it('rejects the old token once it has been rotated out', async () => {
-    const email = await createUser();
-    const cookie = refreshCookieOf(await login(email));
+    const email = await createConfirmedUser(prisma);
+    const cookie = refreshCookieOf(await login(app, email));
     await refresh(cookie);
 
     const replay = await refresh(cookie);
@@ -116,10 +77,10 @@ describe('POST /auth/refresh (integration)', () => {
   });
 
   it('reuse of an already-rotated token revokes every other live token of that user', async () => {
-    const email = await createUser();
+    const email = await createConfirmedUser(prisma);
     // Two independent sessions (e.g. two browsers) for the same account.
-    const cookieA = refreshCookieOf(await login(email));
-    const cookieB = refreshCookieOf(await login(email));
+    const cookieA = refreshCookieOf(await login(app, email));
+    const cookieB = refreshCookieOf(await login(app, email));
 
     // Session A rotates once, legitimately — its old token is now revoked.
     const rotatedA = await refresh(cookieA);
@@ -148,8 +109,8 @@ describe('POST /auth/refresh (integration)', () => {
   });
 
   it('rejects a tampered refresh cookie', async () => {
-    const email = await createUser();
-    const cookie = refreshCookieOf(await login(email));
+    const email = await createConfirmedUser(prisma);
+    const cookie = refreshCookieOf(await login(app, email));
     const tampered = cookie.replace(/.$/, cookie.endsWith('a') ? 'b' : 'a');
 
     const res = await refresh(tampered);
