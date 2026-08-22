@@ -48,3 +48,16 @@ export const refreshCookieOf = (res: {
   if (!raw) throw new Error('no refresh cookie in response');
   return raw.split(';')[0] ?? raw;
 };
+
+/** The `Set-Cookie` header a `clearCookie(REFRESH_COOKIE_NAME, ...)` response
+ * carries — shared by `logout.int-spec.ts` and `delete-account.int-spec.ts`,
+ * the two endpoints that end a session by clearing the cookie. */
+export const clearedRefreshCookieOf = (res: {
+  headers: Record<string, unknown>;
+}): string | undefined => {
+  const setCookie = res.headers['set-cookie'];
+  return (Array.isArray(setCookie) ? setCookie : [setCookie]).find(
+    (value): value is string =>
+      typeof value === 'string' && value.startsWith(`${REFRESH_COOKIE_NAME}=`),
+  );
+};

@@ -1,7 +1,23 @@
-import { Controller, Get, Req } from '@nestjs/common';
-import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Req,
+  Res,
+} from '@nestjs/common';
+import {
+  ApiNoContentResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+  ApiUnauthorizedResponse,
+} from '@nestjs/swagger';
 import type { CurrentUserResponse } from '@mon-sinistre/contracts';
+import type { FastifyReply } from 'fastify';
 import { AuthService } from './auth.service';
+import { clearRefreshCookie } from './auth.controller';
 import { CurrentUserResponseDto } from './dto/current-user-response.dto';
 import type { JwtUser } from './jwt.strategy';
 
@@ -26,5 +42,26 @@ export class MeController {
   @ApiOkResponse({ type: CurrentUserResponseDto })
   async me(@Req() req: RequestWithJwtUser): Promise<CurrentUserResponse> {
     return this.auth.currentUser(req.user.id);
+  }
+
+  @Delete('me')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: 'Delete the currently authenticated account (RGPD)',
+    description:
+      'Immediate and physical — the row and everything cascading from it ' +
+      '(RefreshToken) are gone, not soft-deleted. Confirming the action is ' +
+      'a web-side concern (docs/plan/user-account.md, phase 5); this ' +
+      'endpoint only requires a valid access token, the same as GET ' +
+      '/auth/me. The refresh cookie is cleared on the response either way.',
+  })
+  @ApiNoContentResponse()
+  @ApiUnauthorizedResponse()
+  async deleteAccount(
+    @Req() req: RequestWithJwtUser,
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ): Promise<void> {
+    await this.auth.deleteAccount(req.user.id);
+    clearRefreshCookie(reply);
   }
 }

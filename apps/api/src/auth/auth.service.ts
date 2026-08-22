@@ -273,4 +273,9 @@ export class AuthService {
     });
     return { email: user.email };
   }
+
+  /** Why this is the whole operation — `src/auth/CLAUDE.md`. */
+  async deleteAccount(userId: string): Promise<void> {
+    await this.prisma.user.delete({ where: { id: userId } });
+  }
 }

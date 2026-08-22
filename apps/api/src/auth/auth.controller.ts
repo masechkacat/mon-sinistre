@@ -35,9 +35,16 @@ import { LocalAuthGuard } from './local-auth.guard';
 import { Public } from './public.decorator';
 
 /** Name and path shared by every place that writes or clears the refresh
- * cookie — login, refresh and logout. */
+ * cookie — login, refresh, logout and account deletion (`MeController`). */
 export const REFRESH_COOKIE_NAME = 'refresh_token';
-const REFRESH_COOKIE_PATH = '/auth';
+export const REFRESH_COOKIE_PATH = '/auth';
+
+/** Shared by `logout` below and `MeController.deleteAccount` — the only two
+ * places that end a session by clearing the cookie rather than setting a
+ * fresh one. */
+export function clearRefreshCookie(reply: FastifyReply): void {
+  reply.clearCookie(REFRESH_COOKIE_NAME, { path: REFRESH_COOKIE_PATH });
+}
 
 interface RequestWithUser {
   readonly user: AuthenticatedUser;
@@ -172,7 +179,7 @@ export class AuthController {
     if (token) {
       await this.auth.logout(token);
     }
-    reply.clearCookie(REFRESH_COOKIE_NAME, { path: REFRESH_COOKIE_PATH });
+    clearRefreshCookie(reply);
   }
 
   private setRefreshCookie(

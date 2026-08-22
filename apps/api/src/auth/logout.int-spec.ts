@@ -3,6 +3,7 @@ import { createIntTestApp } from 'src/app.int-helper';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { REFRESH_COOKIE_NAME } from './auth.controller';
 import {
+  clearedRefreshCookieOf,
   createConfirmedUser,
   login,
   refreshCookieOf,
@@ -103,12 +104,7 @@ describe('POST /auth/logout (integration)', () => {
 
     const res = await logout(cookie);
 
-    const setCookie = res.headers['set-cookie'];
-    const cleared = (Array.isArray(setCookie) ? setCookie : [setCookie]).find(
-      (value): value is string =>
-        typeof value === 'string' &&
-        value.startsWith(`${REFRESH_COOKIE_NAME}=`),
-    );
+    const cleared = clearedRefreshCookieOf(res);
     expect(cleared).toMatch(`${REFRESH_COOKIE_NAME}=;`);
     expect(cleared).toMatch(/Max-Age=0/);
   });
