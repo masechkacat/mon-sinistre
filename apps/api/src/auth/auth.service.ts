@@ -7,6 +7,7 @@ import * as bcrypt from 'bcrypt';
 import {
   ACCOUNT_CONFIRM_TTL_DAYS,
   type AccountConfirmationStatus,
+  type CurrentUserResponse,
   type LoginResponse,
 } from '@mon-sinistre/contracts';
 import { awaitingConfirmation } from 'src/common/confirmation-window';
@@ -262,5 +263,14 @@ export class AuthService {
       where: { tokenHash: hashSecureToken(token), revokedAt: null },
       data: { revokedAt: new Date() },
     });
+  }
+
+  /** `findUniqueOrThrow` over a manual null check — why: `src/auth/CLAUDE.md`. */
+  async currentUser(userId: string): Promise<CurrentUserResponse> {
+    const user = await this.prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { email: true },
+    });
+    return { email: user.email };
   }
 }
