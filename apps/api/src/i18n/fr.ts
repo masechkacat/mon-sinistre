@@ -34,6 +34,15 @@ export const fr = {
         minClasses +
         ' des catégories suivantes : majuscule, minuscule, chiffre, caractère spécial.',
     },
+    login: {
+      /**
+       * One message for every rejection reason (unknown address, wrong
+       * password, unconfirmed account) — anti-enumeration
+       * (`src/auth/CLAUDE.md`): a distinct wording per cause would tell a
+       * caller which one applied.
+       */
+      invalid: 'Adresse e-mail ou mot de passe incorrect.',
+    },
   },
   mail: {
     senderName: 'Mon Sinistre',

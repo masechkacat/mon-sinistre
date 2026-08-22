@@ -45,6 +45,10 @@ const DEFAULT_HOST = '0.0.0.0';
 /** docs/research/user-account.md, «Хеширование пароля». */
 const DEFAULT_SALT_ROUNDS = 12;
 
+/** docs/research/user-account.md, «Сессия: access 15 минут … refresh 30 дней». */
+const DEFAULT_ACCESS_TOKEN_EXPIRY = '15m';
+const DEFAULT_REFRESH_TOKEN_EXPIRY = '30d';
+
 /** 0 means "let the kernel pick one", which a reachable service never wants. */
 const MAX_PORT = 65535;
 const IsPortNumber = () =>
@@ -197,13 +201,11 @@ export class EnvironmentVariables {
   @Max(31)
   SALT_ROUNDS: number = DEFAULT_SALT_ROUNDS;
 
-  @IsOptional()
   @IsString()
-  ACCESS_TOKEN_EXPIRY?: string;
+  ACCESS_TOKEN_EXPIRY: string = DEFAULT_ACCESS_TOKEN_EXPIRY;
 
-  @IsOptional()
   @IsString()
-  REFRESH_TOKEN_EXPIRY?: string;
+  REFRESH_TOKEN_EXPIRY: string = DEFAULT_REFRESH_TOKEN_EXPIRY;
 
   @IsOptional()
   @Transform(({ value }) => value === 'true' || value === true)

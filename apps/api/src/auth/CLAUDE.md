@@ -2,8 +2,8 @@
 
 Аккаунт пострадавшего: регистрация, подтверждение, вход, сессия. Решения
 фичи — `docs/research/user-account.md`; разбивка по фазам —
-`docs/plan/user-account.md`. Модуль пока (фаза 1) реализует регистрацию и
-подтверждение; остальные точки входа добавляются фаза за фазой,
+`docs/plan/user-account.md`. Модуль пока (фаза 1) реализует регистрацию,
+подтверждение и вход; остальные точки входа добавляются фаза за фазой,
 документируются здесь по мере появления.
 
 ## Точки входа
@@ -39,6 +39,30 @@
   `hashSecureToken` (`src/common/secure-token.ts`, общий с veille):
   `randomBytes(32).base64url` в письмо, `sha256` hex в базу; второй генерации
   здесь не заводить.
+- `POST /auth/login` → `LocalAuthGuard` (`local-auth.guard.ts`, оборачивает
+  `passport-local`) → `LocalStrategy` (`local.strategy.ts`) →
+  `AuthService.validateCredentials`. Гвард выполняется раньше пайпа — тело
+  запроса он читает сырым, а не через провалидированный `LoginDto`, поэтому
+  `LocalStrategy.validate` нормализует адрес сам (`normalizeEmail`,
+  `src/common/normalize-email.decorator.ts`), а `LoginDto` в сигнатуре
+  контроллера остаётся только ради `forbidNonWhitelisted` и Swagger. Один
+  ответ `401` на все три причины отказа — неизвестный адрес, неверный
+  пароль, неподтверждённый аккаунт (`fr.auth.login.invalid`) —
+  anti-enumeration, тот же принцип, что у `register`/`confirm` выше;
+  `validateCredentials` сверяет пароль даже для неизвестного адреса
+  (`dummyPasswordHash`), чтобы отсутствующая строка не отвечала заметно
+  быстрее существующей. Успешный вход — `AuthService.login`: access
+  (`JWT_SECRET`, `ACCESS_TOKEN_EXPIRY`) в теле ответа, refresh
+  (`JWT_REFRESH_SECRET`, `REFRESH_TOKEN_EXPIRY`) — httpOnly-cookie
+  `refresh_token` (`path=/auth`, `SameSite=Strict`, `secure` по
+  `HTTPS_ENABLED`, подписана `COOKIE_SECRET`); `RefreshToken.expiresAt`
+  читается из `exp` только что подписанного JWT, не пересчитывается заново —
+  строка не может разойтись с токеном, чей хеш она хранит. Ротация и чтение
+  cookie — `docs/plan/user-account.md`, фаза 2.
+- `@fastify/cookie` регистрируется общей функцией `registerCookiePlugin`
+  (`src/config/fastify-cookie.ts`) — и в `main.ts`, и в `createIntTestApp`
+  (`src/app.int-helper.ts`): без неё `reply.setCookie` не существует ни в
+  проде, ни в интеграционных тестах.
 - `ACCOUNT_MAIL_UNSUBSCRIBE_PATH` (contracts) — выделенный путь без страницы:
   ни одноразовый токен другого письма того же аккаунта (предзагрузка ссылок
   `List-Unsubscribe` некоторыми почтовыми клиентами потратила бы токен

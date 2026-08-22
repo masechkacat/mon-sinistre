@@ -1,4 +1,5 @@
 import type { ModuleMetadata } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import {
   FastifyAdapter,
   NestFastifyApplication,
@@ -6,6 +7,8 @@ import {
 import { SchedulerRegistry } from '@nestjs/schedule';
 import { Test, TestingModuleBuilder } from '@nestjs/testing';
 import { AppModule } from 'src/app.module';
+import type { EnvironmentVariables } from 'src/config/env.validation';
+import { registerCookiePlugin } from 'src/config/fastify-cookie';
 import { createGlobalValidationPipe } from 'src/config/validation-pipe';
 
 /**
@@ -46,6 +49,9 @@ export async function createIntTestApp({
   const app = moduleRef.createNestApplication<NestFastifyApplication>(
     new FastifyAdapter(),
   );
+  const config =
+    app.get<ConfigService<EnvironmentVariables, true>>(ConfigService);
+  await registerCookiePlugin(app, config.get('COOKIE_SECRET', { infer: true }));
   app.useGlobalPipes(createGlobalValidationPipe());
   await app.init();
   expectNoSchedules(app);
