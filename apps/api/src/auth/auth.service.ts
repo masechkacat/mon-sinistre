@@ -1,8 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
-import { ACCOUNT_CONFIRM_TTL_DAYS } from '@mon-sinistre/contracts';
-import { generateSecureToken } from 'src/common/secure-token';
+import {
+  ACCOUNT_CONFIRM_TTL_DAYS,
+  type AccountConfirmationStatus,
+} from '@mon-sinistre/contracts';
+import { generateSecureToken, hashSecureToken } from 'src/common/secure-token';
 import { addDays } from 'src/common/time';
 import type { EnvironmentVariables } from 'src/config/env.validation';
 import { MailService } from 'src/mail/mail.service';
@@ -61,5 +64,33 @@ export class AuthService {
     // Sent after the row is written: a delivery failure must not undo an
     // account the caller will otherwise never see again.
     await this.mail.send(confirmationMailFor(dto.email, confirm.token));
+  }
+
+  /**
+   * One conditional `updateMany`, not read-then-update — same reason as
+   * veille's `VeilleService.confirm`: a concurrent call with the same token
+   * must answer "confirmed" too, not throw `P2025` the way a plain `update`
+   * would once the first call already won the race. `confirmTokenHash` is
+   * never cleared on activation, so a repeat call still finds the row and
+   * answers "confirmed" regardless of `confirmExpiresAt` — an already-active
+   * account never expires back to "invalid".
+   */
+  async confirm(token: string): Promise<AccountConfirmationStatus> {
+    const tokenHash = hashSecureToken(token);
+    const activated = await this.prisma.user.updateMany({
+      where: {
+        confirmTokenHash: tokenHash,
+        confirmedAt: null,
+        confirmExpiresAt: { gte: new Date() },
+      },
+      data: { confirmedAt: new Date() },
+    });
+    if (activated.count > 0) return 'confirmed';
+
+    const user = await this.prisma.user.findUnique({
+      where: { confirmTokenHash: tokenHash },
+      select: { confirmedAt: true },
+    });
+    return user?.confirmedAt ? 'confirmed' : 'invalid';
   }
 }
