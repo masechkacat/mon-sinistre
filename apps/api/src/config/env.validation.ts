@@ -21,7 +21,7 @@ import {
   type ValidationArguments,
 } from 'class-validator';
 
-import { DEFAULT_MAIL_OUTBOX_DIR } from 'src/mail/file-mail.transport';
+import { DEFAULT_MAIL_OUTBOX_DIR } from 'src/mail/transports/file-mail.transport';
 import {
   MAIL_TRANSPORT_NAMES,
   SENDING_TRANSPORT,

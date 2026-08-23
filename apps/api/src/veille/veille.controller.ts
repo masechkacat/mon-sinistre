@@ -20,7 +20,7 @@ import type {
   VeilleConfirmationResponse,
 } from '@mon-sinistre/contracts';
 import { Public } from 'src/auth/public.decorator';
-import { ThrottleByToken } from 'src/common/token-throttler.guard';
+import { ThrottleByToken } from 'src/common/http/token-throttler.guard';
 import { CreateVeilleDto } from './dto/create-veille.dto';
 import { VeilleTokenDto } from './dto/veille-token.dto';
 import { VeilleChangeResponseDto } from './dto/veille-change-response.dto';

@@ -1,4 +1,4 @@
-import { TokenDto } from 'src/common/token.dto';
+import { TokenDto } from 'src/common/http/token.dto';
 
 /**
  * Body of every token-carrying POST — confirmation, changement and

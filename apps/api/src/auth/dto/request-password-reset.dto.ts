@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsEmail } from 'class-validator';
-import { NormalizeEmail } from 'src/common/normalize-email.decorator';
+import { NormalizeEmail } from 'src/common/http/normalize-email.decorator';
 
 /**
  * Body of `POST /auth/password-reset` — email only. No password here: the

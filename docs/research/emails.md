@@ -252,7 +252,7 @@ export type MailBlock =
 **Исправлено при реализации (фаза 3, issue #105):** внешняя ссылка
 понадобилась — письмо наблюдателя ссылается на текст arrêté на Légifrance.
 Отдельный вид блока `externalLink` заведён по плану выше; устройство и
-проверка — `requireHttpsUrl` в `apps/api/src/mail/mail-composer.ts`.
+проверка — `requireHttpsUrl` в `apps/api/src/mail/compose/mail-composer.ts`.
 
 Правила рендереров:
 

@@ -1,11 +1,7 @@
 {
   "extends": "./tsconfig.json",
-  "exclude": [
-    "node_modules",
-    "dist",
-    "**/*.spec.ts",
-    "**/*.int-spec.ts",
-    "**/*.int-helper.ts",
-    "**/*.test-helper.ts"
-  ]
+  "compilerOptions": {
+    "rootDir": "./src"
+  },
+  "exclude": ["node_modules", "dist", "test", "**/*.spec.ts"]
 }

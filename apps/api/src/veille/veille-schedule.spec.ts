@@ -12,7 +12,7 @@ import { VeilleService } from './veille.service';
 /**
  * The only spec that watches the schedule itself. Every other one calls
  * `cleanupExpired` directly, and the integration harness boots without a
- * scheduler at all (`src/app.int-helper.ts`) — so deleting the decorator, or
+ * scheduler at all (`test/helpers/app.ts`) — so deleting the decorator, or
  * the `ScheduleModule` of `AppModule`, would leave the whole suite green while
  * expired subscriptions piled up in production.
  *

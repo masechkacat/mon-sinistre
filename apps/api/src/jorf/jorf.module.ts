@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { DilaClient } from './dila.client';
+import { DilaClient } from './dila/dila.client';
 import { JorfMonitorService } from './jorf-monitor.service';
 
 @Module({

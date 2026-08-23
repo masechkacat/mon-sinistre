@@ -33,19 +33,23 @@ CNIL, bcrypt, JWT-сессии с ротацией, глобальный guard, 
 Второй реализации не заводить — нужно тому, кто пишет **новый** модуль и в чужой
 `CLAUDE.md` не заглядывает. Устройство и оговорки — в модуле:
 
-| Задача                       | Только через                                            |
-| ---------------------------- | ------------------------------------------------------- |
-| отправка письма              | `MailService.send()` (`src/mail/`)                      |
-| экранирование LIKE           | `escapeLikePattern` (`src/prisma/`)                     |
-| поисковый ключ коммуны       | `normalizeCommuneName` (`src/communes/`)                |
-| одноразовый токен ссылки     | `generateSecureToken`/`hashSecureToken` (`src/common/`) |
-| HMAC-хеш адреса для счётчика | `hashEmail` (`src/common/`)                             |
-| атомарный счётчик по адресу  | `withAddressLock` (`src/common/address-lock.ts`)        |
-| описание ошибки в логе       | `errorSummary`/`stackOf` (`src/common/`)                |
-| изоляция шага часовой чистки | `runGuarded` (`src/common/scheduled-cleanup.ts`)        |
-| строки для пользователя      | `src/i18n/fr.ts`                                        |
-| чтение окружения             | `ConfigService<EnvironmentVariables, true>`             |
-| пометить эндпоинт публичным  | `@Public()` (`src/auth/public.decorator.ts`)            |
+| Задача                       | Только через                                                     |
+| ---------------------------- | ---------------------------------------------------------------- |
+| отправка письма              | `MailService.send()` (`src/mail/`)                               |
+| экранирование LIKE           | `escapeLikePattern` (`src/prisma/`)                              |
+| поисковый ключ коммуны       | `normalizeCommuneName` (`src/communes/`)                         |
+| одноразовый токен ссылки     | `generateSecureToken`/`hashSecureToken` (`src/common/security/`) |
+| HMAC-хеш адреса для счётчика | `hashEmail` (`src/common/security/`)                             |
+| атомарный счётчик по адресу  | `withAddressLock` (`src/common/address-lock.ts`)                 |
+| описание ошибки в логе       | `errorSummary`/`stackOf` (`src/common/`)                         |
+| изоляция шага часовой чистки | `runGuarded` (`src/common/scheduled-cleanup.ts`)                 |
+| строки для пользователя      | `src/i18n/fr.ts`                                                 |
+| чтение окружения             | `ConfigService<EnvironmentVariables, true>`                      |
+| пометить эндпоинт публичным  | `@Public()` (`src/auth/public.decorator.ts`)                     |
+
+`src/common/` разложен по назначению: `http/` (фильтр, guard, декоратор, DTO —
+всё, что живёт в конвейере Nest), `security/` (токены, хеши, пароль), `time/`
+(окна и длительности). В корне остаётся то, что не про эти три предмета.
 
 Исключение из строки про ошибки одно, и оно осознанное: недоставленное письмо
 `MailService` описывает своим отчётом — с цепочкой `cause` и вычищенным адресом
@@ -74,7 +78,7 @@ Prisma CLI, seed, скрипты `scripts/` и обвязка тестов.
   эндпоинта с телом запроса должен быть DTO с декораторами, иначе тело будет
   отклонено. Пайп создаёт `createGlobalValidationPipe` (`src/config/`);
   интеграционные тесты поднимают приложение только через `createIntTestApp`
-  (`src/app.int-helper.ts`), который его ставит, — ни пайп, ни бутстрап не
+  (`test/helpers/app.ts`), который его ставит, — ни пайп, ни бутстрап не
   копировать.
 - Принадлежность объекта проверяется в условии запроса (`where: { ..., user }`):
   чужой и несуществующий объект дают одинаковый ответ — **404, не 403**.
@@ -83,7 +87,7 @@ Prisma CLI, seed, скрипты `scripts/` и обвязка тестов.
   `nestjs-pino` не заводить, пока нет сбора логов.
 - Запрет на персональные данные в логах действует и на ошибки: пишутся
   идентификаторы, коды и счётчики, но не тело запроса и не DTO целиком.
-- **Необработанные ошибки — через `AllExceptionsFilter`** (`src/common/`,
+- **Необработанные ошибки — через `AllExceptionsFilter`** (`src/common/http/`,
   зарегистрирован в `AppModule` через `APP_FILTER`, чтобы попасть и в
   интеграционные тесты): в лог идут класс, метод, путь и стек, но **никогда
   сообщение** — в нём Prisma цитирует значения полей. Своё логирование ошибки в
@@ -108,18 +112,26 @@ Prisma CLI, seed, скрипты `scripts/` и обвязка тестов.
 
 ## Интеграционные тесты
 
-- Спеки — `*.int-spec.ts` рядом с кодом. Юнит-конфиг их не видит, поэтому
+- Спеки — `*.int-spec.ts` в `test/integration/<модуль>/`, зеркалом `src/`.
+  Юнит-конфиг с `rootDir: src` их не видит, поэтому
   pre-commit и корневой `npm test` остаются быстрыми и без Docker.
 - `maxWorkers: 1` обязателен, пока тесты делят одну базу; если станет медленно —
   база-на-воркера через `JEST_WORKER_ID`, не testcontainers.
-- База — `${DB_NAME}_test` на том же Postgres; `test/jest.int.global-setup.js`
-  создаёт её и прогоняет миграции, `test/jest.int.env.js` направляет туда
-  `PrismaService`. Имя обе стороны берут из `test/test-db-name.js`.
+- База — `${DB_NAME}_test` на том же Postgres; `test/setup/jest.int.global-setup.js`
+  создаёт её и прогоняет миграции, `test/setup/jest.int.env.js` направляет туда
+  `PrismaService`. Имя обе стороны берут из `test/setup/test-db-name.js`.
 - Между тестами — `TRUNCATE` затронутых таблиц в `beforeEach`, не пересоздание
   схемы.
 - **Планировщик в тестовом приложении не взводится вовсе** — почему, чем это
   проверяется и где тогда живёт проверка самого расписания, сказано в докблоке
   `createIntTestApp`.
-- `*.int-helper.ts` и `*.test-helper.ts` живут в `src/` ради алиаса и линта, под
-  `testRegex` не подпадают; `tsconfig.build.json` исключает их из сборки.
+- Хелперы — `test/helpers/`, по одному файлу на предмет (`app`, `session`,
+  `mail-log`, …); суффиксы `*.test-helper.ts`/`*.int-helper.ts` больше не нужны:
+  каталог сам говорит, что это тестовый код, а `testRegex` его не матчит.
+  Юнит-спеки в `src/` зовут их по тому же алиасу `test/*`.
+- Фикстуры — `test/fixtures/`, читаются только через свой модуль
+  (`jorfFixture`): путь к файлу не повторяется в спеках. Импорты из `test/` — по
+  алиасу `test/*` (tsconfig + оба jest-конфига), относительных путей наверх нет.
+  Сам каталог `test/` в сборку не идёт: `tsconfig.build.json` исключает его и
+  держит `rootDir: src`.
 - В CI понадобится сервисный Postgres 18.

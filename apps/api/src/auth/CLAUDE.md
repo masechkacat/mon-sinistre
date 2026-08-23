@@ -28,24 +28,24 @@
   — причина не раскрывается (anti-enumeration, тот же принцип, что у
   `VeilleService.confirm`). Окно подтверждения сравнивается с «сейчас» в одном
   месте на оба модуля — `awaitingConfirmation`
-  (`src/common/confirmation-window.ts`). `dto/account-token.dto.ts` (`AccountTokenDto`) —
+  (`src/common/time/confirmation-window.ts`). `dto/account-token.dto.ts` (`AccountTokenDto`) —
   пустой класс, наследующий валидацию тела у общего `TokenDto`
-  (`src/common/token.dto.ts`, общий с `VeilleTokenDto`); второй копии правила
+  (`src/common/http/token.dto.ts`, общий с `VeilleTokenDto`); второй копии правила
   не заводить, DTO смены пароля по токену (фаза 3) наследует от того же
   `TokenDto`.
 - `is-account-password.decorator.ts` (`IsAccountPassword`) — единственный
   валидатор пароля модуля (правило CNIL cas n° 2 из `@mon-sinistre/contracts`,
   единое французское сообщение из `fr.auth.password.requirements`); DTO сброса
   пароля (фаза 3) переиспользует его, второй не заводить.
-- `account-confirmation-mail.ts` (`confirmationMailFor`) — единственная
+- `mails/account-confirmation-mail.ts` (`confirmationMailFor`) — единственная
   сборка письма подтверждения; спека рядом её и зовёт, второго описания не
-  заводить. `account-already-registered-mail.ts` (`alreadyRegisteredMailFor`)
+  заводить. `mails/account-already-registered-mail.ts` (`alreadyRegisteredMailFor`)
   — тем же образом единственная сборка письма «у вас уже есть аккаунт»,
   ссылка — `ACCOUNT_FORGOT_PASSWORD_PATH` (contracts, докблок объясняет
   отличие от `ACCOUNT_RESET_PATH`). `AuthService.sendAccountMail` —
   единственная точка проверки лимита (`ACCOUNT_EMAIL_LIMIT`, скользящие 24
   часа, счётчик `AccountFormEmail` по HMAC-хешу адреса — `hashEmail`,
-  `src/common/email-hash.ts`) и точка отправки всех трёх писем фичи
+  `src/common/security/email-hash.ts`) и точка отправки всех трёх писем фичи
   (подтверждение, «у вас уже есть аккаунт», сброс пароля); один счётчик на
   все три, не отдельный на каждое (`docs/research/user-account.md`), но
   регистрационные письма берут из него лишь `ACCOUNT_REGISTRATION_MAIL_LIMIT`
@@ -56,7 +56,7 @@
   `VeilleService.sendFormMail` — письма veille и account считаются раздельно,
   в разных таблицах.
 - Генерация и хеширование токена подтверждения — `generateSecureToken`/
-  `hashSecureToken` (`src/common/secure-token.ts`, общий с veille):
+  `hashSecureToken` (`src/common/security/secure-token.ts`, общий с veille):
   `randomBytes(32).base64url` в письмо, `sha256` hex в базу; второй генерации
   здесь не заводить.
 - `POST /auth/password-reset` → `AuthService.requestPasswordReset`; always
@@ -70,7 +70,7 @@
   hourly cleanup (phase 4) sweeps it, and a successful reset spends it with
   the rest. `P2003` on the insert — the account deleted between the
   lookup and the write — answers the same as an unknown address, same
-  reasoning as `issueTokens`'s own `P2003` handling above. `password-reset-mail.ts`
+  reasoning as `issueTokens`'s own `P2003` handling above. `mails/password-reset-mail.ts`
   (`passwordResetMailFor`) is the one build of that mail; it reuses
   `fr.mail.account.reason` rather than restating why the person is on the
   list.
@@ -83,12 +83,12 @@
   (`ResetPasswordDto`) extends the shared `TokenDto` and reuses
   `IsAccountPassword` for the new password — same policy and message as
   `RegisterDto`, second copy not warranted.
-- `POST /auth/login` → `LocalAuthGuard` (`local-auth.guard.ts`, оборачивает
-  `passport-local`) → `LocalStrategy` (`local.strategy.ts`) →
+- `POST /auth/login` → `LocalAuthGuard` (`passport/local-auth.guard.ts`, оборачивает
+  `passport-local`) → `LocalStrategy` (`passport/local.strategy.ts`) →
   `AuthService.validateCredentials`. Гвард выполняется раньше пайпа — тело
   запроса он читает сырым, а не через провалидированный `LoginDto`, поэтому
   `LocalStrategy.validate` нормализует адрес сам (`normalizeEmail`,
-  `src/common/normalize-email.decorator.ts`) и сам же берёт поля из тела
+  `src/common/http/normalize-email.decorator.ts`) и сам же берёт поля из тела
   (`passReqToCallback`): запасной источник passport-local — query string — не
   используется, пароль в URL попал бы в access-логи. `LoginDto` в сигнатуре
   контроллера остаётся только ради `forbidNonWhitelisted` и Swagger. Один
@@ -161,9 +161,9 @@
   вошедшими). Cookie чистится всегда, тем же `clearCookie` с тем же
   `path=/auth`, что и её установка — иначе браузер не найдёт совпадающую
   cookie для удаления.
-- Глобальный `JwtAuthGuard` (`jwt-auth.guard.ts`) — зарегистрирован как
+- Глобальный `JwtAuthGuard` (`passport/jwt-auth.guard.ts`) — зарегистрирован как
   `APP_GUARD` в `app.module.ts`, оборачивает passport-стратегию `jwt`
-  (`jwt.strategy.ts`, тот же `JWT_SECRET`, что подписывает access-токен в
+  (`passport/jwt.strategy.ts`, тот же `JWT_SECRET`, что подписывает access-токен в
   `AuthService.issueTokens`): без валидного `Authorization: Bearer` любой
   эндпоинт отвечает 401. `JwtStrategy.validate` сверх подписи и срока
   проверяет `typ`, `sub` и существование аккаунта — зачем, в его докблоке.
@@ -178,7 +178,7 @@
   возвращает email владельца access-токена (espace personnel). Без
   `@Public()` — проходит через глобальный `JwtAuthGuard`, как любой новый
   эндпоинт по умолчанию. `req.user.id` берётся из `JwtUser`
-  (`jwt.strategy.ts`, тот же тип, что кладёт guard на запрос); стратегия уже
+  (`passport/jwt.strategy.ts`, тот же тип, что кладёт guard на запрос); стратегия уже
   убедилась, что аккаунт есть, так что `P2025` → `404` из `findUniqueOrThrow`
   остаётся только гонке с удалением между guard'ом и запросом — второй ветки
   «не найден» здесь не заводить.
@@ -195,7 +195,7 @@
   прогон чистки фичи (`docs/research/user-account.md`, «Чистка: один
   cron-час»): неподтверждённые `User` старше `ACCOUNT_CONFIRM_TTL_DAYS`
   (каскад сносит их `RefreshToken`/`PasswordReset`, тот же
-  `expiredUnconfirmed` из `src/common/confirmation-window.ts`, что и у
+  `expiredUnconfirmed` из `src/common/time/confirmation-window.ts`, что и у
   veille), просроченные `PasswordReset`, истёкшие `RefreshToken`, счётчики
   `AccountFormEmail`/`LoginAttempt` старше своего окна (`DAY_MS`/`HOUR_MS`,
   те же, что у `sendAccountMail` и `validateCredentials` выше). Каждый
@@ -207,7 +207,7 @@
   `@Cron` оставило бы прогон зелёным).
 - `@fastify/cookie` регистрируется общей функцией `registerCookiePlugin`
   (`src/config/fastify-cookie.ts`) — и в `main.ts`, и в `createIntTestApp`
-  (`src/app.int-helper.ts`): без неё `reply.setCookie` не существует ни в
+  (`test/helpers/app.ts`): без неё `reply.setCookie` не существует ни в
   проде, ни в интеграционных тестах.
 - `ACCOUNT_MAIL_UNSUBSCRIBE_PATH` (contracts) — выделенный путь без страницы:
   ни одноразовый токен другого письма того же аккаунта (предзагрузка ссылок

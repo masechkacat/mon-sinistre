@@ -8,7 +8,7 @@ import {
   Length,
 } from 'class-validator';
 import { VEILLE_MAX_COMMUNES } from '@mon-sinistre/contracts';
-import { NormalizeEmail } from 'src/common/normalize-email.decorator';
+import { NormalizeEmail } from 'src/common/http/normalize-email.decorator';
 
 const INSEE_CODE_LENGTH = 5;
 

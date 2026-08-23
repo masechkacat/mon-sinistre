@@ -9,4 +9,4 @@ export {
   generateSecureToken as generateVeilleToken,
   hashSecureToken as hashVeilleToken,
   SECURE_TOKEN_LENGTH as VEILLE_TOKEN_LENGTH,
-} from 'src/common/secure-token';
+} from 'src/common/security/secure-token';
