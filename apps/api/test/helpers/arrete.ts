@@ -12,3 +12,28 @@ export function arreteData(overrides: Partial<{ nor: string }> = {}) {
     contentHash: 'hash-1',
   };
 }
+
+/** Minimal `ArreteEntry` row for nesting under `arreteData()` via `entries.create`. */
+export function arreteEntryData(
+  overrides: Partial<{
+    codeInsee: string;
+    communeLabelRaw: string;
+    departementRaw: string;
+    risque: string;
+    eventStart: Date;
+    eventEnd: Date;
+    outcome: 'RECONNU' | 'REFUSE';
+    motivation: string | null;
+  }> = {},
+) {
+  return {
+    codeInsee: overrides.codeInsee as string,
+    communeLabelRaw: overrides.communeLabelRaw ?? 'Nîmes',
+    departementRaw: overrides.departementRaw ?? 'Gard',
+    risque: overrides.risque ?? 'Inondations',
+    eventStart: overrides.eventStart ?? new Date('2026-06-01'),
+    eventEnd: overrides.eventEnd ?? new Date('2026-06-20'),
+    outcome: overrides.outcome ?? ('RECONNU' as const),
+    motivation: overrides.motivation ?? null,
+  };
+}

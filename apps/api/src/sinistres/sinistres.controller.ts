@@ -28,6 +28,7 @@ import { CreateSinistreDto } from './dto/create-sinistre.dto';
 import { SinistreDetailResponseDto } from './dto/sinistre-detail-response.dto';
 import { SinistreSummaryResponseDto } from './dto/sinistre-summary-response.dto';
 import { StepResponseDto } from './dto/step-response.dto';
+import { UpdateSinistreDto } from './dto/update-sinistre.dto';
 import { UpdateStepDto } from './dto/update-step.dto';
 import { SinistresService } from './sinistres.service';
 
@@ -81,6 +82,23 @@ export class SinistresController {
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<SinistreDetail> {
     return this.sinistres.findOne(req.user.id, id);
+  }
+
+  @Patch(':id')
+  @ApiOperation({
+    summary: 'Set or clear the declaration date',
+    description:
+      'A date moves the sinistre to DECLARE and dates its DATE_DECLARATION ' +
+      'steps; null clears both back to the status the link alone gives. ' +
+      'Same ownership answer as GET /sinistres/:id.',
+  })
+  @ApiOkResponse({ type: SinistreDetailResponseDto })
+  async update(
+    @Req() req: RequestWithJwtUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateSinistreDto,
+  ): Promise<SinistreDetail> {
+    return this.sinistres.update(req.user.id, id, dto.declarationDate);
   }
 
   @Delete(':id')

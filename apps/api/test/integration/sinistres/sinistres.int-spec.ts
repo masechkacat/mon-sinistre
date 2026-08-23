@@ -1,4 +1,5 @@
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
+import { toIsoDate } from '@mon-sinistre/contracts';
 import { todayInParis } from 'src/common/time/today-in-paris';
 import { resolveDeadline } from 'src/deadline-rules/resolve-deadline';
 import { fr } from 'src/i18n/fr';
@@ -9,6 +10,7 @@ import {
 } from 'src/deadline-rules/deadline-rule.seed';
 import { seedStepTemplates } from 'src/step-templates/step-template.seed';
 import { createIntTestApp } from 'test/helpers/app';
+import { arreteData, arreteEntryData } from 'test/helpers/arrete';
 import { commune } from 'test/helpers/commune';
 import {
   accessTokenOf,
@@ -38,7 +40,7 @@ describe('SinistresController (integration)', () => {
   });
 
   beforeEach(async () => {
-    await prisma.$executeRaw`TRUNCATE TABLE "User", "Commune", "DeadlineRule", "StepTemplate", "Sinistre" CASCADE`;
+    await prisma.$executeRaw`TRUNCATE TABLE "User", "Commune", "DeadlineRule", "StepTemplate", "Sinistre", "Arrete" CASCADE`;
     await prisma.commune.create({
       data: commune('30189', 'Nîmes', '30', 'Gard'),
     });
@@ -510,6 +512,253 @@ describe('SinistresController (integration)', () => {
       expect(after.steps.find((s) => s.id === target.id)?.status).toBe(
         target.status,
       );
+    });
+  });
+
+  // PATCH /sinistres/:id, docs/plan/sinistre-plan.md, Фаза 2 (issue #153).
+  describe('PATCH /sinistres/:id', () => {
+    interface SinistreWithDetail extends SinistreWithSteps {
+      status: string;
+      declarationDate: string | null;
+      steps: {
+        id: string;
+        anchor: string | null;
+        status: string;
+        plannedDate: string | null;
+        source: { url: string } | null;
+      }[];
+    }
+
+    async function reread(
+      headers: ReturnType<typeof withBearer>,
+      sinistreId: string,
+    ): Promise<SinistreWithDetail> {
+      const res = await app.inject({
+        method: 'GET',
+        url: `/sinistres/${sinistreId}`,
+        headers,
+      });
+      return JSON.parse(res.payload) as SinistreWithDetail;
+    }
+
+    function informStepOf(sinistre: SinistreWithDetail) {
+      const step = sinistre.steps.find(
+        (s) => s.anchor === 'DATE_DECLARATION' && s.source !== null,
+      );
+      if (!step) {
+        throw new Error('fixture has no DATE_DECLARATION legal step');
+      }
+      return step;
+    }
+
+    async function informRule() {
+      const rule = await prisma.deadlineRule.findFirst({
+        where: { code: 'INFORMATION_ASSUREUR' },
+      });
+      if (!rule) {
+        throw new Error('INFORMATION_ASSUREUR rule was not seeded');
+      }
+      return rule;
+    }
+
+    /** Links a sinistre to a RECONNU entry directly through Prisma — Фаза 3
+     * has not landed yet, so there is no `matchSinistres` to call. */
+    async function linkToReconnuEntry(sinistreId: string, publishedAt: string) {
+      const arrete = await prisma.arrete.create({
+        data: {
+          ...arreteData(),
+          publishedAt: new Date(publishedAt),
+          entries: {
+            create: [
+              arreteEntryData({
+                codeInsee: '30189',
+                eventStart: new Date('2026-01-01'),
+                eventEnd: new Date('2026-12-31'),
+              }),
+            ],
+          },
+        },
+        include: { entries: true },
+      });
+      await prisma.sinistre.update({
+        where: { id: sinistreId },
+        data: { arreteEntryId: arrete.entries[0]!.id, status: 'ARRETE_PUBLIE' },
+      });
+    }
+
+    it('sets DECLARE on an unlinked sinistre, then clearing restores AVANT_ARRETE, not ARRETE_PUBLIE', async () => {
+      const email = await createUser(prisma);
+      const headers = await bearerFor(email);
+      const sinistre = await createSinistre(headers);
+
+      const setRes = await app.inject({
+        method: 'PATCH',
+        url: `/sinistres/${sinistre.id}`,
+        headers,
+        payload: { declarationDate: '2026-06-10' },
+      });
+
+      expect(setRes.statusCode).toBe(200);
+      const declared = JSON.parse(setRes.payload) as SinistreWithDetail;
+      expect(declared.status).toBe('DECLARE');
+      expect(declared.declarationDate).toBe('2026-06-10');
+      // No arrêté is published yet, so the legal anchor — publication *or*
+      // declaration, whichever is later — still has nothing to compare the
+      // declaration against (docs/research/sinistre-plan.md, «Опорная дата
+      // DATE_DECLARATION»).
+      expect(informStepOf(declared).plannedDate).toBeNull();
+
+      const clearRes = await app.inject({
+        method: 'PATCH',
+        url: `/sinistres/${sinistre.id}`,
+        headers,
+        payload: { declarationDate: null },
+      });
+
+      expect(clearRes.statusCode).toBe(200);
+      const cleared = JSON.parse(clearRes.payload) as SinistreWithDetail;
+      expect(cleared.status).toBe('AVANT_ARRETE');
+      expect(cleared.declarationDate).toBeNull();
+    });
+
+    it('dates the DATE_DECLARATION steps once the sinistre is linked, then clearing removes those dates and returns to ARRETE_PUBLIE (critère PRD № 18)', async () => {
+      const email = await createUser(prisma);
+      const headers = await bearerFor(email);
+      const sinistre = await createSinistre(headers, '2026-06-01');
+      const rule = await informRule();
+      await linkToReconnuEntry(sinistre.id, '2026-07-10');
+
+      const setRes = await app.inject({
+        method: 'PATCH',
+        url: `/sinistres/${sinistre.id}`,
+        headers,
+        payload: { declarationDate: '2026-07-20' },
+      });
+
+      expect(setRes.statusCode).toBe(200);
+      const declared = JSON.parse(setRes.payload) as SinistreWithDetail;
+      expect(declared.status).toBe('DECLARE');
+      expect(informStepOf(declared).plannedDate).toBe(
+        resolveDeadline(toIsoDate('2026-07-20'), rule.duration, rule.unit),
+      );
+
+      const clearRes = await app.inject({
+        method: 'PATCH',
+        url: `/sinistres/${sinistre.id}`,
+        headers,
+        payload: { declarationDate: null },
+      });
+
+      expect(clearRes.statusCode).toBe(200);
+      const cleared = JSON.parse(clearRes.payload) as SinistreWithDetail;
+      expect(cleared.status).toBe('ARRETE_PUBLIE');
+      expect(cleared.declarationDate).toBeNull();
+      expect(informStepOf(cleared).plannedDate).toBeNull();
+    });
+
+    it("does not pull the insurer's response deadline earlier than the legal one when the declaration precedes the arrêté's publication", async () => {
+      const email = await createUser(prisma);
+      const headers = await bearerFor(email);
+      const sinistre = await createSinistre(headers, '2026-06-01');
+      const rule = await informRule();
+      await linkToReconnuEntry(sinistre.id, '2026-07-10');
+
+      const res = await app.inject({
+        method: 'PATCH',
+        url: `/sinistres/${sinistre.id}`,
+        headers,
+        payload: { declarationDate: '2026-06-15' },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.payload) as SinistreWithDetail;
+      expect(body.status).toBe('DECLARE');
+      const expected = resolveDeadline(
+        toIsoDate('2026-07-10'),
+        rule.duration,
+        rule.unit,
+      );
+      expect(informStepOf(body).plannedDate).toBe(expected);
+      expect(informStepOf(body).plannedDate).not.toBe(
+        resolveDeadline(toIsoDate('2026-06-15'), rule.duration, rule.unit),
+      );
+    });
+
+    it('rejects a declarationDate in the future with a French message', async () => {
+      const email = await createUser(prisma);
+      const headers = await bearerFor(email);
+      const sinistre = await createSinistre(headers);
+      const tomorrow = resolveDeadline(todayInParis(), 1, 'DAYS');
+
+      const res = await app.inject({
+        method: 'PATCH',
+        url: `/sinistres/${sinistre.id}`,
+        headers,
+        payload: { declarationDate: tomorrow },
+      });
+
+      expect(res.statusCode).toBe(400);
+      expect(res.payload).toContain(fr.sinistres.declarationDateInFuture);
+    });
+
+    it('names the actual problem for a malformed or missing declarationDate, rather than calling it a future date', async () => {
+      const email = await createUser(prisma);
+      const headers = await bearerFor(email);
+      const sinistre = await createSinistre(headers);
+
+      const [malformed, missing] = await Promise.all([
+        app.inject({
+          method: 'PATCH',
+          url: `/sinistres/${sinistre.id}`,
+          headers,
+          payload: { declarationDate: '2026-02-30' },
+        }),
+        app.inject({
+          method: 'PATCH',
+          url: `/sinistres/${sinistre.id}`,
+          headers,
+          payload: {},
+        }),
+      ]);
+
+      expect(malformed.statusCode).toBe(400);
+      expect(malformed.payload).toContain(fr.sinistres.declarationDateInvalid);
+      expect(malformed.payload).not.toContain(
+        fr.sinistres.declarationDateInFuture,
+      );
+      expect(missing.statusCode).toBe(400);
+      expect(missing.payload).toContain(fr.sinistres.declarationDateRequired);
+    });
+
+    it('answers the same 404 for a sinistre owned by someone else as for a nonexistent one, and leaves it unchanged', async () => {
+      const ownerEmail = await createUser(prisma);
+      const ownerHeaders = await bearerFor(ownerEmail);
+      const sinistre = await createSinistre(ownerHeaders);
+
+      const otherEmail = await createUser(prisma);
+      const otherHeaders = await bearerFor(otherEmail);
+
+      const [otherPatches, nonexistent] = await Promise.all([
+        app.inject({
+          method: 'PATCH',
+          url: `/sinistres/${sinistre.id}`,
+          headers: otherHeaders,
+          payload: { declarationDate: '2026-06-10' },
+        }),
+        app.inject({
+          method: 'PATCH',
+          url: '/sinistres/00000000-0000-0000-0000-000000000000',
+          headers: otherHeaders,
+          payload: { declarationDate: '2026-06-10' },
+        }),
+      ]);
+
+      expect(otherPatches.statusCode).toBe(404);
+      expect(nonexistent.statusCode).toBe(404);
+      expect(otherPatches.payload).toBe(nonexistent.payload);
+      const after = await reread(ownerHeaders, sinistre.id);
+      expect(after.status).toBe('AVANT_ARRETE');
+      expect(after.declarationDate).toBeNull();
     });
   });
 });

@@ -16,18 +16,23 @@ import type {
 } from 'src/generated/prisma/enums';
 import { errorSummary, stackOf } from 'src/common/error-report';
 import { DeadlineRuleService } from 'src/deadline-rules/deadline-rule.service';
-import { isoDateToDate } from 'src/deadline-rules/resolve-deadline';
+import {
+  dateToIsoDate,
+  isoDateToDate,
+} from 'src/deadline-rules/resolve-deadline';
 import { fr } from 'src/i18n/fr';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { todayInParis } from 'src/common/time/today-in-paris';
 import { anchorDatesOf } from './anchor-dates';
 import {
   buildStepSnapshot,
+  resolveStepPlannedDate,
   type ResolvedDeadlineRule,
   type StepTemplateRow,
 } from './build-step-snapshot';
 import type { CreateSinistreDto } from './dto/create-sinistre.dto';
 import { CATNAT_PLAN_KEY } from 'src/step-templates/step-template.seed';
+import { sinistreStatus } from './sinistre-status';
 import {
   toSinistreDetail,
   toSinistreSummary,
@@ -95,7 +100,7 @@ export class SinistresService {
         risque: dto.risque,
         eventDate: isoDateToDate(dto.eventDate),
         declarationDate: null,
-        status: 'AVANT_ARRETE',
+        status: sinistreStatus(null, null),
         steps: { create: steps },
       },
       include: { steps: { orderBy: { order: 'asc' } } },
@@ -156,6 +161,85 @@ export class SinistresService {
       orderBy: { createdAt: 'desc' },
     });
     return sinistres.map(toSinistreSummary);
+  }
+
+  /**
+   * Sets or clears `declarationDate`. `sinistreStatus` is the only place a
+   * status is decided (docs/research/sinistre-plan.md, «Контракт API»), and
+   * the `DATE_DECLARATION` steps' `plannedDate` is recomputed off the same
+   * anchor — set on a date, cleared back to null when the date is cleared
+   * and nothing else resolves it. Same reason for the transaction as {@link
+   * updateStep}: a concurrent second write landing between the read and the
+   * writes below must not hand this request back a status or a step date it
+   * never wrote.
+   */
+  async update(
+    userId: string,
+    id: string,
+    declarationDate: IsoDate | null,
+  ): Promise<SinistreDetail> {
+    return this.prisma.$transaction(async (tx) => {
+      const sinistre = await tx.sinistre.findFirst({
+        where: { id, userId },
+        include: {
+          steps: {
+            orderBy: { order: 'asc' },
+            include: { deadlineRule: true },
+          },
+          arreteEntry: { include: { arrete: true } },
+        },
+      });
+      if (!sinistre) {
+        throw new NotFoundException();
+      }
+
+      const arretePublishedAt = sinistre.arreteEntry
+        ? dateToIsoDate(sinistre.arreteEntry.arrete.publishedAt)
+        : null;
+      const declarationAnchorDate = anchorDatesOf({
+        eventDate: dateToIsoDate(sinistre.eventDate),
+        declarationDate,
+        arretePublishedAt,
+      }).DATE_DECLARATION;
+      const status = sinistreStatus(
+        sinistre.arreteEntry ? { outcome: sinistre.arreteEntry.outcome } : null,
+        declarationDate,
+      );
+
+      await tx.sinistre.update({
+        where: { id },
+        data: {
+          declarationDate: declarationDate
+            ? isoDateToDate(declarationDate)
+            : null,
+          status,
+        },
+      });
+
+      for (const step of sinistre.steps) {
+        if (step.anchor !== 'DATE_DECLARATION') {
+          continue;
+        }
+        const plannedDate = resolveStepPlannedDate(
+          declarationAnchorDate,
+          step.deadlineRuleId !== null,
+          step.deadlineRule,
+          step.offsetDays,
+        );
+        await tx.step.update({
+          where: { id: step.id },
+          data: {
+            plannedDate: plannedDate ? isoDateToDate(plannedDate) : null,
+          },
+        });
+      }
+
+      const updated = await tx.sinistre.findUniqueOrThrow({
+        where: { id },
+        include: { steps: { orderBy: { order: 'asc' } } },
+      });
+      return toSinistreDetail(updated, updated.steps, todayInParis());
+    });
   }
 
   /** Ownership check same as {@link findOne}. `deleteMany` rather than

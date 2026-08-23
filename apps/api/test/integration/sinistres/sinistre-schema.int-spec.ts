@@ -1,5 +1,5 @@
 import { PrismaClient } from 'src/generated/prisma/client';
-import { arreteData } from 'test/helpers/arrete';
+import { arreteData, arreteEntryData } from 'test/helpers/arrete';
 import { commune } from 'test/helpers/commune';
 import { deadlineRuleData } from 'test/helpers/deadline-rule';
 import { createIntTestPrismaClient } from 'test/helpers/prisma-client';
@@ -111,18 +111,7 @@ describe('Sinistre / Step / StepTemplate schema (integration)', () => {
       data: {
         ...arreteData(),
         entries: {
-          create: [
-            {
-              codeInsee: commune.codeInsee,
-              communeLabelRaw: 'Nîmes',
-              departementRaw: 'Gard',
-              risque: 'Inondations',
-              eventStart: new Date('2026-06-01'),
-              eventEnd: new Date('2026-06-20'),
-              outcome: 'RECONNU',
-              motivation: null,
-            },
-          ],
+          create: [arreteEntryData({ codeInsee: commune.codeInsee })],
         },
       },
       include: { entries: true },
