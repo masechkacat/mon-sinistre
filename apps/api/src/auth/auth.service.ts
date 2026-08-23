@@ -6,6 +6,7 @@ import { JwtService, type JwtSignOptions } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import {
   ACCOUNT_CONFIRM_TTL_DAYS,
+  ACCOUNT_EMAIL_LIMIT,
   PASSWORD_RESET_TTL_HOURS,
   SESSION_INACTIVITY_DAYS,
   type AccountConfirmationStatus,
@@ -14,10 +15,13 @@ import {
   type PasswordResetStatus,
 } from '@mon-sinistre/contracts';
 import { awaitingConfirmation } from 'src/common/confirmation-window';
+import { hashEmail } from 'src/common/email-hash';
 import { generateSecureToken, hashSecureToken } from 'src/common/secure-token';
-import { addDays, addHours } from 'src/common/time';
+import { addDays, addHours, DAY_MS } from 'src/common/time';
 import type { EnvironmentVariables } from 'src/config/env.validation';
 import { fr } from 'src/i18n/fr';
+import { MailCompositionError } from 'src/mail/mail-composition.error';
+import type { ComposeMailInput } from 'src/mail/mail-message';
 import { MailService } from 'src/mail/mail.service';
 import type { Prisma } from 'src/generated/prisma/client';
 import {
@@ -94,6 +98,7 @@ export class AuthService {
   private readonly dummyPasswordHash: string;
   private readonly jwtSecret: string;
   private readonly jwtRefreshSecret: string;
+  private readonly emailHashSecret: string;
   /**
    * `env.validation.ts` guarantees the `ms` shape without depending on `ms`'s
    * type; the cast to its branded `StringValue` happens once here, not at
@@ -115,6 +120,52 @@ export class AuthService {
     this.accessTokenExpiry = config.get('ACCESS_TOKEN_EXPIRY', {
       infer: true,
     });
+    this.emailHashSecret = config.get('ACCOUNT_EMAIL_HASH_SECRET', {
+      infer: true,
+    });
+  }
+
+  /**
+   * Single limit gate and single exit for the feature's three account mails
+   * (confirmation, "already have an account", password reset) — one counter
+   * shared by every kind, the `AccountFormEmail` row written *before*
+   * `send()` so a failed delivery still costs an attempt rather than handing
+   * out a free retry, refunded only on `MailCompositionError` — a
+   * deterministic bug in the mail itself, not a transport failure. Same
+   * shape as veille's `sendFormMail` (`src/veille/veille.service.ts`), *not*
+   * extracted into one shared implementation: `src/mail/CLAUDE.md` — "лимит
+   * частоты конкретной фичи живёт у фичи, которая его считает" — only the
+   * HMAC primitive (`hashEmail`) is common, the counting logic stays with
+   * whichever feature owns the table. Unlike `sendFormMail`, the input is
+   * built by the caller rather than deferred behind the limit check: none of
+   * the three mails here does a DB write of its own to save (the token or
+   * `PasswordReset` row it carries is already committed by the time this
+   * runs), so there is nothing a suppressed mail would need to leave
+   * un-rotated.
+   */
+  private async sendAccountMail(
+    email: string,
+    input: ComposeMailInput,
+  ): Promise<void> {
+    const emailHash = hashEmail(email, this.emailHashSecret);
+    const sentRecently = await this.prisma.accountFormEmail.count({
+      where: { emailHash, sentAt: { gte: new Date(Date.now() - DAY_MS) } },
+    });
+    if (sentRecently >= ACCOUNT_EMAIL_LIMIT) return;
+
+    const charged = await this.prisma.accountFormEmail.create({
+      data: { emailHash },
+    });
+    try {
+      await this.mail.send(input);
+    } catch (error) {
+      if (error instanceof MailCompositionError) {
+        await this.prisma.accountFormEmail.delete({
+          where: { id: charged.id },
+        });
+      }
+      throw error;
+    }
   }
 
   /**
@@ -156,7 +207,10 @@ export class AuthService {
       confirm.hash,
     );
     if (claim === 'confirmed') {
-      await this.mail.send(alreadyRegisteredMailFor(dto.email));
+      await this.sendAccountMail(
+        dto.email,
+        alreadyRegisteredMailFor(dto.email),
+      );
       return;
     }
     if (claim === 'absent') {
@@ -174,7 +228,10 @@ export class AuthService {
         throw error;
       }
     }
-    await this.mail.send(confirmationMailFor(dto.email, confirm.token));
+    await this.sendAccountMail(
+      dto.email,
+      confirmationMailFor(dto.email, confirm.token),
+    );
   }
 
   /**
@@ -262,7 +319,7 @@ export class AuthService {
       if (isForeignKeyViolation(error)) return;
       throw error;
     }
-    await this.mail.send(passwordResetMailFor(email, reset.token));
+    await this.sendAccountMail(email, passwordResetMailFor(email, reset.token));
   }
 
   /**

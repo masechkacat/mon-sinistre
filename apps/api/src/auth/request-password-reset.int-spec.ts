@@ -38,7 +38,7 @@ describe('POST /auth/password-reset (integration)', () => {
 
   beforeEach(async () => {
     transport.sent.length = 0;
-    await prisma.$executeRaw`TRUNCATE TABLE "User", "PasswordReset" CASCADE`;
+    await prisma.$executeRaw`TRUNCATE TABLE "User", "PasswordReset", "AccountFormEmail" CASCADE`;
   });
 
   it('answers an existing address and a nonexistent one identically', async () => {

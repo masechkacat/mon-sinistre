@@ -6,7 +6,7 @@
 вход, ротацию refresh, выход, чтение текущего пользователя, удаление
 аккаунта (фаза 2), запрос сброса пароля, смену пароля по токену и повторную
 регистрацию — как неподтверждённым, так и подтверждённым адресом (фаза 3,
-закрыта).
+закрыта), лимит писем аккаунта (фаза 4, в работе).
 
 ## Точки входа
 
@@ -41,7 +41,14 @@
   заводить. `account-already-registered-mail.ts` (`alreadyRegisteredMailFor`)
   — тем же образом единственная сборка письма «у вас уже есть аккаунт»,
   ссылка — `ACCOUNT_FORGOT_PASSWORD_PATH` (contracts, докблок объясняет
-  отличие от `ACCOUNT_RESET_PATH`).
+  отличие от `ACCOUNT_RESET_PATH`). `AuthService.sendAccountMail` —
+  единственная точка проверки лимита (`ACCOUNT_EMAIL_LIMIT`, скользящие 24
+  часа, счётчик `AccountFormEmail` по HMAC-хешу адреса — `hashEmail`,
+  `src/common/email-hash.ts`) и точка отправки всех трёх писем фичи
+  (подтверждение, «у вас уже есть аккаунт», сброс пароля); один счётчик на
+  все три, не отдельный на каждое (`docs/research/user-account.md`). Та же
+  форма, что `VeilleService.sendFormMail` — письма veille и account считаются
+  раздельно, в разных таблицах.
 - Генерация и хеширование токена подтверждения — `generateSecureToken`/
   `hashSecureToken` (`src/common/secure-token.ts`, общий с veille):
   `randomBytes(32).base64url` в письмо, `sha256` hex в базу; второй генерации

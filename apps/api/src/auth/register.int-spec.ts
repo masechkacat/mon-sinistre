@@ -40,7 +40,7 @@ describe('POST /auth/register (integration)', () => {
 
   beforeEach(async () => {
     transport.sent.length = 0;
-    await prisma.$executeRaw`TRUNCATE TABLE "User" CASCADE`;
+    await prisma.$executeRaw`TRUNCATE TABLE "User", "AccountFormEmail" CASCADE`;
   });
 
   it('creates an unconfirmed account, hashes the password and mails the confirmation link with its token', async () => {
