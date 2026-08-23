@@ -20,6 +20,7 @@ import type {
   ArreteEntryOutcome,
   MonitorAlertKind,
 } from 'src/generated/prisma/enums';
+import type { ComposeMailInput } from 'src/mail/mail-message';
 import { MailService } from 'src/mail/mail.service';
 import { isUniqueViolationOn } from 'src/prisma/prisma-error';
 import { PrismaService } from 'src/prisma/prisma.service';
@@ -40,6 +41,10 @@ import {
   matchCommune,
 } from './recipients/match-commune';
 import {
+  drainOutbox as runOutboxDrain,
+  type OutboxAdapter,
+} from './mail/drain-outbox';
+import {
   type MonitorAlertForMail,
   monitorAlertMailFor,
 } from './mail/monitor-alert-mail';
@@ -56,9 +61,10 @@ import { selectCatnatTextIds } from './parse/select-catnat-texts';
 import {
   type ArreteEntryForMail,
   type ArreteForMail,
-  type DeclarationDeadlineRule,
   veilleArreteMailFor,
 } from './mail/veille-arrete-mail';
+
+export { NOTIFICATION_ATTEMPTS_BEFORE_ALERT } from './mail/drain-outbox';
 
 const TOC_BASENAME_PATTERN = /^JORFCONT/;
 
@@ -133,7 +139,7 @@ type StoredArrete = Prisma.ArreteGetPayload<{
 }>;
 type StoredEntry = StoredArrete['entries'][number];
 
-/** A pending outbox row, reduced to what {@link JorfMonitorService.sendPendingNotifications} needs to send it. */
+/** A pending outbox row, reduced to what {@link JorfMonitorService.drainOutbox} needs to send it. */
 type PendingNotification = {
   id: string;
   veilleId: string;
@@ -161,14 +167,6 @@ type SendPass = {
   recipients: Map<string, Recipient | null>;
   attempted: Set<string>;
 };
-
-/**
- * Failed sends of one outbox row before it is called stuck. Four runs' worth
- * of retries at two ticks a day (≈ two days): long enough that a mailbox
- * down for a day resolves itself unannounced, short enough that a row the
- * transport will never accept surfaces while the arrêté still matters.
- */
-export const NOTIFICATION_ATTEMPTS_BEFORE_ALERT = 4;
 
 /** The fields `ArreteEntry` create needs, minus `arreteId` — shared by the first-seen path (nested `entries: { create }`) and the rectificatif path (flat `arreteEntry.create`/`.update`). `codeInsee` is taken as an argument, not recomputed here, so the caller matches ({@link isSameEntry}) and writes with the exact same value. */
 function entryData(
@@ -218,7 +216,7 @@ function isSameEntry(
         existing.communeLabelRaw === parsed.communeLabelRaw;
 }
 
-/** The distinct resolved `codeInsee`s of a list of entries — the `entryCodes` {@link resolveRecipients} fans out to, shared by the outbox write ({@link JorfMonitorService.queueNotifications}) and the send step ({@link JorfMonitorService.sendArreteNotifications}), which read it off two different shapes (a bare code list, `ArreteEntry` rows) but want the same dedup-and-drop-null. */
+/** The distinct resolved `codeInsee`s of a list of entries — the `entryCodes` {@link resolveRecipients} fans out to, shared by the outbox write ({@link JorfMonitorService.queueNotifications}) and the send step ({@link JorfMonitorService.loadVeilleMails}), which read it off two different shapes (a bare code list, `ArreteEntry` rows) but want the same dedup-and-drop-null. */
 const uniqueCodes = (codes: readonly (string | null)[]): string[] => [
   ...new Set(codes.filter((code): code is string => code !== null)),
 ];
@@ -567,7 +565,11 @@ export class JorfMonitorService {
    */
   private async drainOutbox(pass: SendPass): Promise<void> {
     try {
-      await this.sendPendingNotifications(pass);
+      await runOutboxDrain(
+        this.logger,
+        this.veilleOutboxAdapter(pass),
+        pass.attempted,
+      );
     } catch (error) {
       this.logger.error(
         `jorf monitor: sending pending notifications failed: ${errorSummary(error)}`,
@@ -704,7 +706,7 @@ export class JorfMonitorService {
   }
 
   /** The one `resolveActive` call for the déclaration-délai rule, shared by
-   * the mail step ({@link sendArreteNotifications}) and the linking pass
+   * the mail step ({@link loadVeilleMails}) and the linking pass
    * ({@link linkSinistres}) — `DECLARATION_ASSUREUR_CODE` paired with
    * `DATE_PUBLICATION_ARRETE` is spelled once, not guessed at twice. */
   private resolveDeclarationRule(onDate: Date): Promise<ResolvedDeadlineRule> {
@@ -1328,51 +1330,163 @@ export class JorfMonitorService {
   }
 
   /**
-   * The send half of the outbox (docs/research/jorf-monitor.md, "Рассылка:
-   * outbox на VeilleNotification"): every `VeilleNotification` still
-   * `sentAt: null`, grouped by arrêté since that is what a recipient's
-   * entries and the déclaration deadline are resolved against
-   * ({@link sendArreteNotifications}). Called twice per run, before and
-   * after the ingest — {@link runOnce}.
-   *
-   * An arrêté whose group throws costs only its own mails: the déclaration
-   * rule, the arrêté row and the subscriptions behind it are all read per
-   * group, and one of them being unavailable says nothing about the next
-   * group (ТЗ § 6, "сбой отправки одному получателю не прерывает рассылку
-   * остальным" — the same guarantee one level up from the per-recipient
-   * `try/catch`).
+   * The veille half of the shared outbox drain (`src/jorf/mail/
+   * drain-outbox.ts`) — loading, composing and marking `VeilleNotification`
+   * rows. `pass` carries the run-scoped recipient memo ({@link SendPass})
+   * across both drains of one run, so a watcher's unsubscribe token is
+   * minted once and reused between them ({@link recipientFor}). `norByArrete`
+   * is filled by {@link loadVeilleMails} before `onStuck` can ever be called
+   * for a row of the same group — the generic cycle always composes a
+   * group's mails before touching any of its rows' attempts.
    */
-  private async sendPendingNotifications(pass: SendPass): Promise<void> {
-    const pending = (
-      await this.prisma.veilleNotification.findMany({
-        where: { sentAt: null },
-        select: { id: true, veilleId: true, arreteId: true, attempts: true },
-      })
-    ).filter((notification) => !pass.attempted.has(notification.id));
-    if (pending.length === 0) {
-      return;
-    }
+  private veilleOutboxAdapter(
+    pass: SendPass,
+  ): OutboxAdapter<PendingNotification, ComposeMailInput> {
+    const norByArrete = new Map<string, string>();
+    return {
+      loadPending: () =>
+        this.prisma.veilleNotification.findMany({
+          where: { sentAt: null },
+          select: { id: true, veilleId: true, arreteId: true, attempts: true },
+        }),
+      loadMails: (arreteId, notifications) =>
+        this.loadVeilleMails(arreteId, notifications, pass, norByArrete),
+      send: (mail) => this.mail.send(mail),
+      markSent: async (notification) => {
+        await this.prisma.veilleNotification.update({
+          where: { id: notification.id },
+          data: { sentAt: new Date() },
+        });
+      },
+      incrementAttempts: async (notification) => {
+        const attempts = notification.attempts + 1;
+        await this.prisma.veilleNotification.update({
+          where: { id: notification.id },
+          data: { attempts },
+        });
+        return attempts;
+      },
+      onStuck: async (notification, attempts) => {
+        const nor =
+          norByArrete.get(notification.arreteId) ?? notification.arreteId;
+        const alert = await this.prisma.monitorAlert.create({
+          data: {
+            kind: 'NOTIFICATION_STUCK',
+            arreteId: notification.arreteId,
+            // The watcher is identified by the outbox row, never by
+            // address: alerts are emailed and stored (ТЗ § 7, "в логи не
+            // попадают email").
+            detail: `NOR ${nor}: уведомление ${notification.id} не отправлено после ${attempts} попыток`,
+          },
+        });
+        await this.notifyAdmin([alert]);
+      },
+    };
+  }
 
-    const byArrete = new Map<string, PendingNotification[]>();
-    for (const notification of pending) {
-      const forArrete = byArrete.get(notification.arreteId) ?? [];
-      forArrete.push(notification);
-      byArrete.set(notification.arreteId, forArrete);
+  /**
+   * One arrêté group's mails. The commune set a recipient's mail carries is
+   * not stored on `VeilleNotification` — it is recomputed here via
+   * {@link resolveRecipients}, the same function the outbox write used,
+   * scoped to just these `veilleId`s so this stays one query regardless of
+   * how many other watchers the database holds (critère "не дублировать").
+   * A row with nothing left to mail — the watcher dropped every commune this
+   * arrêté names since the row was queued — maps to `null`, drained without
+   * a mail; a row whose token can't be rotated ({@link recipientFor}) is
+   * left out of the map entirely, so the generic cycle leaves it untouched.
+   */
+  private async loadVeilleMails(
+    arreteId: string,
+    notifications: readonly PendingNotification[],
+    pass: SendPass,
+    norByArrete: Map<string, string>,
+  ): Promise<ReadonlyMap<string, ComposeMailInput | null>> {
+    const arrete = await this.prisma.arrete.findUnique({
+      where: { id: arreteId },
+      include: { entries: { include: { commune: true } } },
+    });
+    if (!arrete) {
+      // Arrete.notifications is onDelete: Restrict — an Arrete referenced by
+      // a pending row cannot actually be deleted — but findUnique still
+      // wants a null check to type-check.
+      return new Map();
     }
+    norByArrete.set(arreteId, arrete.nor);
 
-    for (const [arreteId, notifications] of byArrete) {
-      for (const notification of notifications) {
-        pass.attempted.add(notification.id);
+    const entryCodes = uniqueCodes(
+      arrete.entries.map((entry) => entry.codeInsee),
+    );
+    const subscriptionRows = await this.prisma.veilleCommune.findMany({
+      where: {
+        veilleId: { in: notifications.map((n) => n.veilleId) },
+        veille: { confirmedAt: { not: null } },
+      },
+      select: { veilleId: true, codeInsee: true },
+    });
+    const subscriptions: SubscribedCommune[] = subscriptionRows.map((row) => ({
+      ...row,
+      confirmed: true as const,
+    }));
+    const codesByVeille = new Map(
+      resolveRecipients(entryCodes, pass.successorOf, subscriptions).map(
+        (recipient) => [recipient.veilleId, recipient.codeInsee],
+      ),
+    );
+
+    const declarationRule = await this.resolveDeclarationRule(
+      arrete.publishedAt,
+    );
+    const arreteForMail: ArreteForMail = {
+      publishedAt: dateToIsoDate(arrete.publishedAt),
+      legifranceUrl: arrete.legifranceUrl,
+    };
+
+    const mails = new Map<string, ComposeMailInput | null>();
+    for (const notification of notifications) {
+      const codes = codesByVeille.get(notification.veilleId) ?? [];
+      if (codes.length === 0) {
+        mails.set(notification.id, null);
+        continue;
       }
-      try {
-        await this.sendArreteNotifications(arreteId, notifications, pass);
-      } catch (error) {
-        this.logger.error(
-          `jorf monitor: notifications for arrete ${arreteId} failed: ${errorSummary(error)}`,
-          stackOf(error),
-        );
+
+      const recipient = await this.recipientFor(pass, notification.veilleId);
+      if (!recipient) {
+        continue;
       }
+
+      const entries: ArreteEntryForMail[] = [];
+      for (const entry of arrete.entries) {
+        if (
+          entry.codeInsee === null ||
+          !codes.includes(entry.codeInsee) ||
+          !entry.commune
+        ) {
+          continue;
+        }
+        entries.push({
+          commune: {
+            name: entry.commune.name,
+            departementName: entry.commune.departementName,
+          },
+          risque: entry.risque,
+          eventStart: dateToIsoDate(entry.eventStart),
+          eventEnd: dateToIsoDate(entry.eventEnd),
+          outcome: entry.outcome,
+        });
+      }
+
+      mails.set(
+        notification.id,
+        veilleArreteMailFor(
+          recipient.email,
+          recipient.unsubscribeToken,
+          arreteForMail,
+          entries,
+          declarationRule,
+        ),
+      );
     }
+    return mails;
   }
 
   /**
@@ -1425,178 +1539,6 @@ export class JorfMonitorService {
         select: { email: true },
       });
       return { email: veille.email, unsubscribeToken: unsubscribe.token };
-    });
-  }
-
-  /**
-   * Sends every pending notification of one arrêté. The commune set a
-   * recipient's mail carries is not stored on `VeilleNotification` — it is
-   * recomputed here via {@link resolveRecipients}, the same function the
-   * outbox write used, scoped to just these `veilleId`s so this stays one
-   * query regardless of how many other watchers the database holds
-   * (critère "не дублировать"). A failed send is logged and left `sentAt:
-   * null` (critère № 12: the next recipient still gets theirs, the row goes
-   * out next run) — a `try/catch` per recipient, not around the loop.
-   */
-  private async sendArreteNotifications(
-    arreteId: string,
-    notifications: readonly PendingNotification[],
-    pass: SendPass,
-  ): Promise<void> {
-    const arrete = await this.prisma.arrete.findUnique({
-      where: { id: arreteId },
-      include: { entries: { include: { commune: true } } },
-    });
-    if (!arrete) {
-      // Arrete.notifications is onDelete: Restrict — an Arrete referenced by
-      // a pending row cannot actually be deleted — but findUnique still
-      // wants a null check to type-check.
-      return;
-    }
-
-    const entryCodes = uniqueCodes(
-      arrete.entries.map((entry) => entry.codeInsee),
-    );
-    const subscriptionRows = await this.prisma.veilleCommune.findMany({
-      where: {
-        veilleId: { in: notifications.map((n) => n.veilleId) },
-        veille: { confirmedAt: { not: null } },
-      },
-      select: { veilleId: true, codeInsee: true },
-    });
-    const subscriptions: SubscribedCommune[] = subscriptionRows.map((row) => ({
-      ...row,
-      confirmed: true as const,
-    }));
-    const codesByVeille = new Map(
-      resolveRecipients(entryCodes, pass.successorOf, subscriptions).map(
-        (recipient) => [recipient.veilleId, recipient.codeInsee],
-      ),
-    );
-
-    const declarationRule = await this.resolveDeclarationRule(
-      arrete.publishedAt,
-    );
-    const arreteForMail: ArreteForMail = {
-      publishedAt: dateToIsoDate(arrete.publishedAt),
-      legifranceUrl: arrete.legifranceUrl,
-    };
-
-    for (const notification of notifications) {
-      const codes = codesByVeille.get(notification.veilleId) ?? [];
-      if (codes.length === 0) {
-        // The watcher unsubscribed or dropped every commune this arrêté
-        // names since the row was queued — nothing left to mail. Marking it
-        // sent drains the row instead of retrying forever.
-        await this.prisma.veilleNotification.update({
-          where: { id: notification.id },
-          data: { sentAt: new Date() },
-        });
-        continue;
-      }
-
-      const recipient = await this.recipientFor(pass, notification.veilleId);
-      if (!recipient) {
-        continue;
-      }
-
-      const entries: ArreteEntryForMail[] = [];
-      for (const entry of arrete.entries) {
-        if (
-          entry.codeInsee === null ||
-          !codes.includes(entry.codeInsee) ||
-          !entry.commune
-        ) {
-          continue;
-        }
-        entries.push({
-          commune: {
-            name: entry.commune.name,
-            departementName: entry.commune.departementName,
-          },
-          risque: entry.risque,
-          eventStart: dateToIsoDate(entry.eventStart),
-          eventEnd: dateToIsoDate(entry.eventEnd),
-          outcome: entry.outcome,
-        });
-      }
-
-      try {
-        await this.sendOneNotification(
-          notification,
-          recipient,
-          entries,
-          arreteForMail,
-          declarationRule,
-        );
-      } catch (error) {
-        this.logger.error(
-          `jorf monitor: notification email failed: ${errorSummary(error)}`,
-          stackOf(error),
-        );
-        await this.recordFailedAttempt(notification, arrete.nor);
-      }
-    }
-  }
-
-  /**
-   * Counts a failed send on the row and, at {@link
-   * NOTIFICATION_ATTEMPTS_BEFORE_ALERT}, raises `NOTIFICATION_STUCK` once.
-   * A row nothing will ever accept — a mailbox permanently rejecting, a
-   * composition error — otherwise stays `sentAt: null` and is retried by
-   * every run for good, visible only as a log line, and each retry burns a
-   * fresh unsubscribe token on it. Alerting exactly at the threshold, not
-   * above it, is what keeps the following runs from repeating the alert.
-   */
-  private async recordFailedAttempt(
-    notification: PendingNotification,
-    nor: string,
-  ): Promise<void> {
-    const attempts = notification.attempts + 1;
-    await this.prisma.veilleNotification.update({
-      where: { id: notification.id },
-      data: { attempts },
-    });
-    if (attempts !== NOTIFICATION_ATTEMPTS_BEFORE_ALERT) {
-      return;
-    }
-    const alert = await this.prisma.monitorAlert.create({
-      data: {
-        kind: 'NOTIFICATION_STUCK',
-        arreteId: notification.arreteId,
-        // The watcher is identified by the outbox row, never by address:
-        // alerts are emailed and stored (ТЗ § 7, "в логи не попадают email").
-        detail: `NOR ${nor}: уведомление ${notification.id} не отправлено после ${attempts} попыток`,
-      },
-    });
-    await this.notifyAdmin([alert]);
-  }
-
-  /**
-   * One recipient's mail. `sentAt` is stamped only after `MailService.send`
-   * resolves — a thrown `MailDeliveryError` leaves the row pending for the
-   * next run, and the caller's `try/catch` moves on to the next recipient.
-   */
-  private async sendOneNotification(
-    notification: PendingNotification,
-    recipient: { email: string; unsubscribeToken: string },
-    entries: readonly ArreteEntryForMail[],
-    arrete: ArreteForMail,
-    declarationRule: DeclarationDeadlineRule,
-  ): Promise<void> {
-    await this.mail.send(
-      veilleArreteMailFor(
-        recipient.email,
-        recipient.unsubscribeToken,
-        arrete,
-        entries,
-        declarationRule,
-      ),
-    );
-
-    await this.prisma.veilleNotification.update({
-      where: { id: notification.id },
-      data: { sentAt: new Date() },
     });
   }
 }
