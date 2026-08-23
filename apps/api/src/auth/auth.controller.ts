@@ -59,6 +59,30 @@ const REFRESH_COOKIE_PATH = '/auth';
  */
 export const SESSION_RATE_LIMIT = { ttl: 60_000, limit: 30 } as const;
 
+/**
+ * Per-IP cap on the public auth endpoints that mail nobody — confirmation,
+ * login, password-reset confirm — on top of the global one (`app.module.ts`)
+ * and, for login, the per-address counter
+ * (`AuthService.validateCredentials`, `LOGIN_ATTEMPT_LIMIT`). Roomier than
+ * `AUTH_MAIL_RATE_LIMIT` below because the cost of a request here stops at
+ * this server: a person mistyping a password, and a mail client prefetching
+ * a confirmation link, both fit. Exported for the spec, which must not
+ * restate the number.
+ */
+export const AUTH_FORM_RATE_LIMIT = { ttl: 60_000, limit: 30 } as const;
+
+/**
+ * Per-IP cap on the two endpoints that mail a third-party address (register,
+ * password-reset request) — the same number and the same reasoning as
+ * veille's form endpoint (`VEILLE_FORM_RATE_LIMIT`, its own docblock has the
+ * "why"): this is the only limit that bounds mailing to *many* addresses at
+ * once, since the per-address limit (`ACCOUNT_EMAIL_LIMIT`) counts one
+ * address at a time and would let a victim per request through. A human
+ * registers, or asks for a reset, once. Exported for the spec, which must
+ * not restate the number.
+ */
+export const AUTH_MAIL_RATE_LIMIT = { ttl: 60_000, limit: 5 } as const;
+
 interface RequestWithUser {
   readonly user: AuthenticatedUser;
 }
@@ -88,6 +112,7 @@ export class AuthController {
   }
 
   @Public()
+  @Throttle({ default: AUTH_MAIL_RATE_LIMIT })
   @Post('register')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
@@ -103,6 +128,7 @@ export class AuthController {
   }
 
   @Public()
+  @Throttle({ default: AUTH_FORM_RATE_LIMIT })
   @Post('confirmation')
   // Overridden for the same reason as veille's confirmation POST.
   @HttpCode(HttpStatus.OK)
@@ -123,6 +149,7 @@ export class AuthController {
   }
 
   @Public()
+  @Throttle({ default: AUTH_MAIL_RATE_LIMIT })
   @Post('password-reset')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
@@ -140,6 +167,7 @@ export class AuthController {
   }
 
   @Public()
+  @Throttle({ default: AUTH_FORM_RATE_LIMIT })
   @Post('password-reset/confirm')
   // Nest answers 201 to a POST by default; the contract of this endpoint is
   // 200 { status } whatever the token turns out to be.
@@ -161,6 +189,7 @@ export class AuthController {
   }
 
   @Public()
+  @Throttle({ default: AUTH_FORM_RATE_LIMIT })
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @UseGuards(LocalAuthGuard)
@@ -169,9 +198,11 @@ export class AuthController {
     description:
       'Passport-local runs first and answers 401 with one generic message ' +
       'for every cause — unknown address, wrong password, unconfirmed ' +
-      'account — anti-enumeration (src/auth/CLAUDE.md). On success the ' +
-      'access token comes back in the body and the refresh token is set as ' +
-      'an httpOnly cookie, never in the body.',
+      'account — anti-enumeration (src/auth/CLAUDE.md). Past too many failed ' +
+      'attempts for the address within the past hour, every cause answers ' +
+      '429 instead, identically for an existing and a nonexistent address. ' +
+      'On success the access token comes back in the body and the refresh ' +
+      'token is set as an httpOnly cookie, never in the body.',
   })
   @ApiOkResponse({ type: LoginResponseDto })
   @ApiUnauthorizedResponse()

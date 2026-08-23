@@ -46,10 +46,11 @@
   Сама механика — в `src/common/secure-token.ts` (общая с токеном
   подтверждения аккаунта, `src/auth/`); этот файл — только переименование под
   привычные здесь имена, второй генерации не заводить.
-- `veille-email-hash.ts` (`hashVeilleFormEmail`) — единственный способ
-  получить `VeilleFormEmail.emailHash` (HMAC-SHA256 на
-  `VEILLE_EMAIL_HASH_SECRET`); второй свёртки адреса не заводить.
-  `VeilleService.sendFormMail` — единственная точка проверки лимита
+- `veille-email-hash.ts` (`hashVeilleFormEmail`) — тонкий ре-экспорт общей
+  HMAC-утилиты `hashEmail` (`src/common/email-hash.ts`, общая со счётчиками
+  аккаунта, `src/auth/`) под привычным здесь именем; получает
+  `VeilleFormEmail.emailHash` на `VEILLE_EMAIL_HASH_SECRET`, второй свёртки
+  адреса не заводить. `VeilleService.sendFormMail` — единственная точка проверки лимита
   (`VEILLE_FORM_EMAIL_DAILY_LIMIT`, скользящие 24 часа) и точка отправки
   писем формы: все три письма (создание, `resendConfirmationMail`,
   `rotateAndSendChangeMail`) уходят через неё, не через `MailService.send()`
@@ -86,9 +87,8 @@ docblock'ах `VeilleService.upsertSubscription`, `claimUnconfirmed` и
 `Veille` проходит `pending` → `active` → удалена — третьего способа исчезнуть
 нет. Механика обоих путей удаления (отписка, часовая чистка просроченной
 неподтверждённой) — докблоки `unsubscribe` и `deleteExpiredUnconfirmed`;
-почему обе чистки висят на одном `@Cron` и почему каждая под своим
-`try/catch` — докблок `VeilleService.cleanupExpired`. Здесь не
-пересказывается.
+почему обе чистки висят на одном `@Cron` и почему каждая изолирована от
+соседних — докблок `VeilleService.cleanupExpired`. Здесь не пересказывается.
 
 Счётчик писем формы (`VeilleFormEmail`) удаление подписки переживает: чем он
 за неё держится и на каком сроке уходит сам — докблок

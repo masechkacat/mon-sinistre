@@ -43,7 +43,7 @@ describe('DELETE /auth/me (integration)', () => {
 
   beforeEach(async () => {
     transport.sent.length = 0;
-    await prisma.$executeRaw`TRUNCATE TABLE "User" CASCADE`;
+    await prisma.$executeRaw`TRUNCATE TABLE "User", "AccountFormEmail" CASCADE`;
   });
 
   /** A logged-in account, then its deletion — the starting point every test

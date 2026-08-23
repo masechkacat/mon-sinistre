@@ -48,7 +48,7 @@ describe('JwtAuthGuard (integration)', () => {
   });
 
   beforeEach(async () => {
-    await prisma.$executeRaw`TRUNCATE TABLE "User" CASCADE`;
+    await prisma.$executeRaw`TRUNCATE TABLE "User", "AccountFormEmail" CASCADE`;
   });
 
   it('answers 401 on an endpoint without @Public() when no token is sent', async () => {

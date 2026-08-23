@@ -210,6 +210,12 @@ Auth уже решён (api/CLAUDE.md): Passport local + JWT, refresh с рот�
   фоновая задача.
 - `PasswordReset`: id, userId → User (cascade), tokenHash `unique`, expiresAt,
   usedAt null (фаза 3).
+- `AccountFormEmail`: id, emailHash, sentAt; индекс `(emailHash, sentAt)` —
+  счётчик писем формы аккаунта, по образцу `VeilleFormEmail` (§ 6). `LoginAttempt`:
+  id, emailHash, attemptedAt; тот же приём — счётчик неудачных попыток входа.
+  Оба — HMAC-хеш адреса (`ACCOUNT_EMAIL_HASH_SECRET`, отдельно от секрета
+  veille), а не userId: лимиты обязаны работать и для несуществующих адресов
+  (анти-enumeration). Детали фазы 4 — `docs/research/user-account.md`.
 
 ### Sinistre
 

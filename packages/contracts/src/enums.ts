@@ -115,6 +115,25 @@ export const VEILLE_MAX_COMMUNES = 20;
 export const VEILLE_FORM_EMAIL_DAILY_LIMIT = 5;
 
 /**
+ * Cap on account mails (confirmation, "already have an account", password
+ * reset) sent to a single address within a rolling 24h window — same shape as
+ * `VEILLE_FORM_EMAIL_DAILY_LIMIT` above, one counter shared by all three mail
+ * kinds rather than one limit each.
+ */
+export const ACCOUNT_EMAIL_LIMIT = 5;
+
+/**
+ * The share of `ACCOUNT_EMAIL_LIMIT` the two registration mails (confirmation,
+ * "already have an account") may take, leaving the rest as headroom for the
+ * password-reset mail. Still one counter and still five mails a day in total
+ * (PRD, «Ограничение частоты писем аккаунта»): registration mails are the ones
+ * anybody can trigger for somebody else's address, and without a reserve five
+ * of them lock the address's owner out of the one mail that gives their
+ * account back.
+ */
+export const ACCOUNT_REGISTRATION_MAIL_LIMIT = 3;
+
+/**
  * Paths of the veille pages, relative to `FRONTEND_URL`. Declared once here:
  * both the API (mail links) and the web client (page and route handler) need
  * them (docs/plan/emails.md, "Владелец пути").

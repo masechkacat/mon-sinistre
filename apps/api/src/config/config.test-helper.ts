@@ -22,6 +22,7 @@ const VALID_ENV: Record<string, string> = {
   JWT_REFRESH_SECRET: 'y'.repeat(48),
   COOKIE_SECRET: 'x'.repeat(48),
   VEILLE_EMAIL_HASH_SECRET: 'x'.repeat(48),
+  ACCOUNT_EMAIL_HASH_SECRET: 'x'.repeat(48),
 };
 
 /** Every variable the schema declares, defaults included. Computed once. */
