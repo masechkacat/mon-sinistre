@@ -1,6 +1,6 @@
 {
   "feature": "user-account",
-  "phases": [3, 4, 5],
+  "phases": [4, 5],
   "maxIterations": 8,
   "stallLimit": 2,
   "model": "claude-sonnet-5",
