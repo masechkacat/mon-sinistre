@@ -75,17 +75,27 @@ export function refreshSession(): Promise<boolean> {
 }
 
 /**
+ * Drops the in-memory access token and leaves the client-side app entirely
+ * via `window.location.assign`, not the Next.js router: a router navigation
+ * keeps the whole app — and its module state — alive, and `assign` (unlike
+ * `replace`) keeps the page being left in session history, so the browser's
+ * own back button still lands on it — the guard on that page then has to
+ * answer for it again, including on the bfcache restore path
+ * (`useSessionGuard`). Shared by every path that ends a session outright:
+ * a lost session redirecting to login, account deletion redirecting to its
+ * public confirmation page (`espace-personnel.tsx`).
+ */
+export function clearSessionAndNavigate(path: string): void {
+  clearAccessToken();
+  window.location.assign(path);
+}
+
+/**
  * A session confirmed lost — a failed silent refresh, or an authenticated
- * request's 401 that a refresh could not recover. `window.location.assign`,
- * not the Next.js router: a router navigation keeps the whole client-side
- * app — and its module state — alive, and `assign` (unlike `replace`) keeps
- * the page being left in session history, so the browser's own back button
- * still lands on it — the guard on that page then has to answer for it
- * again, including on the bfcache restore path (`useSessionGuard`).
+ * request's 401 that a refresh could not recover.
  */
 export function redirectToLogin(): void {
-  clearAccessToken();
-  window.location.assign(LOGIN_PATH);
+  clearSessionAndNavigate(LOGIN_PATH);
 }
 
 /**

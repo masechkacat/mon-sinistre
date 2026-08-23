@@ -262,6 +262,23 @@ export const fr = {
     espacePersonnel: {
       page: { title: 'Espace personnel' },
       intro: 'Vous êtes connecté·e à votre espace personnel.',
+      emailLabel: `${EMAIL_LABEL} :`,
+      deleteAccount: {
+        button: 'Supprimer mon compte',
+        warning: {
+          title: 'Supprimer définitivement votre compte ?',
+          description:
+            'Cette action est immédiate et irréversible : votre compte et toutes les données associées seront supprimés. Vous pourrez créer un nouveau compte avec la même adresse e-mail si vous le souhaitez.',
+        },
+        cancel: 'Annuler',
+        confirm: 'Supprimer définitivement mon compte',
+        deleting: 'Suppression en cours…',
+      },
+    },
+    compteSupprime: {
+      page: { title: 'Compte supprimé' },
+      description:
+        'Votre compte et toutes les données associées ont été supprimés.',
     },
   },
   session: {
