@@ -1,17 +1,10 @@
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { jorfFixture } from 'test/fixtures/jorf';
 import { ArreteEntryOutcome } from '@mon-sinistre/contracts';
 import { parseArreteXml } from './parse-arrete';
 
-const arreteXml = readFileSync(
-  join(__dirname, 'fixtures/JORFTEXT000054245373.xml'),
-  'utf-8',
-);
+const arreteXml = jorfFixture('JORFTEXT000054245373.xml');
 /** The same arrêté shape published seven months earlier, whose annexes mark the header row up with `th` instead of `td` — JORF uses both. */
-const thHeaderArreteXml = readFileSync(
-  join(__dirname, 'fixtures/JORFTEXT000053398028.xml'),
-  'utf-8',
-);
+const thHeaderArreteXml = jorfFixture('JORFTEXT000053398028.xml');
 
 describe('parseArreteXml', () => {
   const parsed = parseArreteXml(arreteXml);

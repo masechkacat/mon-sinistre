@@ -9,8 +9,8 @@
     "start": "nest start",
     "start:dev": "nest start --watch --env-file .env",
     "start:prod": "NODE_ENV=production node dist/main",
-    "lint": "eslint \"src/**/*.ts\"",
-    "lint:fix": "eslint \"src/**/*.ts\" --fix",
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "lint:fix": "eslint \"src/**/*.ts\" \"test/**/*.ts\" --fix",
     "test": "jest --passWithNoTests",
     "test:int": "NODE_OPTIONS=--experimental-vm-modules jest --config jest.int.config.js --passWithNoTests",
     "test:watch": "jest --watch",
@@ -85,7 +85,8 @@
     },
     "moduleNameMapper": {
       "^@mon-sinistre/contracts$": "<rootDir>/../../../packages/contracts/src",
-      "^src/(.*)$": "<rootDir>/$1"
+      "^src/(.*)$": "<rootDir>/$1",
+      "^test/(.*)$": "<rootDir>/../test/$1"
     },
     "collectCoverageFrom": [
       "**/*.(t|j)s",

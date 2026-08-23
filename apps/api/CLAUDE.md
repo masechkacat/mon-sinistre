@@ -108,7 +108,8 @@ Prisma CLI, seed, скрипты `scripts/` и обвязка тестов.
 
 ## Интеграционные тесты
 
-- Спеки — `*.int-spec.ts` рядом с кодом. Юнит-конфиг их не видит, поэтому
+- Спеки — `*.int-spec.ts` в `test/integration/<модуль>/`, зеркалом `src/`.
+  Юнит-конфиг с `rootDir: src` их не видит, поэтому
   pre-commit и корневой `npm test` остаются быстрыми и без Docker.
 - `maxWorkers: 1` обязателен, пока тесты делят одну базу; если станет медленно —
   база-на-воркера через `JEST_WORKER_ID`, не testcontainers.
@@ -122,4 +123,9 @@ Prisma CLI, seed, скрипты `scripts/` и обвязка тестов.
   `createIntTestApp`.
 - `*.int-helper.ts` и `*.test-helper.ts` живут в `src/` ради алиаса и линта, под
   `testRegex` не подпадают; `tsconfig.build.json` исключает их из сборки.
+- Фикстуры — `test/fixtures/`, читаются только через свой модуль
+  (`jorfFixture`): путь к файлу не повторяется в спеках. Импорты из `test/` — по
+  алиасу `test/*` (tsconfig + оба jest-конфига), относительных путей наверх нет.
+  Сам каталог `test/` в сборку не идёт: `tsconfig.build.json` исключает его и
+  держит `rootDir: src`.
 - В CI понадобится сервисный Postgres 18.

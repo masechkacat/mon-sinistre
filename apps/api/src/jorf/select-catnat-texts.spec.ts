@@ -1,11 +1,7 @@
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { jorfFixture } from 'test/fixtures/jorf';
 import { selectCatnatTextIds } from './select-catnat-texts';
 
-const tocXml = readFileSync(
-  join(__dirname, 'fixtures/JORFCONT000054245240.xml'),
-  'utf-8',
-);
+const tocXml = jorfFixture('JORFCONT000054245240.xml');
 
 describe('selectCatnatTextIds', () => {
   it('selects the catastrophe-naturelle arrêté from the issue table of contents', () => {

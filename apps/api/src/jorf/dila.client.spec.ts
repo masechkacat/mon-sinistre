@@ -1,23 +1,10 @@
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { DILA_JORFSIMPLE_BASE_URL, DilaClient } from './dila.client';
-import {
-  buildTarball,
-  TARBALL_ROOT_DIR,
-} from './fixtures/build-tarball.test-helper';
+import { buildTarball, TARBALL_ROOT_DIR } from 'test/helpers/build-tarball';
+import { jorfFixture } from 'test/fixtures/jorf';
 
-const indexHtml = readFileSync(
-  join(__dirname, 'fixtures/dila-index.html'),
-  'utf-8',
-);
-const arreteXml = readFileSync(
-  join(__dirname, 'fixtures/JORFTEXT000054245373.xml'),
-  'utf-8',
-);
-const tocXml = readFileSync(
-  join(__dirname, 'fixtures/JORFCONT000054245240.xml'),
-  'utf-8',
-);
+const indexHtml = jorfFixture('dila-index.html');
+const arreteXml = jorfFixture('JORFTEXT000054245373.xml');
+const tocXml = jorfFixture('JORFCONT000054245240.xml');
 
 const fetchOf = (body: string | Uint8Array, status = 200) =>
   jest.fn(() => Promise.resolve(new Response(body, { status })));
