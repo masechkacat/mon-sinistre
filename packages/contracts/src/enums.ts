@@ -207,3 +207,14 @@ export type VeilleChangeStatus = (typeof VEILLE_CHANGE_STATUSES)[number];
 export const ACCOUNT_CONFIRMATION_STATUSES = ['confirmed', 'invalid'] as const;
 export type AccountConfirmationStatus =
   (typeof ACCOUNT_CONFIRMATION_STATUSES)[number];
+
+/**
+ * `reset` covers a successful password change. `invalid` covers an unknown
+ * token, an expired one and an already-used one — the three causes are never
+ * told apart in the response (anti-enumeration), same principle as
+ * `ACCOUNT_CONFIRMATION_STATUSES` above. Unlike account confirmation, this is
+ * not idempotent: a token can only ever reach `reset` once (`usedAt`), so a
+ * repeat submission of the same token answers `invalid`.
+ */
+export const PASSWORD_RESET_STATUSES = ['reset', 'invalid'] as const;
+export type PasswordResetStatus = (typeof PASSWORD_RESET_STATUSES)[number];

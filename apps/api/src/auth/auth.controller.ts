@@ -24,6 +24,7 @@ import type {
   AccountConfirmationResponse,
   CurrentUserResponse,
   LoginResponse,
+  ResetPasswordResponse,
 } from '@mon-sinistre/contracts';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { EnvironmentVariables } from 'src/config/env.validation';
@@ -37,6 +38,8 @@ import { LoginDto } from './dto/login.dto';
 import { LoginResponseDto } from './dto/login-response.dto';
 import { RegisterDto } from './dto/register.dto';
 import { RequestPasswordResetDto } from './dto/request-password-reset.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
+import { ResetPasswordResponseDto } from './dto/reset-password-response.dto';
 import type { JwtUser } from './jwt.strategy';
 import { LocalAuthGuard } from './local-auth.guard';
 import { Public } from './public.decorator';
@@ -134,6 +137,27 @@ export class AuthController {
     @Body() dto: RequestPasswordResetDto,
   ): Promise<void> {
     await this.auth.requestPasswordReset(dto.email);
+  }
+
+  @Public()
+  @Post('password-reset/confirm')
+  // Nest answers 201 to a POST by default; the contract of this endpoint is
+  // 200 { status } whatever the token turns out to be.
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Set a new password from a password-reset link',
+    description:
+      'Body validation (new password policy) answers 400 before the token ' +
+      'is ever looked at. Past that, the token is single-use: an unknown, ' +
+      'expired or already-used one all answer "invalid", the cause not ' +
+      'told apart. A successful reset revokes every refresh token of the ' +
+      'account — every other device is signed out.',
+  })
+  @ApiOkResponse({ type: ResetPasswordResponseDto })
+  async resetPassword(
+    @Body() dto: ResetPasswordDto,
+  ): Promise<ResetPasswordResponse> {
+    return { status: await this.auth.resetPassword(dto.token, dto.password) };
   }
 
   @Public()

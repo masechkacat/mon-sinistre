@@ -5,7 +5,7 @@ import { NormalizeEmail } from 'src/common/normalize-email.decorator';
 /**
  * Body of `POST /auth/password-reset` — email only. No password here: the
  * CNIL policy applies to the one the token endpoint sets
- * (`docs/plan/user-account.md`, phase 3, next issue).
+ * (`dto/reset-password.dto.ts`, `POST /auth/password-reset/confirm`).
  */
 export class RequestPasswordResetDto {
   @ApiProperty({ example: 'victime@example.fr' })

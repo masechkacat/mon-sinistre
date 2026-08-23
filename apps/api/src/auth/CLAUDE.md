@@ -4,9 +4,9 @@
 Решения фичи — `docs/research/user-account.md`; разбивка по фазам —
 `docs/plan/user-account.md`. Модуль реализует регистрацию, подтверждение,
 вход, ротацию refresh, выход, чтение текущего пользователя, удаление
-аккаунта (фаза 2) и запрос сброса пароля (фаза 3, начата); смена пароля по
-токену и повторная регистрация — та же фаза, ещё не реализованы;
-документируются здесь по мере появления.
+аккаунта (фаза 2), запрос сброса пароля и смену пароля по токену (фаза 3,
+начата); повторная регистрация — та же фаза, ещё не реализована;
+документируется здесь по мере появления.
 
 ## Точки входа
 
@@ -56,8 +56,14 @@
   reasoning as `issueTokens`'s own `P2003` handling above. `password-reset-mail.ts`
   (`passwordResetMailFor`) is the one build of that mail; it reuses
   `fr.mail.account.reason` rather than restating why the person is on the
-  list. The token endpoint that spends this row —
-  `docs/plan/user-account.md`, phase 3, next issue.
+  list.
+- `POST /auth/password-reset/confirm` → `AuthService.resetPassword`; the
+  endpoint that spends the row above and sets a new password. The atomic
+  claim, the anti-enumeration answer and the session revoke are all in the
+  method's own docblock, not repeated here. `dto/reset-password.dto.ts`
+  (`ResetPasswordDto`) extends the shared `TokenDto` and reuses
+  `IsAccountPassword` for the new password — same policy and message as
+  `RegisterDto`, second copy not warranted.
 - `POST /auth/login` → `LocalAuthGuard` (`local-auth.guard.ts`, оборачивает
   `passport-local`) → `LocalStrategy` (`local.strategy.ts`) →
   `AuthService.validateCredentials`. Гвард выполняется раньше пайпа — тело
@@ -98,8 +104,9 @@
   остальное, что кончает токен (`logout`, чистка цепочки, каскад удаления
   аккаунта), строку удаляет. Поэтому `count === 0` при найденной строке
   читается по `revokedAt`: моложе `REFRESH_ROTATION_GRACE_MS` — вторая вкладка
-  или ретрай клиента, выдаётся своя свежая пара; старше — replay
-  украденного токена, `deleteMany` всех живых строк пользователя и `401`.
+  или ретрай клиента, выдаётся своя свежая пара; старше — replay украденного
+  токена, `endAllSessions` (приватный метод, общий со сбросом пароля ниже)
+  сносит все живые строки пользователя и отвечает `401`.
   Неизвестный `tokenHash` (никогда не выпускался, либо удалён `logout`'ом;
   чистка просроченных строк по расписанию — `docs/plan/user-account.md`,
   фаза 4) отвечает тем же `401` без цепочки. Один ответ на все причины —

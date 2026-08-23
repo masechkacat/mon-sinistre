@@ -11,6 +11,7 @@ import {
   type AccountConfirmationStatus,
   type CurrentUserResponse,
   type LoginResponse,
+  type PasswordResetStatus,
 } from '@mon-sinistre/contracts';
 import { awaitingConfirmation } from 'src/common/confirmation-window';
 import { generateSecureToken, hashSecureToken } from 'src/common/secure-token';
@@ -208,6 +209,48 @@ export class AuthService {
   }
 
   /**
+   * Atomic claim, same shape as `VeilleService.applyChange`: a `findUnique`
+   * gets `userId` for the write that follows, then a conditional
+   * `updateMany` (`usedAt: null`, `expiresAt` in the future, in the `where`,
+   * not read-then-update) is the actual one-time-use capture — a repeat
+   * submission of the same token, an expired one and an unknown one all
+   * resolve through that single `count`, no `P2025` in sight. Only a
+   * genuine claim reaches the password write and `endAllSessions`, so a
+   * losing race never touches either. The new password is hashed only after
+   * the claim succeeds — an invalid token costs one indexed lookup, not a
+   * ~250 ms bcrypt hash. Runs in one transaction: a failure past the claim
+   * (hash, write, revoke) rolls the claim back too, leaving the token usable
+   * for a retry instead of burning it on a 500.
+   */
+  async resetPassword(
+    token: string,
+    newPassword: string,
+  ): Promise<PasswordResetStatus> {
+    const tokenHash = hashSecureToken(token);
+    return this.prisma.$transaction(async (tx) => {
+      const reset = await tx.passwordReset.findUnique({
+        where: { tokenHash },
+        select: { userId: true },
+      });
+      if (!reset) return 'invalid';
+
+      const claimed = await tx.passwordReset.updateMany({
+        where: { tokenHash, usedAt: null, expiresAt: { gte: new Date() } },
+        data: { usedAt: new Date() },
+      });
+      if (claimed.count === 0) return 'invalid';
+
+      const passwordHash = await bcrypt.hash(newPassword, this.saltRounds);
+      await tx.user.update({
+        where: { id: reset.userId },
+        data: { passwordHash },
+      });
+      await this.endAllSessions(reset.userId, tx);
+      return 'reset';
+    });
+  }
+
+  /**
    * `null` covers three causes — unknown address, wrong password, unconfirmed
    * account — on purpose: `LocalStrategy` answers all three with the same 401
    * (`src/auth/CLAUDE.md`, anti-enumeration), so telling them apart here would
@@ -337,10 +380,25 @@ export class AuthService {
     if (sinceRotation < REFRESH_ROTATION_GRACE_MS) {
       return this.issueTokens(reused.userId);
     }
-    await this.prisma.refreshToken.deleteMany({
-      where: { userId: reused.userId, revokedAt: null },
-    });
+    await this.endAllSessions(reused.userId);
     throw new UnauthorizedException(fr.auth.session.expired);
+  }
+
+  /**
+   * Deletes every still-live `RefreshToken` of a user — same invariant as
+   * `logout` (`revokedAt` is set only by rotation, everything else that ends
+   * a token deletes the row). Shared by the reuse-detected branch of
+   * `refresh` above and by `resetPassword` below, the two places a whole
+   * account's sessions end at once outside `deleteAccount` (which needs no
+   * separate call — the cascade takes the rows with it).
+   */
+  private endAllSessions(
+    userId: string,
+    db: Prisma.TransactionClient = this.prisma,
+  ) {
+    return db.refreshToken.deleteMany({
+      where: { userId, revokedAt: null },
+    });
   }
 
   /**
