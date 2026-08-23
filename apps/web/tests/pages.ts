@@ -69,6 +69,18 @@ export const veilleChange = {
       }),
     ),
 } as const;
+export const inscription = {
+  path: '/inscription' satisfies Route,
+  status: 200,
+} as const;
+// Unlike veilleConfirmation, no mockApi: nothing fires on load (see
+// CompteConfirmation's own docblock) — the button is on screen from the
+// first paint, no in-flight request for a shared suite to race.
+export const confirmation = {
+  path: '/confirmation?token=invalide' as Route,
+  status: 200,
+} as const;
+
 // Derived from the registry the footer renders, so a legal page cannot be
 // covered by the shared suites while missing from the site, or vice versa.
 const legalEntries = legalPages.map(
@@ -83,6 +95,8 @@ export const pages = [
   veilleConfirmation,
   veilleDesinscriptionConfirmer,
   veilleChange,
+  inscription,
+  confirmation,
   ...legalEntries,
 ] as const;
 

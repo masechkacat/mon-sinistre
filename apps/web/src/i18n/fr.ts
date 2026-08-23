@@ -1,3 +1,8 @@
+import {
+  PASSWORD_MIN_CHAR_CLASSES,
+  PASSWORD_MIN_LENGTH,
+} from '@mon-sinistre/contracts';
+
 // The space before ":" and "?" is a literal U+00A0, not a typo — same
 // convention as apps/api/src/i18n/fr.ts.
 
@@ -5,9 +10,39 @@
 // (link being checked, link no longer usable, alert reaches the watched
 // communes), same wording — one string, not a fact stated twice.
 const VEILLE_LIEN_VERIFICATION_EN_COURS = 'Vérification du lien en cours…';
-const VEILLE_LIEN_INVALIDE = 'Lien invalide';
 const VEILLE_ALERTE_ARRETE =
   'Vous recevrez un message le jour même de la publication d’un arrêté de catastrophe naturelle concernant une des communes surveillées.';
+
+// Shared by every confirm-by-link screen (veille.confirmation,
+// veille.change, compte.confirmation below) — one wording per fact, not one
+// copy per feature.
+const LIEN_INVALIDE = 'Lien invalide';
+const LIEN_CONFIRMATION_INVALIDE_DESCRIPTION =
+  'Ce lien de confirmation n’est plus valable : il a peut-être déjà été utilisé, ou son délai de validité est dépassé.';
+const CONFIRMER = 'Confirmer';
+const CONFIRMATION_EN_COURS = 'Confirmation en cours…';
+const VERIFIEZ_BOITE_EMAIL = 'Vérifiez votre boîte e-mail';
+
+// Shared by every form with a plain email field (veille.form,
+// compte.inscription below) — one wording per fact, not one copy per
+// feature.
+const EMAIL_LABEL = 'Adresse e-mail';
+const EMAIL_PLACEHOLDER = 'vous@exemple.fr';
+const EMAIL_REQUIRED_ERROR = 'Indiquez votre adresse e-mail.';
+const EMAIL_INVALID_ERROR = 'Indiquez une adresse e-mail valide.';
+const PRIVACY_POLICY_LINK = 'Consulter notre politique de confidentialité';
+
+// Same wording and same source as the server-side message
+// (apps/api/src/i18n/fr.ts, `auth.password.requirements`) — the two files
+// serve different runtimes, so the string cannot live in one place, but it
+// names every requirement at once for the same reason: a rejected password
+// should not make the visitor guess which rule it broke.
+const PASSWORD_REQUIREMENTS =
+  'Le mot de passe doit compter au moins ' +
+  String(PASSWORD_MIN_LENGTH) +
+  ' caractères et combiner au moins ' +
+  String(PASSWORD_MIN_CHAR_CLASSES) +
+  ' des catégories suivantes : majuscule, minuscule, chiffre, caractère spécial.';
 
 export const fr = {
   serviceName: 'Mon Sinistre',
@@ -69,18 +104,18 @@ export const fr = {
       maxCommunesReached: (max: number) =>
         `Nombre maximal de ${max} communes atteint`,
       communesRequiredError: 'Choisissez au moins une commune à surveiller.',
-      emailLabel: 'Adresse e-mail',
-      emailPlaceholder: 'vous@exemple.fr',
-      emailRequiredError: 'Indiquez votre adresse e-mail.',
-      emailInvalidError: 'Indiquez une adresse e-mail valide.',
+      emailLabel: EMAIL_LABEL,
+      emailPlaceholder: EMAIL_PLACEHOLDER,
+      emailRequiredError: EMAIL_REQUIRED_ERROR,
+      emailInvalidError: EMAIL_INVALID_ERROR,
       purpose:
         'Votre adresse e-mail sert uniquement à vous prévenir lorsqu’un arrêté de catastrophe naturelle concerne une commune surveillée.',
-      privacyPolicyLink: 'Consulter notre politique de confidentialité',
+      privacyPolicyLink: PRIVACY_POLICY_LINK,
       submit: 'S’inscrire à la veille',
       submitting: 'Inscription en cours…',
     },
     confirmationSent: {
-      title: 'Vérifiez votre boîte e-mail',
+      title: VERIFIEZ_BOITE_EMAIL,
       description:
         'Un e-mail de confirmation vient de vous être envoyé. Ouvrez-le et cliquez sur le lien qu’il contient pour activer votre veille.',
     },
@@ -91,16 +126,15 @@ export const fr = {
         description:
           'Pour activer votre veille, confirmez que cette adresse e-mail est bien la vôtre.',
       },
-      confirmButton: 'Confirmer',
-      confirming: 'Confirmation en cours…',
+      confirmButton: CONFIRMER,
+      confirming: CONFIRMATION_EN_COURS,
       active: {
         title: 'Votre veille est active',
         description: VEILLE_ALERTE_ARRETE,
       },
       invalid: {
-        title: VEILLE_LIEN_INVALIDE,
-        description:
-          'Ce lien de confirmation n’est plus valable : il a peut-être déjà été utilisé, ou son délai de validité est dépassé.',
+        title: LIEN_INVALIDE,
+        description: LIEN_CONFIRMATION_INVALIDE_DESCRIPTION,
       },
     },
     change: {
@@ -117,7 +151,7 @@ export const fr = {
         description: `La liste des communes surveillées a été mise à jour. ${VEILLE_ALERTE_ARRETE}`,
       },
       invalid: {
-        title: VEILLE_LIEN_INVALIDE,
+        title: LIEN_INVALIDE,
         description:
           'Ce lien de modification n’est plus valable : il a peut-être déjà été utilisé, ou son délai de validité est dépassé.',
       },
@@ -134,6 +168,47 @@ export const fr = {
           description:
             'Votre adresse e-mail a été retirée de la veille. Vous pouvez vous réinscrire à tout moment depuis la page d’inscription.',
         },
+      },
+    },
+  },
+  compte: {
+    inscription: {
+      page: { title: 'Créer un compte' },
+      lead: 'Créez votre compte pour accéder à votre espace personnel et suivre votre sinistre.',
+      emailLabel: EMAIL_LABEL,
+      emailPlaceholder: EMAIL_PLACEHOLDER,
+      emailRequiredError: EMAIL_REQUIRED_ERROR,
+      emailInvalidError: EMAIL_INVALID_ERROR,
+      passwordLabel: 'Mot de passe',
+      passwordRequiredError: 'Choisissez un mot de passe.',
+      passwordRequirementsError: PASSWORD_REQUIREMENTS,
+      purpose:
+        'Votre adresse e-mail et votre mot de passe servent uniquement à créer votre compte et à vous permettre de vous reconnecter.',
+      privacyPolicyLink: PRIVACY_POLICY_LINK,
+      submit: 'Créer mon compte',
+      submitting: 'Création en cours…',
+      confirmationSent: {
+        title: VERIFIEZ_BOITE_EMAIL,
+        description:
+          'Un e-mail de confirmation vient de vous être envoyé. Ouvrez-le et cliquez sur le lien qu’il contient, puis confirmez pour activer votre compte.',
+      },
+    },
+    confirmation: {
+      page: { title: 'Confirmer votre compte' },
+      pending: {
+        description:
+          'Pour activer votre compte, confirmez que vous êtes bien à l’origine de cette inscription.',
+      },
+      confirmButton: CONFIRMER,
+      confirming: CONFIRMATION_EN_COURS,
+      confirmed: {
+        title: 'Compte activé',
+        description:
+          'Votre compte est activé. Vous pouvez maintenant vous connecter.',
+      },
+      invalid: {
+        title: LIEN_INVALIDE,
+        description: LIEN_CONFIRMATION_INVALIDE_DESCRIPTION,
       },
     },
   },
