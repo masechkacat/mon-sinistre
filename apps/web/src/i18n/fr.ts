@@ -137,6 +137,11 @@ export const fr = {
       },
     },
   },
+  session: {
+    checking: 'Vérification de la session…',
+    loggedIn: 'Connecté·e',
+    logout: 'Se déconnecter',
+  },
   serverError: {
     title: 'Une erreur est survenue',
     description:
