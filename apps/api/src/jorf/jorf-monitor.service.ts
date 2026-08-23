@@ -5,6 +5,7 @@ import type { IsoDate } from '@mon-sinistre/contracts';
 import { ConfigService } from '@nestjs/config';
 import { Cron } from '@nestjs/schedule';
 import { errorSummary, stackOf } from 'src/common/error-report';
+import { loadSuccessorMap } from 'src/communes/load-successor-map';
 import { normalizeCommuneName } from 'src/communes/normalize-commune-name';
 import type { EnvironmentVariables } from 'src/config/env.validation';
 import { DeadlineRuleService } from 'src/deadline-rules/deadline-rule.service';
@@ -477,7 +478,7 @@ export class JorfMonitorService {
     // rather than at 06:00 the next calendar day (ТЗ § 6, "письмо
     // наблюдателю — в день обнаружения arrêté").
     const pass: SendPass = {
-      successorOf: await this.loadSuccessorMap(),
+      successorOf: await loadSuccessorMap(this.prisma),
       recipients: new Map(),
       attempted: new Set(),
     };
@@ -1054,22 +1055,6 @@ export class JorfMonitorService {
       { timeout: INGEST_TX_TIMEOUT_MS },
     );
     await this.notifyAdmin(alerts);
-  }
-
-  /** `Commune.successorCodeInsee` reduced to a map, read once per run for both the outbox write ({@link queueNotifications}, via {@link resolveRecipients}) and the send step below — only rows that merged carry one, so this is a small fraction of the referential. */
-  private async loadSuccessorMap(): Promise<Map<string, string>> {
-    const rows = await this.prisma.commune.findMany({
-      where: { successorCodeInsee: { not: null } },
-      select: { codeInsee: true, successorCodeInsee: true },
-    });
-    return new Map(
-      rows
-        .filter(
-          (row): row is { codeInsee: string; successorCodeInsee: string } =>
-            row.successorCodeInsee !== null,
-        )
-        .map((row) => [row.codeInsee, row.successorCodeInsee]),
-    );
   }
 
   /**

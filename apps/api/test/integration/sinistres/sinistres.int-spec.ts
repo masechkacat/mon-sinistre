@@ -1,5 +1,9 @@
+import { ConfigService } from '@nestjs/config';
+import { JwtService } from '@nestjs/jwt';
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { toIsoDate } from '@mon-sinistre/contracts';
+import { TOKEN_TYPE, type TokenPayload } from 'src/auth/auth.service';
+import type { EnvironmentVariables } from 'src/config/env.validation';
 import { todayInParis } from 'src/common/time/today-in-paris';
 import { resolveDeadline } from 'src/deadline-rules/resolve-deadline';
 import { fr } from 'src/i18n/fr';
@@ -22,6 +26,19 @@ import {
 interface SinistreWithSteps {
   id: string;
   steps: { id: string; anchor: string | null; status: string }[];
+}
+
+interface SinistreWithDetail extends SinistreWithSteps {
+  status: string;
+  arreteEntryId: string | null;
+  declarationDate: string | null;
+  steps: {
+    id: string;
+    anchor: string | null;
+    status: string;
+    plannedDate: string | null;
+    source: { url: string } | null;
+  }[];
 }
 
 // POST /sinistres and GET /sinistres/:id, docs/plan/sinistre-plan.md, Фаза 1
@@ -66,6 +83,26 @@ describe('SinistresController (integration)', () => {
       payload: { codeInsee: '30189', risque: 'INONDATION', eventDate },
     });
     return JSON.parse(res.payload) as SinistreWithSteps;
+  }
+
+  /** The one step with `anchor` and a non-null `source` — a legal step
+   * whose deadline rule resolved — or throws, shared by every describe below
+   * that reads a specific anchor's step off a `SinistreDetail` response. */
+  function legalStepOf<
+    T extends {
+      steps: {
+        anchor: string | null;
+        source: { url: string } | null;
+      }[];
+    },
+  >(sinistre: T, anchor: string): T['steps'][number] {
+    const step = sinistre.steps.find(
+      (s) => s.anchor === anchor && s.source !== null,
+    );
+    if (!step) {
+      throw new Error(`fixture has no ${anchor} legal step`);
+    }
+    return step;
   }
 
   it('creates a sinistre and snapshots the plan: DATE_SINISTRE steps get dates, DATE_PUBLICATION_ARRETE/DATE_DECLARATION steps get a deadline source but no plannedDate', async () => {
@@ -326,6 +363,123 @@ describe('SinistresController (integration)', () => {
     expect(res.statusCode).toBe(400);
   });
 
+  // POST /sinistres — привязка к уже загруженному arrêté при создании,
+  // docs/plan/sinistre-plan.md, Фаза 3 (issue #156).
+  describe('POST /sinistres — привязка к уже загруженному arrêté', () => {
+    async function createEntry(overrides: {
+      publishedAt: string;
+      outcome?: 'RECONNU' | 'REFUSE';
+      risque?: string;
+      eventStart?: Date;
+      eventEnd?: Date;
+    }) {
+      const arrete = await prisma.arrete.create({
+        data: {
+          ...arreteData(),
+          publishedAt: new Date(overrides.publishedAt),
+          entries: {
+            create: [
+              arreteEntryData('30189', {
+                outcome: overrides.outcome ?? 'RECONNU',
+                risque: overrides.risque,
+                eventStart: overrides.eventStart ?? new Date('2026-06-01'),
+                eventEnd: overrides.eventEnd ?? new Date('2026-06-20'),
+              }),
+            ],
+          },
+        },
+        include: { entries: true },
+      });
+      return arrete.entries[0]!;
+    }
+
+    /**
+     * Mints a bearer token straight through `JwtService`, bypassing
+     * `POST /auth/login` — the file's other describes already run each test
+     * to a real login and sit right at `AUTH_FORM_RATE_LIMIT` (30/min,
+     * `src/auth/auth.controller.ts`); four more login calls here would tip
+     * the last few over it. Same secret and payload shape
+     * `AuthService.issueTokens` signs with (`src/auth/auth.service.ts`), so
+     * `JwtStrategy` verifies it identically to a real login.
+     */
+    async function headersFor(email: string) {
+      const user = await prisma.user.findUniqueOrThrow({ where: { email } });
+      const config =
+        app.get<ConfigService<EnvironmentVariables, true>>(ConfigService);
+      const accessToken = await app
+        .get(JwtService)
+        .signAsync(
+          { sub: user.id, typ: TOKEN_TYPE.access } satisfies TokenPayload,
+          {
+            secret: config.get('JWT_SECRET', { infer: true }),
+            expiresIn: config.get('ACCESS_TOKEN_EXPIRY', { infer: true }),
+          },
+        );
+      return withBearer(accessToken);
+    }
+
+    async function postSinistre(eventDate = '2026-06-10') {
+      const email = await createUser(prisma);
+      const headers = await headersFor(email);
+      const res = await app.inject({
+        method: 'POST',
+        url: '/sinistres',
+        headers,
+        payload: { codeInsee: '30189', risque: 'INONDATION', eventDate },
+      });
+      return JSON.parse(res.payload) as SinistreWithDetail;
+    }
+
+    it('links to a RECONNU entry at creation, dating the déclaration deadline off the publication date rather than today (critère PRD № 3)', async () => {
+      const rule = await prisma.deadlineRule.findFirstOrThrow({
+        where: { code: 'DECLARATION_ASSUREUR' },
+      });
+      const entry = await createEntry({ publishedAt: '2026-06-05' });
+
+      const body = await postSinistre();
+
+      expect(body.status).toBe('ARRETE_PUBLIE');
+      expect(body.arreteEntryId).toBe(entry.id);
+      expect(legalStepOf(body, 'DATE_PUBLICATION_ARRETE').plannedDate).toBe(
+        resolveDeadline(toIsoDate('2026-06-05'), rule.duration, rule.unit),
+      );
+    });
+
+    it('shows the déclaration deadline as overdue when the arrêté was published long ago (critère PRD № 5)', async () => {
+      await createEntry({
+        publishedAt: '2026-01-01',
+        eventStart: new Date('2025-12-25'),
+        eventEnd: new Date('2026-01-10'),
+      });
+
+      const body = await postSinistre('2026-01-05');
+
+      expect(legalStepOf(body, 'DATE_PUBLICATION_ARRETE').status).toBe(
+        'EN_RETARD',
+      );
+    });
+
+    it('links to a REFUSE entry into ARRETE_REFUSE without a déclaration deadline (critère PRD № 6)', async () => {
+      await createEntry({ publishedAt: '2026-06-05', outcome: 'REFUSE' });
+
+      const body = await postSinistre();
+
+      expect(body.status).toBe('ARRETE_REFUSE');
+      expect(
+        legalStepOf(body, 'DATE_PUBLICATION_ARRETE').plannedDate,
+      ).toBeNull();
+    });
+
+    it('leaves an unmatched sinistre AVANT_ARRETE when the loaded arrêté names a different risque (critère PRD № 7)', async () => {
+      await createEntry({ publishedAt: '2026-06-05', risque: 'Séismes' });
+
+      const body = await postSinistre();
+
+      expect(body.status).toBe('AVANT_ARRETE');
+      expect(body.arreteEntryId).toBeNull();
+    });
+  });
+
   // GET /sinistres and DELETE /sinistres/:id, docs/plan/sinistre-plan.md,
   // Фаза 2 (issue #151).
   describe('GET /sinistres and DELETE /sinistres/:id', () => {
@@ -558,18 +712,6 @@ describe('SinistresController (integration)', () => {
 
   // PATCH /sinistres/:id, docs/plan/sinistre-plan.md, Фаза 2 (issue #153).
   describe('PATCH /sinistres/:id', () => {
-    interface SinistreWithDetail extends SinistreWithSteps {
-      status: string;
-      declarationDate: string | null;
-      steps: {
-        id: string;
-        anchor: string | null;
-        status: string;
-        plannedDate: string | null;
-        source: { url: string } | null;
-      }[];
-    }
-
     async function reread(
       headers: ReturnType<typeof withBearer>,
       sinistreId: string,
@@ -580,16 +722,6 @@ describe('SinistresController (integration)', () => {
         headers,
       });
       return JSON.parse(res.payload) as SinistreWithDetail;
-    }
-
-    function informStepOf(sinistre: SinistreWithDetail) {
-      const step = sinistre.steps.find(
-        (s) => s.anchor === 'DATE_DECLARATION' && s.source !== null,
-      );
-      if (!step) {
-        throw new Error('fixture has no DATE_DECLARATION legal step');
-      }
-      return step;
     }
 
     async function informRule() {
@@ -646,7 +778,7 @@ describe('SinistresController (integration)', () => {
       // declaration, whichever is later — still has nothing to compare the
       // declaration against (docs/research/sinistre-plan.md, «Опорная дата
       // DATE_DECLARATION»).
-      expect(informStepOf(declared).plannedDate).toBeNull();
+      expect(legalStepOf(declared, 'DATE_DECLARATION').plannedDate).toBeNull();
 
       const clearRes = await app.inject({
         method: 'PATCH',
@@ -678,7 +810,7 @@ describe('SinistresController (integration)', () => {
       expect(setRes.statusCode).toBe(200);
       const declared = JSON.parse(setRes.payload) as SinistreWithDetail;
       expect(declared.status).toBe('DECLARE');
-      expect(informStepOf(declared).plannedDate).toBe(
+      expect(legalStepOf(declared, 'DATE_DECLARATION').plannedDate).toBe(
         resolveDeadline(toIsoDate('2026-07-20'), rule.duration, rule.unit),
       );
 
@@ -693,7 +825,7 @@ describe('SinistresController (integration)', () => {
       const cleared = JSON.parse(clearRes.payload) as SinistreWithDetail;
       expect(cleared.status).toBe('ARRETE_PUBLIE');
       expect(cleared.declarationDate).toBeNull();
-      expect(informStepOf(cleared).plannedDate).toBeNull();
+      expect(legalStepOf(cleared, 'DATE_DECLARATION').plannedDate).toBeNull();
     });
 
     it("does not pull the insurer's response deadline earlier than the legal one when the declaration precedes the arrêté's publication", async () => {
@@ -718,8 +850,8 @@ describe('SinistresController (integration)', () => {
         rule.duration,
         rule.unit,
       );
-      expect(informStepOf(body).plannedDate).toBe(expected);
-      expect(informStepOf(body).plannedDate).not.toBe(
+      expect(legalStepOf(body, 'DATE_DECLARATION').plannedDate).toBe(expected);
+      expect(legalStepOf(body, 'DATE_DECLARATION').plannedDate).not.toBe(
         resolveDeadline(toIsoDate('2026-06-15'), rule.duration, rule.unit),
       );
     });
