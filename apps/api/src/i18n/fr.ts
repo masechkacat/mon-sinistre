@@ -70,6 +70,8 @@ export const fr = {
       'La date de déclaration doit être une date réelle, au format AAAA-MM-JJ (par exemple 2026-06-15), ou vide.',
     declarationDateInFuture:
       'La date de déclaration ne peut pas être postérieure à aujourd’hui.',
+    declarationDateBeforeEvent:
+      'La date de déclaration ne peut pas être antérieure à la date de l’événement.',
     unknownCommune: 'Commune inconnue.',
   },
   mail: {

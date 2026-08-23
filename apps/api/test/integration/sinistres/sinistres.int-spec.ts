@@ -488,6 +488,47 @@ describe('SinistresController (integration)', () => {
       expect(updated.status).toBe(target.status);
     });
 
+    it('keeps the original completedAt when the same status is sent again', async () => {
+      const email = await createUser(prisma);
+      const headers = await bearerFor(email);
+      const sinistre = await createSinistre(headers);
+      const target = sinistre.steps.find((s) => s.anchor === 'DATE_SINISTRE');
+      if (!target) {
+        throw new Error('fixture has no DATE_SINISTRE step');
+      }
+
+      await app.inject({
+        method: 'PATCH',
+        url: `/sinistres/${sinistre.id}/etapes/${target.id}`,
+        headers,
+        payload: { status: 'FAIT' },
+      });
+      // Backdated: rewriting today's date with today's would hide the bug.
+      await prisma.step.update({
+        where: { id: target.id },
+        data: { completedAt: new Date('2026-06-05') },
+      });
+
+      const res = await app.inject({
+        method: 'PATCH',
+        url: `/sinistres/${sinistre.id}/etapes/${target.id}`,
+        headers,
+        payload: { status: 'FAIT' },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const updated = JSON.parse(res.payload) as {
+        status: string;
+        completedAt: string | null;
+      };
+      expect(updated.status).toBe('FAIT');
+      expect(updated.completedAt).toBe('2026-06-05');
+      const stored = await prisma.step.findUniqueOrThrow({
+        where: { id: target.id },
+      });
+      expect(stored.completedAt).toEqual(new Date('2026-06-05'));
+    });
+
     it('answers 404 for a step on a sinistre owned by someone else and leaves it unchanged', async () => {
       const ownerEmail = await createUser(prisma);
       const ownerHeaders = await bearerFor(ownerEmail);
@@ -570,8 +611,7 @@ describe('SinistresController (integration)', () => {
           publishedAt: new Date(publishedAt),
           entries: {
             create: [
-              arreteEntryData({
-                codeInsee: '30189',
+              arreteEntryData('30189', {
                 eventStart: new Date('2026-01-01'),
                 eventEnd: new Date('2026-12-31'),
               }),
@@ -728,6 +768,78 @@ describe('SinistresController (integration)', () => {
       );
       expect(missing.statusCode).toBe(400);
       expect(missing.payload).toContain(fr.sinistres.declarationDateRequired);
+    });
+
+    it('rejects a declarationDate earlier than the eventDate with a French message', async () => {
+      const email = await createUser(prisma);
+      const headers = await bearerFor(email);
+      const sinistre = await createSinistre(headers, '2026-06-01');
+
+      const res = await app.inject({
+        method: 'PATCH',
+        url: `/sinistres/${sinistre.id}`,
+        headers,
+        payload: { declarationDate: '2025-06-20' },
+      });
+
+      expect(res.statusCode).toBe(400);
+      expect(res.payload).toContain(fr.sinistres.declarationDateBeforeEvent);
+      const after = await reread(headers, sinistre.id);
+      expect(after.declarationDate).toBeNull();
+      expect(after.status).toBe('AVANT_ARRETE');
+    });
+
+    it('leaves a CLOS sinistre closed: declaring a date does not reopen it', async () => {
+      const email = await createUser(prisma);
+      const headers = await bearerFor(email);
+      const sinistre = await createSinistre(headers);
+      await prisma.sinistre.update({
+        where: { id: sinistre.id },
+        data: { status: 'CLOS' },
+      });
+
+      const res = await app.inject({
+        method: 'PATCH',
+        url: `/sinistres/${sinistre.id}`,
+        headers,
+        payload: { declarationDate: '2026-06-20' },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.payload) as SinistreWithDetail;
+      expect(body.status).toBe('CLOS');
+      expect(body.declarationDate).toBe('2026-06-20');
+    });
+
+    it('does not recompute a step the user added themselves, even on the DATE_DECLARATION anchor', async () => {
+      const email = await createUser(prisma);
+      const headers = await bearerFor(email);
+      const sinistre = await createSinistre(headers);
+      const own = await prisma.step.create({
+        data: {
+          sinistreId: sinistre.id,
+          name: 'Rappeler le courtier',
+          description: 'Ajouté par l’assuré.',
+          anchor: 'DATE_DECLARATION',
+          offsetDays: 3,
+          plannedDate: new Date('2026-07-15'),
+          fromTemplate: false,
+          order: 99,
+        },
+      });
+
+      const res = await app.inject({
+        method: 'PATCH',
+        url: `/sinistres/${sinistre.id}`,
+        headers,
+        payload: { declarationDate: '2026-06-20' },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.payload) as SinistreWithDetail;
+      expect(body.steps.find((s) => s.id === own.id)?.plannedDate).toBe(
+        '2026-07-15',
+      );
     });
 
     it('answers the same 404 for a sinistre owned by someone else as for a nonexistent one, and leaves it unchanged', async () => {

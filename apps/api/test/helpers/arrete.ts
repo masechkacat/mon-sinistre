@@ -13,10 +13,12 @@ export function arreteData(overrides: Partial<{ nor: string }> = {}) {
   };
 }
 
-/** Minimal `ArreteEntry` row for nesting under `arreteData()` via `entries.create`. */
+/** Minimal `ArreteEntry` row for nesting under `arreteData()` via `entries.create`.
+ * `codeInsee` is a parameter, not an override: omitted, it would build an entry
+ * with no commune (`docs/research/data-model.md` § 4, `ArreteEntry`). */
 export function arreteEntryData(
+  codeInsee: string,
   overrides: Partial<{
-    codeInsee: string;
     communeLabelRaw: string;
     departementRaw: string;
     risque: string;
@@ -27,7 +29,7 @@ export function arreteEntryData(
   }> = {},
 ) {
   return {
-    codeInsee: overrides.codeInsee as string,
+    codeInsee,
     communeLabelRaw: overrides.communeLabelRaw ?? 'Nîmes',
     departementRaw: overrides.departementRaw ?? 'Gard',
     risque: overrides.risque ?? 'Inondations',

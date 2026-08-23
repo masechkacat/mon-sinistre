@@ -111,7 +111,7 @@ describe('Sinistre / Step / StepTemplate schema (integration)', () => {
       data: {
         ...arreteData(),
         entries: {
-          create: [arreteEntryData({ codeInsee: commune.codeInsee })],
+          create: [arreteEntryData(commune.codeInsee)],
         },
       },
       include: { entries: true },

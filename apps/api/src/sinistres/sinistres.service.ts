@@ -4,11 +4,12 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import type {
-  IsoDate,
-  SinistreDetail,
-  SinistreSummary,
-  Step,
+import {
+  SinistreStatus,
+  type IsoDate,
+  type SinistreDetail,
+  type SinistreSummary,
+  type Step,
 } from '@mon-sinistre/contracts';
 import type {
   StepAnchor,
@@ -100,7 +101,11 @@ export class SinistresService {
         risque: dto.risque,
         eventDate: isoDateToDate(dto.eventDate),
         declarationDate: null,
-        status: sinistreStatus(null, null),
+        status: sinistreStatus({
+          current: null,
+          link: null,
+          declarationDate: null,
+        }),
         steps: { create: steps },
       },
       include: { steps: { orderBy: { order: 'asc' } } },
@@ -193,18 +198,26 @@ export class SinistresService {
         throw new NotFoundException();
       }
 
+      const eventDate = dateToIsoDate(sinistre.eventDate);
+      if (declarationDate !== null && declarationDate < eventDate) {
+        throw new BadRequestException(fr.sinistres.declarationDateBeforeEvent);
+      }
+
       const arretePublishedAt = sinistre.arreteEntry
         ? dateToIsoDate(sinistre.arreteEntry.arrete.publishedAt)
         : null;
       const declarationAnchorDate = anchorDatesOf({
-        eventDate: dateToIsoDate(sinistre.eventDate),
+        eventDate,
         declarationDate,
         arretePublishedAt,
       }).DATE_DECLARATION;
-      const status = sinistreStatus(
-        sinistre.arreteEntry ? { outcome: sinistre.arreteEntry.outcome } : null,
+      const status = sinistreStatus({
+        current: sinistre.status as SinistreStatus,
+        link: sinistre.arreteEntry
+          ? { outcome: sinistre.arreteEntry.outcome }
+          : null,
         declarationDate,
-      );
+      });
 
       await tx.sinistre.update({
         where: { id },
@@ -217,7 +230,9 @@ export class SinistresService {
       });
 
       for (const step of sinistre.steps) {
-        if (step.anchor !== 'DATE_DECLARATION') {
+        // `fromTemplate` does not follow from `anchor`: a user-added step is
+        // left anchorless by convention, not by the schema (root `CLAUDE.md`).
+        if (step.anchor !== 'DATE_DECLARATION' || !step.fromTemplate) {
           continue;
         }
         const plannedDate = resolveStepPlannedDate(
@@ -254,13 +269,12 @@ export class SinistresService {
     }
   }
 
-  /** Ownership check same as {@link remove} — the relation filter lives in
-   * the `updateMany` itself, not a read-then-write. `completedAt` follows
-   * `status`: set on mark (FAIT or NON_APPLICABLE alike), cleared on unmark.
-   * The write and the read that builds the response run in one transaction
-   * (same reason as `AuthService.refresh`'s rotation): otherwise a second
-   * concurrent PATCH landing between them could hand this request back a
-   * status it never wrote. */
+  /** `completedAt` follows `status`: set on mark (FAIT or NON_APPLICABLE
+   * alike), cleared on unmark. Ownership in the read and the idempotent
+   * re-mark — docs/research/sinistre-plan.md, «Контракт API». The read and
+   * the write share a transaction for the same reason as
+   * `AuthService.refresh`'s rotation: a second concurrent PATCH landing
+   * between them could hand this request back a status it never wrote. */
   async updateStep(
     userId: string,
     sinistreId: string,
@@ -269,17 +283,22 @@ export class SinistresService {
   ): Promise<Step> {
     const today = todayInParis();
     return this.prisma.$transaction(async (tx) => {
-      const { count } = await tx.step.updateMany({
+      const current = await tx.step.findFirst({
         where: { id: stepId, sinistre: { id: sinistreId, userId } },
+      });
+      if (!current) {
+        throw new NotFoundException();
+      }
+      if (current.persistedStatus === status) {
+        return toStepResponse(current, today);
+      }
+      const step = await tx.step.update({
+        where: { id: stepId },
         data: {
           persistedStatus: status,
           completedAt: status ? isoDateToDate(today) : null,
         },
       });
-      if (count === 0) {
-        throw new NotFoundException();
-      }
-      const step = await tx.step.findUniqueOrThrow({ where: { id: stepId } });
       return toStepResponse(step, today);
     });
   }
