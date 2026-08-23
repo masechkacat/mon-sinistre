@@ -1,6 +1,7 @@
 import { PrismaClient } from 'src/generated/prisma/client';
 import { arreteData } from 'test/helpers/arrete';
 import { commune } from 'test/helpers/commune';
+import { deadlineRuleData } from 'test/helpers/deadline-rule';
 import { createIntTestPrismaClient } from 'test/helpers/prisma-client';
 import { userData } from 'test/helpers/user-data';
 
@@ -26,20 +27,6 @@ describe('Sinistre / Step / StepTemplate schema (integration)', () => {
     return prisma.commune.create({
       data: commune(codeInsee, 'Nîmes', '30', 'Gard'),
     });
-  }
-
-  function ruleData() {
-    return {
-      code: 'DECLARATION_ASSUREUR',
-      duration: 30,
-      unit: 'DAYS' as const,
-      anchor: 'DATE_PUBLICATION_ARRETE' as const,
-      effectiveFrom: new Date('2023-01-01'),
-      effectiveTo: null,
-      sourceUrl:
-        'https://www.legifrance.gouv.fr/codes/article_lc/LEGIARTI000006792617/',
-      sourceVerifiedAt: new Date('2026-08-18'),
-    };
   }
 
   function sinistreData(
@@ -96,7 +83,9 @@ describe('Sinistre / Step / StepTemplate schema (integration)', () => {
     const sinistre = await prisma.sinistre.create({
       data: sinistreData({ userId: user.id, codeInsee: commune.codeInsee }),
     });
-    const rule = await prisma.deadlineRule.create({ data: ruleData() });
+    const rule = await prisma.deadlineRule.create({
+      data: deadlineRuleData(),
+    });
     await prisma.step.create({
       data: {
         sinistreId: sinistre.id,
