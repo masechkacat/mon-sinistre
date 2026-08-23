@@ -30,16 +30,17 @@ CNIL, bcrypt, JWT-сессии с ротацией, глобальный guard, 
 Второй реализации не заводить — нужно тому, кто пишет **новый** модуль и в чужой
 `CLAUDE.md` не заглядывает. Устройство и оговорки — в модуле:
 
-| Задача                      | Только через                                            |
-| --------------------------- | ------------------------------------------------------- |
-| отправка письма             | `MailService.send()` (`src/mail/`)                      |
-| экранирование LIKE          | `escapeLikePattern` (`src/prisma/`)                     |
-| поисковый ключ коммуны      | `normalizeCommuneName` (`src/communes/`)                |
-| одноразовый токен ссылки    | `generateSecureToken`/`hashSecureToken` (`src/common/`) |
-| описание ошибки в логе      | `errorSummary`/`stackOf` (`src/common/`)                |
-| строки для пользователя     | `src/i18n/fr.ts`                                        |
-| чтение окружения            | `ConfigService<EnvironmentVariables, true>`             |
-| пометить эндпоинт публичным | `@Public()` (`src/auth/public.decorator.ts`)            |
+| Задача                       | Только через                                            |
+| ---------------------------- | ------------------------------------------------------- |
+| отправка письма              | `MailService.send()` (`src/mail/`)                      |
+| экранирование LIKE           | `escapeLikePattern` (`src/prisma/`)                     |
+| поисковый ключ коммуны       | `normalizeCommuneName` (`src/communes/`)                |
+| одноразовый токен ссылки     | `generateSecureToken`/`hashSecureToken` (`src/common/`) |
+| HMAC-хеш адреса для счётчика | `hashEmail` (`src/common/`)                             |
+| описание ошибки в логе       | `errorSummary`/`stackOf` (`src/common/`)                |
+| строки для пользователя      | `src/i18n/fr.ts`                                        |
+| чтение окружения             | `ConfigService<EnvironmentVariables, true>`             |
+| пометить эндпоинт публичным  | `@Public()` (`src/auth/public.decorator.ts`)            |
 
 Исключение из строки про ошибки одно, и оно осознанное: недоставленное письмо
 `MailService` описывает своим отчётом — с цепочкой `cause` и вычищенным адресом

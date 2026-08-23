@@ -1,8 +1,8 @@
-import { createHmac } from 'node:crypto';
-
 /**
- * HMAC-SHA256, not plain SHA-256 — why: docs/research/veille-subscription-lifecycle.md,
- * «Хеш адреса для счётчика писем».
+ * The HMAC-SHA256 mechanics live in `src/common/email-hash.ts` — shared with
+ * the account form's email-limit and login-attempt counters (`src/auth/`).
+ * This module re-exports it under the name veille's own code already calls;
+ * behaviour is untouched, tested at the shared implementation
+ * (`email-hash.spec.ts`).
  */
-export const hashVeilleFormEmail = (email: string, secret: string): string =>
-  createHmac('sha256', secret).update(email).digest('hex');
+export { hashEmail as hashVeilleFormEmail } from 'src/common/email-hash';

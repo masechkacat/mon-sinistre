@@ -43,6 +43,11 @@ model Commune {
 }
 
 // Аккаунт пострадавшего — docs/research/user-account.md, data-model.md § 5.
+//
+// Индекс под часовую чистку неподтверждённых — частичный, Prisma такие не
+// выражает: CREATE INDEX и причина живут в миграции
+// add_account_cleanup_counters, дрейфом это не считается — как у
+// Veille.confirmExpiresAt выше.
 model User {
   id               String         @id @default(dbgenerated("uuidv7()")) @db.Uuid
   email            String         @unique
@@ -67,6 +72,8 @@ model RefreshToken {
   revokedAt DateTime? @db.Timestamptz(6)
 
   @@index([userId])
+  // Часовая чистка истёкших строк — data-model.md § 5.
+  @@index([expiresAt])
 }
 
 // docs/research/user-account.md, data-model.md § 5.
@@ -80,6 +87,32 @@ model PasswordReset {
   usedAt    DateTime? @db.Timestamptz(6)
 
   @@index([userId])
+  // Часовая чистка просроченных строк — data-model.md § 5.
+  @@index([expiresAt])
+}
+
+// Счётчик писем формы аккаунта (лимит частоты, фаза 4) —
+// docs/research/user-account.md, по образцу VeilleFormEmail выше.
+model AccountFormEmail {
+  id        String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  emailHash String
+  sentAt    DateTime @default(now()) @db.Timestamptz(6)
+
+  // Тот же приём, что у VeilleFormEmail выше.
+  @@index([emailHash, sentAt])
+  @@index([sentAt])
+}
+
+// Счётчик неудачных попыток входа (лимит частоты, фаза 4) —
+// docs/research/user-account.md.
+model LoginAttempt {
+  id          String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  emailHash   String
+  attemptedAt DateTime @default(now()) @db.Timestamptz(6)
+
+  // Тот же приём, что у AccountFormEmail/VeilleFormEmail выше.
+  @@index([emailHash, attemptedAt])
+  @@index([attemptedAt])
 }
 
 // Подписка на уведомления об arrêté по выбранным коммунам — схема и решения:

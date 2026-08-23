@@ -258,6 +258,13 @@ export class EnvironmentVariables {
   @IsSecret()
   VEILLE_EMAIL_HASH_SECRET: string;
 
+  /** Keys the account form's per-address email hash (`AccountFormEmail` mail
+   * limit, `LoginAttempt` lockout counter) — separate from
+   * `VEILLE_EMAIL_HASH_SECRET` so rotating one counter's key never resets the
+   * other's guarantee. */
+  @IsSecret()
+  ACCOUNT_EMAIL_HASH_SECRET: string;
+
   /** bcrypt cost factor; default lives here so callers never need `?? 12`. */
   @Type(() => Number)
   @IsInt()
