@@ -7,10 +7,9 @@ import {
 import { fr } from '../src/i18n/fr';
 import { expectNoAxeViolations } from './a11y';
 import { testApiBaseUrl } from './env';
-import { expectErrorTiedTo } from './form';
+import { expectErrorTiedTo, VALID_PASSWORD as PASSWORD } from './form';
 
 const EMAIL = 'sinistre@example.fr';
-const PASSWORD = 'Abc12345!';
 
 async function fillLoginForm(
   page: Page,
@@ -95,6 +94,15 @@ test('an unavailable API shows the French error message, not a blank screen', as
   const alert = page.getByTestId('request-error');
   await expect(alert).toHaveAttribute('role', 'alert');
   await expect(alert).toContainText(fr.requestError.title);
+});
+
+test('the page links to the forgotten-password request page', async ({
+  page,
+}) => {
+  await page.goto('/connexion');
+  await expect(
+    page.getByRole('link', { name: fr.compte.connexion.forgotPasswordLink }),
+  ).toHaveAttribute('href', '/mot-de-passe-oublie');
 });
 
 for (const colorScheme of ['light', 'dark'] as const) {

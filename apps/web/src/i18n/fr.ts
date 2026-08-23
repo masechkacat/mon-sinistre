@@ -44,6 +44,11 @@ const PASSWORD_REQUIREMENTS =
   String(PASSWORD_MIN_CHAR_CLASSES) +
   ' des catégories suivantes : majuscule, minuscule, chiffre, caractère spécial.';
 
+// Shared by every form with a password field (compte.inscription,
+// compte.reinitialisation below) — one wording per fact, not one copy per
+// feature.
+const PASSWORD_REQUIRED_ERROR = 'Choisissez un mot de passe.';
+
 export const fr = {
   serviceName: 'Mon Sinistre',
   layout: {
@@ -180,7 +185,7 @@ export const fr = {
       emailRequiredError: EMAIL_REQUIRED_ERROR,
       emailInvalidError: EMAIL_INVALID_ERROR,
       passwordLabel: 'Mot de passe',
-      passwordRequiredError: 'Choisissez un mot de passe.',
+      passwordRequiredError: PASSWORD_REQUIRED_ERROR,
       passwordRequirementsError: PASSWORD_REQUIREMENTS,
       purpose:
         'Votre adresse e-mail et votre mot de passe servent uniquement à créer votre compte et à vous permettre de vous reconnecter.',
@@ -223,6 +228,36 @@ export const fr = {
       submit: 'Se connecter',
       submitting: 'Connexion en cours…',
       invalidError: 'Adresse e-mail ou mot de passe incorrect.',
+      forgotPasswordLink: 'Mot de passe oublié ?',
+    },
+    motDePasseOublie: {
+      page: { title: 'Mot de passe oublié' },
+      lead: 'Indiquez votre adresse e-mail pour recevoir un lien de réinitialisation de votre mot de passe.',
+      emailLabel: EMAIL_LABEL,
+      emailPlaceholder: EMAIL_PLACEHOLDER,
+      emailRequiredError: EMAIL_REQUIRED_ERROR,
+      emailInvalidError: EMAIL_INVALID_ERROR,
+      submit: 'Envoyer le lien',
+      submitting: 'Envoi en cours…',
+      sent: {
+        title: VERIFIEZ_BOITE_EMAIL,
+        description:
+          'Si cette adresse correspond à un compte, vous allez recevoir un e-mail contenant un lien pour choisir un nouveau mot de passe.',
+      },
+    },
+    reinitialisation: {
+      page: { title: 'Choisir un nouveau mot de passe' },
+      lead: 'Choisissez votre nouveau mot de passe.',
+      passwordLabel: 'Nouveau mot de passe',
+      passwordRequiredError: PASSWORD_REQUIRED_ERROR,
+      passwordRequirementsError: PASSWORD_REQUIREMENTS,
+      submit: 'Changer mon mot de passe',
+      submitting: 'Modification en cours…',
+      invalid: {
+        title: LIEN_INVALIDE,
+        description:
+          'Ce lien de réinitialisation n’est plus valable : il a peut-être déjà été utilisé, ou son délai de validité est dépassé.',
+      },
     },
     espacePersonnel: {
       page: { title: 'Espace personnel' },

@@ -1,17 +1,10 @@
-import { expect, test, type Route as PlaywrightRoute } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 import { fr } from '../src/i18n/fr';
 import { expectNoAxeViolations } from './a11y';
 import { testApiBaseUrl } from './env';
+import { fulfillStatus } from './form';
 
 const PENDING_TOKEN = 'jeton-en-attente';
-
-function fulfillStatus(route: PlaywrightRoute, status: string) {
-  return route.fulfill({
-    status: 200,
-    contentType: 'application/json',
-    body: JSON.stringify({ status }),
-  });
-}
 
 test('a token in the link shows the confirm button and does not activate the account before the click', async ({
   page,

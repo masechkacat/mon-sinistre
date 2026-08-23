@@ -2,8 +2,12 @@
 
 import { Field } from '@base-ui/react/field';
 import { useMutation } from '@tanstack/react-query';
-import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
+import type {
+  PasswordResetStatus,
+  ResetPasswordResponse,
+} from '@mon-sinistre/contracts';
 import { AnnouncedResult } from '@/components/announced-result';
 import { FieldError } from '@/components/field-error';
 import { PageContainer } from '@/components/page-container';
@@ -15,63 +19,71 @@ import {
   inputFrameInvalidClassName,
 } from '@/components/ui/input';
 import { apiFetch } from '@/lib/api/client';
-import { validateEmail } from '@/lib/email-pattern';
 import { validatePassword } from '@/lib/password-pattern';
 import { cn } from '@/lib/utils';
 import { fr } from '@/i18n/fr';
 
-interface RegisterInput {
-  email: string;
-  password: string;
-}
+// Like CompteConfirmation, visiting the link never spends the token by
+// itself — the only request this page ever sends is the form's own POST, on
+// submit. A missing token answers "invalid" without one, the same as a
+// token the API rejects after a submit (apps/api/src/auth/CLAUDE.md,
+// "resetPassword": unknown, expired and already-used all answer alike, the
+// cause not told apart). A successful reset lands on the login page instead
+// of a result screen — the token was single-use, there is nothing left here
+// to show.
+export function ReinitialisationForm() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const rawToken = searchParams.get('token');
+  const hasToken = typeof rawToken === 'string' && rawToken.length > 0;
+  const token = rawToken ?? '';
 
-export function InscriptionForm() {
-  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [emailError, setEmailError] = useState<string>();
   const [passwordError, setPasswordError] = useState<string>();
 
   const mutation = useMutation({
-    mutationFn: (input: RegisterInput) =>
-      apiFetch<void>('/auth/register', {
+    mutationFn: (input: { token: string; password: string }) =>
+      apiFetch<ResetPasswordResponse>('/auth/password-reset/confirm', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(input),
       }),
+    onSuccess: (data) => {
+      if (data.status === 'reset') router.push('/connexion');
+    },
   });
+
+  const status: PasswordResetStatus | undefined = !hasToken
+    ? 'invalid'
+    : mutation.data?.status;
+
+  const result =
+    status === 'invalid' ? fr.compte.reinitialisation.invalid : undefined;
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const trimmedEmail = email.trim();
-    const nextEmailError = validateEmail(trimmedEmail, {
-      required: fr.compte.inscription.emailRequiredError,
-      invalid: fr.compte.inscription.emailInvalidError,
-    });
     const nextPasswordError = validatePassword(password, {
-      required: fr.compte.inscription.passwordRequiredError,
-      requirements: fr.compte.inscription.passwordRequirementsError,
+      required: fr.compte.reinitialisation.passwordRequiredError,
+      requirements: fr.compte.reinitialisation.passwordRequirementsError,
     });
 
-    setEmailError(nextEmailError);
     setPasswordError(nextPasswordError);
-    if (nextEmailError || nextPasswordError) return;
+    if (nextPasswordError) return;
 
-    mutation.mutate({ email: trimmedEmail, password });
+    mutation.mutate({ token, password });
   };
 
   return (
     <AnnouncedResult
-      result={
-        mutation.isSuccess ? fr.compte.inscription.confirmationSent : undefined
-      }
+      result={result}
       announce={mutation.isSuccess}
-      testId="inscription-confirmation"
+      testId="reinitialisation-invalid"
     >
       <PageContainer className="space-y-8">
         <section className="space-y-4">
-          <PageTitle>{fr.compte.inscription.page.title}</PageTitle>
+          <PageTitle>{fr.compte.reinitialisation.page.title}</PageTitle>
           <p className="text-lg text-muted-foreground">
-            {fr.compte.inscription.lead}
+            {fr.compte.reinitialisation.lead}
           </p>
         </section>
 
@@ -81,31 +93,9 @@ export function InscriptionForm() {
           noValidate
           aria-busy={mutation.isPending}
         >
-          <Field.Root invalid={Boolean(emailError)} className="space-y-1.5">
-            <Field.Label className="block text-sm font-medium">
-              {fr.compte.inscription.emailLabel}
-            </Field.Label>
-            <Field.Control
-              type="email"
-              autoComplete="email"
-              value={email}
-              onChange={(event) => {
-                setEmail(event.target.value);
-                setEmailError(undefined);
-              }}
-              placeholder={fr.compte.inscription.emailPlaceholder}
-              className={cn(
-                inputFrameClassName,
-                'w-full px-3 py-1.5 text-sm outline-none focus:border-ring focus:ring-3 focus:ring-ring/50',
-                emailError && inputFrameInvalidClassName,
-              )}
-            />
-            <FieldError error={emailError} />
-          </Field.Root>
-
           <Field.Root invalid={Boolean(passwordError)} className="space-y-1.5">
             <Field.Label className="block text-sm font-medium">
-              {fr.compte.inscription.passwordLabel}
+              {fr.compte.reinitialisation.passwordLabel}
             </Field.Label>
             <Field.Control
               type="password"
@@ -124,20 +114,10 @@ export function InscriptionForm() {
             <FieldError error={passwordError} />
           </Field.Root>
 
-          <p className="text-sm text-muted-foreground">
-            {fr.compte.inscription.purpose}{' '}
-            <Link
-              href="/politique-de-confidentialite"
-              className="underline underline-offset-4"
-            >
-              {fr.compte.inscription.privacyPolicyLink}
-            </Link>
-          </p>
-
           <Button type="submit" disabled={mutation.isPending}>
             {mutation.isPending
-              ? fr.compte.inscription.submitting
-              : fr.compte.inscription.submit}
+              ? fr.compte.reinitialisation.submitting
+              : fr.compte.reinitialisation.submit}
           </Button>
 
           {mutation.isError ? <RequestError /> : null}

@@ -84,6 +84,16 @@ export const confirmation = {
   path: '/confirmation?token=invalide' as Route,
   status: 200,
 } as const;
+export const motDePasseOublie = {
+  path: '/mot-de-passe-oublie' satisfies Route,
+  status: 200,
+} as const;
+// Same rationale as confirmation above: the form's own POST is the only
+// request ReinitialisationForm ever sends, never on load.
+export const reinitialisation = {
+  path: '/reinitialisation?token=invalide' as Route,
+  status: 200,
+} as const;
 
 // Derived from the registry the footer renders, so a legal page cannot be
 // covered by the shared suites while missing from the site, or vice versa.
@@ -102,6 +112,8 @@ export const pages = [
   inscription,
   confirmation,
   connexion,
+  motDePasseOublie,
+  reinitialisation,
   ...legalEntries,
 ] as const;
 

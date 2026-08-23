@@ -2,6 +2,7 @@
 
 import { Field } from '@base-ui/react/field';
 import { useMutation } from '@tanstack/react-query';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
 import type { LoginResponse } from '@mon-sinistre/contracts';
@@ -130,6 +131,15 @@ export function ConnexionForm() {
           />
           <FieldError error={passwordError} />
         </Field.Root>
+
+        <p className="text-sm">
+          <Link
+            href="/mot-de-passe-oublie"
+            className="underline underline-offset-4"
+          >
+            {fr.compte.connexion.forgotPasswordLink}
+          </Link>
+        </p>
 
         <Button type="submit" disabled={mutation.isPending}>
           {mutation.isPending
