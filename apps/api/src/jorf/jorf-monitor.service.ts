@@ -1,21 +1,40 @@
 import { randomUUID } from 'node:crypto';
 import { basename } from 'node:path';
 import { Injectable, Logger } from '@nestjs/common';
-import type { IsoDate } from '@mon-sinistre/contracts';
+import type {
+  IsoDate,
+  RisqueCatnat,
+  SinistreStatus,
+} from '@mon-sinistre/contracts';
 import { ConfigService } from '@nestjs/config';
 import { Cron } from '@nestjs/schedule';
 import { errorSummary, stackOf } from 'src/common/error-report';
+import { loadSuccessorMap } from 'src/communes/load-successor-map';
 import { normalizeCommuneName } from 'src/communes/normalize-commune-name';
 import type { EnvironmentVariables } from 'src/config/env.validation';
 import { DeadlineRuleService } from 'src/deadline-rules/deadline-rule.service';
 import { DECLARATION_ASSUREUR_CODE } from 'src/deadline-rules/deadline-rule.seed';
 import { dateToIsoDate } from 'src/deadline-rules/resolve-deadline';
 import type { Prisma } from 'src/generated/prisma/client';
+import type {
+  ArreteEntryOutcome,
+  MonitorAlertKind,
+} from 'src/generated/prisma/enums';
 import { MailService } from 'src/mail/mail.service';
 import { isUniqueViolationOn } from 'src/prisma/prisma-error';
 import { PrismaService } from 'src/prisma/prisma.service';
+import {
+  type ResolvedDeadlineRule,
+  resolveStepPlannedDate,
+} from 'src/sinistres/build-step-snapshot';
+import {
+  matchSinistres,
+  toMatchArreteEntry,
+} from 'src/sinistres/match-sinistres';
+import { sinistreStatus } from 'src/sinistres/sinistre-status';
 import { generateVeilleToken } from 'src/veille/veille-token';
 import { DilaClient } from './dila/dila.client';
+import { classifyRisques } from './parse/classify-risques';
 import {
   type CommuneReferentialEntry,
   matchCommune,
@@ -207,6 +226,10 @@ const uniqueCodes = (codes: readonly (string | null)[]): string[] => [
 /** The `detail` of an UNMATCHED_COMMUNE alert, written once because it is also the key the alert is deduplicated by ({@link JorfMonitorService.alertIfUnmatched}). */
 const unmatchedDetail = (nor: string, entry: ParsedArreteEntry): string =>
   `NOR ${nor}: ${entry.communeLabelRaw} (${entry.departementRaw}) not matched to a commune`;
+
+/** The `detail` of an UNPARSEABLE_ANNEXE alert raised by {@link JorfMonitorService.alertIfUnclassified} — same dedup-by-detail role as {@link unmatchedDetail}, for a phénomène wording `classifyRisques` doesn't recognize instead of a commune the referential doesn't resolve. */
+const unclassifiedRisqueDetail = (nor: string, risque: string): string =>
+  `NOR ${nor}: risque "${risque}" not classified to a RisqueCatnat`;
 
 /** A stored row and a parsed line reduced to the same shape, so one key function reads both. The separators are NUL because everything joined into a key is free text copied from the annexe. */
 type Line = {
@@ -471,7 +494,7 @@ export class JorfMonitorService {
     // rather than at 06:00 the next calendar day (ТЗ § 6, "письмо
     // наблюдателю — в день обнаружения arrêté").
     const pass: SendPass = {
-      successorOf: await this.loadSuccessorMap(),
+      successorOf: await loadSuccessorMap(this.prisma),
       recipients: new Map(),
       attempted: new Set(),
     };
@@ -525,6 +548,12 @@ export class JorfMonitorService {
       });
     }
 
+    // After ingest, not per delta: candidates and entries are both read
+    // fresh from the database (docs/plan/sinistre-plan.md, Фаза 3, issue
+    // #157), so one pass at the end of the batch sees everything this run
+    // wrote, exactly like a pass per delta would.
+    await this.linkSinistresGuarded(pass.successorOf);
+
     await this.drainOutbox(pass);
   }
 
@@ -545,6 +574,233 @@ export class JorfMonitorService {
         stackOf(error),
       );
     }
+  }
+
+  /** Isolated the same way as {@link drainOutbox}: a lookup or resolve
+   * failure here must not cost the ingest this run already committed. */
+  private async linkSinistresGuarded(
+    successorOf: ReadonlyMap<string, string>,
+  ): Promise<void> {
+    try {
+      await this.linkSinistres(successorOf);
+    } catch (error) {
+      this.logger.error(
+        `jorf monitor: linking sinistres failed: ${errorSummary(error)}`,
+        stackOf(error),
+      );
+    }
+  }
+
+  /**
+   * Links already-created sinistres to arrêté entries through the same pure
+   * `matchSinistres` `SinistresService.create` calls at creation time
+   * (docs/research/sinistre-plan.md, "Привязка entry ↔ синистр") — a dossier
+   * opened before its arrêté is published gets linked the moment this run
+   * finds it (root `CLAUDE.md`, "план разворачивается от опорных дат"), and
+   * one refused by an earlier NOR still catches a later NOR recognizing its
+   * commune. Idempotent by construction: a repeat run reads the same
+   * candidates and entries and reapplies the same links, and a sinistre whose
+   * déclaration deadline is dated never appears among the candidates again.
+   */
+  private async linkSinistres(
+    successorOf: ReadonlyMap<string, string>,
+  ): Promise<void> {
+    // Candidates are the dossiers whose déclaration deadline is still
+    // undated, not a list of statuses (docs/research/sinistre-plan.md,
+    // "Привязка entry ↔ синистр"): only a `RECONNU` link dates that step, so
+    // the undated ones are exactly those a link can still help — unlinked,
+    // refused, and the ones a `DeadlineRule` gap left dateless ({@link
+    // resolveDeclarationRuleGuarded}). A status list loses the refused
+    // dossier the moment its owner declares, and never sees that gap at all.
+    const sinistres = await this.prisma.sinistre.findMany({
+      where: {
+        steps: {
+          some: {
+            anchor: 'DATE_PUBLICATION_ARRETE',
+            fromTemplate: true,
+            plannedDate: null,
+          },
+        },
+      },
+      select: { id: true, codeInsee: true, risque: true, eventDate: true },
+    });
+    if (sinistres.length === 0) {
+      return;
+    }
+
+    // Bounded to the candidates' own event dates: an entry outside every one
+    // of them can never match any candidate, and the ArreteEntry table
+    // otherwise grows for as long as the monitor runs — the same per-window
+    // read `SinistresService.matchArrete` applies for its single candidate,
+    // extended to the range this batch needs. Folded rather than spread into
+    // `Math.min`/`Math.max`: the candidate list grows with the product, and a
+    // spread of it would blow the call stack long before the query strains.
+    const eventDates = sinistres.map((s) => s.eventDate.getTime());
+    const oldest = eventDates.reduce((a, b) => (b < a ? b : a));
+    const newest = eventDates.reduce((a, b) => (b > a ? b : a));
+    const entries = await this.prisma.arreteEntry.findMany({
+      where: {
+        codeInsee: { not: null },
+        eventStart: { lte: new Date(newest) },
+        eventEnd: { gte: new Date(oldest) },
+      },
+      select: {
+        id: true,
+        codeInsee: true,
+        risque: true,
+        eventStart: true,
+        eventEnd: true,
+        outcome: true,
+        arrete: { select: { publishedAt: true } },
+      },
+    });
+    if (entries.length === 0) {
+      return;
+    }
+
+    const links = matchSinistres(
+      entries.map(toMatchArreteEntry),
+      sinistres.map((sinistre) => ({
+        id: sinistre.id,
+        codeInsee: sinistre.codeInsee,
+        risque: sinistre.risque as RisqueCatnat,
+        eventDate: dateToIsoDate(sinistre.eventDate),
+      })),
+      successorOf,
+    );
+    if (links.length === 0) {
+      return;
+    }
+
+    const entryById = new Map(entries.map((entry) => [entry.id, entry]));
+    // Memoized per publication date, resolved ahead of every write below —
+    // {@link DeadlineRuleService.resolveActive} throws by design, and doing
+    // that inside the transaction that applies a link would abort a write
+    // already in flight over a referential gap (docs/plan/sinistre-plan.md,
+    // Фаза 3, issue #157, "правило DeadlineRule резолвит снаружи транзакции
+    // и передаёт внутрь").
+    const ruleByPublishedAt = new Map<IsoDate, ResolvedDeadlineRule | null>();
+
+    for (const link of links) {
+      const entry = entryById.get(link.arreteEntryId);
+      if (!entry) {
+        continue;
+      }
+
+      let rule: ResolvedDeadlineRule | null = null;
+      if (entry.outcome === 'RECONNU') {
+        const publishedAt = dateToIsoDate(entry.arrete.publishedAt);
+        if (!ruleByPublishedAt.has(publishedAt)) {
+          ruleByPublishedAt.set(
+            publishedAt,
+            await this.resolveDeclarationRuleGuarded(publishedAt),
+          );
+        }
+        rule = ruleByPublishedAt.get(publishedAt) ?? null;
+      }
+
+      await this.applyLink(link.sinistreId, entry, rule);
+    }
+  }
+
+  /** The one `resolveActive` call for the déclaration-délai rule, shared by
+   * the mail step ({@link sendArreteNotifications}) and the linking pass
+   * ({@link linkSinistres}) — `DECLARATION_ASSUREUR_CODE` paired with
+   * `DATE_PUBLICATION_ARRETE` is spelled once, not guessed at twice. */
+  private resolveDeclarationRule(onDate: Date): Promise<ResolvedDeadlineRule> {
+    return this.deadlineRules.resolveActive(
+      DECLARATION_ASSUREUR_CODE,
+      'DATE_PUBLICATION_ARRETE',
+      onDate,
+    );
+  }
+
+  /** Same isolation as `SinistresService.resolveRule`: the product would
+   * rather link the sinistre without a déclaration date than drop the whole
+   * run over one missing `DeadlineRule` version. */
+  private async resolveDeclarationRuleGuarded(
+    publishedAt: IsoDate,
+  ): Promise<ResolvedDeadlineRule | null> {
+    try {
+      return await this.resolveDeclarationRule(isoDateToDate(publishedAt));
+    } catch (error) {
+      this.logger.error(
+        `jorf monitor: DeadlineRule ${DECLARATION_ASSUREUR_CODE} did not resolve for publication ${publishedAt}, linked sinistres left without a déclaration date: ${errorSummary(error)}`,
+        stackOf(error),
+      );
+      return null;
+    }
+  }
+
+  /**
+   * Applies one `matchSinistres` link: sets `arreteEntryId` and recomputes
+   * `status` through the shared `sinistreStatus` (docs/research/
+   * sinistre-plan.md, "Контракт API" — the same function `SinistresService`
+   * calls, so linking on ingest never disagrees with a PATCH on what a given
+   * link means; a `DECLARE` sinistre stays `DECLARE`). `status` and
+   * `declarationDate` are read fresh inside this transaction, not carried
+   * over from `linkSinistres`'s batch read: a `PATCH /sinistres/:id`
+   * committing between that read and this sinistre's turn in the loop must
+   * not be clobbered by a status computed off stale data. A `RECONNU` match
+   * whose rule resolved also dates the `DATE_PUBLICATION_ARRETE` step off
+   * the entry's own arrête — a `REFUSE` match, or one whose rule failed to
+   * resolve, leaves that step exactly as `SinistresService.create` left it.
+   */
+  private async applyLink(
+    sinistreId: string,
+    entry: {
+      id: string;
+      outcome: ArreteEntryOutcome;
+      arrete: { publishedAt: Date };
+    },
+    rule: ResolvedDeadlineRule | null,
+  ): Promise<void> {
+    await this.prisma.$transaction(async (tx) => {
+      // `findUnique`, not `findUniqueOrThrow`: a `DELETE /sinistres/:id`
+      // between `linkSinistres`'s batch read and this link's turn in the loop
+      // costs that one dossier, not every link the run has yet to apply.
+      const current = await tx.sinistre.findUnique({
+        where: { id: sinistreId },
+        select: { status: true, declarationDate: true },
+      });
+      if (!current) {
+        return;
+      }
+      await tx.sinistre.update({
+        where: { id: sinistreId },
+        data: {
+          arreteEntryId: entry.id,
+          status: sinistreStatus({
+            current: current.status as SinistreStatus,
+            link: { outcome: entry.outcome },
+            declarationDate: current.declarationDate
+              ? dateToIsoDate(current.declarationDate)
+              : null,
+          }),
+        },
+      });
+      if (entry.outcome === 'RECONNU' && rule) {
+        const plannedDate = resolveStepPlannedDate(
+          dateToIsoDate(entry.arrete.publishedAt),
+          true,
+          rule,
+          null,
+        );
+        await tx.step.updateMany({
+          where: {
+            sinistreId,
+            anchor: 'DATE_PUBLICATION_ARRETE',
+            fromTemplate: true,
+          },
+          data: {
+            plannedDate: plannedDate ? isoDateToDate(plannedDate) : null,
+            deadlineRuleId: rule.id,
+            sourceUrl: rule.sourceUrl,
+            sourceVerifiedAt: rule.sourceVerifiedAt,
+          },
+        });
+      }
+    });
   }
 
   private async loadCommuneReferential(): Promise<CommuneReferentialEntry[]> {
@@ -736,6 +992,14 @@ export class JorfMonitorService {
               entry,
               codeInsee,
             );
+            await this.alertIfUnclassified(
+              tx,
+              alerts,
+              recorded,
+              created.id,
+              parsed.nor,
+              entry,
+            );
           }
           await this.queueNotifications(
             tx,
@@ -817,19 +1081,38 @@ export class JorfMonitorService {
   }
 
   /**
+   * Writes a `MonitorAlert` unless `detail` is already in `recorded` — the
+   * alerts this arrêté carries plus the ones raised earlier in this run.
+   * Shared by {@link alertIfUnmatched} and {@link alertIfUnclassified}: both
+   * alert once per (arrêté, distinct fact) and must not grow the operator's
+   * table again when a rectificatif reprints the same unresolved commune or
+   * unrecognized phénomène wording. Appends to the caller's `alerts`
+   * accumulator rather than returning one, so its callers don't each repeat
+   * the same if-and-push.
+   */
+  private async alertOnce(
+    tx: Prisma.TransactionClient,
+    alerts: MonitorAlertForMail[],
+    recorded: Set<string>,
+    kind: MonitorAlertKind,
+    arreteId: string,
+    detail: string,
+  ): Promise<void> {
+    if (recorded.has(detail)) {
+      return;
+    }
+    recorded.add(detail);
+    alerts.push(
+      await tx.monitorAlert.create({ data: { kind, arreteId, detail } }),
+    );
+  }
+
+  /**
    * `MonitorAlert` for an entry the referential couldn't resolve (research,
    * "Сопоставление коммун со справочником") — the row itself is already
    * written with `codeInsee: null` by the caller, on both the first-seen and
    * the rectificatif path, this only makes the gap visible instead of a
-   * silent drop. Appends to the caller's `alerts` accumulator rather than
-   * returning one, so its two call sites don't each repeat the same
-   * if-and-push.
-   *
-   * `recorded` is what this arrêté has already alerted about — the alerts it
-   * carries plus the ones raised earlier in this run. A commune the
-   * referential will never resolve (a fusion the COG doesn't have yet) is
-   * printed again by every rectificatif, and the table an operator works
-   * through by hand must not grow a row, and send a message, each time.
+   * silent drop.
    */
   private async alertIfUnmatched(
     tx: Prisma.TransactionClient,
@@ -840,15 +1123,43 @@ export class JorfMonitorService {
     entry: ParsedArreteEntry,
     codeInsee: string | null,
   ): Promise<void> {
-    const detail = unmatchedDetail(nor, entry);
-    if (codeInsee !== null || recorded.has(detail)) {
+    if (codeInsee !== null) {
       return;
     }
-    recorded.add(detail);
-    alerts.push(
-      await tx.monitorAlert.create({
-        data: { kind: 'UNMATCHED_COMMUNE', arreteId, detail },
-      }),
+    await this.alertOnce(
+      tx,
+      alerts,
+      recorded,
+      'UNMATCHED_COMMUNE',
+      arreteId,
+      unmatchedDetail(nor, entry),
+    );
+  }
+
+  /**
+   * `MonitorAlert` for an entry whose `risque` wording `classifyRisques`
+   * folds to an empty set — the JO printed a phénomène wording the mapping
+   * (docs/research/sinistre-plan.md, "Классификация риска") doesn't cover
+   * yet.
+   */
+  private async alertIfUnclassified(
+    tx: Prisma.TransactionClient,
+    alerts: MonitorAlertForMail[],
+    recorded: Set<string>,
+    arreteId: string,
+    nor: string,
+    entry: ParsedArreteEntry,
+  ): Promise<void> {
+    if (classifyRisques(entry.risque).size > 0) {
+      return;
+    }
+    await this.alertOnce(
+      tx,
+      alerts,
+      recorded,
+      'UNPARSEABLE_ANNEXE',
+      arreteId,
+      unclassifiedRisqueDetail(nor, entry.risque),
     );
   }
 
@@ -961,6 +1272,14 @@ export class JorfMonitorService {
             entry,
             codeInsee,
           );
+          await this.alertIfUnclassified(
+            tx,
+            alerts,
+            recorded,
+            existing.id,
+            parsed.nor,
+            entry,
+          );
         }
         await this.queueNotifications(
           tx,
@@ -985,22 +1304,6 @@ export class JorfMonitorService {
       { timeout: INGEST_TX_TIMEOUT_MS },
     );
     await this.notifyAdmin(alerts);
-  }
-
-  /** `Commune.successorCodeInsee` reduced to a map, read once per run for both the outbox write ({@link queueNotifications}, via {@link resolveRecipients}) and the send step below — only rows that merged carry one, so this is a small fraction of the referential. */
-  private async loadSuccessorMap(): Promise<Map<string, string>> {
-    const rows = await this.prisma.commune.findMany({
-      where: { successorCodeInsee: { not: null } },
-      select: { codeInsee: true, successorCodeInsee: true },
-    });
-    return new Map(
-      rows
-        .filter(
-          (row): row is { codeInsee: string; successorCodeInsee: string } =>
-            row.successorCodeInsee !== null,
-        )
-        .map((row) => [row.codeInsee, row.successorCodeInsee]),
-    );
   }
 
   /**
@@ -1171,9 +1474,7 @@ export class JorfMonitorService {
       ),
     );
 
-    const declarationRule = await this.deadlineRules.resolveActive(
-      DECLARATION_ASSUREUR_CODE,
-      'DATE_PUBLICATION_ARRETE',
+    const declarationRule = await this.resolveDeclarationRule(
       arrete.publishedAt,
     );
     const arreteForMail: ArreteForMail = {

@@ -25,13 +25,16 @@ export interface ArreteRecipient {
 const MAX_SUCCESSOR_HOPS = 50;
 
 /**
- * Resolves a subscribed commune to the code an arrêté would actually name
- * today, walking `successorCodeInsee` forward (data-model § 3, "только на
- * чтении"). A cycle — malformed data, communes never merge into each other —
- * is reported as unresolved (`null`) rather than an arbitrary link in the
- * loop, so the caller's set-membership check below can't accidentally match.
+ * Resolves a commune code to the code an arrêté would actually name today,
+ * walking `successorCodeInsee` forward (data-model § 3, "только на чтении").
+ * A cycle — malformed data, communes never merge into each other — is
+ * reported as unresolved (`null`) rather than an arbitrary link in the loop,
+ * so a caller's equality or set-membership check can't accidentally match.
+ * Exported for `matchSinistres` (`src/sinistres/match-sinistres.ts`), which
+ * resolves both an entry's and a sinistre's code through the same chain
+ * (docs/research/sinistre-plan.md, "Привязка entry ↔ синистр").
  */
-function resolveCurrentCode(
+export function resolveCurrentCode(
   codeInsee: string,
   successorOf: ReadonlyMap<string, string>,
 ): string | null {

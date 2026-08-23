@@ -12,10 +12,12 @@ import {
   type Step,
 } from '@mon-sinistre/contracts';
 import type {
+  ArreteEntryOutcome,
   StepAnchor,
   StepPersistedStatus,
 } from 'src/generated/prisma/enums';
 import { errorSummary, stackOf } from 'src/common/error-report';
+import { loadSuccessorMap } from 'src/communes/load-successor-map';
 import { DeadlineRuleService } from 'src/deadline-rules/deadline-rule.service';
 import {
   dateToIsoDate,
@@ -32,6 +34,7 @@ import {
   type StepTemplateRow,
 } from './build-step-snapshot';
 import type { CreateSinistreDto } from './dto/create-sinistre.dto';
+import { matchSinistres, toMatchArreteEntry } from './match-sinistres';
 import { CATNAT_PLAN_KEY } from 'src/step-templates/step-template.seed';
 import { sinistreStatus } from './sinistre-status';
 import {
@@ -56,6 +59,15 @@ export class SinistresService {
    * resolved — on the sinistre's creation date rather than the anchor's —
    * so it can cite a source even without a `plannedDate`
    * (research, «Как применять»).
+   *
+   * Matches against already-ingested arrêtés before building the plan
+   * (docs/research/sinistre-plan.md, «Привязка entry ↔ синистр») — a
+   * dossier opened off a notification letter, after the monitor already
+   * found the arrêté, must not wait for the next arrêté to get its
+   * deadline. A `RECONNU` match dates the `DATE_PUBLICATION_ARRETE` step
+   * off the real publication date, not today's; a `REFUSE` match only sets
+   * `arreteEntryId` and the status — no déclaration deadline exists to
+   * date (critère PRD № 6).
    */
   async create(
     userId: string,
@@ -70,10 +82,12 @@ export class SinistresService {
     }
 
     const today = todayInParis();
+    const match = await this.matchArrete(dto);
     const anchorDates = anchorDatesOf({
       eventDate: dto.eventDate,
       declarationDate: null,
-      arretePublishedAt: null,
+      arretePublishedAt:
+        match?.outcome === 'RECONNU' ? match.publishedAt : null,
     });
 
     const templates = await this.prisma.stepTemplate.findMany({
@@ -101,9 +115,10 @@ export class SinistresService {
         risque: dto.risque,
         eventDate: isoDateToDate(dto.eventDate),
         declarationDate: null,
+        arreteEntryId: match?.arreteEntryId ?? null,
         status: sinistreStatus({
           current: null,
-          link: null,
+          link: match ? { outcome: match.outcome } : null,
           declarationDate: null,
         }),
         steps: { create: steps },
@@ -112,6 +127,69 @@ export class SinistresService {
     });
 
     return toSinistreDetail(sinistre, sinistre.steps, today);
+  }
+
+  /**
+   * Matches a not-yet-created sinistre against already-ingested arrêtés
+   * through the shared pure `matchSinistres` (`src/sinistres/match-sinistres.ts`)
+   * — the same function the monitor's own linking pass
+   * (docs/plan/sinistre-plan.md, Фаза 3) will call for already-created
+   * dossiers, so the two never disagree on what counts as a match. The
+   * candidate carries a placeholder id: `matchSinistres` only echoes it
+   * back on the `Link` it returns, and this caller has exactly one
+   * candidate, so the id itself is never read.
+   */
+  private async matchArrete(dto: CreateSinistreDto): Promise<{
+    arreteEntryId: string;
+    outcome: ArreteEntryOutcome;
+    publishedAt: IsoDate;
+  } | null> {
+    const eventDate = isoDateToDate(dto.eventDate);
+    const [entries, successorOf] = await Promise.all([
+      this.prisma.arreteEntry.findMany({
+        where: {
+          codeInsee: { not: null },
+          eventStart: { lte: eventDate },
+          eventEnd: { gte: eventDate },
+        },
+        select: {
+          id: true,
+          codeInsee: true,
+          risque: true,
+          eventStart: true,
+          eventEnd: true,
+          outcome: true,
+          arrete: { select: { publishedAt: true } },
+        },
+      }),
+      loadSuccessorMap(this.prisma),
+    ]);
+
+    const links = matchSinistres(
+      entries.map(toMatchArreteEntry),
+      [
+        {
+          id: 'candidate',
+          codeInsee: dto.codeInsee,
+          risque: dto.risque,
+          eventDate: dto.eventDate,
+        },
+      ],
+      successorOf,
+    );
+    const arreteEntryId = links[0]?.arreteEntryId;
+    if (!arreteEntryId) {
+      return null;
+    }
+    const entry = entries.find((e) => e.id === arreteEntryId);
+    if (!entry) {
+      return null;
+    }
+    return {
+      arreteEntryId,
+      outcome: entry.outcome,
+      publishedAt: dateToIsoDate(entry.arrete.publishedAt),
+    };
   }
 
   /**

@@ -4,12 +4,15 @@ import { toIsoDate } from '@mon-sinistre/contracts';
 import { createIntTestApp } from 'test/helpers/app';
 import type { FetchFn } from 'src/common/fetch-fn';
 import { commune as communeFixture } from 'test/helpers/commune';
+import { resolveDeadline } from 'src/deadline-rules/resolve-deadline';
 import { seedDeadlineRules } from 'src/deadline-rules/deadline-rule.seed';
+import { seedStepTemplates } from 'src/step-templates/step-template.seed';
 import { captureLogs } from 'test/helpers/mail-log';
 import { MailDeliveryError } from 'src/mail/mail-delivery.error';
 import { MAIL_TRANSPORT } from 'src/mail/mail-transport';
 import { RecordingTransport } from 'test/helpers/mail-transport';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { createUser, headersForEmail, withBearer } from 'test/helpers/session';
 import { createVeille } from 'test/helpers/veille';
 import {
   DILA_JORFSIMPLE_BASE_URL,
@@ -904,6 +907,131 @@ describe('JorfMonitorService.run (integration)', () => {
       });
       expect(bordeauxAlert).toMatchObject({ arreteId: rectified?.id });
     });
+
+    it('alerts on a phénomène wording classifyRisques does not recognize, entry still ingested (issue #154)', async () => {
+      await prisma.commune.create({
+        data: communeFixture('33063', 'Bordeaux', '33', 'Gironde'),
+      });
+
+      const id = 'JORFTEXT000000000801';
+      const nor = 'INTJ2600008A';
+      const title =
+        "Arrêté du 8 juillet 2026 portant reconnaissance de l'état de catastrophe naturelle";
+      const xml = buildArreteXml({
+        id,
+        nor,
+        title,
+        reconnues: [
+          [
+            'Gironde',
+            'Bordeaux',
+            'Invasion de criquets migrateurs',
+            '01/01/2026',
+            '02/01/2026',
+          ],
+        ],
+      });
+      const tarball = await buildTarball({
+        'jorf/simple/JORF/CONT/2026/07/08/JORFCONT000000000800.xml':
+          buildTocXml(id, title),
+        [`jorf/simple/JORF/CONT/2026/07/08/${id}.xml`]: xml,
+      });
+      currentFetch = stubFetch(['JORFSIMPLE_20260708-060000.tar.gz'], {
+        'JORFSIMPLE_20260708-060000.tar.gz': tarball,
+      });
+
+      await monitor.run();
+
+      const arrete = await prisma.arrete.findUnique({
+        where: { nor },
+        include: { entries: true },
+      });
+      expect(arrete?.entries[0]).toMatchObject({
+        codeInsee: '33063',
+        risque: 'Invasion de criquets migrateurs',
+      });
+
+      const alerts = await prisma.monitorAlert.findMany({
+        where: { kind: 'UNPARSEABLE_ANNEXE' },
+      });
+      expect(alerts).toHaveLength(1);
+      expect(alerts[0]).toMatchObject({ arreteId: arrete?.id });
+      expect(alerts[0]?.detail).toContain(nor);
+      expect(alerts[0]?.detail).toContain('Invasion de criquets migrateurs');
+    });
+
+    it('does not duplicate the alert when a rectificatif reprints the same unclassified wording', async () => {
+      await prisma.commune.create({
+        data: communeFixture('33063', 'Bordeaux', '33', 'Gironde'),
+      });
+
+      const id = 'JORFTEXT000000000901';
+      const nor = 'INTJ2600009B';
+      const title =
+        "Arrêté du 9 juillet 2026 portant reconnaissance de l'état de catastrophe naturelle";
+      const criquets = [
+        'Gironde',
+        'Bordeaux',
+        'Invasion de criquets migrateurs',
+        '01/01/2026',
+        '02/01/2026',
+      ];
+      const tocXml = buildTocXml(id, title);
+      const firstTarball = await buildTarball({
+        'jorf/simple/JORF/CONT/2026/07/09/JORFCONT000000000900.xml': tocXml,
+        [`jorf/simple/JORF/CONT/2026/07/09/${id}.xml`]: buildArreteXml({
+          id,
+          nor,
+          title,
+          reconnues: [criquets],
+        }),
+      });
+      currentFetch = stubFetch(['JORFSIMPLE_20260709-060000.tar.gz'], {
+        'JORFSIMPLE_20260709-060000.tar.gz': firstTarball,
+      });
+      await monitor.run();
+
+      expect(
+        await prisma.monitorAlert.count({
+          where: { kind: 'UNPARSEABLE_ANNEXE' },
+        }),
+      ).toBe(1);
+
+      // A second entry is added purely to change the contentHash so the run
+      // takes the rectificatif path, not the unchanged-content shortcut.
+      const lyon = ['Rhône', 'Lyon', 'Inondations', '03/01/2026', '04/01/2026'];
+      const secondTarball = await buildTarball({
+        'jorf/simple/JORF/CONT/2026/07/09/JORFCONT000000000900.xml': tocXml,
+        [`jorf/simple/JORF/CONT/2026/07/09/${id}.xml`]: buildArreteXml({
+          id,
+          nor,
+          title,
+          reconnues: [criquets, lyon],
+        }),
+      });
+      currentFetch = stubFetch(
+        [
+          'JORFSIMPLE_20260709-060000.tar.gz',
+          'JORFSIMPLE_20260709-230000.tar.gz',
+        ],
+        {
+          'JORFSIMPLE_20260709-060000.tar.gz': firstTarball,
+          'JORFSIMPLE_20260709-230000.tar.gz': secondTarball,
+        },
+      );
+      await monitor.run();
+
+      const rectified = await prisma.arrete.findUnique({
+        where: { nor },
+        include: { entries: true },
+      });
+      expect(rectified?.entries).toHaveLength(2);
+      expect(
+        await prisma.monitorAlert.count({
+          where: { kind: 'UNPARSEABLE_ANNEXE' },
+        }),
+      ).toBe(1);
+    });
   });
 });
 
@@ -1580,5 +1708,286 @@ describe('veille notification outbox (issue #106)', () => {
       expect(await prisma.veilleNotification.count()).toBe(0);
       expect(transport.sent).toHaveLength(0);
     });
+  });
+});
+
+// Linking already-created sinistres on a monitor run, docs/plan/
+// sinistre-plan.md, Фаза 3 (issue #157) — the same matchSinistres
+// SinistresService.create already runs at creation time.
+describe('sinistre linking on ingest (issue #157)', () => {
+  const TITLE =
+    "Arrêté du 1er juillet 2026 portant reconnaissance de l'état de catastrophe naturelle";
+  const AMIGNY = [
+    'Aisne',
+    'Amigny-Rouy',
+    'Inondations',
+    '01/06/2026',
+    '20/06/2026',
+  ];
+
+  let app: NestFastifyApplication;
+  let prisma: PrismaService;
+  let monitor: JorfMonitorService;
+  let currentFetch: FetchFn;
+
+  beforeAll(async () => {
+    app = await createIntTestApp({
+      customize: (builder) =>
+        builder
+          .overrideProvider(DilaClient)
+          .useValue(new DilaClient((...args) => currentFetch(...args))),
+    });
+    prisma = app.get(PrismaService);
+    monitor = app.get(JorfMonitorService);
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  beforeEach(async () => {
+    await prisma.$executeRaw`TRUNCATE TABLE "User", "Commune", "DeadlineRule", "StepTemplate", "Sinistre", "Arrete", "JorfDelta", "MonitorLock", "MonitorAlert" CASCADE`;
+    await prisma.commune.create({
+      data: communeFixture('02005', 'Amigny-Rouy', '02', 'Aisne'),
+    });
+    await seedDeadlineRules(prisma);
+    await seedStepTemplates(prisma);
+  });
+
+  interface SinistreWithSteps {
+    id: string;
+    status: string;
+    arreteEntryId: string | null;
+    steps: {
+      anchor: string | null;
+      plannedDate: string | null;
+      source: { url: string } | null;
+    }[];
+  }
+
+  async function createSinistre(eventDate = '2026-06-10') {
+    const email = await createUser(prisma);
+    const headers = await headersForEmail(app, prisma, email);
+    const res = await app.inject({
+      method: 'POST',
+      url: '/sinistres',
+      headers,
+      payload: { codeInsee: '02005', risque: 'INONDATION', eventDate },
+    });
+    return {
+      headers,
+      sinistre: JSON.parse(res.payload) as SinistreWithSteps,
+    };
+  }
+
+  async function getSinistre(
+    headers: ReturnType<typeof withBearer>,
+    id: string,
+  ): Promise<SinistreWithSteps> {
+    const res = await app.inject({
+      method: 'GET',
+      url: `/sinistres/${id}`,
+      headers,
+    });
+    return JSON.parse(res.payload) as SinistreWithSteps;
+  }
+
+  const buildDelta = (id: string, nor: string, revision: ArreteRevision) =>
+    buildTarball({
+      [`jorf/simple/JORF/CONT/2026/07/01/JORFCONT${id.slice(-4)}.xml`]:
+        buildTocXml(id, TITLE),
+      [`jorf/simple/JORF/CONT/2026/07/01/${id}.xml`]: buildArreteXml({
+        id,
+        nor,
+        title: TITLE,
+        ...revision,
+      }),
+    });
+
+  it('links a sinistre created before the arrêté, dating the déclaration deadline off the publication date (critère PRD № 3, 11)', async () => {
+    const { headers, sinistre } = await createSinistre('2026-06-10');
+    expect(sinistre.arreteEntryId).toBeNull();
+    const rule = await prisma.deadlineRule.findFirstOrThrow({
+      where: { code: 'DECLARATION_ASSUREUR' },
+    });
+
+    const MORNING = 'JORFSIMPLE_20260701-060000.tar.gz';
+    const tarball = await buildDelta('JORFTEXT000000003001', 'INTJ2600030A', {
+      reconnues: [AMIGNY],
+    });
+    currentFetch = stubFetch([MORNING], { [MORNING]: tarball });
+    await monitor.run();
+
+    const linked = await getSinistre(headers, sinistre.id);
+    expect(linked.status).toBe('ARRETE_PUBLIE');
+    expect(linked.arreteEntryId).not.toBeNull();
+    const step = linked.steps.find(
+      (s) => s.anchor === 'DATE_PUBLICATION_ARRETE',
+    );
+    expect(step?.plannedDate).toBe(
+      resolveDeadline(toIsoDate('2026-07-01'), rule.duration, rule.unit),
+    );
+    expect(step?.source?.url).toMatch(/legifrance/);
+
+    // A repeat run of the same delta must not create a second link (critère
+    // PRD № 11) — the sinistre no longer appears among the candidates once
+    // linked to a RECONNU entry.
+    const EVENING = 'JORFSIMPLE_20260701-230000.tar.gz';
+    currentFetch = stubFetch([MORNING, EVENING], {
+      [MORNING]: tarball,
+      [EVENING]: tarball,
+    });
+    await monitor.run();
+
+    const relinked = await getSinistre(headers, sinistre.id);
+    expect(relinked.arreteEntryId).toBe(linked.arreteEntryId);
+    expect(await prisma.sinistre.count()).toBe(1);
+  });
+
+  it('re-links a sinistre refused by one arrêté when a later NOR recognizes its commune (critère PRD № 10)', async () => {
+    const REFUSE_DELTA = 'JORFSIMPLE_20260601-060000.tar.gz';
+    const refuseTarball = await buildDelta(
+      'JORFTEXT000000003101',
+      'INTJ2600031A',
+      { nonReconnues: [AMIGNY] },
+    );
+    currentFetch = stubFetch([REFUSE_DELTA], { [REFUSE_DELTA]: refuseTarball });
+    await monitor.run();
+
+    const { headers, sinistre } = await createSinistre('2026-06-10');
+    expect(sinistre.status).toBe('ARRETE_REFUSE');
+    const refusedEntryId = sinistre.arreteEntryId;
+    const rule = await prisma.deadlineRule.findFirstOrThrow({
+      where: { code: 'DECLARATION_ASSUREUR' },
+    });
+
+    const RECONNU_DELTA = 'JORFSIMPLE_20260701-060000.tar.gz';
+    currentFetch = stubFetch([REFUSE_DELTA, RECONNU_DELTA], {
+      [REFUSE_DELTA]: refuseTarball,
+      [RECONNU_DELTA]: await buildDelta(
+        'JORFTEXT000000003201',
+        'INTJ2600032A',
+        { reconnues: [AMIGNY] },
+      ),
+    });
+    await monitor.run();
+
+    const relinked = await getSinistre(headers, sinistre.id);
+    expect(relinked.status).toBe('ARRETE_PUBLIE');
+    expect(relinked.arreteEntryId).not.toBe(refusedEntryId);
+    const step = relinked.steps.find(
+      (s) => s.anchor === 'DATE_PUBLICATION_ARRETE',
+    );
+    expect(step?.plannedDate).toBe(
+      resolveDeadline(toIsoDate('2026-07-01'), rule.duration, rule.unit),
+    );
+  });
+
+  it('re-links a refused sinistre the user has since declared (critère PRD № 10)', async () => {
+    const REFUSE_DELTA = 'JORFSIMPLE_20260601-060000.tar.gz';
+    const refuseTarball = await buildDelta(
+      'JORFTEXT000000003401',
+      'INTJ2600034A',
+      { nonReconnues: [AMIGNY] },
+    );
+    currentFetch = stubFetch([REFUSE_DELTA], { [REFUSE_DELTA]: refuseTarball });
+    await monitor.run();
+
+    const { headers, sinistre } = await createSinistre('2026-06-10');
+    expect(sinistre.status).toBe('ARRETE_REFUSE');
+    // Warning the insurer before any arrêté is a step of the plan, so a
+    // refused dossier reaches DECLARE routinely — and DECLARE hides the
+    // refusal from any status-shaped candidate filter.
+    await app.inject({
+      method: 'PATCH',
+      url: `/sinistres/${sinistre.id}`,
+      headers,
+      payload: { declarationDate: '2026-06-15' },
+    });
+    const rule = await prisma.deadlineRule.findFirstOrThrow({
+      where: { code: 'DECLARATION_ASSUREUR' },
+    });
+
+    const RECONNU_DELTA = 'JORFSIMPLE_20260701-060000.tar.gz';
+    currentFetch = stubFetch([REFUSE_DELTA, RECONNU_DELTA], {
+      [REFUSE_DELTA]: refuseTarball,
+      [RECONNU_DELTA]: await buildDelta(
+        'JORFTEXT000000003501',
+        'INTJ2600035A',
+        { reconnues: [AMIGNY] },
+      ),
+    });
+    await monitor.run();
+
+    const relinked = await getSinistre(headers, sinistre.id);
+    expect(relinked.status).toBe('DECLARE');
+    expect(relinked.arreteEntryId).not.toBe(sinistre.arreteEntryId);
+    const step = relinked.steps.find(
+      (s) => s.anchor === 'DATE_PUBLICATION_ARRETE',
+    );
+    expect(step?.plannedDate).toBe(
+      resolveDeadline(toIsoDate('2026-07-01'), rule.duration, rule.unit),
+    );
+  });
+
+  it('dates the déclaration deadline on a later run when the rule was missing at link time', async () => {
+    // Same environment as the send step's own case above: a seed that never
+    // ran after the DeadlineRule migration. The link is applied anyway — a
+    // referential gap must not cost the dossier its arrêté — so the run that
+    // follows the fix has to be the one that fills the date in.
+    await prisma.deadlineRule.deleteMany();
+    const { headers, sinistre } = await createSinistre('2026-06-10');
+
+    const MORNING = 'JORFSIMPLE_20260701-060000.tar.gz';
+    const tarball = await buildDelta('JORFTEXT000000003601', 'INTJ2600036A', {
+      reconnues: [AMIGNY],
+    });
+    currentFetch = stubFetch([MORNING], { [MORNING]: tarball });
+    await monitor.run();
+
+    const linked = await getSinistre(headers, sinistre.id);
+    expect(linked.status).toBe('ARRETE_PUBLIE');
+    expect(
+      linked.steps.find((s) => s.anchor === 'DATE_PUBLICATION_ARRETE')
+        ?.plannedDate,
+    ).toBeNull();
+
+    await seedDeadlineRules(prisma);
+    await monitor.run();
+
+    const rule = await prisma.deadlineRule.findFirstOrThrow({
+      where: { code: 'DECLARATION_ASSUREUR' },
+    });
+    const dated = await getSinistre(headers, sinistre.id);
+    expect(dated.arreteEntryId).toBe(linked.arreteEntryId);
+    const step = dated.steps.find(
+      (s) => s.anchor === 'DATE_PUBLICATION_ARRETE',
+    );
+    expect(step?.plannedDate).toBe(
+      resolveDeadline(toIsoDate('2026-07-01'), rule.duration, rule.unit),
+    );
+    expect(step?.source?.url).toMatch(/legifrance/);
+  });
+
+  it('keeps a DECLARE sinistre in DECLARE once the monitor links it', async () => {
+    const { headers, sinistre } = await createSinistre('2026-06-10');
+    await app.inject({
+      method: 'PATCH',
+      url: `/sinistres/${sinistre.id}`,
+      headers,
+      payload: { declarationDate: '2026-06-15' },
+    });
+
+    const MORNING = 'JORFSIMPLE_20260701-060000.tar.gz';
+    currentFetch = stubFetch([MORNING], {
+      [MORNING]: await buildDelta('JORFTEXT000000003301', 'INTJ2600033A', {
+        reconnues: [AMIGNY],
+      }),
+    });
+    await monitor.run();
+
+    const linked = await getSinistre(headers, sinistre.id);
+    expect(linked.status).toBe('DECLARE');
+    expect(linked.arreteEntryId).not.toBeNull();
   });
 });
