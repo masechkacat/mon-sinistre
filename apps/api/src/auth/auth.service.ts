@@ -118,27 +118,40 @@ export class AuthService {
 
   /**
    * Anti-enumeration (PRD, «Ограничения»): whatever the address turns out to
-   * be, this resolves without throwing. An address already in `User` — the
-   * only constraint a caller-supplied value can violate here, the token hash
-   * being 256 random bits apart (`isUniqueViolationOn`, not the global Prisma
-   * mapping: a 409 here would tell a caller the address is already
-   * registered) — is left untouched: rewriting an unconfirmed account's
-   * password and re-mailing it, or mailing a confirmed one its "vous avez
-   * déjà un compte" link, is docs/plan/user-account.md phase 3. This issue
-   * only guarantees the row stays unique and the caller never sees an error
-   * either way (the timing gap between the branches: `src/auth/CLAUDE.md`,
-   * «Anti-enumeration: временная асимметрия по времени ответа»).
+   * be, this resolves without throwing, same shape as veille's
+   * `upsertSubscription` (`src/veille/veille.service.ts`) — nothing → create;
+   * unconfirmed → rewrite the password with the last form's, extend the
+   * deadline and resend the confirmation mail with a rotated token; confirmed
+   * → left untouched, its "vous avez déjà un compte" mail is
+   * docs/plan/user-account.md phase 3's next issue, not this one. The branch
+   * is decided by `claimUnconfirmedAccount`'s own write, so a row is never
+   * rewritten — or resurrected — on the strength of a lookup it has since
+   * outlived (the timing gap between the branches is the accepted
+   * anti-enumeration channel: `src/auth/CLAUDE.md`, «Anti-enumeration:
+   * временная асимметрия по времени ответа»).
    *
-   * The row and the mail are one transaction, as in veille's
-   * `upsertChangeRequest`: a delivery failure rolls the account back, so the
-   * retry the caller makes once mail is up again registers normally instead
-   * of hitting the duplicate branch — 204 and no link, for an address whose
-   * only token is unreachable until phase 3 adds the re-send.
+   * For a brand-new address, the row and the mail are one transaction: a
+   * delivery failure rolls the account back, so the retry the caller makes
+   * once mail is up again registers normally instead of hitting the
+   * duplicate branch — 204 and no link, for an address whose only token is
+   * unreachable. The address already in `User` — the only constraint a
+   * caller-supplied value can violate here, the token hash being 256 random
+   * bits apart (`isUniqueViolationOn`, not the global Prisma mapping: a 409
+   * here would tell a caller the address is already registered) — this
+   * create can still meet is one lost race against a concurrent submission
+   * for the same brand-new address; that caller keeps its 204 and gets no
+   * mail, the same acceptance as before this issue.
    */
   async register(dto: RegisterDto): Promise<void> {
     const passwordHash = await bcrypt.hash(dto.password, this.saltRounds);
-    const confirm = generateSecureToken();
+    const claim = await this.claimUnconfirmedAccount(dto.email, passwordHash);
+    if (claim === 'confirmed') return;
+    if (claim === 'rewritten') {
+      await this.resendConfirmationMail(dto.email);
+      return;
+    }
 
+    const confirm = generateSecureToken();
     try {
       await this.prisma.$transaction(async (tx) => {
         await tx.user.create({
@@ -155,6 +168,56 @@ export class AuthService {
       if (isUniqueViolationOn(error, 'email')) return;
       throw error;
     }
+  }
+
+  /**
+   * Decides `register`'s branch by taking it, same shape as veille's
+   * `claimUnconfirmed`: the conditional `updateMany` rewrites the password
+   * and extends the deadline in the same statement that claims the row, so a
+   * concurrent confirmation and this call can't land in the wrong order —
+   * whichever commits first is what the other sees. The deadline is
+   * deliberately not part of the condition: reviving a row whose window has
+   * already lapsed but that the hourly cleanup (phase 4) hasn't swept yet is
+   * what this branch exists for. `count === 0` leaves two states worth
+   * telling apart, and the read that follows names them: a confirmed row (the
+   * caller's write matched nothing to claim), or nothing at all — deleted
+   * before the claim, or never created — which `register` treats the same as
+   * a brand-new address.
+   */
+  private async claimUnconfirmedAccount(
+    email: string,
+    passwordHash: string,
+  ): Promise<'confirmed' | 'rewritten' | 'absent'> {
+    const claimed = await this.prisma.user.updateMany({
+      where: { email, confirmedAt: null },
+      data: { passwordHash, confirmExpiresAt: nextConfirmExpiresAt() },
+    });
+    if (claimed.count > 0) return 'rewritten';
+
+    const existing = await this.prisma.user.findUnique({
+      where: { email },
+      select: { confirmedAt: true },
+    });
+    return existing?.confirmedAt ? 'confirmed' : 'absent';
+  }
+
+  /**
+   * Only reached once `claimUnconfirmedAccount` has already rewritten the
+   * password and the deadline — this rotates the confirmation token and
+   * mails it, same gating as veille's `resendConfirmationMail`: the rotation
+   * is conditioned on `confirmedAt: null` again, so a confirmation landing in
+   * the gap between the claim above and this call keeps the link it was
+   * already mailed working instead of this silently invalidating it with a
+   * resend nobody asked for.
+   */
+  private async resendConfirmationMail(email: string): Promise<void> {
+    const confirm = generateSecureToken();
+    const rotated = await this.prisma.user.updateMany({
+      where: { email, confirmedAt: null },
+      data: { confirmTokenHash: confirm.hash },
+    });
+    if (rotated.count === 0) return;
+    await this.mail.send(confirmationMailFor(email, confirm.token));
   }
 
   /**
