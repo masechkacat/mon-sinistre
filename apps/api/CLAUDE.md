@@ -112,9 +112,9 @@ Prisma CLI, seed, скрипты `scripts/` и обвязка тестов.
   pre-commit и корневой `npm test` остаются быстрыми и без Docker.
 - `maxWorkers: 1` обязателен, пока тесты делят одну базу; если станет медленно —
   база-на-воркера через `JEST_WORKER_ID`, не testcontainers.
-- База — `${DB_NAME}_test` на том же Postgres; `test/jest.int.global-setup.js`
-  создаёт её и прогоняет миграции, `test/jest.int.env.js` направляет туда
-  `PrismaService`. Имя обе стороны берут из `test/test-db-name.js`.
+- База — `${DB_NAME}_test` на том же Postgres; `test/setup/jest.int.global-setup.js`
+  создаёт её и прогоняет миграции, `test/setup/jest.int.env.js` направляет туда
+  `PrismaService`. Имя обе стороны берут из `test/setup/test-db-name.js`.
 - Между тестами — `TRUNCATE` затронутых таблиц в `beforeEach`, не пересоздание
   схемы.
 - **Планировщик в тестовом приложении не взводится вовсе** — почему, чем это

@@ -17,21 +17,25 @@
  */
 module.exports = {
   moduleFileExtensions: ['js', 'json', 'ts'],
-  rootDir: 'src',
-  setupFiles: ['reflect-metadata', '<rootDir>/../test/jest.int.env.js'],
+  rootDir: '.',
+  setupFiles: ['reflect-metadata', '<rootDir>/test/setup/jest.int.env.js'],
   testRegex: '.*\\.int-spec\\.ts$',
   // As in the unit config: a spy on a global (fetch, Logger) is undone after
   // the test that set it, whatever that test did afterwards. A spy surviving
   // into the next suite is a failure nobody reads as one.
   restoreMocks: true,
-  // Only .ts: the setup files in test/ are plain CommonJS run by Node itself,
-  // ts-jest warns if asked to compile them.
+  // Only .ts: the setup files in test/setup/ are plain CommonJS run by Node
+  // itself, ts-jest warns if asked to compile them.
   transform: { '^.+\\.ts$': 'ts-jest' },
   moduleNameMapper: {
-    '^@mon-sinistre/contracts$': '<rootDir>/../../../packages/contracts/src',
-    '^src/(.*)$': '<rootDir>/$1',
+    '^@mon-sinistre/contracts$': '<rootDir>/../../packages/contracts/src',
+    '^src/(.*)$': '<rootDir>/src/$1',
   },
   testEnvironment: 'node',
-  globalSetup: '<rootDir>/../test/jest.int.global-setup.js',
+  globalSetup: '<rootDir>/test/setup/jest.int.global-setup.js',
+  // rootDir is the app, not src/ — otherwise the specs under test/ fall
+  // outside it. dist/ then has to be excluded by hand: it holds a compiled
+  // copy of every module, and Jest's haste map reports each as a duplicate.
+  modulePathIgnorePatterns: ['<rootDir>/dist/'],
   maxWorkers: 1,
 };

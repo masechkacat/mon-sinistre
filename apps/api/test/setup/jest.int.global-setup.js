@@ -13,7 +13,7 @@ const testDbName = require('./test-db-name');
  */
 module.exports = async () => {
   try {
-    process.loadEnvFile(path.join(__dirname, '..', '.env'));
+    process.loadEnvFile(path.join(__dirname, '..', '..', '.env'));
   } catch {
     // .env is absent — variables come from the environment (e.g. CI).
   }
@@ -43,7 +43,7 @@ module.exports = async () => {
   }
 
   execSync('npx prisma migrate deploy', {
-    cwd: path.join(__dirname, '..'),
+    cwd: path.join(__dirname, '..', '..'),
     env: { ...process.env, DB_NAME: dbName },
     stdio: 'inherit',
   });

@@ -8,7 +8,7 @@ const testDbName = require('./test-db-name');
 // bootstrap the real AppModule with env validation), then rewrites DB_NAME
 // via the shared helper — the same one the global setup uses.
 try {
-  process.loadEnvFile(path.join(__dirname, '..', '.env'));
+  process.loadEnvFile(path.join(__dirname, '..', '..', '.env'));
 } catch {
   // .env is absent — variables come from the environment (e.g. CI).
 }
