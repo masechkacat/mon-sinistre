@@ -14,28 +14,28 @@ import { MailService } from 'src/mail/mail.service';
 import { isUniqueViolationOn } from 'src/prisma/prisma-error';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { generateVeilleToken } from 'src/veille/veille-token';
-import { DilaClient } from './dila.client';
-import { type CommuneReferentialEntry, matchCommune } from './match-commune';
+import { DilaClient } from './dila/dila.client';
+import { type CommuneReferentialEntry, matchCommune } from './recipients/match-commune';
 import {
   type MonitorAlertForMail,
   monitorAlertMailFor,
-} from './monitor-alert-mail';
+} from './mail/monitor-alert-mail';
 import {
   type ParsedArrete,
   type ParsedArreteEntry,
   parseArreteXml,
-} from './parse-arrete';
+} from './parse/parse-arrete';
 import {
   type SubscribedCommune,
   resolveRecipients,
-} from './resolve-recipients';
-import { selectCatnatTextIds } from './select-catnat-texts';
+} from './recipients/resolve-recipients';
+import { selectCatnatTextIds } from './parse/select-catnat-texts';
 import {
   type ArreteEntryForMail,
   type ArreteForMail,
   type DeclarationDeadlineRule,
   veilleArreteMailFor,
-} from './veille-arrete-mail';
+} from './mail/veille-arrete-mail';
 
 const TOC_BASENAME_PATTERN = /^JORFCONT/;
 

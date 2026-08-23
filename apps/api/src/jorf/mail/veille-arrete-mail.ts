@@ -11,7 +11,7 @@ import {
   unsubscribePathFor,
   type ChosenCommune,
 } from 'src/veille/veille-confirmation-mail';
-import { formatFrenchDate } from './french-date';
+import { formatFrenchDate } from '../parse/french-date';
 
 export interface ArreteEntryForMail {
   readonly commune: ChosenCommune;

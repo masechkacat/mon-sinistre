@@ -1,4 +1,4 @@
-import { normalizeCommuneName } from '../communes/normalize-commune-name';
+import { normalizeCommuneName } from '../../communes/normalize-commune-name';
 import { CommuneReferentialEntry, matchCommune } from './match-commune';
 
 function entry(

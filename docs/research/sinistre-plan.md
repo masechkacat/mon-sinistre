@@ -71,13 +71,13 @@ restrict (чистка справочников не трогает досье, 
 `Sinistre.risque` меняет тип со свободной строки на этот enum (пользователь
 выбирает из списка). `ArreteEntry.risque` остаётся сырой строкой из annexe
 (доказательство, `data-model.md` § 4), а сопоставление даёт чистая функция
-`classifyRisques(label): Set<RisqueCatnat>` в `src/jorf/`.
+`classifyRisques(label): Set<RisqueCatnat>` в `src/jorf/parse/`.
 
 **Почему:** «признание засухи не открывает срок по наводнению» (PRD) требует
 сравнивать не тексты, а категории: JO печатает десяток формулировок одного
 явления («Inondations et coulées de boue», «Inondations par remontée de nappe
 phréatique», «Mouvements de terrains (hors sécheresse géotechnique)» — все
-четыре встречаются в фикстурах `src/jorf/fixtures/`). Шесть значений — свёртка
+четыре встречаются в фикстурах `test/fixtures/jorf/`). Шесть значений — свёртка
 восьми официальных категорий процедуры CatNat
 (https://www.alpes-maritimes.gouv.fr/…/Les-differents-phenomenes-naturels,
 сверено 23.08.2026): три «водных» (débordement, remontée de nappe, action de la
@@ -126,7 +126,7 @@ la sécheresse et à la réhydratation des sols») содержит «mouvements
 действующем коде (поиск коммун отдаёт актуальные строки), а entry может нести
 устаревший — `matchCommune` ищет и среди строк с `effectiveTo`, когда arrêté
 опоздал к слиянию. Форвардный резолв уже написан — `resolveCurrentCode` в
-`src/jorf/resolve-recipients.ts` (с защитой от цикла); он экспортируется и
+`src/jorf/recipients/resolve-recipients.ts` (с защитой от цикла); он экспортируется и
 используется отсюда, второй реализации преемников в проекте нет.
 **Отброшено:** сужать выборку синистров «замыканием предшественников» кодов
 arrêté — это тот же резолв, написанный задом наперёд, то есть второй механизм
@@ -334,7 +334,7 @@ TanStack Query.
 при записи (`normalizeEmail`).
 **Отброшено:** гасить строку целиком по адресу — теряет коммуны, которых письмо
 синистра не называет, и снимает ту же страховку.
-**Как применять:** композитор `src/jorf/sinistre-arrete-mail.ts` рядом с
+**Как применять:** композитор `src/jorf/mail/sinistre-arrete-mail.ts` рядом с
 `veille-arrete-mail.ts` — тот же блочный каркас и та же ветка `fr.mail.jorf…`;
 `unsubscribePath` — `ACCOUNT_MAIL_UNSUBSCRIBE_PATH` (письмо транзакционное,
 обработчик в web уже есть), ротации токена подписки здесь нет. Ссылка на экран
@@ -342,7 +342,7 @@ TanStack Query.
 contracts (тот же приём, что `VEILLE_*_PATH`). Механика досылки, счётчик
 `attempts` и алерт `NOTIFICATION_STUCK` у двух outbox'ов общие: цикл
 «взять pending → сгруппировать по arrêté → try/catch на получателя → отметить
-или посчитать попытку» выносится в `src/jorf/drain-outbox.ts` и
+или посчитать попытку» выносится в `src/jorf/mail/drain-outbox.ts` и
 параметризуется адаптером (загрузка pending, сборка письма, отметка), иначе
 вторая копия этого цикла разъедется с первой на первом же исправлении.
 Синистр, привязанный **при создании** (arrêté уже был в базе), письма не

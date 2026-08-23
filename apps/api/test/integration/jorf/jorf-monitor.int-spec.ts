@@ -11,7 +11,7 @@ import { MAIL_TRANSPORT } from 'src/mail/mail-transport';
 import { RecordingTransport } from 'test/helpers/mail-transport';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { createVeille } from 'test/helpers/veille';
-import { DILA_JORFSIMPLE_BASE_URL, DilaClient } from 'src/jorf/dila.client';
+import { DILA_JORFSIMPLE_BASE_URL, DilaClient } from 'src/jorf/dila/dila.client';
 import { buildTarball } from 'test/helpers/build-tarball';
 import { jorfFixture } from 'test/fixtures/jorf';
 import {

@@ -1,4 +1,4 @@
-import { normalizeCommuneName } from '../communes/normalize-commune-name';
+import { normalizeCommuneName } from '../../communes/normalize-commune-name';
 
 /**
  * The referential fields `matchCommune` needs, independent of how the caller
