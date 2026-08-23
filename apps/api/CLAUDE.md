@@ -38,6 +38,7 @@ CNIL, bcrypt, JWT-сессии с ротацией, глобальный guard, 
 | одноразовый токен ссылки     | `generateSecureToken`/`hashSecureToken` (`src/common/`) |
 | HMAC-хеш адреса для счётчика | `hashEmail` (`src/common/`)                             |
 | описание ошибки в логе       | `errorSummary`/`stackOf` (`src/common/`)                |
+| изоляция шага часовой чистки | `runGuarded` (`src/common/scheduled-cleanup.ts`)        |
 | строки для пользователя      | `src/i18n/fr.ts`                                        |
 | чтение окружения             | `ConfigService<EnvironmentVariables, true>`             |
 | пометить эндпоинт публичным  | `@Public()` (`src/auth/public.decorator.ts`)            |

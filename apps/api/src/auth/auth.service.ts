@@ -4,10 +4,12 @@ import {
   HttpException,
   HttpStatus,
   Injectable,
+  Logger,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService, type JwtSignOptions } from '@nestjs/jwt';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import * as bcrypt from 'bcrypt';
 import {
   ACCOUNT_CONFIRM_TTL_DAYS,
@@ -20,8 +22,12 @@ import {
   type LoginResponse,
   type PasswordResetStatus,
 } from '@mon-sinistre/contracts';
-import { awaitingConfirmation } from 'src/common/confirmation-window';
+import {
+  awaitingConfirmation,
+  expiredUnconfirmed,
+} from 'src/common/confirmation-window';
 import { hashEmail } from 'src/common/email-hash';
+import { runGuarded } from 'src/common/scheduled-cleanup';
 import { generateSecureToken, hashSecureToken } from 'src/common/secure-token';
 import { addDays, addHours, DAY_MS, HOUR_MS } from 'src/common/time';
 import type { EnvironmentVariables } from 'src/config/env.validation';
@@ -100,6 +106,7 @@ const dummyPasswordHashFor = (saltRounds: number): string =>
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
   private readonly saltRounds: number;
   private readonly dummyPasswordHash: string;
   private readonly jwtSecret: string;
@@ -588,5 +595,82 @@ export class AuthService {
   /** Why this is the whole operation — `src/auth/CLAUDE.md`. */
   async deleteAccount(userId: string): Promise<void> {
     await this.prisma.user.delete({ where: { id: userId } });
+  }
+
+  /**
+   * Single hourly trigger for all five cleanups of the feature (research,
+   * «Чистка: один cron-час, индексы в той же миграции»): the `deleteMany`
+   * calls are independent of each other, but the schedule is one. Each runs
+   * through `runGuarded` (`src/common/scheduled-cleanup.ts`, shared with
+   * veille's `cleanupExpired`) so that the independence holds for failures
+   * too — why, its own docblock.
+   */
+  @Cron(CronExpression.EVERY_HOUR)
+  async cleanupExpired(): Promise<void> {
+    await runGuarded(this.logger, 'deleteExpiredUnconfirmedUsers', () =>
+      this.deleteExpiredUnconfirmedUsers(),
+    );
+    await runGuarded(this.logger, 'deleteExpiredPasswordResets', () =>
+      this.deleteExpiredPasswordResets(),
+    );
+    await runGuarded(this.logger, 'deleteExpiredRefreshTokens', () =>
+      this.deleteExpiredRefreshTokens(),
+    );
+    await runGuarded(this.logger, 'deleteStaleAccountFormEmailCounters', () =>
+      this.deleteStaleAccountFormEmailCounters(),
+    );
+    await runGuarded(this.logger, 'deleteStaleLoginAttemptCounters', () =>
+      this.deleteStaleLoginAttemptCounters(),
+    );
+  }
+
+  /**
+   * The deletion criterion of the confirmation window — `expiredUnconfirmed`,
+   * the same shared comparison veille's `deleteExpiredUnconfirmed` uses
+   * (`src/common/confirmation-window.ts`) — which the `User` → `RefreshToken`
+   * / `PasswordReset` cascade extends to whatever sessions and reset requests
+   * the account still held. A row still within its deadline stays, however
+   * long its owner takes to open the mail.
+   */
+  async deleteExpiredUnconfirmedUsers(): Promise<void> {
+    await this.prisma.user.deleteMany({ where: expiredUnconfirmed() });
+  }
+
+  /** `PasswordReset` rows outlive neither their `expiresAt` nor the `User`
+   * they cascade from — this is the former; a spent (`usedAt` set) row still
+   * waits out its own deadline like an unspent one, same as `RefreshToken`
+   * below never distinguishes revoked from live by age. */
+  async deleteExpiredPasswordResets(): Promise<void> {
+    await this.prisma.passwordReset.deleteMany({
+      where: { expiresAt: { lt: new Date() } },
+    });
+  }
+
+  /** A revoked (`revokedAt` set) row is not deleted early — `refresh`'s reuse
+   * detection needs it around for `REFRESH_ROTATION_GRACE_MS` after rotation,
+   * and nothing past that reads `revokedAt` again — so this is the only thing
+   * that ages `RefreshToken` rows out, on `expiresAt` alone. */
+  async deleteExpiredRefreshTokens(): Promise<void> {
+    await this.prisma.refreshToken.deleteMany({
+      where: { expiresAt: { lt: new Date() } },
+    });
+  }
+
+  /** Same shape as veille's `deleteStaleFormEmailCounters`: `AccountFormEmail`
+   * rows outlive the `User` they were sent for — no FK ties them together —
+   * and age out on their own `sendAccountMail` window, `ACCOUNT_EMAIL_LIMIT`'s
+   * `DAY_MS`. */
+  async deleteStaleAccountFormEmailCounters(): Promise<void> {
+    await this.prisma.accountFormEmail.deleteMany({
+      where: { sentAt: { lt: new Date(Date.now() - DAY_MS) } },
+    });
+  }
+
+  /** Same shape as the account mail counter above, on `validateCredentials`'s
+   * own window, `LOGIN_ATTEMPT_LIMIT`'s `HOUR_MS`. */
+  async deleteStaleLoginAttemptCounters(): Promise<void> {
+    await this.prisma.loginAttempt.deleteMany({
+      where: { attemptedAt: { lt: new Date(Date.now() - HOUR_MS) } },
+    });
   }
 }

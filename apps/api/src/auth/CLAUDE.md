@@ -6,7 +6,8 @@
 вход, ротацию refresh, выход, чтение текущего пользователя, удаление
 аккаунта (фаза 2), запрос сброса пароля, смену пароля по токену и повторную
 регистрацию — как неподтверждённым, так и подтверждённым адресом (фаза 3,
-закрыта), лимит писем аккаунта и лимит попыток входа (фаза 4, в работе).
+закрыта), лимит писем аккаунта, лимит попыток входа и часовую чистку
+(фаза 4, закрыта).
 
 ## Точки входа
 
@@ -178,6 +179,17 @@
   же приватным `clearRefreshCookie`, что у `logout`, независимо от того, была
   ли она вообще предъявлена. Повторный вызов на уже удалённом аккаунте —
   `401` от `JwtStrategy`, как у `GET /auth/me`.
+- `AuthService.cleanupExpired` — `@Cron(EVERY_HOUR)`, единственный часовой
+  прогон чистки фичи (`docs/research/user-account.md`, «Чистка: один
+  cron-час»): неподтверждённые `User` старше `ACCOUNT_CONFIRM_TTL_DAYS`
+  (каскад сносит их `RefreshToken`/`PasswordReset`, тот же
+  `expiredUnconfirmed` из `src/common/confirmation-window.ts`, что и у
+  veille), просроченные `PasswordReset`, истёкшие `RefreshToken`, счётчики
+  `AccountFormEmail`/`LoginAttempt` старше своего окна (`DAY_MS`/`HOUR_MS`,
+  те же, что у `sendAccountMail` и `validateCredentials` выше). Каждый
+  `deleteMany` идёт через `runGuarded` (`src/common/scheduled-cleanup.ts`,
+  общий с `VeilleService.cleanupExpired`) — падение одного не стоит хода
+  остальным; второй копии этой обвязки не заводить.
 - `@fastify/cookie` регистрируется общей функцией `registerCookiePlugin`
   (`src/config/fastify-cookie.ts`) — и в `main.ts`, и в `createIntTestApp`
   (`src/app.int-helper.ts`): без неё `reply.setCookie` не существует ни в

@@ -13,7 +13,7 @@ import {
   expiredUnconfirmed,
   isStillOpen,
 } from 'src/common/confirmation-window';
-import { errorSummary, stackOf } from 'src/common/error-report';
+import { runGuarded } from 'src/common/scheduled-cleanup';
 import { addDays, DAY_MS } from 'src/common/time';
 import type { EnvironmentVariables } from 'src/config/env.validation';
 import type { Prisma } from 'src/generated/prisma/client';
@@ -525,36 +525,22 @@ export class VeilleService {
    * неподтверждённых за 7 дней и чистка счётчика» и «Чистка просроченных
    * заявок»): the `deleteMany` calls are independent of each other, but the
    * schedule is one — a second `@Cron` on the same expression would just be
-   * two names for the same tick.
-   *
-   * Each runs guarded so that the independence holds for failures too: nothing
-   * above a scheduled tick catches anything — `AllExceptionsFilter` only sees
-   * requests — so an unguarded rejection would cost the remaining cleanups
-   * their turn and reach the log as the scheduler's own `console.error`,
-   * message and all.
+   * two names for the same tick. Each runs through `runGuarded`
+   * (`src/common/scheduled-cleanup.ts`, shared with the account feature's own
+   * cleanup) so that the independence holds for failures too — why, its own
+   * docblock.
    */
   @Cron(CronExpression.EVERY_HOUR)
   async cleanupExpired(): Promise<void> {
-    await this.guarded('deleteExpiredUnconfirmed', () =>
+    await runGuarded(this.logger, 'deleteExpiredUnconfirmed', () =>
       this.deleteExpiredUnconfirmed(),
     );
-    await this.guarded('deleteStaleFormEmailCounters', () =>
+    await runGuarded(this.logger, 'deleteStaleFormEmailCounters', () =>
       this.deleteStaleFormEmailCounters(),
     );
-    await this.guarded('deleteExpiredChanges', () =>
+    await runGuarded(this.logger, 'deleteExpiredChanges', () =>
       this.deleteExpiredChanges(),
     );
-  }
-
-  private async guarded(name: string, run: () => Promise<void>): Promise<void> {
-    try {
-      await run();
-    } catch (error) {
-      this.logger.error(
-        `${name} failed: ${errorSummary(error)}`,
-        stackOf(error),
-      );
-    }
   }
 
   /**
