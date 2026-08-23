@@ -99,18 +99,24 @@ describe('POST /auth/password-reset (integration)', () => {
     expect(transport.sent[0]?.to).toBe(email);
   });
 
-  it('keeps no reset row when the mail fails, so a retry works normally', async () => {
+  it('answers 500 when the mail fails; the retry mails a fresh link whose hash is in the database', async () => {
     const email = await createUser();
     transport.failNext = true;
 
     const failed = await post({ email });
     expect(failed.statusCode).toBe(500);
-    expect(await prisma.passwordReset.count()).toBe(0);
 
     const retried = await post({ email });
     expect(retried.statusCode).toBe(204);
-    expect(await prisma.passwordReset.count()).toBe(1);
     expect(transport.sent).toHaveLength(1);
+
+    const [message] = transport.sent;
+    if (!message) throw new Error('expected a message to have been sent');
+    const resetToken = tokenFrom(message, ACCOUNT_RESET_PATH);
+    const rows = await prisma.passwordReset.findMany();
+    expect(rows.map((row) => row.tokenHash)).toContain(
+      createHash('sha256').update(resetToken).digest('hex'),
+    );
   });
 
   it('never logs the email address', async () => {

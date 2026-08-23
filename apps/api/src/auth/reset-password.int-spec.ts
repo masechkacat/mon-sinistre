@@ -23,8 +23,13 @@ describe('POST /auth/password-reset/confirm (integration)', () => {
 
   /** A user plus a live `PasswordReset` row for it. Returns the token and
    * the user's email. */
-  const createUserWithReset = async (overrides: { expiresAt?: Date } = {}) => {
-    const email = await createUserIn(prisma);
+  const createUserWithReset = async (
+    overrides: { expiresAt?: Date; confirmedAt?: Date | null } = {},
+  ) => {
+    const email = await createUserIn(
+      prisma,
+      'confirmedAt' in overrides ? { confirmedAt: overrides.confirmedAt } : {},
+    );
     const user = await prisma.user.findUniqueOrThrow({ where: { email } });
     const token = 'a'.repeat(SECURE_TOKEN_LENGTH);
     await prisma.passwordReset.create({
@@ -34,7 +39,7 @@ describe('POST /auth/password-reset/confirm (integration)', () => {
         expiresAt: overrides.expiresAt ?? new Date(Date.now() + HOUR_MS),
       },
     });
-    return { email, token };
+    return { email, token, userId: user.id };
   };
 
   beforeAll(async () => {
@@ -95,6 +100,45 @@ describe('POST /auth/password-reset/confirm (integration)', () => {
       payload: { email, password: 'NewPass12' },
     });
     expect(stillWorks.statusCode).toBe(200);
+  });
+
+  it('spends every outstanding reset token of the account, not only the presented one', async () => {
+    const { email, token, userId } = await createUserWithReset();
+    const olderToken = 'c'.repeat(SECURE_TOKEN_LENGTH);
+    await prisma.passwordReset.create({
+      data: {
+        userId,
+        tokenHash: hashSecureToken(olderToken),
+        expiresAt: new Date(Date.now() + HOUR_MS),
+      },
+    });
+
+    await post({ token, password: 'NewPass12' });
+    const replay = await post({ token: olderToken, password: 'AnotherOne1' });
+
+    expect(replay.statusCode).toBe(200);
+    expect(JSON.parse(replay.payload)).toEqual({ status: 'invalid' });
+    const chosenPasswordHolds = await app.inject({
+      method: 'POST',
+      url: '/auth/login',
+      payload: { email, password: 'NewPass12' },
+    });
+    expect(chosenPasswordHolds.statusCode).toBe(200);
+  });
+
+  it('confirms a not-yet-confirmed account, so the new password signs in at once', async () => {
+    const { email, token } = await createUserWithReset({ confirmedAt: null });
+
+    const res = await post({ token, password: 'NewPass12' });
+
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(res.payload)).toEqual({ status: 'reset' });
+    const signIn = await app.inject({
+      method: 'POST',
+      url: '/auth/login',
+      payload: { email, password: 'NewPass12' },
+    });
+    expect(signIn.statusCode).toBe(200);
   });
 
   it('reports "invalid" for an expired token, same as an unknown one', async () => {

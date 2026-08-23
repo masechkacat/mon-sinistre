@@ -16,8 +16,7 @@
   адрес уже в `User` неподтверждённым — перезапись; адрес подтверждён —
   строка оставлена как есть, письмо «у вас уже есть аккаунт» —
   `alreadyRegisteredMailFor` ниже. Механика каждой ветки — в докблоках
-  `register`, `claimUnconfirmedAccount` и `resendConfirmationMail`, здесь не
-  пересказывается.
+  `register` и `claimUnconfirmedAccount`, здесь не пересказывается.
 - `POST /auth/confirmation` → `AuthService.confirm`; мутация — визит по
   ссылке (`GET`, например предзагрузка почтовым клиентом) её не активирует, у
   эндпоинта нет `GET`-пары в отличие от `veille`. Идемпотентен: повторный
@@ -51,9 +50,12 @@
   `204`, whatever the address turns out to be — anti-enumeration, same
   principle as `register` above. An unknown address does nothing and returns
   at once; a known one — confirmed or not, the confirmation flow above is a
-  separate concern — gets a fresh `PasswordReset` row and its mail, one
-  transaction (row and mail roll back together on delivery failure, same as
-  `register`); `P2003` on the insert — the account deleted between the
+  separate concern — gets a fresh `PasswordReset` row, then its mail. The
+  mail is sent after the write, never inside a transaction with it (why —
+  `register`'s docblock, same constraint); a delivery failure leaves a row
+  whose token nobody holds, which is harmless: it expires on its own, the
+  hourly cleanup (phase 4) sweeps it, and a successful reset spends it with
+  the rest. `P2003` on the insert — the account deleted between the
   lookup and the write — answers the same as an unknown address, same
   reasoning as `issueTokens`'s own `P2003` handling above. `password-reset-mail.ts`
   (`passwordResetMailFor`) is the one build of that mail; it reuses
@@ -61,8 +63,10 @@
   list.
 - `POST /auth/password-reset/confirm` → `AuthService.resetPassword`; the
   endpoint that spends the row above and sets a new password. The atomic
-  claim, the anti-enumeration answer and the session revoke are all in the
-  method's own docblock, not repeated here. `dto/reset-password.dto.ts`
+  claim, the anti-enumeration answer, the session revoke, the spending of
+  the account's other outstanding rows and the confirmation of a
+  not-yet-confirmed account are all in the method's own docblock, not
+  repeated here. `dto/reset-password.dto.ts`
   (`ResetPasswordDto`) extends the shared `TokenDto` and reuses
   `IsAccountPassword` for the new password — same policy and message as
   `RegisterDto`, second copy not warranted.

@@ -68,18 +68,26 @@ describe('POST /auth/register (integration)', () => {
     expect(user.confirmTokenHash).not.toBe(confirmToken);
   });
 
-  it('keeps no account when the confirmation mail fails, so a retry registers normally', async () => {
+  it('keeps the account when the confirmation mail fails; the retry rotates the token and mails a working link', async () => {
     const body = { email: 'victime@example.fr', password: 'Abc12345' };
     transport.failNext = true;
 
     const failed = await post(body);
     expect(failed.statusCode).toBe(500);
-    expect(await prisma.user.count()).toBe(0);
+    expect(await prisma.user.count()).toBe(1);
 
     const retried = await post(body);
     expect(retried.statusCode).toBe(204);
     expect(await prisma.user.count()).toBe(1);
     expect(transport.sent).toHaveLength(1);
+
+    const [message] = transport.sent;
+    if (!message) throw new Error('expected a message to have been sent');
+    const user = await prisma.user.findFirstOrThrow();
+    const confirmToken = tokenFrom(message, ACCOUNT_CONFIRM_PATH);
+    expect(user.confirmTokenHash).toBe(
+      createHash('sha256').update(confirmToken).digest('hex'),
+    );
   });
 
   it('creates exactly one account for two spellings of the same address, the last password winning', async () => {

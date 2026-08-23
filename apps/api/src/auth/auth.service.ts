@@ -122,43 +122,46 @@ export class AuthService {
    * be, this resolves without throwing, same shape as veille's
    * `upsertSubscription` (`src/veille/veille.service.ts`) — nothing → create;
    * unconfirmed → rewrite the password with the last form's, extend the
-   * deadline and resend the confirmation mail with a rotated token; confirmed
-   * → the row is left untouched and mailed the "vous avez déjà un compte"
-   * notice instead (`alreadyRegisteredMailFor`, its own doc comment). The
-   * branch is decided by `claimUnconfirmedAccount`'s own write, so a row is
-   * never rewritten — or resurrected — on the strength of a lookup it has
-   * since outlived (the timing gap between the branches is the accepted
-   * anti-enumeration channel: `src/auth/CLAUDE.md`, «Anti-enumeration:
-   * временная асимметрия по времени ответа»).
+   * deadline and rotate the confirmation token, all in
+   * `claimUnconfirmedAccount`'s single statement; confirmed → the row is
+   * left untouched and mailed the "vous avez déjà un compte" notice instead
+   * (`alreadyRegisteredMailFor`, its own doc comment). The branch is decided
+   * by `claimUnconfirmedAccount`'s own write, so a row is never rewritten —
+   * or resurrected — on the strength of a lookup it has since outlived (the
+   * timing gap between the branches is the accepted anti-enumeration
+   * channel: `src/auth/CLAUDE.md`, «Anti-enumeration: временная асимметрия
+   * по времени ответа»).
    *
-   * For a brand-new address, the row and the mail are one transaction: a
-   * delivery failure rolls the account back, so the retry the caller makes
-   * once mail is up again registers normally instead of hitting the
-   * duplicate branch — 204 and no link, for an address whose only token is
-   * unreachable. The address already in `User` — the only constraint a
-   * caller-supplied value can violate here, the token hash being 256 random
-   * bits apart (`isUniqueViolationOn`, not the global Prisma mapping: a 409
-   * here would tell a caller the address is already registered) — this
-   * create can still meet is one lost race against a concurrent submission
-   * for the same brand-new address; that caller keeps its 204 and gets no
-   * mail, the same acceptance as before this issue.
+   * The mail goes out after the write, never inside a transaction with it:
+   * the transport's own delivery budget (`SCALEWAY_TEM_TIMEOUT_MS`, 10 s)
+   * outlives Prisma's 5 s interactive-transaction default, so a
+   * slow-but-successful send inside one would abort the row it announces. A
+   * delivery failure therefore leaves the account behind with a token
+   * nobody holds — a state that heals itself: the retry lands in the
+   * rewritten branch, which rotates the token and mails the fresh link. The
+   * address already in `User` — the only constraint a caller-supplied value
+   * can violate here, the token hash being 256 random bits apart
+   * (`isUniqueViolationOn`, not the global Prisma mapping: a 409 here would
+   * tell a caller the address is already registered) — this create can
+   * still meet is one lost race against a concurrent submission for the
+   * same brand-new address; that caller keeps its 204 and gets no mail, the
+   * same acceptance as before this issue.
    */
   async register(dto: RegisterDto): Promise<void> {
     const passwordHash = await bcrypt.hash(dto.password, this.saltRounds);
-    const claim = await this.claimUnconfirmedAccount(dto.email, passwordHash);
+    const confirm = generateSecureToken();
+    const claim = await this.claimUnconfirmedAccount(
+      dto.email,
+      passwordHash,
+      confirm.hash,
+    );
     if (claim === 'confirmed') {
       await this.mail.send(alreadyRegisteredMailFor(dto.email));
       return;
     }
-    if (claim === 'rewritten') {
-      await this.resendConfirmationMail(dto.email);
-      return;
-    }
-
-    const confirm = generateSecureToken();
-    try {
-      await this.prisma.$transaction(async (tx) => {
-        await tx.user.create({
+    if (claim === 'absent') {
+      try {
+        await this.prisma.user.create({
           data: {
             email: dto.email,
             passwordHash,
@@ -166,35 +169,43 @@ export class AuthService {
             confirmExpiresAt: nextConfirmExpiresAt(),
           },
         });
-        await this.mail.send(confirmationMailFor(dto.email, confirm.token));
-      });
-    } catch (error) {
-      if (isUniqueViolationOn(error, 'email')) return;
-      throw error;
+      } catch (error) {
+        if (isUniqueViolationOn(error, 'email')) return;
+        throw error;
+      }
     }
+    await this.mail.send(confirmationMailFor(dto.email, confirm.token));
   }
 
   /**
    * Decides `register`'s branch by taking it, same shape as veille's
-   * `claimUnconfirmed`: the conditional `updateMany` rewrites the password
-   * and extends the deadline in the same statement that claims the row, so a
-   * concurrent confirmation and this call can't land in the wrong order —
-   * whichever commits first is what the other sees. The deadline is
-   * deliberately not part of the condition: reviving a row whose window has
-   * already lapsed but that the hourly cleanup (phase 4) hasn't swept yet is
-   * what this branch exists for. `count === 0` leaves two states worth
-   * telling apart, and the read that follows names them: a confirmed row (the
-   * caller's write matched nothing to claim), or nothing at all — deleted
-   * before the claim, or never created — which `register` treats the same as
-   * a brand-new address.
+   * `claimUnconfirmed`: the conditional `updateMany` rewrites the password,
+   * the deadline and the confirmation token in the same statement that
+   * claims the row — one write, so no failure or concurrent confirmation
+   * can land between a rewritten password and the token that belongs with
+   * it; whichever of this claim and a confirmation commits first is what
+   * the other sees, and a link the claim rotates out is replaced by the one
+   * `register` mails right after. The deadline is deliberately not part of
+   * the condition: reviving a row whose window has already lapsed but that
+   * the hourly cleanup (phase 4) hasn't swept yet is what this branch
+   * exists for. `count === 0` leaves two states worth telling apart, and
+   * the read that follows names them: a confirmed row (the caller's write
+   * matched nothing to claim), or nothing at all — deleted before the
+   * claim, or never created — which `register` treats the same as a
+   * brand-new address.
    */
   private async claimUnconfirmedAccount(
     email: string,
     passwordHash: string,
+    confirmTokenHash: string,
   ): Promise<'confirmed' | 'rewritten' | 'absent'> {
     const claimed = await this.prisma.user.updateMany({
       where: { email, confirmedAt: null },
-      data: { passwordHash, confirmExpiresAt: nextConfirmExpiresAt() },
+      data: {
+        passwordHash,
+        confirmTokenHash,
+        confirmExpiresAt: nextConfirmExpiresAt(),
+      },
     });
     if (claimed.count > 0) return 'rewritten';
 
@@ -203,25 +214,6 @@ export class AuthService {
       select: { confirmedAt: true },
     });
     return existing?.confirmedAt ? 'confirmed' : 'absent';
-  }
-
-  /**
-   * Only reached once `claimUnconfirmedAccount` has already rewritten the
-   * password and the deadline — this rotates the confirmation token and
-   * mails it, same gating as veille's `resendConfirmationMail`: the rotation
-   * is conditioned on `confirmedAt: null` again, so a confirmation landing in
-   * the gap between the claim above and this call keeps the link it was
-   * already mailed working instead of this silently invalidating it with a
-   * resend nobody asked for.
-   */
-  private async resendConfirmationMail(email: string): Promise<void> {
-    const confirm = generateSecureToken();
-    const rotated = await this.prisma.user.updateMany({
-      where: { email, confirmedAt: null },
-      data: { confirmTokenHash: confirm.hash },
-    });
-    if (rotated.count === 0) return;
-    await this.mail.send(confirmationMailFor(email, confirm.token));
   }
 
   /**
@@ -259,58 +251,72 @@ export class AuthService {
 
     const reset = generateSecureToken();
     try {
-      await this.prisma.$transaction(async (tx) => {
-        await tx.passwordReset.create({
-          data: {
-            userId: user.id,
-            tokenHash: reset.hash,
-            expiresAt: nextPasswordResetExpiresAt(),
-          },
-        });
-        await this.mail.send(passwordResetMailFor(email, reset.token));
+      await this.prisma.passwordReset.create({
+        data: {
+          userId: user.id,
+          tokenHash: reset.hash,
+          expiresAt: nextPasswordResetExpiresAt(),
+        },
       });
     } catch (error) {
       if (isForeignKeyViolation(error)) return;
       throw error;
     }
+    await this.mail.send(passwordResetMailFor(email, reset.token));
   }
 
   /**
-   * Atomic claim, same shape as `VeilleService.applyChange`: a `findUnique`
-   * gets `userId` for the write that follows, then a conditional
-   * `updateMany` (`usedAt: null`, `expiresAt` in the future, in the `where`,
-   * not read-then-update) is the actual one-time-use capture — a repeat
-   * submission of the same token, an expired one and an unknown one all
-   * resolve through that single `count`, no `P2025` in sight. Only a
-   * genuine claim reaches the password write and `endAllSessions`, so a
-   * losing race never touches either. The new password is hashed only after
-   * the claim succeeds — an invalid token costs one indexed lookup, not a
-   * ~250 ms bcrypt hash. Runs in one transaction: a failure past the claim
-   * (hash, write, revoke) rolls the claim back too, leaving the token usable
-   * for a retry instead of burning it on a 500.
+   * The `findUnique` outside the transaction is not the guard — the
+   * conditional `updateMany` (`usedAt: null`, `expiresAt` in the future, in
+   * the `where`, not read-then-update) is the one-time-use capture, and a
+   * race is settled only by its `count`, no `P2025` in sight. The read
+   * exists so the two slow steps stay off the invalid path and out of the
+   * transaction: an unknown, spent or expired token costs one indexed
+   * lookup — no ~250 ms bcrypt hash — and the hash of the new password runs
+   * before the transaction opens, so no pool connection or row lock is held
+   * under it. Only a genuine claim reaches the writes. Every other
+   * outstanding `PasswordReset` of the account is spent with the claimed
+   * one: a link from an earlier mail must not stay able to overwrite the
+   * password the person just chose (and revoke their sessions through
+   * `endAllSessions`). The account is confirmed if it wasn't yet — spending
+   * a token that was mailed to the address proves the mailbox the same way
+   * the confirmation link would, and without this the reset would set a
+   * password that `validateCredentials` still refuses. A failure past the
+   * claim rolls the claim back too, leaving the token usable for a retry
+   * instead of burning it on a 500.
    */
   async resetPassword(
     token: string,
     newPassword: string,
   ): Promise<PasswordResetStatus> {
     const tokenHash = hashSecureToken(token);
-    return this.prisma.$transaction(async (tx) => {
-      const reset = await tx.passwordReset.findUnique({
-        where: { tokenHash },
-        select: { userId: true },
-      });
-      if (!reset) return 'invalid';
+    const reset = await this.prisma.passwordReset.findUnique({
+      where: { tokenHash },
+      select: { userId: true, usedAt: true, expiresAt: true },
+    });
+    if (!reset || reset.usedAt || reset.expiresAt < new Date()) {
+      return 'invalid';
+    }
 
+    const passwordHash = await bcrypt.hash(newPassword, this.saltRounds);
+    return this.prisma.$transaction(async (tx) => {
       const claimed = await tx.passwordReset.updateMany({
         where: { tokenHash, usedAt: null, expiresAt: { gte: new Date() } },
         data: { usedAt: new Date() },
       });
       if (claimed.count === 0) return 'invalid';
 
-      const passwordHash = await bcrypt.hash(newPassword, this.saltRounds);
+      await tx.passwordReset.updateMany({
+        where: { userId: reset.userId, usedAt: null },
+        data: { usedAt: new Date() },
+      });
       await tx.user.update({
         where: { id: reset.userId },
         data: { passwordHash },
+      });
+      await tx.user.updateMany({
+        where: { id: reset.userId, confirmedAt: null },
+        data: { confirmedAt: new Date() },
       });
       await this.endAllSessions(reset.userId, tx);
       return 'reset';
