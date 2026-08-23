@@ -1,7 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { basename } from 'node:path';
 import { Injectable, Logger } from '@nestjs/common';
-import type { IsoDate } from '@mon-sinistre/contracts';
+import type {
+  IsoDate,
+  RisqueCatnat,
+  SinistreStatus,
+} from '@mon-sinistre/contracts';
 import { ConfigService } from '@nestjs/config';
 import { Cron } from '@nestjs/schedule';
 import { errorSummary, stackOf } from 'src/common/error-report';
@@ -12,10 +16,22 @@ import { DeadlineRuleService } from 'src/deadline-rules/deadline-rule.service';
 import { DECLARATION_ASSUREUR_CODE } from 'src/deadline-rules/deadline-rule.seed';
 import { dateToIsoDate } from 'src/deadline-rules/resolve-deadline';
 import type { Prisma } from 'src/generated/prisma/client';
-import type { MonitorAlertKind } from 'src/generated/prisma/enums';
+import type {
+  ArreteEntryOutcome,
+  MonitorAlertKind,
+} from 'src/generated/prisma/enums';
 import { MailService } from 'src/mail/mail.service';
 import { isUniqueViolationOn } from 'src/prisma/prisma-error';
 import { PrismaService } from 'src/prisma/prisma.service';
+import {
+  type ResolvedDeadlineRule,
+  resolveStepPlannedDate,
+} from 'src/sinistres/build-step-snapshot';
+import {
+  matchSinistres,
+  toMatchArreteEntry,
+} from 'src/sinistres/match-sinistres';
+import { sinistreStatus } from 'src/sinistres/sinistre-status';
 import { generateVeilleToken } from 'src/veille/veille-token';
 import { DilaClient } from './dila/dila.client';
 import { classifyRisques } from './parse/classify-risques';
@@ -532,6 +548,12 @@ export class JorfMonitorService {
       });
     }
 
+    // After ingest, not per delta: candidates and entries are both read
+    // fresh from the database (docs/plan/sinistre-plan.md, Фаза 3, issue
+    // #157), so one pass at the end of the batch sees everything this run
+    // wrote, exactly like a pass per delta would.
+    await this.linkSinistresGuarded(pass.successorOf);
+
     await this.drainOutbox(pass);
   }
 
@@ -552,6 +574,210 @@ export class JorfMonitorService {
         stackOf(error),
       );
     }
+  }
+
+  /** Isolated the same way as {@link drainOutbox}: a lookup or resolve
+   * failure here must not cost the ingest this run already committed. */
+  private async linkSinistresGuarded(
+    successorOf: ReadonlyMap<string, string>,
+  ): Promise<void> {
+    try {
+      await this.linkSinistres(successorOf);
+    } catch (error) {
+      this.logger.error(
+        `jorf monitor: linking sinistres failed: ${errorSummary(error)}`,
+        stackOf(error),
+      );
+    }
+  }
+
+  /**
+   * Links already-created sinistres to arrêté entries through the same pure
+   * `matchSinistres` `SinistresService.create` calls at creation time
+   * (docs/research/sinistre-plan.md, "Привязка entry ↔ синистр") — a dossier
+   * opened before its arrêté is published gets linked the moment this run
+   * finds it (root `CLAUDE.md`, "план разворачивается от опорных дат"), and
+   * one refused by an earlier NOR still catches a later NOR recognizing its
+   * commune, because candidates include `ARRETE_REFUSE` sinistres alongside
+   * unlinked ones. Idempotent by construction: a repeat run reads the same
+   * candidates and entries and reapplies the same links, and an
+   * already-`RECONNU`-linked sinistre never appears among the candidates
+   * again.
+   */
+  private async linkSinistres(
+    successorOf: ReadonlyMap<string, string>,
+  ): Promise<void> {
+    const sinistres = await this.prisma.sinistre.findMany({
+      where: { OR: [{ arreteEntryId: null }, { status: 'ARRETE_REFUSE' }] },
+      select: { id: true, codeInsee: true, risque: true, eventDate: true },
+    });
+    if (sinistres.length === 0) {
+      return;
+    }
+
+    // Bounded to the candidates' own event dates: an entry outside every one
+    // of them can never match any candidate, and the ArreteEntry table
+    // otherwise grows for as long as the monitor runs — the same per-window
+    // read `SinistresService.matchArrete` applies for its single candidate,
+    // extended to the range this batch needs.
+    const eventDates = sinistres.map((s) => s.eventDate.getTime());
+    const entries = await this.prisma.arreteEntry.findMany({
+      where: {
+        codeInsee: { not: null },
+        eventStart: { lte: new Date(Math.max(...eventDates)) },
+        eventEnd: { gte: new Date(Math.min(...eventDates)) },
+      },
+      select: {
+        id: true,
+        codeInsee: true,
+        risque: true,
+        eventStart: true,
+        eventEnd: true,
+        outcome: true,
+        arrete: { select: { publishedAt: true } },
+      },
+    });
+    if (entries.length === 0) {
+      return;
+    }
+
+    const links = matchSinistres(
+      entries.map(toMatchArreteEntry),
+      sinistres.map((sinistre) => ({
+        id: sinistre.id,
+        codeInsee: sinistre.codeInsee,
+        risque: sinistre.risque as RisqueCatnat,
+        eventDate: dateToIsoDate(sinistre.eventDate),
+      })),
+      successorOf,
+    );
+    if (links.length === 0) {
+      return;
+    }
+
+    const entryById = new Map(entries.map((entry) => [entry.id, entry]));
+    // Memoized per publication date, resolved ahead of every write below —
+    // {@link DeadlineRuleService.resolveActive} throws by design, and doing
+    // that inside the transaction that applies a link would abort a write
+    // already in flight over a referential gap (docs/plan/sinistre-plan.md,
+    // Фаза 3, issue #157, "правило DeadlineRule резолвит снаружи транзакции
+    // и передаёт внутрь").
+    const ruleByPublishedAt = new Map<IsoDate, ResolvedDeadlineRule | null>();
+
+    for (const link of links) {
+      const entry = entryById.get(link.arreteEntryId);
+      if (!entry) {
+        continue;
+      }
+
+      let rule: ResolvedDeadlineRule | null = null;
+      if (entry.outcome === 'RECONNU') {
+        const publishedAt = dateToIsoDate(entry.arrete.publishedAt);
+        if (!ruleByPublishedAt.has(publishedAt)) {
+          ruleByPublishedAt.set(
+            publishedAt,
+            await this.resolveDeclarationRuleGuarded(publishedAt),
+          );
+        }
+        rule = ruleByPublishedAt.get(publishedAt) ?? null;
+      }
+
+      await this.applyLink(link.sinistreId, entry, rule);
+    }
+  }
+
+  /** The one `resolveActive` call for the déclaration-délai rule, shared by
+   * the mail step ({@link sendArreteNotifications}) and the linking pass
+   * ({@link linkSinistres}) — `DECLARATION_ASSUREUR_CODE` paired with
+   * `DATE_PUBLICATION_ARRETE` is spelled once, not guessed at twice. */
+  private resolveDeclarationRule(onDate: Date): Promise<ResolvedDeadlineRule> {
+    return this.deadlineRules.resolveActive(
+      DECLARATION_ASSUREUR_CODE,
+      'DATE_PUBLICATION_ARRETE',
+      onDate,
+    );
+  }
+
+  /** Same isolation as `SinistresService.resolveRule`: the product would
+   * rather link the sinistre without a déclaration date than drop the whole
+   * run over one missing `DeadlineRule` version. */
+  private async resolveDeclarationRuleGuarded(
+    publishedAt: IsoDate,
+  ): Promise<ResolvedDeadlineRule | null> {
+    try {
+      return await this.resolveDeclarationRule(isoDateToDate(publishedAt));
+    } catch (error) {
+      this.logger.error(
+        `jorf monitor: DeadlineRule ${DECLARATION_ASSUREUR_CODE} did not resolve for publication ${publishedAt}, linked sinistres left without a déclaration date: ${errorSummary(error)}`,
+        stackOf(error),
+      );
+      return null;
+    }
+  }
+
+  /**
+   * Applies one `matchSinistres` link: sets `arreteEntryId` and recomputes
+   * `status` through the shared `sinistreStatus` (docs/research/
+   * sinistre-plan.md, "Контракт API" — the same function `SinistresService`
+   * calls, so linking on ingest never disagrees with a PATCH on what a given
+   * link means; a `DECLARE` sinistre stays `DECLARE`). `status` and
+   * `declarationDate` are read fresh inside this transaction, not carried
+   * over from `linkSinistres`'s batch read: a `PATCH /sinistres/:id`
+   * committing between that read and this sinistre's turn in the loop must
+   * not be clobbered by a status computed off stale data. A `RECONNU` match
+   * whose rule resolved also dates the `DATE_PUBLICATION_ARRETE` step off
+   * the entry's own arrête — a `REFUSE` match, or one whose rule failed to
+   * resolve, leaves that step exactly as `SinistresService.create` left it.
+   */
+  private async applyLink(
+    sinistreId: string,
+    entry: {
+      id: string;
+      outcome: ArreteEntryOutcome;
+      arrete: { publishedAt: Date };
+    },
+    rule: ResolvedDeadlineRule | null,
+  ): Promise<void> {
+    await this.prisma.$transaction(async (tx) => {
+      const current = await tx.sinistre.findUniqueOrThrow({
+        where: { id: sinistreId },
+        select: { status: true, declarationDate: true },
+      });
+      await tx.sinistre.update({
+        where: { id: sinistreId },
+        data: {
+          arreteEntryId: entry.id,
+          status: sinistreStatus({
+            current: current.status as SinistreStatus,
+            link: { outcome: entry.outcome },
+            declarationDate: current.declarationDate
+              ? dateToIsoDate(current.declarationDate)
+              : null,
+          }),
+        },
+      });
+      if (entry.outcome === 'RECONNU' && rule) {
+        const plannedDate = resolveStepPlannedDate(
+          dateToIsoDate(entry.arrete.publishedAt),
+          true,
+          rule,
+          null,
+        );
+        await tx.step.updateMany({
+          where: {
+            sinistreId,
+            anchor: 'DATE_PUBLICATION_ARRETE',
+            fromTemplate: true,
+          },
+          data: {
+            plannedDate: plannedDate ? isoDateToDate(plannedDate) : null,
+            deadlineRuleId: rule.id,
+            sourceUrl: rule.sourceUrl,
+            sourceVerifiedAt: rule.sourceVerifiedAt,
+          },
+        });
+      }
+    });
   }
 
   private async loadCommuneReferential(): Promise<CommuneReferentialEntry[]> {
@@ -1225,9 +1451,7 @@ export class JorfMonitorService {
       ),
     );
 
-    const declarationRule = await this.deadlineRules.resolveActive(
-      DECLARATION_ASSUREUR_CODE,
-      'DATE_PUBLICATION_ARRETE',
+    const declarationRule = await this.resolveDeclarationRule(
       arrete.publishedAt,
     );
     const arreteForMail: ArreteForMail = {

@@ -1,9 +1,5 @@
-import { ConfigService } from '@nestjs/config';
-import { JwtService } from '@nestjs/jwt';
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { toIsoDate } from '@mon-sinistre/contracts';
-import { TOKEN_TYPE, type TokenPayload } from 'src/auth/auth.service';
-import type { EnvironmentVariables } from 'src/config/env.validation';
 import { todayInParis } from 'src/common/time/today-in-paris';
 import { resolveDeadline } from 'src/deadline-rules/resolve-deadline';
 import { fr } from 'src/i18n/fr';
@@ -19,6 +15,7 @@ import { commune } from 'test/helpers/commune';
 import {
   accessTokenOf,
   createUser,
+  headersForEmail,
   login,
   withBearer,
 } from 'test/helpers/session';
@@ -393,34 +390,14 @@ describe('SinistresController (integration)', () => {
       return arrete.entries[0]!;
     }
 
-    /**
-     * Mints a bearer token straight through `JwtService`, bypassing
-     * `POST /auth/login` — the file's other describes already run each test
-     * to a real login and sit right at `AUTH_FORM_RATE_LIMIT` (30/min,
-     * `src/auth/auth.controller.ts`); four more login calls here would tip
-     * the last few over it. Same secret and payload shape
-     * `AuthService.issueTokens` signs with (`src/auth/auth.service.ts`), so
-     * `JwtStrategy` verifies it identically to a real login.
-     */
-    async function headersFor(email: string) {
-      const user = await prisma.user.findUniqueOrThrow({ where: { email } });
-      const config =
-        app.get<ConfigService<EnvironmentVariables, true>>(ConfigService);
-      const accessToken = await app
-        .get(JwtService)
-        .signAsync(
-          { sub: user.id, typ: TOKEN_TYPE.access } satisfies TokenPayload,
-          {
-            secret: config.get('JWT_SECRET', { infer: true }),
-            expiresIn: config.get('ACCESS_TOKEN_EXPIRY', { infer: true }),
-          },
-        );
-      return withBearer(accessToken);
-    }
-
+    // headersFor's own bearer-minting shortcut moved to test/helpers/session.ts
+    // (headersForEmail) — this describe's other tests already run each to a
+    // real login and sit right at AUTH_FORM_RATE_LIMIT (30/min,
+    // src/auth/auth.controller.ts); four more login calls here would tip the
+    // last few over it.
     async function postSinistre(eventDate = '2026-06-10') {
       const email = await createUser(prisma);
-      const headers = await headersFor(email);
+      const headers = await headersForEmail(app, prisma, email);
       const res = await app.inject({
         method: 'POST',
         url: '/sinistres',

@@ -34,7 +34,7 @@ import {
   type StepTemplateRow,
 } from './build-step-snapshot';
 import type { CreateSinistreDto } from './dto/create-sinistre.dto';
-import { matchSinistres } from './match-sinistres';
+import { matchSinistres, toMatchArreteEntry } from './match-sinistres';
 import { CATNAT_PLAN_KEY } from 'src/step-templates/step-template.seed';
 import { sinistreStatus } from './sinistre-status';
 import {
@@ -166,15 +166,7 @@ export class SinistresService {
     ]);
 
     const links = matchSinistres(
-      entries.map((entry) => ({
-        id: entry.id,
-        codeInsee: entry.codeInsee,
-        risque: entry.risque,
-        eventStart: dateToIsoDate(entry.eventStart),
-        eventEnd: dateToIsoDate(entry.eventEnd),
-        outcome: entry.outcome,
-        publishedAt: dateToIsoDate(entry.arrete.publishedAt),
-      })),
+      entries.map(toMatchArreteEntry),
       [
         {
           id: 'candidate',

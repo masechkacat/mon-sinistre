@@ -1,4 +1,5 @@
 import type { IsoDate, RisqueCatnat } from '@mon-sinistre/contracts';
+import { dateToIsoDate } from 'src/deadline-rules/resolve-deadline';
 import type { ArreteEntryOutcome } from 'src/generated/prisma/enums';
 import { classifyRisques } from 'src/jorf/parse/classify-risques';
 import { resolveCurrentCode } from 'src/jorf/recipients/resolve-recipients';
@@ -15,6 +16,34 @@ export interface MatchArreteEntry {
   outcome: ArreteEntryOutcome;
   /** `arreteEntry.arrete.publishedAt` — breaks ties among several RECONNU entries. */
   publishedAt: IsoDate;
+}
+
+/** The `ArreteEntry` row shape (Prisma `Date` columns, nested `arrete`) both
+ * `SinistresService.matchArrete` and `JorfMonitorService.linkSinistres` read
+ * off the database before calling `matchSinistres`. */
+export interface MatchArreteEntryRow {
+  id: string;
+  codeInsee: string | null;
+  risque: string;
+  eventStart: Date;
+  eventEnd: Date;
+  outcome: ArreteEntryOutcome;
+  arrete: { publishedAt: Date };
+}
+
+/** The one `Date` → `IsoDate` adapter from a queried `ArreteEntry` row to
+ * {@link MatchArreteEntry} — both callers built the identical `.map()`
+ * before this existed. */
+export function toMatchArreteEntry(row: MatchArreteEntryRow): MatchArreteEntry {
+  return {
+    id: row.id,
+    codeInsee: row.codeInsee,
+    risque: row.risque,
+    eventStart: dateToIsoDate(row.eventStart),
+    eventEnd: dateToIsoDate(row.eventEnd),
+    outcome: row.outcome,
+    publishedAt: dateToIsoDate(row.arrete.publishedAt),
+  };
 }
 
 /**
