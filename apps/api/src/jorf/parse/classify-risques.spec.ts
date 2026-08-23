@@ -27,6 +27,14 @@ describe('classifyRisques', () => {
     ).toEqual(new Set([RisqueCatnat.SECHERESSE]));
   });
 
+  it('keeps the other categories of a wording that also carries the geotechnical drought phrase', () => {
+    expect(
+      classifyRisques(
+        'Inondations et mouvements de terrain différentiels consécutifs à la sécheresse et à la réhydratation des sols',
+      ),
+    ).toEqual(new Set([RisqueCatnat.INONDATION, RisqueCatnat.SECHERESSE]));
+  });
+
   it('classifies mouvements de terrain hors sécheresse géotechnique as MOUVEMENT_TERRAIN', () => {
     expect(
       classifyRisques('Mouvements de terrains (hors sécheresse géotechnique)'),

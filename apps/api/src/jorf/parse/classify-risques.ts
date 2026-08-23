@@ -14,15 +14,18 @@ export const classifyRisques = (label: string): Set<RisqueCatnat> => {
 
   // Not matched on "secheresse" alone: "hors sécheresse géotechnique", part
   // of the plain mouvement-de-terrain wording, contains it too.
-  if (normalized.includes('rehydratation')) {
-    return new Set([RisqueCatnat.SECHERESSE]);
-  }
+  const geotechnical = normalized.includes('rehydratation');
 
   const result = new Set<RisqueCatnat>();
   if (normalized.includes('inondation') || normalized.includes('submersion')) {
     result.add(RisqueCatnat.INONDATION);
   }
-  if (normalized.includes('mouvement') && normalized.includes('terrain')) {
+  if (geotechnical) {
+    result.add(RisqueCatnat.SECHERESSE);
+  } else if (
+    normalized.includes('mouvement') &&
+    normalized.includes('terrain')
+  ) {
     result.add(RisqueCatnat.MOUVEMENT_TERRAIN);
   }
   if (normalized.includes('seisme') || normalized.includes('volcan')) {

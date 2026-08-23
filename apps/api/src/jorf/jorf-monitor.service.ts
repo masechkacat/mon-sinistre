@@ -598,17 +598,30 @@ export class JorfMonitorService {
    * opened before its arrêté is published gets linked the moment this run
    * finds it (root `CLAUDE.md`, "план разворачивается от опорных дат"), and
    * one refused by an earlier NOR still catches a later NOR recognizing its
-   * commune, because candidates include `ARRETE_REFUSE` sinistres alongside
-   * unlinked ones. Idempotent by construction: a repeat run reads the same
-   * candidates and entries and reapplies the same links, and an
-   * already-`RECONNU`-linked sinistre never appears among the candidates
-   * again.
+   * commune. Idempotent by construction: a repeat run reads the same
+   * candidates and entries and reapplies the same links, and a sinistre whose
+   * déclaration deadline is dated never appears among the candidates again.
    */
   private async linkSinistres(
     successorOf: ReadonlyMap<string, string>,
   ): Promise<void> {
+    // Candidates are the dossiers whose déclaration deadline is still
+    // undated, not a list of statuses (docs/research/sinistre-plan.md,
+    // "Привязка entry ↔ синистр"): only a `RECONNU` link dates that step, so
+    // the undated ones are exactly those a link can still help — unlinked,
+    // refused, and the ones a `DeadlineRule` gap left dateless ({@link
+    // resolveDeclarationRuleGuarded}). A status list loses the refused
+    // dossier the moment its owner declares, and never sees that gap at all.
     const sinistres = await this.prisma.sinistre.findMany({
-      where: { OR: [{ arreteEntryId: null }, { status: 'ARRETE_REFUSE' }] },
+      where: {
+        steps: {
+          some: {
+            anchor: 'DATE_PUBLICATION_ARRETE',
+            fromTemplate: true,
+            plannedDate: null,
+          },
+        },
+      },
       select: { id: true, codeInsee: true, risque: true, eventDate: true },
     });
     if (sinistres.length === 0) {
@@ -619,13 +632,17 @@ export class JorfMonitorService {
     // of them can never match any candidate, and the ArreteEntry table
     // otherwise grows for as long as the monitor runs — the same per-window
     // read `SinistresService.matchArrete` applies for its single candidate,
-    // extended to the range this batch needs.
+    // extended to the range this batch needs. Folded rather than spread into
+    // `Math.min`/`Math.max`: the candidate list grows with the product, and a
+    // spread of it would blow the call stack long before the query strains.
     const eventDates = sinistres.map((s) => s.eventDate.getTime());
+    const oldest = eventDates.reduce((a, b) => (b < a ? b : a));
+    const newest = eventDates.reduce((a, b) => (b > a ? b : a));
     const entries = await this.prisma.arreteEntry.findMany({
       where: {
         codeInsee: { not: null },
-        eventStart: { lte: new Date(Math.max(...eventDates)) },
-        eventEnd: { gte: new Date(Math.min(...eventDates)) },
+        eventStart: { lte: new Date(newest) },
+        eventEnd: { gte: new Date(oldest) },
       },
       select: {
         id: true,
@@ -739,10 +756,16 @@ export class JorfMonitorService {
     rule: ResolvedDeadlineRule | null,
   ): Promise<void> {
     await this.prisma.$transaction(async (tx) => {
-      const current = await tx.sinistre.findUniqueOrThrow({
+      // `findUnique`, not `findUniqueOrThrow`: a `DELETE /sinistres/:id`
+      // between `linkSinistres`'s batch read and this link's turn in the loop
+      // costs that one dossier, not every link the run has yet to apply.
+      const current = await tx.sinistre.findUnique({
         where: { id: sinistreId },
         select: { status: true, declarationDate: true },
       });
+      if (!current) {
+        return;
+      }
       await tx.sinistre.update({
         where: { id: sinistreId },
         data: {

@@ -1883,6 +1883,92 @@ describe('sinistre linking on ingest (issue #157)', () => {
     );
   });
 
+  it('re-links a refused sinistre the user has since declared (critère PRD № 10)', async () => {
+    const REFUSE_DELTA = 'JORFSIMPLE_20260601-060000.tar.gz';
+    const refuseTarball = await buildDelta(
+      'JORFTEXT000000003401',
+      'INTJ2600034A',
+      { nonReconnues: [AMIGNY] },
+    );
+    currentFetch = stubFetch([REFUSE_DELTA], { [REFUSE_DELTA]: refuseTarball });
+    await monitor.run();
+
+    const { headers, sinistre } = await createSinistre('2026-06-10');
+    expect(sinistre.status).toBe('ARRETE_REFUSE');
+    // Warning the insurer before any arrêté is a step of the plan, so a
+    // refused dossier reaches DECLARE routinely — and DECLARE hides the
+    // refusal from any status-shaped candidate filter.
+    await app.inject({
+      method: 'PATCH',
+      url: `/sinistres/${sinistre.id}`,
+      headers,
+      payload: { declarationDate: '2026-06-15' },
+    });
+    const rule = await prisma.deadlineRule.findFirstOrThrow({
+      where: { code: 'DECLARATION_ASSUREUR' },
+    });
+
+    const RECONNU_DELTA = 'JORFSIMPLE_20260701-060000.tar.gz';
+    currentFetch = stubFetch([REFUSE_DELTA, RECONNU_DELTA], {
+      [REFUSE_DELTA]: refuseTarball,
+      [RECONNU_DELTA]: await buildDelta(
+        'JORFTEXT000000003501',
+        'INTJ2600035A',
+        { reconnues: [AMIGNY] },
+      ),
+    });
+    await monitor.run();
+
+    const relinked = await getSinistre(headers, sinistre.id);
+    expect(relinked.status).toBe('DECLARE');
+    expect(relinked.arreteEntryId).not.toBe(sinistre.arreteEntryId);
+    const step = relinked.steps.find(
+      (s) => s.anchor === 'DATE_PUBLICATION_ARRETE',
+    );
+    expect(step?.plannedDate).toBe(
+      resolveDeadline(toIsoDate('2026-07-01'), rule.duration, rule.unit),
+    );
+  });
+
+  it('dates the déclaration deadline on a later run when the rule was missing at link time', async () => {
+    // Same environment as the send step's own case above: a seed that never
+    // ran after the DeadlineRule migration. The link is applied anyway — a
+    // referential gap must not cost the dossier its arrêté — so the run that
+    // follows the fix has to be the one that fills the date in.
+    await prisma.deadlineRule.deleteMany();
+    const { headers, sinistre } = await createSinistre('2026-06-10');
+
+    const MORNING = 'JORFSIMPLE_20260701-060000.tar.gz';
+    const tarball = await buildDelta('JORFTEXT000000003601', 'INTJ2600036A', {
+      reconnues: [AMIGNY],
+    });
+    currentFetch = stubFetch([MORNING], { [MORNING]: tarball });
+    await monitor.run();
+
+    const linked = await getSinistre(headers, sinistre.id);
+    expect(linked.status).toBe('ARRETE_PUBLIE');
+    expect(
+      linked.steps.find((s) => s.anchor === 'DATE_PUBLICATION_ARRETE')
+        ?.plannedDate,
+    ).toBeNull();
+
+    await seedDeadlineRules(prisma);
+    await monitor.run();
+
+    const rule = await prisma.deadlineRule.findFirstOrThrow({
+      where: { code: 'DECLARATION_ASSUREUR' },
+    });
+    const dated = await getSinistre(headers, sinistre.id);
+    expect(dated.arreteEntryId).toBe(linked.arreteEntryId);
+    const step = dated.steps.find(
+      (s) => s.anchor === 'DATE_PUBLICATION_ARRETE',
+    );
+    expect(step?.plannedDate).toBe(
+      resolveDeadline(toIsoDate('2026-07-01'), rule.duration, rule.unit),
+    );
+    expect(step?.source?.url).toMatch(/legifrance/);
+  });
+
   it('keeps a DECLARE sinistre in DECLARE once the monitor links it', async () => {
     const { headers, sinistre } = await createSinistre('2026-06-10');
     await app.inject({
