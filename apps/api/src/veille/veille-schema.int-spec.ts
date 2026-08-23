@@ -2,6 +2,7 @@ import { PrismaClient } from 'src/generated/prisma/client';
 import { isForeignKeyViolation } from 'src/prisma/prisma-error';
 import { createIntTestPrismaClient } from 'src/prisma/prisma-client.int-helper';
 import { veilleData } from './veille.test-helper';
+import { commune } from 'src/communes/commune.test-helper';
 
 // Schema-level guarantees of the veille migration:
 // docs/research/veille-subscription-lifecycle.md.
@@ -31,14 +32,7 @@ describe('Veille / VeilleCommune schema (integration)', () => {
 
   async function createCommune(codeInsee: string) {
     return prisma.commune.create({
-      data: {
-        codeInsee,
-        name: 'Nîmes',
-        departementCode: '30',
-        departementName: 'Gard',
-        sourceUrl: 'https://geo.api.gouv.fr/communes',
-        sourceVerifiedAt: new Date('2026-08-15'),
-      },
+      data: commune(codeInsee, 'Nîmes', '30', 'Gard'),
     });
   }
 

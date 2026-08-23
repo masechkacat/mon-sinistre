@@ -18,9 +18,10 @@ model Commune {
   codeInsee          String          @id
   name               String
   // Поисковый ключ названия: normalizeCommuneName(name), заполняется импортом.
-  // Nullable до backfill (перезапуск идемпотентного импорта), затем NOT NULL
-  // отдельной миграцией.
-  nameNormalized     String?
+  // NOT NULL: без ключа поиск по названию молча возвращает пустой список на
+  // любой запрос, поэтому пропуск `seed` после `migration:deploy` обязан
+  // ронять миграцию, а не жить в логах предупреждением.
+  nameNormalized     String
   departementCode    String
   departementName    String
   // null = код действует в актуальном COG

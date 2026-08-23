@@ -1,6 +1,7 @@
 import { PrismaClient } from 'src/generated/prisma/client';
 import { createIntTestPrismaClient } from 'src/prisma/prisma-client.int-helper';
 import { arreteData } from './arrete.test-helper';
+import { commune } from 'src/communes/commune.test-helper';
 
 // Schema-level guarantees of the jorf-monitor migration: docs/research/jorf-monitor.md,
 // docs/research/data-model.md § 4.
@@ -21,14 +22,7 @@ describe('Arrete / ArreteEntry / JorfDelta / MonitorAlert schema (integration)',
 
   async function createCommune(codeInsee: string) {
     return prisma.commune.create({
-      data: {
-        codeInsee,
-        name: 'Nîmes',
-        departementCode: '30',
-        departementName: 'Gard',
-        sourceUrl: 'https://geo.api.gouv.fr/communes',
-        sourceVerifiedAt: new Date('2026-08-15'),
-      },
+      data: commune(codeInsee, 'Nîmes', '30', 'Gard'),
     });
   }
 

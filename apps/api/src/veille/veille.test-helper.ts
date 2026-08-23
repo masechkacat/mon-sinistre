@@ -1,16 +1,16 @@
 import type { PrismaService } from 'src/prisma/prisma.service';
 import { nextChangeExpiresAt, nextConfirmExpiresAt } from './veille.service';
+import { commune } from 'src/communes/commune.test-helper';
 import { generateVeilleToken } from './veille-token';
 
-/** Minimal `Commune` row good enough for veille's FK on `VeilleCommune`. */
-export const communeFixture = (codeInsee: string, name: string) => ({
-  codeInsee,
-  name,
-  departementCode: codeInsee.slice(0, 2),
-  departementName: 'Gard',
-  sourceUrl: 'https://geo.api.gouv.fr/communes',
-  sourceVerifiedAt: new Date('2026-08-16'),
-});
+/**
+ * A `Commune` row for veille's FK on `VeilleCommune`, where only the code has
+ * to be right — the department is filler. The row itself comes from the
+ * referential's own fixture, so the search key is derived exactly as the
+ * import derives it and cannot drift from it here.
+ */
+export const communeFixture = (codeInsee: string, name: string) =>
+  commune(codeInsee, name, codeInsee.slice(0, 2), 'Gard');
 
 /**
  * One counter row of the daily mail limit, as `sendFormMail` writes it.
