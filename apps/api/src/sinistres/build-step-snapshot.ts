@@ -37,6 +37,33 @@ export interface StepSnapshot {
 }
 
 /**
+ * The three-way split a step's `plannedDate` always follows: unresolved
+ * anchor → null; a legal step (a rule is expected) → the rule's duration if
+ * it resolved, null otherwise; a product step → its own `offsetDays`;
+ * neither → null (a reminder with no date, ever). Shared by
+ * {@link buildStepSnapshot} (off a `StepTemplate` row, at creation) and
+ * `SinistresService`'s `DATE_DECLARATION` recompute (off a persisted `Step`
+ * row, which keeps no `deadlineRuleCode` to re-resolve — only the rule
+ * version already chosen, or none if that resolution failed then).
+ */
+export function resolveStepPlannedDate(
+  anchorDate: IsoDate | undefined,
+  isLegalStep: boolean,
+  rule: { duration: number; unit: 'DAYS' | 'MONTHS' } | null,
+  offsetDays: number | null,
+): IsoDate | null {
+  if (anchorDate === undefined) {
+    return null;
+  }
+  if (isLegalStep) {
+    return rule ? resolveDeadline(anchorDate, rule.duration, rule.unit) : null;
+  }
+  return offsetDays !== null
+    ? resolveDeadline(anchorDate, offsetDays, 'DAYS')
+    : null;
+}
+
+/**
  * Snapshots one `StepTemplate` row into a `Step` at sinistre creation
  * (docs/research/sinistre-plan.md, «Шаблон плана», «Как применять»).
  * `plannedDate` is the only field that can stay empty: a product step
@@ -52,16 +79,12 @@ export function buildStepSnapshot(
   rule: ResolvedDeadlineRule | null,
 ): StepSnapshot {
   const anchorDate = anchorDates[template.anchor];
-  const plannedDate =
-    anchorDate === undefined
-      ? null
-      : template.deadlineRuleCode !== null
-        ? rule
-          ? resolveDeadline(anchorDate, rule.duration, rule.unit)
-          : null
-        : template.offsetDays !== null
-          ? resolveDeadline(anchorDate, template.offsetDays, 'DAYS')
-          : null;
+  const plannedDate = resolveStepPlannedDate(
+    anchorDate,
+    template.deadlineRuleCode !== null,
+    rule,
+    template.offsetDays,
+  );
 
   // Источник — из правила, когда оно резолвилось, иначе собственный источник
   // шаблона (docs/research/data-model.md § Step: «копия из шаблона или

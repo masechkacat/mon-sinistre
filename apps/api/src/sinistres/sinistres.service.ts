@@ -4,23 +4,41 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import type { IsoDate, SinistreDetail } from '@mon-sinistre/contracts';
-import type { StepAnchor } from 'src/generated/prisma/enums';
+import {
+  SinistreStatus,
+  type IsoDate,
+  type SinistreDetail,
+  type SinistreSummary,
+  type Step,
+} from '@mon-sinistre/contracts';
+import type {
+  StepAnchor,
+  StepPersistedStatus,
+} from 'src/generated/prisma/enums';
 import { errorSummary, stackOf } from 'src/common/error-report';
 import { DeadlineRuleService } from 'src/deadline-rules/deadline-rule.service';
-import { isoDateToDate } from 'src/deadline-rules/resolve-deadline';
+import {
+  dateToIsoDate,
+  isoDateToDate,
+} from 'src/deadline-rules/resolve-deadline';
 import { fr } from 'src/i18n/fr';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { todayInParis } from 'src/common/time/today-in-paris';
 import { anchorDatesOf } from './anchor-dates';
 import {
   buildStepSnapshot,
+  resolveStepPlannedDate,
   type ResolvedDeadlineRule,
   type StepTemplateRow,
 } from './build-step-snapshot';
 import type { CreateSinistreDto } from './dto/create-sinistre.dto';
 import { CATNAT_PLAN_KEY } from 'src/step-templates/step-template.seed';
-import { toSinistreDetail } from './to-sinistre-detail';
+import { sinistreStatus } from './sinistre-status';
+import {
+  toSinistreDetail,
+  toSinistreSummary,
+  toStepResponse,
+} from './to-sinistre-detail';
 
 @Injectable()
 export class SinistresService {
@@ -83,7 +101,11 @@ export class SinistresService {
         risque: dto.risque,
         eventDate: isoDateToDate(dto.eventDate),
         declarationDate: null,
-        status: 'AVANT_ARRETE',
+        status: sinistreStatus({
+          current: null,
+          link: null,
+          declarationDate: null,
+        }),
         steps: { create: steps },
       },
       include: { steps: { orderBy: { order: 'asc' } } },
@@ -134,5 +156,150 @@ export class SinistresService {
       throw new NotFoundException();
     }
     return toSinistreDetail(sinistre, sinistre.steps, todayInParis());
+  }
+
+  /** Freshest first — a returning user's most recent dossier is what they
+   * came back to check on. */
+  async findAll(userId: string): Promise<SinistreSummary[]> {
+    const sinistres = await this.prisma.sinistre.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+    });
+    return sinistres.map(toSinistreSummary);
+  }
+
+  /**
+   * Sets or clears `declarationDate`. `sinistreStatus` is the only place a
+   * status is decided (docs/research/sinistre-plan.md, «Контракт API»), and
+   * the `DATE_DECLARATION` steps' `plannedDate` is recomputed off the same
+   * anchor — set on a date, cleared back to null when the date is cleared
+   * and nothing else resolves it. Same reason for the transaction as {@link
+   * updateStep}: a concurrent second write landing between the read and the
+   * writes below must not hand this request back a status or a step date it
+   * never wrote.
+   */
+  async update(
+    userId: string,
+    id: string,
+    declarationDate: IsoDate | null,
+  ): Promise<SinistreDetail> {
+    return this.prisma.$transaction(async (tx) => {
+      const sinistre = await tx.sinistre.findFirst({
+        where: { id, userId },
+        include: {
+          steps: {
+            orderBy: { order: 'asc' },
+            include: { deadlineRule: true },
+          },
+          arreteEntry: { include: { arrete: true } },
+        },
+      });
+      if (!sinistre) {
+        throw new NotFoundException();
+      }
+
+      const eventDate = dateToIsoDate(sinistre.eventDate);
+      if (declarationDate !== null && declarationDate < eventDate) {
+        throw new BadRequestException(fr.sinistres.declarationDateBeforeEvent);
+      }
+
+      const arretePublishedAt = sinistre.arreteEntry
+        ? dateToIsoDate(sinistre.arreteEntry.arrete.publishedAt)
+        : null;
+      const declarationAnchorDate = anchorDatesOf({
+        eventDate,
+        declarationDate,
+        arretePublishedAt,
+      }).DATE_DECLARATION;
+      const status = sinistreStatus({
+        current: sinistre.status as SinistreStatus,
+        link: sinistre.arreteEntry
+          ? { outcome: sinistre.arreteEntry.outcome }
+          : null,
+        declarationDate,
+      });
+
+      await tx.sinistre.update({
+        where: { id },
+        data: {
+          declarationDate: declarationDate
+            ? isoDateToDate(declarationDate)
+            : null,
+          status,
+        },
+      });
+
+      for (const step of sinistre.steps) {
+        // `fromTemplate` does not follow from `anchor`: a user-added step is
+        // left anchorless by convention, not by the schema (root `CLAUDE.md`).
+        if (step.anchor !== 'DATE_DECLARATION' || !step.fromTemplate) {
+          continue;
+        }
+        const plannedDate = resolveStepPlannedDate(
+          declarationAnchorDate,
+          step.deadlineRuleId !== null,
+          step.deadlineRule,
+          step.offsetDays,
+        );
+        await tx.step.update({
+          where: { id: step.id },
+          data: {
+            plannedDate: plannedDate ? isoDateToDate(plannedDate) : null,
+          },
+        });
+      }
+
+      const updated = await tx.sinistre.findUniqueOrThrow({
+        where: { id },
+        include: { steps: { orderBy: { order: 'asc' } } },
+      });
+      return toSinistreDetail(updated, updated.steps, todayInParis());
+    });
+  }
+
+  /** Ownership check same as {@link findOne}. `deleteMany` rather than
+   * read-then-delete keeps that check inside the one query; its steps
+   * cascade by schema (`onDelete: Cascade`). */
+  async remove(userId: string, id: string): Promise<void> {
+    const { count } = await this.prisma.sinistre.deleteMany({
+      where: { id, userId },
+    });
+    if (count === 0) {
+      throw new NotFoundException();
+    }
+  }
+
+  /** `completedAt` follows `status`: set on mark (FAIT or NON_APPLICABLE
+   * alike), cleared on unmark. Ownership in the read and the idempotent
+   * re-mark — docs/research/sinistre-plan.md, «Контракт API». The read and
+   * the write share a transaction for the same reason as
+   * `AuthService.refresh`'s rotation: a second concurrent PATCH landing
+   * between them could hand this request back a status it never wrote. */
+  async updateStep(
+    userId: string,
+    sinistreId: string,
+    stepId: string,
+    status: StepPersistedStatus | null,
+  ): Promise<Step> {
+    const today = todayInParis();
+    return this.prisma.$transaction(async (tx) => {
+      const current = await tx.step.findFirst({
+        where: { id: stepId, sinistre: { id: sinistreId, userId } },
+      });
+      if (!current) {
+        throw new NotFoundException();
+      }
+      if (current.persistedStatus === status) {
+        return toStepResponse(current, today);
+      }
+      const step = await tx.step.update({
+        where: { id: stepId },
+        data: {
+          persistedStatus: status,
+          completedAt: status ? isoDateToDate(today) : null,
+        },
+      });
+      return toStepResponse(step, today);
+    });
   }
 }

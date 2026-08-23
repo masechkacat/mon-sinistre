@@ -4,6 +4,7 @@ import {
   StepAnchor,
   type IsoDate,
   type SinistreDetail,
+  type SinistreSummary,
   type Step,
 } from '@mon-sinistre/contracts';
 import type { StepPersistedStatus } from 'src/generated/prisma/enums';
@@ -38,7 +39,7 @@ export interface StepRow {
   sourceVerifiedAt: Date | null;
 }
 
-function toStepResponse(step: StepRow, today: IsoDate): Step {
+export function toStepResponse(step: StepRow, today: IsoDate): Step {
   const plannedDate = step.plannedDate ? dateToIsoDate(step.plannedDate) : null;
   return {
     id: step.id,
@@ -64,13 +65,9 @@ function toStepResponse(step: StepRow, today: IsoDate): Step {
   };
 }
 
-/** Maps a `Sinistre` row and its `Step` rows to the wire `SinistreDetail` — the
- * response body of `POST/GET/PATCH /sinistres/:id`. */
-export function toSinistreDetail(
-  sinistre: SinistreRow,
-  steps: StepRow[],
-  today: IsoDate,
-): SinistreDetail {
+/** Maps a `Sinistre` row to the wire `SinistreSummary` — the response body of
+ * `GET /sinistres`, and the non-steps half of `SinistreDetail` below. */
+export function toSinistreSummary(sinistre: SinistreRow): SinistreSummary {
   return {
     id: sinistre.id,
     communeCode: sinistre.codeInsee,
@@ -82,6 +79,18 @@ export function toSinistreDetail(
       : null,
     status: sinistre.status as SinistreStatus,
     createdAt: sinistre.createdAt.toISOString(),
+  };
+}
+
+/** Maps a `Sinistre` row and its `Step` rows to the wire `SinistreDetail` — the
+ * response body of `POST/GET/PATCH /sinistres/:id`. */
+export function toSinistreDetail(
+  sinistre: SinistreRow,
+  steps: StepRow[],
+  today: IsoDate,
+): SinistreDetail {
+  return {
+    ...toSinistreSummary(sinistre),
     steps: steps.map((step) => toStepResponse(step, today)),
   };
 }

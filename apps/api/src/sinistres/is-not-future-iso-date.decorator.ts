@@ -3,6 +3,12 @@ import { isIsoDate } from '@mon-sinistre/contracts';
 import { fr } from 'src/i18n/fr';
 import { todayInParis } from 'src/common/time/today-in-paris';
 
+function isNotFutureIsoDateString(value: unknown): boolean {
+  return (
+    typeof value === 'string' && isIsoDate(value) && value <= todayInParis()
+  );
+}
+
 /**
  * Rejects a value that is not a real `YYYY-MM-DD` date, or one later than
  * today in `Europe/Paris` — the same timezone `stepStatus` reads "today"
@@ -22,10 +28,7 @@ export function IsNotFutureIsoDate(): PropertyDecorator {
       target: object.constructor,
       propertyName: propertyName as string,
       validator: {
-        validate: (value: unknown): boolean =>
-          typeof value === 'string' &&
-          isIsoDate(value) &&
-          value <= todayInParis(),
+        validate: isNotFutureIsoDateString,
         defaultMessage: ({ value }: ValidationArguments): string => {
           if (value === undefined || value === null || value === '') {
             return fr.sinistres.eventDateRequired;
@@ -33,6 +36,33 @@ export function IsNotFutureIsoDate(): PropertyDecorator {
           return typeof value === 'string' && isIsoDate(value)
             ? fr.sinistres.eventDateInFuture
             : fr.sinistres.eventDateInvalid;
+        },
+      },
+    });
+  };
+}
+
+/**
+ * Same bound as {@link IsNotFutureIsoDate}, but `null` is a legitimate value
+ * rather than a missing one — it clears `Sinistre.declarationDate`
+ * (`PATCH /sinistres/:id`), it is not omitted from the request.
+ */
+export function IsNotFutureIsoDateOrNull(): PropertyDecorator {
+  return (object: object, propertyName: string | symbol): void => {
+    registerDecorator({
+      name: 'isNotFutureIsoDateOrNull',
+      target: object.constructor,
+      propertyName: propertyName as string,
+      validator: {
+        validate: (value: unknown): boolean =>
+          value === null || isNotFutureIsoDateString(value),
+        defaultMessage: ({ value }: ValidationArguments): string => {
+          if (value === undefined) {
+            return fr.sinistres.declarationDateRequired;
+          }
+          return typeof value === 'string' && isIsoDate(value)
+            ? fr.sinistres.declarationDateInFuture
+            : fr.sinistres.declarationDateInvalid;
         },
       },
     });
