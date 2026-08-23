@@ -1,12 +1,18 @@
 import { randomUUID } from 'node:crypto';
 
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  HttpException,
+  HttpStatus,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService, type JwtSignOptions } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import {
   ACCOUNT_CONFIRM_TTL_DAYS,
   ACCOUNT_EMAIL_LIMIT,
+  LOGIN_ATTEMPT_LIMIT,
   PASSWORD_RESET_TTL_HOURS,
   SESSION_INACTIVITY_DAYS,
   type AccountConfirmationStatus,
@@ -17,7 +23,7 @@ import {
 import { awaitingConfirmation } from 'src/common/confirmation-window';
 import { hashEmail } from 'src/common/email-hash';
 import { generateSecureToken, hashSecureToken } from 'src/common/secure-token';
-import { addDays, addHours, DAY_MS } from 'src/common/time';
+import { addDays, addHours, DAY_MS, HOUR_MS } from 'src/common/time';
 import type { EnvironmentVariables } from 'src/config/env.validation';
 import { fr } from 'src/i18n/fr';
 import { MailCompositionError } from 'src/mail/mail-composition.error';
@@ -384,18 +390,42 @@ export class AuthService {
    * `null` covers three causes — unknown address, wrong password, unconfirmed
    * account — on purpose: `LocalStrategy` answers all three with the same 401
    * (`src/auth/CLAUDE.md`, anti-enumeration), so telling them apart here would
-   * only invite the caller to do it there.
+   * only invite the caller to do it there. Every one of the three now also
+   * writes a `LoginAttempt` row counted toward `LOGIN_ATTEMPT_LIMIT`
+   * (`packages/contracts/src/password.ts` has the limit and its source), same
+   * shape as `sendAccountMail`'s `AccountFormEmail` gate above. The count is
+   * checked before this method does anything else, so it is what a caller
+   * over the limit pays for — not the `findUnique` or the `bcrypt.compare`
+   * past it. A login under the threshold is not charged and does not reset
+   * the counter — only the hourly cleanup (phase 4) ages it out.
    */
   async validateCredentials(
     email: string,
     password: string,
   ): Promise<AuthenticatedUser | null> {
+    const emailHash = hashEmail(email, this.emailHashSecret);
+    const recentFailures = await this.prisma.loginAttempt.count({
+      where: {
+        emailHash,
+        attemptedAt: { gte: new Date(Date.now() - HOUR_MS) },
+      },
+    });
+    if (recentFailures >= LOGIN_ATTEMPT_LIMIT) {
+      throw new HttpException(
+        fr.auth.login.tooManyAttempts,
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+
     const user = await this.prisma.user.findUnique({ where: { email } });
     const passwordMatches = await bcrypt.compare(
       password,
       user?.passwordHash ?? this.dummyPasswordHash,
     );
-    if (!user || !user.confirmedAt || !passwordMatches) return null;
+    if (!user || !user.confirmedAt || !passwordMatches) {
+      await this.prisma.loginAttempt.create({ data: { emailHash } });
+      return null;
+    }
     return { id: user.id, email: user.email };
   }
 

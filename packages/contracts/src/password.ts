@@ -22,6 +22,15 @@ export const PASSWORD_RULES_SOURCE: SourceReference = {
   possiblyOutdated: false,
 };
 
+/**
+ * The "restriction d'accès" mechanism from the same délibération that
+ * legitimates the cas n° 2 policy above: 10 failed attempts per address per
+ * rolling hour. Counted by HMAC hash of the address regardless of whether an
+ * account exists for it (anti-enumeration, `docs/research/user-account.md`) —
+ * one counter per address, not per account.
+ */
+export const LOGIN_ATTEMPT_LIMIT = 10;
+
 const CHAR_CLASS_PATTERNS = [/[A-Z]/, /[a-z]/, /[0-9]/, /[^A-Za-z0-9]/];
 
 /**

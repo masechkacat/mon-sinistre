@@ -42,6 +42,10 @@ export const fr = {
        * caller which one applied.
        */
       invalid: 'Adresse e-mail ou mot de passe incorrect.',
+      /** One message regardless of whether the address has an account —
+       * anti-enumeration, same reason as `invalid` above
+       * (`src/auth/CLAUDE.md`). */
+      tooManyAttempts: 'Trop de tentatives, réessayez plus tard.',
     },
     session: {
       /** Covers every refresh rejection — missing cookie, bad signature,
