@@ -286,7 +286,9 @@ UI, которые остаются в `fr.ts` (статусы, кнопки, о
 `src/sinistres/`; `today` приходит параметром из `todayInParis()` —
 новый хелпер в `src/common/time.ts` на
 `Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Paris', … }).formatToParts()`,
-собранный в `IsoDate`.
+собранный в `IsoDate`. _Исправлено при реализации: файл —
+`src/common/time/today-in-paris.ts`, рядом с уже существующим `time.ts`
+(DAY_MS/addDays/addHours), а не вместо него._
 **Почему:** ноль зависимостей (проверено на Node 24.13 — рантайм проекта),
 никаких `date-fns-tz`/`luxon` ради одной операции, `Temporal` в Node 24 без
 флага недоступен. Часовой пояс тот же, что у расписания монитора
