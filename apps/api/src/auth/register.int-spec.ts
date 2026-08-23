@@ -2,11 +2,14 @@ import { createHash } from 'node:crypto';
 
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
 import * as bcrypt from 'bcrypt';
-import { ACCOUNT_CONFIRM_PATH } from '@mon-sinistre/contracts';
+import {
+  ACCOUNT_CONFIRM_PATH,
+  ACCOUNT_FORGOT_PASSWORD_PATH,
+} from '@mon-sinistre/contracts';
 import { createIntTestApp } from 'src/app.int-helper';
 import { DAY_MS } from 'src/common/time';
 import { captureLogs } from 'src/mail/mail-log.test-helper';
-import { tokenFrom } from 'src/mail/mail-links.test-helper';
+import { mailLinksOf, tokenFrom } from 'src/mail/mail-links.test-helper';
 import { MAIL_TRANSPORT } from 'src/mail/mail-transport';
 import { RecordingTransport } from 'src/mail/mail-transport.test-helper';
 import { PrismaService } from 'src/prisma/prisma.service';
@@ -139,6 +142,56 @@ describe('POST /auth/register (integration)', () => {
     it('never logs the email address or the password on re-registration', async () => {
       const email = 'victime@example.fr';
       await createUser(prisma, { email, confirmedAt: null });
+
+      await post({ email, password: 'Def!67890' });
+
+      logs.expectNoTraceOf(email, 'Def!67890');
+    });
+  });
+
+  describe('re-registration of a confirmed address', () => {
+    it('leaves the account and its password untouched, and answers identically to a brand-new address', async () => {
+      const email = await createUser(prisma, { email: 'victime@example.fr' });
+      const before = await prisma.user.findUniqueOrThrow({ where: { email } });
+
+      const confirmed = await post({ email, password: 'Def!67890' });
+      const brandNew = await post({
+        email: 'nouvelle@example.fr',
+        password: 'Def!67890',
+      });
+
+      expect(confirmed.statusCode).toBe(204);
+      expect(confirmed.statusCode).toBe(brandNew.statusCode);
+      expect(confirmed.payload).toBe(brandNew.payload);
+
+      const after = await prisma.user.findUniqueOrThrow({ where: { email } });
+      expect(after.passwordHash).toBe(before.passwordHash);
+      expect(after.confirmedAt).toEqual(before.confirmedAt);
+    });
+
+    it('mails "vous avez déjà un compte" with a password-reset request link, carrying no token', async () => {
+      const email = await createUser(prisma, { email: 'victime@example.fr' });
+
+      await post({ email, password: 'Def!67890' });
+
+      expect(transport.sent).toHaveLength(1);
+      const [message] = transport.sent;
+      if (!message) throw new Error('expected a message to have been sent');
+      expect(message.to).toBe(email);
+
+      const requestLink = [...mailLinksOf(message.text)].find((link) =>
+        link.includes(ACCOUNT_FORGOT_PASSWORD_PATH),
+      );
+      if (!requestLink) {
+        throw new Error(
+          `no link containing "${ACCOUNT_FORGOT_PASSWORD_PATH}" in the mail`,
+        );
+      }
+      expect(new URL(requestLink).searchParams.has('token')).toBe(false);
+    });
+
+    it('never logs the email address or the password', async () => {
+      const email = await createUser(prisma, { email: 'victime@example.fr' });
 
       await post({ email, password: 'Def!67890' });
 

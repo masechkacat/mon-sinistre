@@ -149,6 +149,18 @@ export const ACCOUNT_CONFIRM_PATH = '/confirmation';
 export const ACCOUNT_RESET_PATH = '/reinitialisation';
 
 /**
+ * Path of the "forgot password" request page, relative to `FRONTEND_URL` —
+ * the link the "you already have an account" mail carries
+ * (docs/research/user-account.md, re-registration of a confirmed address).
+ * Declared here even though the page itself ships later (phase 5), same
+ * reason as `ACCOUNT_CONFIRM_PATH` above: the mail that needs it ships
+ * first. Distinct from `ACCOUNT_RESET_PATH`: that one carries a live
+ * single-use token in its query string, this one carries none — it is where
+ * a reset token gets requested, not where one gets spent.
+ */
+export const ACCOUNT_FORGOT_PASSWORD_PATH = '/mot-de-passe-oublie';
+
+/**
  * Every account mail (confirmation, password reset, "you already have an
  * account") is transactional — one address, one action, no ongoing
  * subscription to cancel. `unsubscribePath` is still mandatory on every

@@ -25,6 +25,7 @@ import {
   isUniqueViolationOn,
 } from 'src/prisma/prisma-error';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { alreadyRegisteredMailFor } from './account-already-registered-mail';
 import { confirmationMailFor } from './account-confirmation-mail';
 import type { RegisterDto } from './dto/register.dto';
 import { passwordResetMailFor } from './password-reset-mail';
@@ -122,11 +123,11 @@ export class AuthService {
    * `upsertSubscription` (`src/veille/veille.service.ts`) — nothing → create;
    * unconfirmed → rewrite the password with the last form's, extend the
    * deadline and resend the confirmation mail with a rotated token; confirmed
-   * → left untouched, its "vous avez déjà un compte" mail is
-   * docs/plan/user-account.md phase 3's next issue, not this one. The branch
-   * is decided by `claimUnconfirmedAccount`'s own write, so a row is never
-   * rewritten — or resurrected — on the strength of a lookup it has since
-   * outlived (the timing gap between the branches is the accepted
+   * → the row is left untouched and mailed the "vous avez déjà un compte"
+   * notice instead (`alreadyRegisteredMailFor`, its own doc comment). The
+   * branch is decided by `claimUnconfirmedAccount`'s own write, so a row is
+   * never rewritten — or resurrected — on the strength of a lookup it has
+   * since outlived (the timing gap between the branches is the accepted
    * anti-enumeration channel: `src/auth/CLAUDE.md`, «Anti-enumeration:
    * временная асимметрия по времени ответа»).
    *
@@ -145,7 +146,10 @@ export class AuthService {
   async register(dto: RegisterDto): Promise<void> {
     const passwordHash = await bcrypt.hash(dto.password, this.saltRounds);
     const claim = await this.claimUnconfirmedAccount(dto.email, passwordHash);
-    if (claim === 'confirmed') return;
+    if (claim === 'confirmed') {
+      await this.mail.send(alreadyRegisteredMailFor(dto.email));
+      return;
+    }
     if (claim === 'rewritten') {
       await this.resendConfirmationMail(dto.email);
       return;

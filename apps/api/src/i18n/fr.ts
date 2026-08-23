@@ -84,6 +84,14 @@ export const fr = {
         resetLink: 'Choisir un nouveau mot de passe',
         expiresIn: (hours: string) => `Ce lien est valable ${hours} heures.`,
       },
+      alreadyRegistered: {
+        subject: 'Vous avez déjà un compte Mon Sinistre',
+        intro:
+          'Une inscription a été tentée sur Mon Sinistre avec cette adresse, ' +
+          'mais un compte existe déjà. Si ce n’était pas vous, vous pouvez ' +
+          'ignorer ce message.',
+        resetRequestLink: 'Mot de passe oublié',
+      },
       reason: 'vous avez créé un compte sur Mon Sinistre avec cette adresse',
     },
     veille: {
