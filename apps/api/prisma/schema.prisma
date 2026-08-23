@@ -53,6 +53,7 @@ model User {
   confirmExpiresAt DateTime       @db.Timestamptz(6)
   createdAt        DateTime       @default(now()) @db.Timestamptz(6)
   refreshTokens    RefreshToken[]
+  passwordResets   PasswordReset[]
 }
 
 // docs/research/user-account.md, data-model.md § 5.
@@ -64,6 +65,19 @@ model RefreshToken {
   expiresAt DateTime  @db.Timestamptz(6)
   // null = ещё действует
   revokedAt DateTime? @db.Timestamptz(6)
+
+  @@index([userId])
+}
+
+// docs/research/user-account.md, data-model.md § 5.
+model PasswordReset {
+  id        String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  userId    String    @db.Uuid
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  expiresAt DateTime  @db.Timestamptz(6)
+  // null = ещё не использована
+  usedAt    DateTime? @db.Timestamptz(6)
 
   @@index([userId])
 }

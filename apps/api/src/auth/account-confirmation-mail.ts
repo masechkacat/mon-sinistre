@@ -6,8 +6,9 @@ import {
 import { fr } from 'src/i18n/fr';
 import type { ComposeMailInput } from 'src/mail/mail-message';
 
-/** The one account mail this issue sends; password reset and "already have an
- * account" follow the same shape in docs/plan/user-account.md phase 3. */
+/** The one build of the confirmation mail — password reset has its own,
+ * `password-reset-mail.ts` (`passwordResetMailFor`), same shape; "already
+ * have an account" follows it too, docs/plan/user-account.md phase 3. */
 export const confirmationMailFor = (
   to: string,
   confirmToken: string,

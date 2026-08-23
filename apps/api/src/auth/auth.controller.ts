@@ -24,6 +24,7 @@ import type {
   AccountConfirmationResponse,
   CurrentUserResponse,
   LoginResponse,
+  ResetPasswordResponse,
 } from '@mon-sinistre/contracts';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { EnvironmentVariables } from 'src/config/env.validation';
@@ -36,6 +37,9 @@ import { CurrentUserResponseDto } from './dto/current-user-response.dto';
 import { LoginDto } from './dto/login.dto';
 import { LoginResponseDto } from './dto/login-response.dto';
 import { RegisterDto } from './dto/register.dto';
+import { RequestPasswordResetDto } from './dto/request-password-reset.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
+import { ResetPasswordResponseDto } from './dto/reset-password-response.dto';
 import type { JwtUser } from './jwt.strategy';
 import { LocalAuthGuard } from './local-auth.guard';
 import { Public } from './public.decorator';
@@ -66,9 +70,9 @@ interface RequestWithJwtUser {
 /**
  * `@Public()` is per handler, never on the class: the global `JwtAuthGuard`
  * is fail-closed, and a handler added here later must inherit the lock, not
- * the exemption. The four marked are public by their nature — nobody has a
- * session before register/confirmation/login, and refresh/logout identify
- * the caller by the cookie, not by a bearer.
+ * the exemption. The ones marked are public by their nature — nobody has a
+ * session before register/confirmation/login/password-reset, and
+ * refresh/logout identify the caller by the cookie, not by a bearer.
  */
 @ApiTags('auth')
 @Controller('auth')
@@ -116,6 +120,44 @@ export class AuthController {
     @Body() body: AccountTokenDto,
   ): Promise<AccountConfirmationResponse> {
     return { status: await this.auth.confirm(body.token) };
+  }
+
+  @Public()
+  @Post('password-reset')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: 'Request a password-reset link',
+    description:
+      'Always 204, whatever the address turns out to be — ' +
+      'anti-enumeration (docs/prd/user-account.md). A mail with a reset ' +
+      'link goes out only when the address matches an existing account.',
+  })
+  @ApiNoContentResponse()
+  async requestPasswordReset(
+    @Body() dto: RequestPasswordResetDto,
+  ): Promise<void> {
+    await this.auth.requestPasswordReset(dto.email);
+  }
+
+  @Public()
+  @Post('password-reset/confirm')
+  // Nest answers 201 to a POST by default; the contract of this endpoint is
+  // 200 { status } whatever the token turns out to be.
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Set a new password from a password-reset link',
+    description:
+      'Body validation (new password policy) answers 400 before the token ' +
+      'is ever looked at. Past that, the token is single-use: an unknown, ' +
+      'expired or already-used one all answer "invalid", the cause not ' +
+      'told apart. A successful reset revokes every refresh token of the ' +
+      'account — every other device is signed out.',
+  })
+  @ApiOkResponse({ type: ResetPasswordResponseDto })
+  async resetPassword(
+    @Body() dto: ResetPasswordDto,
+  ): Promise<ResetPasswordResponse> {
+    return { status: await this.auth.resetPassword(dto.token, dto.password) };
   }
 
   @Public()

@@ -90,6 +90,9 @@ export const VEILLE_CONFIRM_TTL_DAYS = 7;
 /** How long an account confirmation link stays valid, in days. */
 export const ACCOUNT_CONFIRM_TTL_DAYS = 7;
 
+/** How long a password reset link stays valid, in hours. */
+export const PASSWORD_RESET_TTL_HOURS = 24;
+
 /**
  * Days of session inactivity before a refresh token is no longer honoured.
  * Rotation on every refresh means the session itself never has a fixed
@@ -136,6 +139,26 @@ export const VEILLE_CHANGE_TTL_DAYS = 7;
  * ships first (phase 1).
  */
 export const ACCOUNT_CONFIRM_PATH = '/confirmation';
+
+/**
+ * Path of the "new password" page, relative to `FRONTEND_URL` — the link the
+ * password-reset mail carries (docs/research/user-account.md). Declared here
+ * even though the page itself ships later (phase 5), same reason as
+ * `ACCOUNT_CONFIRM_PATH` above: the mail that needs it ships first.
+ */
+export const ACCOUNT_RESET_PATH = '/reinitialisation';
+
+/**
+ * Path of the "forgot password" request page, relative to `FRONTEND_URL` —
+ * the link the "you already have an account" mail carries
+ * (docs/research/user-account.md, re-registration of a confirmed address).
+ * Declared here even though the page itself ships later (phase 5), same
+ * reason as `ACCOUNT_CONFIRM_PATH` above: the mail that needs it ships
+ * first. Distinct from `ACCOUNT_RESET_PATH`: that one carries a live
+ * single-use token in its query string, this one carries none — it is where
+ * a reset token gets requested, not where one gets spent.
+ */
+export const ACCOUNT_FORGOT_PASSWORD_PATH = '/mot-de-passe-oublie';
 
 /**
  * Every account mail (confirmation, password reset, "you already have an
@@ -196,3 +219,14 @@ export type VeilleChangeStatus = (typeof VEILLE_CHANGE_STATUSES)[number];
 export const ACCOUNT_CONFIRMATION_STATUSES = ['confirmed', 'invalid'] as const;
 export type AccountConfirmationStatus =
   (typeof ACCOUNT_CONFIRMATION_STATUSES)[number];
+
+/**
+ * `reset` covers a successful password change. `invalid` covers an unknown
+ * token, an expired one and an already-used one — the three causes are never
+ * told apart in the response (anti-enumeration), same principle as
+ * `ACCOUNT_CONFIRMATION_STATUSES` above. Unlike account confirmation, this is
+ * not idempotent: a token can only ever reach `reset` once (`usedAt`), so a
+ * repeat submission of the same token answers `invalid`.
+ */
+export const PASSWORD_RESET_STATUSES = ['reset', 'invalid'] as const;
+export type PasswordResetStatus = (typeof PASSWORD_RESET_STATUSES)[number];

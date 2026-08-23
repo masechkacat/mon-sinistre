@@ -3,6 +3,7 @@ import {
   ArreteEntryOutcome,
   DurationUnit,
   FileKind,
+  PasswordResetStatus,
   SinistreStatus,
   StepAnchor,
   StepStatus,
@@ -104,6 +105,11 @@ export interface VeilleChangeResponse {
 /** Response body of the account confirmation endpoint (`POST`). */
 export interface AccountConfirmationResponse {
   status: AccountConfirmationStatus;
+}
+
+/** Response body of the password-reset-confirmation endpoint (`POST`). */
+export interface ResetPasswordResponse {
+  status: PasswordResetStatus;
 }
 
 /**

@@ -9,8 +9,8 @@ import { fr } from 'src/i18n/fr';
 /**
  * Wraps `isValidPassword` (contracts, CNIL cas n° 2) as a class-validator
  * constraint: one rule and one French message shared by the registration DTO
- * and, later, the password-reset one (docs/plan/user-account.md phase 3) —
- * research, «Правила пароля», «Как применять».
+ * and the password-reset one (`dto/reset-password.dto.ts`) — research,
+ * «Правила пароля», «Как применять».
  */
 export function IsAccountPassword(): PropertyDecorator {
   return (object: object, propertyName: string | symbol): void => {

@@ -1,23 +1,22 @@
 # CLAUDE.md — `src/auth`
 
-Аккаунт пострадавшего: регистрация, подтверждение, вход, сессия. Решения
-фичи — `docs/research/user-account.md`; разбивка по фазам —
-`docs/plan/user-account.md`. Модуль пока (фаза 2) реализует регистрацию,
-подтверждение, вход, ротацию refresh, выход, чтение текущего пользователя и
-удаление аккаунта; остальные точки входа добавляются фаза за фазой,
-документируются здесь по мере появления.
+Аккаунт пострадавшего: регистрация, подтверждение, вход, сессия, сброс пароля.
+Решения фичи — `docs/research/user-account.md`; разбивка по фазам —
+`docs/plan/user-account.md`. Модуль реализует регистрацию, подтверждение,
+вход, ротацию refresh, выход, чтение текущего пользователя, удаление
+аккаунта (фаза 2), запрос сброса пароля, смену пароля по токену и повторную
+регистрацию — как неподтверждённым, так и подтверждённым адресом (фаза 3,
+закрыта).
 
 ## Точки входа
 
 - `POST /auth/register` → `AuthService.register`; всегда `204`, каким бы ни
-  оказался адрес — anti-enumeration (PRD, «Ограничения»). Адрес, уже
-  присутствующий в `User` (подтверждённый или нет), остаётся нетронутым: ни
-  дублирующей строки, ни ошибки, ни второго письма. Переписать пароль
-  неподтверждённого аккаунта и переслать письмо, либо отправить подтверждённому
-  адресу письмо «у вас уже есть аккаунт» — `docs/plan/user-account.md`,
-  фаза 3, пока не реализовано. Строка и письмо — одна транзакция: при сбое
-  отправки аккаунт откатывается, и повтор формы регистрирует заново, а не
-  попадает в ветку дубля без письма.
+  оказался адрес — anti-enumeration (PRD, «Ограничения»). Ветвление — той же
+  формы, что `VeilleService.upsertSubscription`: нового адреса нет — создание;
+  адрес уже в `User` неподтверждённым — перезапись; адрес подтверждён —
+  строка оставлена как есть, письмо «у вас уже есть аккаунт» —
+  `alreadyRegisteredMailFor` ниже. Механика каждой ветки — в докблоках
+  `register` и `claimUnconfirmedAccount`, здесь не пересказывается.
 - `POST /auth/confirmation` → `AuthService.confirm`; мутация — визит по
   ссылке (`GET`, например предзагрузка почтовым клиентом) её не активирует, у
   эндпоинта нет `GET`-пары в отличие от `veille`. Идемпотентен: повторный
@@ -39,11 +38,38 @@
   пароля (фаза 3) переиспользует его, второй не заводить.
 - `account-confirmation-mail.ts` (`confirmationMailFor`) — единственная
   сборка письма подтверждения; спека рядом её и зовёт, второго описания не
-  заводить.
+  заводить. `account-already-registered-mail.ts` (`alreadyRegisteredMailFor`)
+  — тем же образом единственная сборка письма «у вас уже есть аккаунт»,
+  ссылка — `ACCOUNT_FORGOT_PASSWORD_PATH` (contracts, докблок объясняет
+  отличие от `ACCOUNT_RESET_PATH`).
 - Генерация и хеширование токена подтверждения — `generateSecureToken`/
   `hashSecureToken` (`src/common/secure-token.ts`, общий с veille):
   `randomBytes(32).base64url` в письмо, `sha256` hex в базу; второй генерации
   здесь не заводить.
+- `POST /auth/password-reset` → `AuthService.requestPasswordReset`; always
+  `204`, whatever the address turns out to be — anti-enumeration, same
+  principle as `register` above. An unknown address does nothing and returns
+  at once; a known one — confirmed or not, the confirmation flow above is a
+  separate concern — gets a fresh `PasswordReset` row, then its mail. The
+  mail is sent after the write, never inside a transaction with it (why —
+  `register`'s docblock, same constraint); a delivery failure leaves a row
+  whose token nobody holds, which is harmless: it expires on its own, the
+  hourly cleanup (phase 4) sweeps it, and a successful reset spends it with
+  the rest. `P2003` on the insert — the account deleted between the
+  lookup and the write — answers the same as an unknown address, same
+  reasoning as `issueTokens`'s own `P2003` handling above. `password-reset-mail.ts`
+  (`passwordResetMailFor`) is the one build of that mail; it reuses
+  `fr.mail.account.reason` rather than restating why the person is on the
+  list.
+- `POST /auth/password-reset/confirm` → `AuthService.resetPassword`; the
+  endpoint that spends the row above and sets a new password. The atomic
+  claim, the anti-enumeration answer, the session revoke, the spending of
+  the account's other outstanding rows and the confirmation of a
+  not-yet-confirmed account are all in the method's own docblock, not
+  repeated here. `dto/reset-password.dto.ts`
+  (`ResetPasswordDto`) extends the shared `TokenDto` and reuses
+  `IsAccountPassword` for the new password — same policy and message as
+  `RegisterDto`, second copy not warranted.
 - `POST /auth/login` → `LocalAuthGuard` (`local-auth.guard.ts`, оборачивает
   `passport-local`) → `LocalStrategy` (`local.strategy.ts`) →
   `AuthService.validateCredentials`. Гвард выполняется раньше пайпа — тело
@@ -84,8 +110,9 @@
   остальное, что кончает токен (`logout`, чистка цепочки, каскад удаления
   аккаунта), строку удаляет. Поэтому `count === 0` при найденной строке
   читается по `revokedAt`: моложе `REFRESH_ROTATION_GRACE_MS` — вторая вкладка
-  или ретрай клиента, выдаётся своя свежая пара; старше — replay
-  украденного токена, `deleteMany` всех живых строк пользователя и `401`.
+  или ретрай клиента, выдаётся своя свежая пара; старше — replay украденного
+  токена, `endAllSessions` (приватный метод, общий со сбросом пароля ниже)
+  сносит все живые строки пользователя и отвечает `401`.
   Неизвестный `tokenHash` (никогда не выпускался, либо удалён `logout`'ом;
   чистка просроченных строк по расписанию — `docs/plan/user-account.md`,
   фаза 4) отвечает тем же `401` без цепочки. Один ответ на все причины —
@@ -117,9 +144,9 @@
   единственный способ исключить эндпоинт; `JwtAuthGuard.canActivate`
   проверяет её сначала на хендлере, потом на классе контроллера. На классе
   она висит только там, где публичны все точки входа (`CommunesController`,
-  `HealthController`, `VeilleController`); в `AuthController` — на каждом из
-  четырёх публичных методов отдельно, чтобы новый хендлер модуля наследовал
-  замок, а не исключение.
+  `HealthController`, `VeilleController`); в `AuthController` — на каждом
+  публичном методе отдельно, чтобы новый хендлер модуля наследовал замок, а
+  не исключение.
 - `GET /auth/me` → `AuthController.me` → `AuthService.currentUser`;
   возвращает email владельца access-токена (espace personnel). Без
   `@Public()` — проходит через глобальный `JwtAuthGuard`, как любой новый
@@ -152,12 +179,14 @@
 
 ## Anti-enumeration: временная асимметрия по времени ответа
 
-Ветка нового адреса (`register` создаёт строку и ждёт `mail.send()`) и ветка
-уже занятого адреса (`isUniqueViolationOn` ловит `P2002` и отвечает сразу)
-занимают разное время: у veille все три ветки `upsertSubscription`
-дожидаются какой-нибудь отправки письма ради этого самого равенства, а здесь
-переписать пароль и переслать письмо неподтверждённому адресу — фаза 3
-(`docs/plan/user-account.md`), которой в этой фазе нет. До неё разница во
-времени ответа отличает существующий адрес от нового; PRD требует
-неразличимости ответа (кода и тела), временной канал — известный, пока не
-закрытый пробел, а не то, что тесты этой фазы проверяют.
+Одна оставшаяся пара веток занимает разное время — известный, пока не
+закрытый пробел: PRD требует неразличимости ответа (кода и тела), временной
+канал в это требование не входит и тестами не проверяется.
+
+- `register`: все три ветки — новый адрес, неподтверждённый, подтверждённый —
+  теперь ждут `mail.send()` (как у трёх веток `upsertSubscription` в veille),
+  асимметрии между ними нет.
+- `requestPasswordReset`: ветка известного адреса создаёт `PasswordReset` и
+  ждёт `mail.send()`, ветка неизвестного отвечает сразу — неизвестному адресу
+  писать попросту нечего, а встречной задачи, которая создала бы ему письмо
+  ради выравнивания времени, в плане фичи нет.

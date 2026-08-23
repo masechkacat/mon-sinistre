@@ -208,6 +208,8 @@ Auth уже решён (api/CLAUDE.md): Passport local + JWT, refresh с рот�
 - `RefreshToken`: id, userId → User (cascade), tokenHash `unique`, expiresAt,
   revokedAt null. Ротация = вставка нового + revoke старого; чистка истёкших —
   фоновая задача.
+- `PasswordReset`: id, userId → User (cascade), tokenHash `unique`, expiresAt,
+  usedAt null (фаза 3).
 
 ### Sinistre
 
