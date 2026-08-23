@@ -5,6 +5,7 @@ import { createIntTestApp } from 'test/helpers/app';
 import type { FetchFn } from 'src/common/fetch-fn';
 import { commune as communeFixture } from 'test/helpers/commune';
 import { resolveDeadline } from 'src/deadline-rules/resolve-deadline';
+import { formatFrenchDate } from 'src/jorf/parse/french-date';
 import { seedDeadlineRules } from 'src/deadline-rules/deadline-rule.seed';
 import { seedStepTemplates } from 'src/step-templates/step-template.seed';
 import { captureLogs } from 'test/helpers/mail-log';
@@ -1989,5 +1990,253 @@ describe('sinistre linking on ingest (issue #157)', () => {
     const linked = await getSinistre(headers, sinistre.id);
     expect(linked.status).toBe('DECLARE');
     expect(linked.arreteEntryId).not.toBeNull();
+  });
+});
+
+// Outbox письма владельцу синистра, дедупликация с veille по коммунам на
+// отправке — docs/plan/sinistre-plan.md, Фаза 4 (issue #161).
+describe('sinistre notification outbox (issue #161)', () => {
+  const TITLE =
+    "Arrêté du 1er juillet 2026 portant reconnaissance de l'état de catastrophe naturelle";
+  const AMIGNY = [
+    'Aisne',
+    'Amigny-Rouy',
+    'Inondations',
+    '01/06/2026',
+    '20/06/2026',
+  ];
+  const MUSSIDAN = [
+    'Dordogne',
+    'Mussidan',
+    'Inondations',
+    '01/06/2026',
+    '20/06/2026',
+  ];
+
+  let app: NestFastifyApplication;
+  let prisma: PrismaService;
+  let monitor: JorfMonitorService;
+  let transport: RecordingTransport;
+  let currentFetch: FetchFn;
+
+  beforeAll(async () => {
+    transport = new RecordingTransport();
+    app = await createIntTestApp({
+      customize: (builder) =>
+        builder
+          .overrideProvider(DilaClient)
+          .useValue(new DilaClient((...args) => currentFetch(...args)))
+          .overrideProvider(MAIL_TRANSPORT)
+          .useValue(transport),
+    });
+    prisma = app.get(PrismaService);
+    monitor = app.get(JorfMonitorService);
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  beforeEach(async () => {
+    transport.sent.length = 0;
+    transport.failNext = false;
+    await prisma.$executeRaw`TRUNCATE TABLE "User", "Commune", "DeadlineRule", "StepTemplate", "Sinistre", "Arrete", "JorfDelta", "MonitorLock", "MonitorAlert", "Veille" CASCADE`;
+    await seedDeadlineRules(prisma);
+    await seedStepTemplates(prisma);
+  });
+
+  const buildDelta = (id: string, nor: string, revision: ArreteRevision) =>
+    buildTarball({
+      [`jorf/simple/JORF/CONT/2026/07/01/JORFCONT${id.slice(-4)}.xml`]:
+        buildTocXml(id, TITLE),
+      [`jorf/simple/JORF/CONT/2026/07/01/${id}.xml`]: buildArreteXml({
+        id,
+        nor,
+        title: TITLE,
+        ...revision,
+      }),
+    });
+
+  interface CreatedSinistre {
+    id: string;
+    arreteEntryId: string | null;
+  }
+
+  async function createSinistre(
+    email: string,
+    codeInsee: string,
+    eventDate = '2026-06-10',
+  ): Promise<{
+    headers: ReturnType<typeof withBearer>;
+    sinistre: CreatedSinistre;
+  }> {
+    await createUser(prisma, { email });
+    const headers = await headersForEmail(app, prisma, email);
+    const res = await app.inject({
+      method: 'POST',
+      url: '/sinistres',
+      headers,
+      payload: { codeInsee, risque: 'INONDATION', eventDate },
+    });
+    return {
+      headers,
+      sinistre: JSON.parse(res.payload) as CreatedSinistre,
+    };
+  }
+
+  it('mails the owner in the run that links the entry, with the recognised commune and the déclaration deadline (critère PRD № 13)', async () => {
+    await prisma.commune.create({
+      data: communeFixture('02005', 'Amigny-Rouy', '02', 'Aisne'),
+    });
+    const email = 'proprietaire-1@example.fr';
+    const { sinistre } = await createSinistre(email, '02005');
+    expect(sinistre.arreteEntryId).toBeNull();
+    const rule = await prisma.deadlineRule.findFirstOrThrow({
+      where: { code: 'DECLARATION_ASSUREUR' },
+    });
+
+    const MORNING = 'JORFSIMPLE_20260701-060000.tar.gz';
+    currentFetch = stubFetch([MORNING], {
+      [MORNING]: await buildDelta('JORFTEXT000000005001', 'INTJ2600050A', {
+        reconnues: [AMIGNY],
+      }),
+    });
+    await monitor.run();
+
+    expect(transport.sent).toHaveLength(1);
+    expect(transport.sent[0]?.to).toBe(email);
+    expect(transport.sent[0]?.text).toContain('Amigny-Rouy');
+    expect(transport.sent[0]?.text).toContain(
+      formatFrenchDate(
+        resolveDeadline(toIsoDate('2026-07-01'), rule.duration, rule.unit),
+      ),
+    );
+    const notification = await prisma.sinistreNotification.findFirstOrThrow({
+      where: { sinistreId: sinistre.id },
+    });
+    expect(notification.sentAt).not.toBeNull();
+    expect(notification.kind).toBe('PUBLICATION');
+  });
+
+  it('a failed send to one owner does not block the other (critère PRD № 13)', async () => {
+    await prisma.commune.create({
+      data: communeFixture('02005', 'Amigny-Rouy', '02', 'Aisne'),
+    });
+    await prisma.commune.create({
+      data: communeFixture('24290', 'Mussidan', '24', 'Dordogne'),
+    });
+    await createSinistre('proprietaire-2@example.fr', '02005');
+    await createSinistre('proprietaire-3@example.fr', '24290');
+
+    const MORNING = 'JORFSIMPLE_20260701-060000.tar.gz';
+    currentFetch = stubFetch([MORNING], {
+      [MORNING]: await buildDelta('JORFTEXT000000005101', 'INTJ2600051A', {
+        reconnues: [AMIGNY, MUSSIDAN],
+      }),
+    });
+
+    transport.failNext = true;
+    await monitor.run();
+
+    expect(transport.sent).toHaveLength(1);
+    const stuck = await prisma.sinistreNotification.findFirstOrThrow({
+      where: { sentAt: null },
+    });
+    expect(stuck.attempts).toBe(1);
+
+    await monitor.run();
+    expect(transport.sent).toHaveLength(2);
+    expect(
+      await prisma.sinistreNotification.count({ where: { sentAt: null } }),
+    ).toBe(0);
+  });
+
+  it('a repeat run of the same arrêté does not send a second mail (critère PRD № 11)', async () => {
+    await prisma.commune.create({
+      data: communeFixture('02005', 'Amigny-Rouy', '02', 'Aisne'),
+    });
+    await createSinistre('proprietaire-4@example.fr', '02005');
+
+    const MORNING = 'JORFSIMPLE_20260701-060000.tar.gz';
+    const tarball = await buildDelta('JORFTEXT000000005201', 'INTJ2600052A', {
+      reconnues: [AMIGNY],
+    });
+    currentFetch = stubFetch([MORNING], { [MORNING]: tarball });
+    await monitor.run();
+    expect(transport.sent).toHaveLength(1);
+
+    const EVENING = 'JORFSIMPLE_20260701-230000.tar.gz';
+    currentFetch = stubFetch([MORNING, EVENING], {
+      [MORNING]: tarball,
+      [EVENING]: tarball,
+    });
+    await monitor.run();
+
+    expect(transport.sent).toHaveLength(1);
+    expect(await prisma.sinistreNotification.count()).toBe(1);
+  });
+
+  it('an owner also watching the same commune in veille gets exactly one letter about it, but still learns about a second watched commune (critère PRD № 14)', async () => {
+    await prisma.commune.create({
+      data: communeFixture('02005', 'Amigny-Rouy', '02', 'Aisne'),
+    });
+    await prisma.commune.create({
+      data: communeFixture('24290', 'Mussidan', '24', 'Dordogne'),
+    });
+    const email = 'proprietaire-5@example.fr';
+    await createSinistre(email, '02005');
+    await createVeille(prisma, {
+      email,
+      confirmedAt: new Date(),
+      communeCodes: ['02005', '24290'],
+    });
+
+    const MORNING = 'JORFSIMPLE_20260701-060000.tar.gz';
+    currentFetch = stubFetch([MORNING], {
+      [MORNING]: await buildDelta('JORFTEXT000000005301', 'INTJ2600053A', {
+        reconnues: [AMIGNY, MUSSIDAN],
+      }),
+    });
+    await monitor.run();
+
+    // One sinistre letter (Amigny-Rouy) and one veille letter reduced to
+    // Mussidan only — never a veille letter repeating Amigny-Rouy.
+    expect(transport.sent).toHaveLength(2);
+    const toOwner = transport.sent.filter((m) => m.to === email);
+    expect(toOwner).toHaveLength(2);
+    const amignyMails = toOwner.filter((m) => m.text.includes('Amigny-Rouy'));
+    expect(amignyMails).toHaveLength(1);
+    const mussidanMail = toOwner.find((m) => m.text.includes('Mussidan'));
+    expect(mussidanMail).toBeDefined();
+    expect(mussidanMail?.text).not.toContain('Amigny-Rouy');
+  });
+
+  it('a sinistre linked at creation time (arrêté already ingested) gets no letter', async () => {
+    await prisma.commune.create({
+      data: communeFixture('02005', 'Amigny-Rouy', '02', 'Aisne'),
+    });
+    const MORNING = 'JORFSIMPLE_20260701-060000.tar.gz';
+    currentFetch = stubFetch([MORNING], {
+      [MORNING]: await buildDelta('JORFTEXT000000005401', 'INTJ2600054A', {
+        reconnues: [AMIGNY],
+      }),
+    });
+    await monitor.run();
+    transport.sent.length = 0;
+
+    const { sinistre } = await createSinistre(
+      'proprietaire-6@example.fr',
+      '02005',
+    );
+    expect(sinistre.arreteEntryId).not.toBeNull();
+
+    await monitor.run();
+
+    expect(transport.sent).toHaveLength(0);
+    expect(
+      await prisma.sinistreNotification.count({
+        where: { sinistreId: sinistre.id },
+      }),
+    ).toBe(0);
   });
 });

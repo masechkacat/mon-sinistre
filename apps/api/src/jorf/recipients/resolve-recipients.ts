@@ -90,3 +90,19 @@ export function resolveRecipients(
     codeInsee: [...codes].sort(),
   }));
 }
+
+/**
+ * Drops the communes a sinistre letter to the same address already named for
+ * this arrêté (docs/research/sinistre-plan.md, "Письмо владельцу синистра и
+ * дедупликация с veille") — a watcher who is also a sinistre's owner must not
+ * be told the same commune twice, but a commune `coveredCommunes` does not
+ * name is untouched: they still learn about it through the veille letter.
+ * The caller decides what an empty result means (drain without sending); this
+ * function only computes the remainder.
+ */
+export function subtractCoveredCommunes(
+  codes: readonly string[],
+  coveredCommunes: ReadonlySet<string>,
+): string[] {
+  return codes.filter((code) => !coveredCommunes.has(code));
+}

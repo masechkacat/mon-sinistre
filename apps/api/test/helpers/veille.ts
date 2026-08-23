@@ -1,5 +1,8 @@
 import type { PrismaService } from 'src/prisma/prisma.service';
-import { nextChangeExpiresAt, nextConfirmExpiresAt } from 'src/veille/veille.service';
+import {
+  nextChangeExpiresAt,
+  nextConfirmExpiresAt,
+} from 'src/veille/veille.service';
 import { commune } from 'test/helpers/commune';
 import { generateVeilleToken } from 'src/veille/veille-token';
 
@@ -52,6 +55,7 @@ export function veilleData(overrides: Partial<{ email: string }> = {}) {
 export const createVeille = async (
   prisma: PrismaService,
   overrides: Partial<{
+    email: string;
     confirmedAt: Date | null;
     confirmExpiresAt: Date;
     communeCodes: string[];
@@ -65,7 +69,7 @@ export const createVeille = async (
   const unsubscribe = generateVeilleToken();
   const veille = await prisma.veille.create({
     data: {
-      email: `riverain-${Math.random()}@example.fr`,
+      email: overrides.email ?? `riverain-${Math.random()}@example.fr`,
       confirmTokenHash: confirm.hash,
       unsubscribeTokenHash: unsubscribe.hash,
       confirmedAt: overrides.confirmedAt ?? null,

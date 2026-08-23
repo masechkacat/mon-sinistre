@@ -1,6 +1,7 @@
 import {
   type SubscribedCommune,
   resolveRecipients,
+  subtractCoveredCommunes,
 } from './resolve-recipients';
 
 function sub(overrides: Partial<SubscribedCommune>): SubscribedCommune {
@@ -104,5 +105,30 @@ describe('resolveRecipients', () => {
 
   it('gives an empty list for an arrêté with no matching subscribers', () => {
     expect(resolveRecipients(['30189'], new Map(), [])).toEqual([]);
+  });
+});
+
+describe('subtractCoveredCommunes', () => {
+  it('drops a covered commune and keeps the rest (critère PRD № 14)', () => {
+    expect(
+      subtractCoveredCommunes(['30189', '30001'], new Set(['30189'])),
+    ).toEqual(['30001']);
+  });
+
+  it('returns every code unchanged when nothing is covered', () => {
+    expect(subtractCoveredCommunes(['30189', '30001'], new Set())).toEqual([
+      '30189',
+      '30001',
+    ]);
+  });
+
+  it('returns an empty list when every code is covered', () => {
+    expect(subtractCoveredCommunes(['30189'], new Set(['30189']))).toEqual([]);
+  });
+
+  it('ignores a covered code the list does not carry', () => {
+    expect(subtractCoveredCommunes(['30189'], new Set(['99999']))).toEqual([
+      '30189',
+    ]);
   });
 });
