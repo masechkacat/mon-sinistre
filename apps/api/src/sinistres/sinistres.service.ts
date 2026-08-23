@@ -8,8 +8,12 @@ import type {
   IsoDate,
   SinistreDetail,
   SinistreSummary,
+  Step,
 } from '@mon-sinistre/contracts';
-import type { StepAnchor } from 'src/generated/prisma/enums';
+import type {
+  StepAnchor,
+  StepPersistedStatus,
+} from 'src/generated/prisma/enums';
 import { errorSummary, stackOf } from 'src/common/error-report';
 import { DeadlineRuleService } from 'src/deadline-rules/deadline-rule.service';
 import { isoDateToDate } from 'src/deadline-rules/resolve-deadline';
@@ -24,7 +28,11 @@ import {
 } from './build-step-snapshot';
 import type { CreateSinistreDto } from './dto/create-sinistre.dto';
 import { CATNAT_PLAN_KEY } from 'src/step-templates/step-template.seed';
-import { toSinistreDetail, toSinistreSummary } from './to-sinistre-detail';
+import {
+  toSinistreDetail,
+  toSinistreSummary,
+  toStepResponse,
+} from './to-sinistre-detail';
 
 @Injectable()
 export class SinistresService {
@@ -160,5 +168,35 @@ export class SinistresService {
     if (count === 0) {
       throw new NotFoundException();
     }
+  }
+
+  /** Ownership check same as {@link remove} — the relation filter lives in
+   * the `updateMany` itself, not a read-then-write. `completedAt` follows
+   * `status`: set on mark (FAIT or NON_APPLICABLE alike), cleared on unmark.
+   * The write and the read that builds the response run in one transaction
+   * (same reason as `AuthService.refresh`'s rotation): otherwise a second
+   * concurrent PATCH landing between them could hand this request back a
+   * status it never wrote. */
+  async updateStep(
+    userId: string,
+    sinistreId: string,
+    stepId: string,
+    status: StepPersistedStatus | null,
+  ): Promise<Step> {
+    const today = todayInParis();
+    return this.prisma.$transaction(async (tx) => {
+      const { count } = await tx.step.updateMany({
+        where: { id: stepId, sinistre: { id: sinistreId, userId } },
+        data: {
+          persistedStatus: status,
+          completedAt: status ? isoDateToDate(today) : null,
+        },
+      });
+      if (count === 0) {
+        throw new NotFoundException();
+      }
+      const step = await tx.step.findUniqueOrThrow({ where: { id: stepId } });
+      return toStepResponse(step, today);
+    });
   }
 }

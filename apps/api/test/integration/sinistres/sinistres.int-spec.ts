@@ -17,6 +17,11 @@ import {
   withBearer,
 } from 'test/helpers/session';
 
+interface SinistreWithSteps {
+  id: string;
+  steps: { id: string; anchor: string | null; status: string }[];
+}
+
 // POST /sinistres and GET /sinistres/:id, docs/plan/sinistre-plan.md, Фаза 1
 // (issue #150) — copying the CATNAT plan onto a fresh Sinistre.
 describe('SinistresController (integration)', () => {
@@ -46,6 +51,19 @@ describe('SinistresController (integration)', () => {
   ): Promise<ReturnType<typeof withBearer>> {
     const res = await login(app, email);
     return withBearer(accessTokenOf(res));
+  }
+
+  async function createSinistre(
+    headers: ReturnType<typeof withBearer>,
+    eventDate = '2026-06-01',
+  ): Promise<SinistreWithSteps> {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/sinistres',
+      headers,
+      payload: { codeInsee: '30189', risque: 'INONDATION', eventDate },
+    });
+    return JSON.parse(res.payload) as SinistreWithSteps;
   }
 
   it('creates a sinistre and snapshots the plan: DATE_SINISTRE steps get dates, DATE_PUBLICATION_ARRETE/DATE_DECLARATION steps get a deadline source but no plannedDate', async () => {
@@ -309,25 +327,11 @@ describe('SinistresController (integration)', () => {
   // GET /sinistres and DELETE /sinistres/:id, docs/plan/sinistre-plan.md,
   // Фаза 2 (issue #151).
   describe('GET /sinistres and DELETE /sinistres/:id', () => {
-    async function createSinistre(
-      headers: ReturnType<typeof withBearer>,
-      eventDate = '2026-06-01',
-    ): Promise<string> {
-      const res = await app.inject({
-        method: 'POST',
-        url: '/sinistres',
-        headers,
-        payload: { codeInsee: '30189', risque: 'INONDATION', eventDate },
-      });
-      const { id } = JSON.parse(res.payload) as { id: string };
-      return id;
-    }
-
     it("lists only the caller's own sinistres, freshest created first", async () => {
       const ownerEmail = await createUser(prisma);
       const ownerHeaders = await bearerFor(ownerEmail);
-      const firstId = await createSinistre(ownerHeaders, '2026-05-01');
-      const secondId = await createSinistre(ownerHeaders, '2026-06-01');
+      const firstId = (await createSinistre(ownerHeaders, '2026-05-01')).id;
+      const secondId = (await createSinistre(ownerHeaders, '2026-06-01')).id;
 
       const otherEmail = await createUser(prisma);
       const otherHeaders = await bearerFor(otherEmail);
@@ -347,7 +351,7 @@ describe('SinistresController (integration)', () => {
     it('deletes a sinistre and cascades its steps', async () => {
       const email = await createUser(prisma);
       const headers = await bearerFor(email);
-      const id = await createSinistre(headers);
+      const id = (await createSinistre(headers)).id;
       const stepCountBefore = await prisma.step.count({
         where: { sinistreId: id },
       });
@@ -367,7 +371,7 @@ describe('SinistresController (integration)', () => {
     it('answers the same 404 for deleting a sinistre owned by someone else as for a nonexistent one', async () => {
       const ownerEmail = await createUser(prisma);
       const ownerHeaders = await bearerFor(ownerEmail);
-      const id = await createSinistre(ownerHeaders);
+      const id = (await createSinistre(ownerHeaders)).id;
 
       const otherEmail = await createUser(prisma);
       const otherHeaders = await bearerFor(otherEmail);
@@ -397,7 +401,7 @@ describe('SinistresController (integration)', () => {
     it('deletes the account cleanly when it still owns a sinistre', async () => {
       const email = await createUser(prisma);
       const headers = await bearerFor(email);
-      const id = await createSinistre(headers);
+      const id = (await createSinistre(headers)).id;
 
       const res = await app.inject({
         method: 'DELETE',
@@ -407,6 +411,105 @@ describe('SinistresController (integration)', () => {
 
       expect(res.statusCode).toBe(204);
       expect(await prisma.sinistre.findUnique({ where: { id } })).toBeNull();
+    });
+  });
+
+  // PATCH /sinistres/:id/etapes/:stepId, docs/plan/sinistre-plan.md, Фаза 2
+  // (issue #152).
+  describe('PATCH /sinistres/:id/etapes/:stepId', () => {
+    async function reread(
+      headers: ReturnType<typeof withBearer>,
+      sinistreId: string,
+    ): Promise<SinistreWithSteps> {
+      const res = await app.inject({
+        method: 'GET',
+        url: `/sinistres/${sinistreId}`,
+        headers,
+      });
+      return JSON.parse(res.payload) as SinistreWithSteps;
+    }
+
+    it('marks a step FAIT without changing the other steps', async () => {
+      const email = await createUser(prisma);
+      const headers = await bearerFor(email);
+      const sinistre = await createSinistre(headers);
+      const target = sinistre.steps.find((s) => s.anchor === 'DATE_SINISTRE');
+      if (!target) {
+        throw new Error('fixture has no DATE_SINISTRE step');
+      }
+      const othersBefore = sinistre.steps.filter((s) => s.id !== target.id);
+
+      const res = await app.inject({
+        method: 'PATCH',
+        url: `/sinistres/${sinistre.id}/etapes/${target.id}`,
+        headers,
+        payload: { status: 'FAIT' },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const updated = JSON.parse(res.payload) as { status: string };
+      expect(updated.status).toBe('FAIT');
+
+      const after = await reread(headers, sinistre.id);
+      expect(after.steps.find((s) => s.id === target.id)?.status).toBe('FAIT');
+      for (const before of othersBefore) {
+        const afterStep = after.steps.find((s) => s.id === before.id);
+        expect(afterStep?.status).toBe(before.status);
+      }
+    });
+
+    it('returns the computed status when the mark is removed', async () => {
+      const email = await createUser(prisma);
+      const headers = await bearerFor(email);
+      const sinistre = await createSinistre(headers);
+      const target = sinistre.steps.find((s) => s.anchor === 'DATE_SINISTRE');
+      if (!target) {
+        throw new Error('fixture has no DATE_SINISTRE step');
+      }
+
+      await app.inject({
+        method: 'PATCH',
+        url: `/sinistres/${sinistre.id}/etapes/${target.id}`,
+        headers,
+        payload: { status: 'FAIT' },
+      });
+
+      const res = await app.inject({
+        method: 'PATCH',
+        url: `/sinistres/${sinistre.id}/etapes/${target.id}`,
+        headers,
+        payload: { status: null },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const updated = JSON.parse(res.payload) as { status: string };
+      expect(updated.status).toBe(target.status);
+    });
+
+    it('answers 404 for a step on a sinistre owned by someone else and leaves it unchanged', async () => {
+      const ownerEmail = await createUser(prisma);
+      const ownerHeaders = await bearerFor(ownerEmail);
+      const sinistre = await createSinistre(ownerHeaders);
+      const target = sinistre.steps[0];
+      if (!target) {
+        throw new Error('fixture has no steps');
+      }
+
+      const otherEmail = await createUser(prisma);
+      const otherHeaders = await bearerFor(otherEmail);
+
+      const res = await app.inject({
+        method: 'PATCH',
+        url: `/sinistres/${sinistre.id}/etapes/${target.id}`,
+        headers: otherHeaders,
+        payload: { status: 'FAIT' },
+      });
+
+      expect(res.statusCode).toBe(404);
+      const after = await reread(ownerHeaders, sinistre.id);
+      expect(after.steps.find((s) => s.id === target.id)?.status).toBe(
+        target.status,
+      );
     });
   });
 });

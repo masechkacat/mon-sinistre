@@ -39,7 +39,7 @@ export interface StepRow {
   sourceVerifiedAt: Date | null;
 }
 
-function toStepResponse(step: StepRow, today: IsoDate): Step {
+export function toStepResponse(step: StepRow, today: IsoDate): Step {
   const plannedDate = step.plannedDate ? dateToIsoDate(step.plannedDate) : null;
   return {
     id: step.id,
