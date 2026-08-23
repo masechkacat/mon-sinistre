@@ -4,8 +4,7 @@ import { apiBaseUrl } from './config';
 /**
  * Where the session guard sends people once a silent refresh comes back
  * empty-handed. Not a contracts path — no mail carries this address, only
- * the client links to it — and the page itself does not exist yet:
- * src/app/connexion/page.tsx lands with the login screen (issue #136).
+ * the client links to it (`src/app/connexion/`).
  */
 export const LOGIN_PATH = '/connexion';
 

@@ -211,10 +211,26 @@ export const fr = {
         description: LIEN_CONFIRMATION_INVALIDE_DESCRIPTION,
       },
     },
+    connexion: {
+      page: { title: 'Se connecter' },
+      lead: 'Connectez-vous pour accéder à votre espace personnel.',
+      emailLabel: EMAIL_LABEL,
+      emailPlaceholder: EMAIL_PLACEHOLDER,
+      emailRequiredError: EMAIL_REQUIRED_ERROR,
+      emailInvalidError: EMAIL_INVALID_ERROR,
+      passwordLabel: 'Mot de passe',
+      passwordRequiredError: 'Indiquez votre mot de passe.',
+      submit: 'Se connecter',
+      submitting: 'Connexion en cours…',
+      invalidError: 'Adresse e-mail ou mot de passe incorrect.',
+    },
+    espacePersonnel: {
+      page: { title: 'Espace personnel' },
+      intro: 'Vous êtes connecté·e à votre espace personnel.',
+    },
   },
   session: {
     checking: 'Vérification de la session…',
-    loggedIn: 'Connecté·e',
     logout: 'Se déconnecter',
   },
   serverError: {

@@ -73,6 +73,10 @@ export const inscription = {
   path: '/inscription' satisfies Route,
   status: 200,
 } as const;
+export const connexion = {
+  path: '/connexion' satisfies Route,
+  status: 200,
+} as const;
 // Unlike veilleConfirmation, no mockApi: nothing fires on load (see
 // CompteConfirmation's own docblock) — the button is on screen from the
 // first paint, no in-flight request for a shared suite to race.
@@ -97,6 +101,7 @@ export const pages = [
   veilleChange,
   inscription,
   confirmation,
+  connexion,
   ...legalEntries,
 ] as const;
 
