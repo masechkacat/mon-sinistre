@@ -21,7 +21,7 @@
   `pending | active | invalid` для обоих эндпоинтов confirmation.
 - `POST /veille/desinscription` → `VeilleService.unsubscribe`; каскад
   `VeilleCommune` сносится вместе с `Veille`. Единственный маршрут под
-  `@ThrottleByToken` (`src/common/token-throttler.guard.ts`) — почему, сказано
+  `@ThrottleByToken` (`src/common/http/token-throttler.guard.ts`) — почему, сказано
   у декоратора.
 - `GET /veille/changement?token=…` → `VeilleService.getChangeStatus`; почему
   один `findFirst`, а не `findUnique` — докблок метода.
@@ -29,7 +29,7 @@
   сам атомарный захват (докблок метода), второго поиска по хешу заводить не
   нужно. Без `@ThrottleByToken` — почему, research «Контракт API».
 - `dto/veille-token.dto.ts` (`VeilleTokenDto`) — одна DTO с полем `token` для
-  обоих `POST`; сама валидация — в общем `TokenDto` (`src/common/token.dto.ts`,
+  обоих `POST`; сама валидация — в общем `TokenDto` (`src/common/http/token.dto.ts`,
   общий с account-подтверждением, `src/auth/`), второй копии правила не
   заводить.
 - `veille-confirmation-mail.ts` — единственная сборка письма подтверждения;
@@ -43,11 +43,11 @@
   (`generateVeilleToken`) и пересчитать хеш по токену (`hashVeilleToken`,
   используется и статусом подтверждения, и отпиской — оба ищут `Veille` по
   своему хешу): `randomBytes(32).base64url` в письмо, `sha256` hex в базу.
-  Сама механика — в `src/common/secure-token.ts` (общая с токеном
+  Сама механика — в `src/common/security/secure-token.ts` (общая с токеном
   подтверждения аккаунта, `src/auth/`); этот файл — только переименование под
   привычные здесь имена, второй генерации не заводить.
 - `veille-email-hash.ts` (`hashVeilleFormEmail`) — тонкий ре-экспорт общей
-  HMAC-утилиты `hashEmail` (`src/common/email-hash.ts`, общая со счётчиками
+  HMAC-утилиты `hashEmail` (`src/common/security/email-hash.ts`, общая со счётчиками
   аккаунта, `src/auth/`) под привычным здесь именем; получает
   `VeilleFormEmail.emailHash` на `VEILLE_EMAIL_HASH_SECRET`, второй свёртки
   адреса не заводить. `VeilleService.sendFormMail` — единственная точка проверки лимита

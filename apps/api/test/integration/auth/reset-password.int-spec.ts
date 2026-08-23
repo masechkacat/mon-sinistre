@@ -1,7 +1,7 @@
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { createIntTestApp } from 'test/helpers/app';
-import { HOUR_MS } from 'src/common/time';
-import { hashSecureToken, SECURE_TOKEN_LENGTH } from 'src/common/secure-token';
+import { HOUR_MS } from 'src/common/time/time';
+import { hashSecureToken, SECURE_TOKEN_LENGTH } from 'src/common/security/secure-token';
 import { PrismaService } from 'src/prisma/prisma.service';
 import {
   createUser as createUserIn,

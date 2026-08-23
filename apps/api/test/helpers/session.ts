@@ -1,6 +1,6 @@
 import * as bcrypt from 'bcrypt';
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
-import { DAY_MS } from 'src/common/time';
+import { DAY_MS } from 'src/common/time/time';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { REFRESH_COOKIE_NAME } from 'src/auth/auth.controller';
 

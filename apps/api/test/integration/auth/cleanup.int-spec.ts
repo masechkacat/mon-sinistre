@@ -1,6 +1,6 @@
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { createIntTestApp } from 'test/helpers/app';
-import { DAY_MS, HOUR_MS } from 'src/common/time';
+import { DAY_MS, HOUR_MS } from 'src/common/time/time';
 import { captureLogs } from 'test/helpers/mail-log';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { AuthService } from 'src/auth/auth.service';

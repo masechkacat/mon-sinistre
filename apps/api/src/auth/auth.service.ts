@@ -27,11 +27,11 @@ import { withAddressLock } from 'src/common/address-lock';
 import {
   awaitingConfirmation,
   expiredUnconfirmed,
-} from 'src/common/confirmation-window';
-import { hashEmail } from 'src/common/email-hash';
+} from 'src/common/time/confirmation-window';
+import { hashEmail } from 'src/common/security/email-hash';
 import { runGuarded } from 'src/common/scheduled-cleanup';
-import { generateSecureToken, hashSecureToken } from 'src/common/secure-token';
-import { addDays, addHours, DAY_MS, HOUR_MS } from 'src/common/time';
+import { generateSecureToken, hashSecureToken } from 'src/common/security/secure-token';
+import { addDays, addHours, DAY_MS, HOUR_MS } from 'src/common/time/time';
 import type { EnvironmentVariables } from 'src/config/env.validation';
 import { fr } from 'src/i18n/fr';
 import { MailCompositionError } from 'src/mail/mail-composition.error';

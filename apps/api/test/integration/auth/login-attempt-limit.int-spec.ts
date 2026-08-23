@@ -5,8 +5,8 @@ import {
 } from '@nestjs/throttler';
 import { LOGIN_ATTEMPT_LIMIT } from '@mon-sinistre/contracts';
 import { createIntTestApp } from 'test/helpers/app';
-import { hashSecureToken } from 'src/common/secure-token';
-import { HOUR_MS } from 'src/common/time';
+import { hashSecureToken } from 'src/common/security/secure-token';
+import { HOUR_MS } from 'src/common/time/time';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { createUser as createUserIn, PASSWORD } from 'test/helpers/session';
 

@@ -5,4 +5,4 @@
  * behaviour is untouched, tested at the shared implementation
  * (`email-hash.spec.ts`).
  */
-export { hashEmail as hashVeilleFormEmail } from 'src/common/email-hash';
+export { hashEmail as hashVeilleFormEmail } from 'src/common/security/email-hash';

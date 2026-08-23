@@ -1,6 +1,6 @@
 import { IsString } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
-import { TokenDto } from 'src/common/token.dto';
+import { TokenDto } from 'src/common/http/token.dto';
 import { IsAccountPassword } from '../is-account-password.decorator';
 
 /**

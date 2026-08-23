@@ -1,5 +1,5 @@
 import { IsString, MaxLength } from 'class-validator';
-import { SECURE_TOKEN_LENGTH } from './secure-token';
+import { SECURE_TOKEN_LENGTH } from '../security/secure-token';
 
 /**
  * Body of every `POST` that activates by a mailed link token (veille

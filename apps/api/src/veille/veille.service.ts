@@ -12,9 +12,9 @@ import {
   awaitingConfirmation,
   expiredUnconfirmed,
   isStillOpen,
-} from 'src/common/confirmation-window';
+} from 'src/common/time/confirmation-window';
 import { runGuarded } from 'src/common/scheduled-cleanup';
-import { addDays, DAY_MS } from 'src/common/time';
+import { addDays, DAY_MS } from 'src/common/time/time';
 import type { EnvironmentVariables } from 'src/config/env.validation';
 import type { Prisma } from 'src/generated/prisma/client';
 import { MailCompositionError } from 'src/mail/mail-composition.error';

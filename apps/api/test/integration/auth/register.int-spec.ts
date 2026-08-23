@@ -11,7 +11,7 @@ import {
   ACCOUNT_FORGOT_PASSWORD_PATH,
 } from '@mon-sinistre/contracts';
 import { createIntTestApp } from 'test/helpers/app';
-import { DAY_MS } from 'src/common/time';
+import { DAY_MS } from 'src/common/time/time';
 import { captureLogs } from 'test/helpers/mail-log';
 import { mailLinksOf, tokenFrom } from 'test/helpers/mail-links';
 import { MAIL_TRANSPORT } from 'src/mail/mail-transport';

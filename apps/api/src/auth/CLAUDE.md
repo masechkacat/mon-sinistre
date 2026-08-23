@@ -28,9 +28,9 @@
   — причина не раскрывается (anti-enumeration, тот же принцип, что у
   `VeilleService.confirm`). Окно подтверждения сравнивается с «сейчас» в одном
   месте на оба модуля — `awaitingConfirmation`
-  (`src/common/confirmation-window.ts`). `dto/account-token.dto.ts` (`AccountTokenDto`) —
+  (`src/common/time/confirmation-window.ts`). `dto/account-token.dto.ts` (`AccountTokenDto`) —
   пустой класс, наследующий валидацию тела у общего `TokenDto`
-  (`src/common/token.dto.ts`, общий с `VeilleTokenDto`); второй копии правила
+  (`src/common/http/token.dto.ts`, общий с `VeilleTokenDto`); второй копии правила
   не заводить, DTO смены пароля по токену (фаза 3) наследует от того же
   `TokenDto`.
 - `is-account-password.decorator.ts` (`IsAccountPassword`) — единственный
@@ -45,7 +45,7 @@
   отличие от `ACCOUNT_RESET_PATH`). `AuthService.sendAccountMail` —
   единственная точка проверки лимита (`ACCOUNT_EMAIL_LIMIT`, скользящие 24
   часа, счётчик `AccountFormEmail` по HMAC-хешу адреса — `hashEmail`,
-  `src/common/email-hash.ts`) и точка отправки всех трёх писем фичи
+  `src/common/security/email-hash.ts`) и точка отправки всех трёх писем фичи
   (подтверждение, «у вас уже есть аккаунт», сброс пароля); один счётчик на
   все три, не отдельный на каждое (`docs/research/user-account.md`), но
   регистрационные письма берут из него лишь `ACCOUNT_REGISTRATION_MAIL_LIMIT`
@@ -56,7 +56,7 @@
   `VeilleService.sendFormMail` — письма veille и account считаются раздельно,
   в разных таблицах.
 - Генерация и хеширование токена подтверждения — `generateSecureToken`/
-  `hashSecureToken` (`src/common/secure-token.ts`, общий с veille):
+  `hashSecureToken` (`src/common/security/secure-token.ts`, общий с veille):
   `randomBytes(32).base64url` в письмо, `sha256` hex в базу; второй генерации
   здесь не заводить.
 - `POST /auth/password-reset` → `AuthService.requestPasswordReset`; always
@@ -88,7 +88,7 @@
   `AuthService.validateCredentials`. Гвард выполняется раньше пайпа — тело
   запроса он читает сырым, а не через провалидированный `LoginDto`, поэтому
   `LocalStrategy.validate` нормализует адрес сам (`normalizeEmail`,
-  `src/common/normalize-email.decorator.ts`) и сам же берёт поля из тела
+  `src/common/http/normalize-email.decorator.ts`) и сам же берёт поля из тела
   (`passReqToCallback`): запасной источник passport-local — query string — не
   используется, пароль в URL попал бы в access-логи. `LoginDto` в сигнатуре
   контроллера остаётся только ради `forbidNonWhitelisted` и Swagger. Один
@@ -195,7 +195,7 @@
   прогон чистки фичи (`docs/research/user-account.md`, «Чистка: один
   cron-час»): неподтверждённые `User` старше `ACCOUNT_CONFIRM_TTL_DAYS`
   (каскад сносит их `RefreshToken`/`PasswordReset`, тот же
-  `expiredUnconfirmed` из `src/common/confirmation-window.ts`, что и у
+  `expiredUnconfirmed` из `src/common/time/confirmation-window.ts`, что и у
   veille), просроченные `PasswordReset`, истёкшие `RefreshToken`, счётчики
   `AccountFormEmail`/`LoginAttempt` старше своего окна (`DAY_MS`/`HOUR_MS`,
   те же, что у `sendAccountMail` и `validateCredentials` выше). Каждый
