@@ -17,7 +17,9 @@ Next.js 16 (App Router, `src/app/`), React 19, Tailwind CSS 4 (через PostCS
 `../../docs/research/veille-subscription-lifecycle.md`; страница подтверждения
 изменения состава — `../../docs/research/veille-commune-change.md`; аккаунт
 (access-токен в памяти слоя API, тихий refresh, клиентский guard) —
-`../../docs/research/user-account.md`.
+`../../docs/research/user-account.md`; синистр и план действий (страницы,
+одиночный combobox коммуны, хронология, сквозной тест против реального API) —
+`../../docs/research/sinistre-plan.md`.
 
 ## Команды
 

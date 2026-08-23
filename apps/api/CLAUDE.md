@@ -23,7 +23,10 @@ contracts не нужен — jest подставляет его исходни�
 (источник DILA, парсинг, расписание, outbox рассылки, алерты) —
 `../../docs/research/jorf-monitor.md`; аккаунт пострадавшего (правила пароля
 CNIL, bcrypt, JWT-сессии с ротацией, глобальный guard, лимиты попыток и
-писем) — `../../docs/research/user-account.md`.
+писем) — `../../docs/research/user-account.md`; синистр и план действий
+(схема `Sinistre`/`Step`/`StepTemplate`, классификация риска, привязка
+`ArreteEntry`, сроки страховщика в справочнике, outbox письма владельцу) —
+`../../docs/research/sinistre-plan.md`.
 
 ## Единственные точки входа
 
