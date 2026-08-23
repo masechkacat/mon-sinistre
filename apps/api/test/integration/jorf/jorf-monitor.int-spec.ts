@@ -904,6 +904,131 @@ describe('JorfMonitorService.run (integration)', () => {
       });
       expect(bordeauxAlert).toMatchObject({ arreteId: rectified?.id });
     });
+
+    it('alerts on a phénomène wording classifyRisques does not recognize, entry still ingested (issue #154)', async () => {
+      await prisma.commune.create({
+        data: communeFixture('33063', 'Bordeaux', '33', 'Gironde'),
+      });
+
+      const id = 'JORFTEXT000000000801';
+      const nor = 'INTJ2600008A';
+      const title =
+        "Arrêté du 8 juillet 2026 portant reconnaissance de l'état de catastrophe naturelle";
+      const xml = buildArreteXml({
+        id,
+        nor,
+        title,
+        reconnues: [
+          [
+            'Gironde',
+            'Bordeaux',
+            'Invasion de criquets migrateurs',
+            '01/01/2026',
+            '02/01/2026',
+          ],
+        ],
+      });
+      const tarball = await buildTarball({
+        'jorf/simple/JORF/CONT/2026/07/08/JORFCONT000000000800.xml':
+          buildTocXml(id, title),
+        [`jorf/simple/JORF/CONT/2026/07/08/${id}.xml`]: xml,
+      });
+      currentFetch = stubFetch(['JORFSIMPLE_20260708-060000.tar.gz'], {
+        'JORFSIMPLE_20260708-060000.tar.gz': tarball,
+      });
+
+      await monitor.run();
+
+      const arrete = await prisma.arrete.findUnique({
+        where: { nor },
+        include: { entries: true },
+      });
+      expect(arrete?.entries[0]).toMatchObject({
+        codeInsee: '33063',
+        risque: 'Invasion de criquets migrateurs',
+      });
+
+      const alerts = await prisma.monitorAlert.findMany({
+        where: { kind: 'UNPARSEABLE_ANNEXE' },
+      });
+      expect(alerts).toHaveLength(1);
+      expect(alerts[0]).toMatchObject({ arreteId: arrete?.id });
+      expect(alerts[0]?.detail).toContain(nor);
+      expect(alerts[0]?.detail).toContain('Invasion de criquets migrateurs');
+    });
+
+    it('does not duplicate the alert when a rectificatif reprints the same unclassified wording', async () => {
+      await prisma.commune.create({
+        data: communeFixture('33063', 'Bordeaux', '33', 'Gironde'),
+      });
+
+      const id = 'JORFTEXT000000000901';
+      const nor = 'INTJ2600009B';
+      const title =
+        "Arrêté du 9 juillet 2026 portant reconnaissance de l'état de catastrophe naturelle";
+      const criquets = [
+        'Gironde',
+        'Bordeaux',
+        'Invasion de criquets migrateurs',
+        '01/01/2026',
+        '02/01/2026',
+      ];
+      const tocXml = buildTocXml(id, title);
+      const firstTarball = await buildTarball({
+        'jorf/simple/JORF/CONT/2026/07/09/JORFCONT000000000900.xml': tocXml,
+        [`jorf/simple/JORF/CONT/2026/07/09/${id}.xml`]: buildArreteXml({
+          id,
+          nor,
+          title,
+          reconnues: [criquets],
+        }),
+      });
+      currentFetch = stubFetch(['JORFSIMPLE_20260709-060000.tar.gz'], {
+        'JORFSIMPLE_20260709-060000.tar.gz': firstTarball,
+      });
+      await monitor.run();
+
+      expect(
+        await prisma.monitorAlert.count({
+          where: { kind: 'UNPARSEABLE_ANNEXE' },
+        }),
+      ).toBe(1);
+
+      // A second entry is added purely to change the contentHash so the run
+      // takes the rectificatif path, not the unchanged-content shortcut.
+      const lyon = ['Rhône', 'Lyon', 'Inondations', '03/01/2026', '04/01/2026'];
+      const secondTarball = await buildTarball({
+        'jorf/simple/JORF/CONT/2026/07/09/JORFCONT000000000900.xml': tocXml,
+        [`jorf/simple/JORF/CONT/2026/07/09/${id}.xml`]: buildArreteXml({
+          id,
+          nor,
+          title,
+          reconnues: [criquets, lyon],
+        }),
+      });
+      currentFetch = stubFetch(
+        [
+          'JORFSIMPLE_20260709-060000.tar.gz',
+          'JORFSIMPLE_20260709-230000.tar.gz',
+        ],
+        {
+          'JORFSIMPLE_20260709-060000.tar.gz': firstTarball,
+          'JORFSIMPLE_20260709-230000.tar.gz': secondTarball,
+        },
+      );
+      await monitor.run();
+
+      const rectified = await prisma.arrete.findUnique({
+        where: { nor },
+        include: { entries: true },
+      });
+      expect(rectified?.entries).toHaveLength(2);
+      expect(
+        await prisma.monitorAlert.count({
+          where: { kind: 'UNPARSEABLE_ANNEXE' },
+        }),
+      ).toBe(1);
+    });
   });
 });
 

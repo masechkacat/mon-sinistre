@@ -33,20 +33,20 @@ CNIL, bcrypt, JWT-сессии с ротацией, глобальный guard, 
 Второй реализации не заводить — нужно тому, кто пишет **новый** модуль и в чужой
 `CLAUDE.md` не заглядывает. Устройство и оговорки — в модуле:
 
-| Задача                             | Только через                                                     |
-| ---------------------------------- | ---------------------------------------------------------------- |
-| отправка письма                    | `MailService.send()` (`src/mail/`)                               |
-| экранирование LIKE                 | `escapeLikePattern` (`src/prisma/`)                              |
-| поисковый ключ коммуны             | `normalizeCommuneName` (`src/communes/`)                         |
-| одноразовый токен ссылки           | `generateSecureToken`/`hashSecureToken` (`src/common/security/`) |
-| HMAC-хеш адреса для счётчика       | `hashEmail` (`src/common/security/`)                             |
-| атомарный счётчик по адресу        | `withAddressLock` (`src/common/address-lock.ts`)                 |
-| резолв действующего `DeadlineRule` | `DeadlineRuleService.resolveActive` (`src/deadline-rules/`)      |
-| описание ошибки в логе             | `errorSummary`/`stackOf` (`src/common/`)                         |
-| изоляция шага часовой чистки       | `runGuarded` (`src/common/scheduled-cleanup.ts`)                 |
-| строки для пользователя            | `src/i18n/fr.ts`                                                 |
-| чтение окружения                   | `ConfigService<EnvironmentVariables, true>`                      |
-| пометить эндпоинт публичным        | `@Public()` (`src/auth/public.decorator.ts`)                     |
+| Задача                                     | Только через                                                     |
+| ------------------------------------------ | ---------------------------------------------------------------- |
+| отправка письма                            | `MailService.send()` (`src/mail/`)                               |
+| экранирование LIKE                         | `escapeLikePattern` (`src/prisma/`)                              |
+| нормализация названия (коммуна, phénomène) | `normalizeCommuneName` (`src/communes/`)                         |
+| одноразовый токен ссылки                   | `generateSecureToken`/`hashSecureToken` (`src/common/security/`) |
+| HMAC-хеш адреса для счётчика               | `hashEmail` (`src/common/security/`)                             |
+| атомарный счётчик по адресу                | `withAddressLock` (`src/common/address-lock.ts`)                 |
+| резолв действующего `DeadlineRule`         | `DeadlineRuleService.resolveActive` (`src/deadline-rules/`)      |
+| описание ошибки в логе                     | `errorSummary`/`stackOf` (`src/common/`)                         |
+| изоляция шага часовой чистки               | `runGuarded` (`src/common/scheduled-cleanup.ts`)                 |
+| строки для пользователя                    | `src/i18n/fr.ts`                                                 |
+| чтение окружения                           | `ConfigService<EnvironmentVariables, true>`                      |
+| пометить эндпоинт публичным                | `@Public()` (`src/auth/public.decorator.ts`)                     |
 
 `src/common/` разложен по назначению: `http/` (фильтр, guard, декоратор, DTO —
 всё, что живёт в конвейере Nest), `security/` (токены, хеши, пароль), `time/`

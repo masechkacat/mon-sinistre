@@ -157,7 +157,7 @@ export const fr = {
             : `Le moniteur du Journal Officiel a généré ${count} alertes techniques.`,
         kindLabel: {
           UNPARSEABLE_ANNEXE:
-            'Un texte du Journal Officiel n’a pas pu être analysé automatiquement.',
+            'Un texte du Journal Officiel — ou une mention qu’il contient — n’a pas pu être analysé automatiquement.',
           UNMATCHED_COMMUNE:
             'Une commune citée par un texte du Journal Officiel n’a pas pu être rapprochée du référentiel.',
           OUTCOME_CHANGED:

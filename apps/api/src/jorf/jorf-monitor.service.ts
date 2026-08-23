@@ -11,11 +11,13 @@ import { DeadlineRuleService } from 'src/deadline-rules/deadline-rule.service';
 import { DECLARATION_ASSUREUR_CODE } from 'src/deadline-rules/deadline-rule.seed';
 import { dateToIsoDate } from 'src/deadline-rules/resolve-deadline';
 import type { Prisma } from 'src/generated/prisma/client';
+import type { MonitorAlertKind } from 'src/generated/prisma/enums';
 import { MailService } from 'src/mail/mail.service';
 import { isUniqueViolationOn } from 'src/prisma/prisma-error';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { generateVeilleToken } from 'src/veille/veille-token';
 import { DilaClient } from './dila/dila.client';
+import { classifyRisques } from './parse/classify-risques';
 import {
   type CommuneReferentialEntry,
   matchCommune,
@@ -207,6 +209,10 @@ const uniqueCodes = (codes: readonly (string | null)[]): string[] => [
 /** The `detail` of an UNMATCHED_COMMUNE alert, written once because it is also the key the alert is deduplicated by ({@link JorfMonitorService.alertIfUnmatched}). */
 const unmatchedDetail = (nor: string, entry: ParsedArreteEntry): string =>
   `NOR ${nor}: ${entry.communeLabelRaw} (${entry.departementRaw}) not matched to a commune`;
+
+/** The `detail` of an UNPARSEABLE_ANNEXE alert raised by {@link JorfMonitorService.alertIfUnclassified} — same dedup-by-detail role as {@link unmatchedDetail}, for a phénomène wording `classifyRisques` doesn't recognize instead of a commune the referential doesn't resolve. */
+const unclassifiedRisqueDetail = (nor: string, risque: string): string =>
+  `NOR ${nor}: risque "${risque}" not classified to a RisqueCatnat`;
 
 /** A stored row and a parsed line reduced to the same shape, so one key function reads both. The separators are NUL because everything joined into a key is free text copied from the annexe. */
 type Line = {
@@ -736,6 +742,14 @@ export class JorfMonitorService {
               entry,
               codeInsee,
             );
+            await this.alertIfUnclassified(
+              tx,
+              alerts,
+              recorded,
+              created.id,
+              parsed.nor,
+              entry,
+            );
           }
           await this.queueNotifications(
             tx,
@@ -817,19 +831,38 @@ export class JorfMonitorService {
   }
 
   /**
+   * Writes a `MonitorAlert` unless `detail` is already in `recorded` — the
+   * alerts this arrêté carries plus the ones raised earlier in this run.
+   * Shared by {@link alertIfUnmatched} and {@link alertIfUnclassified}: both
+   * alert once per (arrêté, distinct fact) and must not grow the operator's
+   * table again when a rectificatif reprints the same unresolved commune or
+   * unrecognized phénomène wording. Appends to the caller's `alerts`
+   * accumulator rather than returning one, so its callers don't each repeat
+   * the same if-and-push.
+   */
+  private async alertOnce(
+    tx: Prisma.TransactionClient,
+    alerts: MonitorAlertForMail[],
+    recorded: Set<string>,
+    kind: MonitorAlertKind,
+    arreteId: string,
+    detail: string,
+  ): Promise<void> {
+    if (recorded.has(detail)) {
+      return;
+    }
+    recorded.add(detail);
+    alerts.push(
+      await tx.monitorAlert.create({ data: { kind, arreteId, detail } }),
+    );
+  }
+
+  /**
    * `MonitorAlert` for an entry the referential couldn't resolve (research,
    * "Сопоставление коммун со справочником") — the row itself is already
    * written with `codeInsee: null` by the caller, on both the first-seen and
    * the rectificatif path, this only makes the gap visible instead of a
-   * silent drop. Appends to the caller's `alerts` accumulator rather than
-   * returning one, so its two call sites don't each repeat the same
-   * if-and-push.
-   *
-   * `recorded` is what this arrêté has already alerted about — the alerts it
-   * carries plus the ones raised earlier in this run. A commune the
-   * referential will never resolve (a fusion the COG doesn't have yet) is
-   * printed again by every rectificatif, and the table an operator works
-   * through by hand must not grow a row, and send a message, each time.
+   * silent drop.
    */
   private async alertIfUnmatched(
     tx: Prisma.TransactionClient,
@@ -840,15 +873,43 @@ export class JorfMonitorService {
     entry: ParsedArreteEntry,
     codeInsee: string | null,
   ): Promise<void> {
-    const detail = unmatchedDetail(nor, entry);
-    if (codeInsee !== null || recorded.has(detail)) {
+    if (codeInsee !== null) {
       return;
     }
-    recorded.add(detail);
-    alerts.push(
-      await tx.monitorAlert.create({
-        data: { kind: 'UNMATCHED_COMMUNE', arreteId, detail },
-      }),
+    await this.alertOnce(
+      tx,
+      alerts,
+      recorded,
+      'UNMATCHED_COMMUNE',
+      arreteId,
+      unmatchedDetail(nor, entry),
+    );
+  }
+
+  /**
+   * `MonitorAlert` for an entry whose `risque` wording `classifyRisques`
+   * folds to an empty set — the JO printed a phénomène wording the mapping
+   * (docs/research/sinistre-plan.md, "Классификация риска") doesn't cover
+   * yet.
+   */
+  private async alertIfUnclassified(
+    tx: Prisma.TransactionClient,
+    alerts: MonitorAlertForMail[],
+    recorded: Set<string>,
+    arreteId: string,
+    nor: string,
+    entry: ParsedArreteEntry,
+  ): Promise<void> {
+    if (classifyRisques(entry.risque).size > 0) {
+      return;
+    }
+    await this.alertOnce(
+      tx,
+      alerts,
+      recorded,
+      'UNPARSEABLE_ANNEXE',
+      arreteId,
+      unclassifiedRisqueDetail(nor, entry.risque),
     );
   }
 
@@ -960,6 +1021,14 @@ export class JorfMonitorService {
             parsed.nor,
             entry,
             codeInsee,
+          );
+          await this.alertIfUnclassified(
+            tx,
+            alerts,
+            recorded,
+            existing.id,
+            parsed.nor,
+            entry,
           );
         }
         await this.queueNotifications(
