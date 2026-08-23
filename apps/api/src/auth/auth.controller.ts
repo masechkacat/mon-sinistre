@@ -40,7 +40,7 @@ import { RegisterDto } from './dto/register.dto';
 import { RequestPasswordResetDto } from './dto/request-password-reset.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ResetPasswordResponseDto } from './dto/reset-password-response.dto';
-import type { JwtUser } from './passport/jwt.strategy';
+import type { RequestWithJwtUser } from './passport/jwt.strategy';
 import { LocalAuthGuard } from './passport/local-auth.guard';
 import { Public } from './public.decorator';
 
@@ -85,10 +85,6 @@ export const AUTH_MAIL_RATE_LIMIT = { ttl: 60_000, limit: 5 } as const;
 
 interface RequestWithUser {
   readonly user: AuthenticatedUser;
-}
-
-interface RequestWithJwtUser {
-  readonly user: JwtUser;
 }
 
 /**

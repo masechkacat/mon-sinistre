@@ -4,6 +4,7 @@ import { GeoApiClient } from '../src/communes/import/geo-api.client';
 import { seedDeadlineRules } from '../src/deadline-rules/deadline-rule.seed';
 import { PrismaClient } from '../src/generated/prisma/client';
 import { databaseUrlFromEnv } from '../src/prisma/database-url-from-env';
+import { seedStepTemplates } from '../src/step-templates/step-template.seed';
 
 // No Nest application context on purpose: the seed depends only on DB_* and
 // the network, while bootstrapping AppModule would demand the full validated
@@ -34,6 +35,9 @@ async function main(): Promise<void> {
 
     console.log('Seeding deadline rules…');
     await seedDeadlineRules(prisma);
+
+    console.log('Seeding step templates…');
+    await seedStepTemplates(prisma);
   } finally {
     await prisma.$disconnect();
   }

@@ -127,10 +127,16 @@ Sinistre при слиянии **никогда не переписываютс�
 | planKey                     | text             |
 | name, description           | text             |
 | anchor                      | enum StepAnchor  |
-| offsetDays                  | int              |
+| offsetDays                  | int, null        |
+| deadlineRuleCode            | text, null       |
 | required                    | bool             |
 | order                       | int              |
 | sourceUrl, sourceVerifiedAt | text, date, null |
+
+Шаг шаблона — одной из трёх форм: продуктовый (задан `offsetDays`),
+юридический (задан `deadlineRuleCode` — длительность берётся из `DeadlineRule`,
+и юридической цифры в seed'е нет) или памятка (пусты оба — дата неизвестна в
+принципе); `docs/research/sinistre-plan.md`, § «Схема».
 
 `unique(planKey, order)`. Шаблоны меняются только seed'ом; версионирование не
 нужно — синистр хранит копию плана (§ 5), шаблон никогда не читается задним
@@ -231,8 +237,10 @@ Auth уже решён (api/CLAUDE.md): Passport local + JWT, refresh с рот�
 | status          | enum SinistreStatus                    |                                                               |
 | createdAt       | timestamptz                            |                                                               |
 
-Индексы: `(userId)`, `(codeInsee, status)` — поиск открытых синистров коммуны
-при обнаружении arrêté.
+Индексы: `(userId)`. Отложен `(codeInsee, status)` — запрос, ради которого он
+объявлен, читает всех кандидатов без сужения по коммуне; индекс заводит та фаза,
+где выборка начнёт сужаться (`docs/research/sinistre-plan.md`, § «Привязка entry
+↔ синистр»).
 
 ### Step — копия плана
 
@@ -256,7 +264,7 @@ Auth уже решён (api/CLAUDE.md): Passport local + JWT, refresh с рот�
 | sourceUrl, sourceVerifiedAt | text/date, null                     | копия из шаблона или правила                               |
 
 Индекс `(plannedDate) where persistedStatus is null` — ежедневный отбор
-напоминаний.
+напоминаний; заводится вместе с этим запросом, той же фазой.
 
 Семантика редактирования (вместо отдельной колонки `systemManaged` — внешнее
 ревью, решение 30.07.2026): у шаблонного шага (`fromTemplate = true`) дата

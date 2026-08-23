@@ -11,7 +11,10 @@ import { MAIL_TRANSPORT } from 'src/mail/mail-transport';
 import { RecordingTransport } from 'test/helpers/mail-transport';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { createVeille } from 'test/helpers/veille';
-import { DILA_JORFSIMPLE_BASE_URL, DilaClient } from 'src/jorf/dila/dila.client';
+import {
+  DILA_JORFSIMPLE_BASE_URL,
+  DilaClient,
+} from 'src/jorf/dila/dila.client';
 import { buildTarball } from 'test/helpers/build-tarball';
 import { jorfFixture } from 'test/fixtures/jorf';
 import {
@@ -357,7 +360,11 @@ describe('JorfMonitorService.run (integration)', () => {
       const backfill = randomUUID();
       expect(await monitor.acquireIngestLock(backfill)).toBe(true);
 
-      await monitor.run({ notify: false, deltaNames: [DELTA], lockOwner: backfill });
+      await monitor.run({
+        notify: false,
+        deltaNames: [DELTA],
+        lockOwner: backfill,
+      });
 
       expect(await prisma.jorfDelta.count()).toBe(1);
       // Still held: the next scheduled tick would keep skipping itself.
@@ -1503,9 +1510,10 @@ describe('veille notification outbox (issue #106)', () => {
       communeCodes: ['02005'],
     });
     // An environment whose seed never ran after the DeadlineRule migration.
-    // loadDeclarationRule throws by design there (ТЗ § 7: no hard-coded legal
-    // numbers), and that must cost the mail, not the ingest — otherwise every
-    // run aborts before listing the deltas and no arrêté is found at all.
+    // DeadlineRuleService.resolveActive throws by design there (ТЗ § 7: no
+    // hard-coded legal numbers), and that must cost the mail, not the ingest
+    // — otherwise every run aborts before listing the deltas and no arrêté is
+    // found at all.
     await prisma.deadlineRule.deleteMany();
 
     const NOR = 'INTJ2600019A';

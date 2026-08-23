@@ -34,6 +34,7 @@ model Commune {
   sourceVerifiedAt   DateTime        @db.Date
   veilleCommunes     VeilleCommune[]
   arreteEntries      ArreteEntry[]
+  sinistres          Sinistre[]
 
   // Префиксный поиск и сортировка: колонка объявлена COLLATE "C" (миграция
   // normalize_collation), поэтому обычный btree обслуживает и LIKE 'q%', и
@@ -50,16 +51,17 @@ model Commune {
 // add_account_cleanup_counters, дрейфом это не считается — как у
 // Veille.confirmExpiresAt выше.
 model User {
-  id               String         @id @default(dbgenerated("uuidv7()")) @db.Uuid
-  email            String         @unique
+  id               String          @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  email            String          @unique
   passwordHash     String
   // null = аккаунт не подтверждён, вход невозможен
-  confirmedAt      DateTime?      @db.Timestamptz(6)
-  confirmTokenHash String         @unique
-  confirmExpiresAt DateTime       @db.Timestamptz(6)
-  createdAt        DateTime       @default(now()) @db.Timestamptz(6)
+  confirmedAt      DateTime?       @db.Timestamptz(6)
+  confirmTokenHash String          @unique
+  confirmExpiresAt DateTime        @db.Timestamptz(6)
+  createdAt        DateTime        @default(now()) @db.Timestamptz(6)
   refreshTokens    RefreshToken[]
   passwordResets   PasswordReset[]
+  sinistres        Sinistre[]
 }
 
 // docs/research/user-account.md, data-model.md § 5.
@@ -119,15 +121,15 @@ model LoginAttempt {
 // Подписка на уведомления об arrêté по выбранным коммунам — схема и решения:
 // docs/research/veille-subscription-lifecycle.md. Токены хранятся хешами.
 model Veille {
-  id                   String          @id @default(dbgenerated("uuidv7()")) @db.Uuid
-  email                String          @unique
+  id                   String               @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  email                String               @unique
   // null = подписка не подтверждена, писем об arrêté не получает
-  confirmedAt          DateTime?       @db.Timestamptz(6)
-  confirmTokenHash     String          @unique
-  unsubscribeTokenHash String          @unique
+  confirmedAt          DateTime?            @db.Timestamptz(6)
+  confirmTokenHash     String               @unique
+  unsubscribeTokenHash String               @unique
   // Действует, пока confirmedAt null
-  confirmExpiresAt     DateTime        @db.Timestamptz(6)
-  createdAt            DateTime        @default(now()) @db.Timestamptz(6)
+  confirmExpiresAt     DateTime             @db.Timestamptz(6)
+  createdAt            DateTime             @default(now()) @db.Timestamptz(6)
   communes             VeilleCommune[]
   change               VeilleChange?
   notifications        VeilleNotification[]
@@ -199,18 +201,18 @@ enum ArreteEntryOutcome {
 // монитором JO. contentHash — по распарсенному содержимому, не сырому XML —
 // почему: docs/research/jorf-monitor.md, «Дедупликация, contentHash и rectificatifs».
 model Arrete {
-  id            String        @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  id            String               @id @default(dbgenerated("uuidv7()")) @db.Uuid
   // Ключ дедупликации.
-  nor           String        @unique
-  signedAt      DateTime      @db.Date
+  nor           String               @unique
+  signedAt      DateTime             @db.Date
   // Только из XML JORF — не дата появления файла в выгрузке DILA и не GASPAR
   // (жёсткое ограничение проекта).
-  publishedAt   DateTime      @db.Date
+  publishedAt   DateTime             @db.Date
   jorfNumber    String
   legifranceUrl String
   // Когда монитор впервые/последний раз встретил этот NOR в дельтах DILA.
-  firstSeenAt   DateTime      @db.Timestamptz(6)
-  lastSeenAt    DateTime      @db.Timestamptz(6)
+  firstSeenAt   DateTime             @db.Timestamptz(6)
+  lastSeenAt    DateTime             @db.Timestamptz(6)
   contentHash   String
   entries       ArreteEntry[]
   monitorAlerts MonitorAlert[]
@@ -219,12 +221,12 @@ model Arrete {
 
 // Одна строка annexe арретé — docs/research/data-model.md § 4.
 model ArreteEntry {
-  id        String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
-  arreteId  String   @db.Uuid
-  arrete    Arrete   @relation(fields: [arreteId], references: [id], onDelete: Cascade)
+  id              String             @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  arreteId        String             @db.Uuid
+  arrete          Arrete             @relation(fields: [arreteId], references: [id], onDelete: Cascade)
   // null = коммуна annexe не сопоставлена со справочником → алерт (фаза 2).
-  codeInsee String?
-  commune   Commune? @relation(fields: [codeInsee], references: [codeInsee], onDelete: Restrict)
+  codeInsee       String?
+  commune         Commune?           @relation(fields: [codeInsee], references: [codeInsee], onDelete: Restrict)
   // Как напечатано в annexe — след для сверки и разбора несопоставленных строк.
   communeLabelRaw String
   departementRaw  String
@@ -241,6 +243,7 @@ model ArreteEntry {
   // Технический — «строку кто-то потрогал», включая ручную починку mapping'а;
   // в доказательствах не участвует (data-model § 4).
   updatedAt       DateTime           @updatedAt @db.Timestamptz(6)
+  sinistres       Sinistre[]
 
   // unique(arreteId, codeInsee, risque, eventStart, eventEnd) где codeInsee
   // сопоставлен — партиальный unique, Prisma такое не выражает: CREATE UNIQUE
@@ -276,12 +279,12 @@ enum MonitorAlertKind {
 // Повод, который монитор JO не может разрешить сам, — docs/research/jorf-monitor.md,
 // «Алерты администратору»; устройство FK arreteId — data-model.md § 4.
 model MonitorAlert {
-  id        String            @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  id        String           @id @default(dbgenerated("uuidv7()")) @db.Uuid
   kind      MonitorAlertKind
   detail    String
-  arreteId  String?           @db.Uuid
-  arrete    Arrete?           @relation(fields: [arreteId], references: [id], onDelete: SetNull)
-  createdAt DateTime          @default(now()) @db.Timestamptz(6)
+  arreteId  String?          @db.Uuid
+  arrete    Arrete?          @relation(fields: [arreteId], references: [id], onDelete: SetNull)
+  createdAt DateTime         @default(now()) @db.Timestamptz(6)
 }
 
 enum DurationUnit {
@@ -294,6 +297,12 @@ enum StepAnchor {
   DATE_SINISTRE
   DATE_PUBLICATION_ARRETE
   DATE_DECLARATION
+  // Сроки страховщика после декларации — docs/research/sinistre-plan.md,
+  // «Сроки страховщика после декларации»: у синистра в MVP нет этих дат, шаги
+  // этих якорей живут без plannedDate, но со ссылкой на DeadlineRule.
+  DATE_ETAT_ESTIMATIF
+  DATE_ETAT_ESTIMATIF_OU_EXPERTISE
+  DATE_ACCORD_INDEMNISATION
 }
 
 // Справочник юридических сроков, effective-dated — docs/research/data-model.md
@@ -313,9 +322,124 @@ model DeadlineRule {
   effectiveTo      DateTime?    @db.Date
   sourceUrl        String
   sourceVerifiedAt DateTime     @db.Date
+  steps            Step[]
 
   // Непересечение интервалов одного code — exclusion-ограничение по
   // daterange (btree_gist), Prisma не выражает: SQL руками в миграции
   // (data-model.md § 1, § 3).
   @@unique([code, effectiveFrom])
+}
+
+enum SinistreStatus {
+  AVANT_ARRETE
+  ARRETE_PUBLIE
+  // Отказ: срок декларации не идёт, план переключается на шаги отказа.
+  ARRETE_REFUSE
+  DECLARE
+  CLOS
+  SANS_SUITE
+}
+
+// В базе хранится только это — остальные StepStatus вычисляются на чтении
+// (data-model.md § 1, ТЗ § 4).
+enum StepPersistedStatus {
+  FAIT
+  NON_APPLICABLE
+}
+
+// Свёртка официальных категорий CatNat, сознательно грубее восьми
+// официальных — docs/research/sinistre-plan.md, «Классификация риска».
+enum RisqueCatnat {
+  INONDATION
+  SECHERESSE
+  MOUVEMENT_TERRAIN
+  SEISME
+  AVALANCHE
+  VENTS_CYCLONIQUES
+}
+
+// Шаблон шага плана — docs/research/data-model.md § 3,
+// docs/research/sinistre-plan.md, «Шаблон плана». Шаг одной из трёх форм:
+// продуктовый (offsetDays задан), юридический (deadlineRuleCode задан, срок
+// берётся из DeadlineRule) или памятка (оба пусты — дата неизвестна в
+// принципе). Шаблоны меняются только seed'ом; синистр хранит копию плана,
+// шаблон дальше не читается.
+model StepTemplate {
+  id               String     @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  // Вариант плана: CATNAT (основной) или CATNAT_REFUS (шаги после отказа) —
+  // движок риск-агностичен, новый planKey не потребует правки схемы.
+  planKey          String
+  name             String
+  description      String
+  anchor           StepAnchor
+  // null — юридический шаг или памятка (см. докблок модели).
+  offsetDays       Int?
+  // Код DeadlineRule.code — резолвится всегда, даже когда якорь ещё не
+  // наступил (тогда на дату создания синистра): без него шагу нечем
+  // напечатать срок и не на что сослаться.
+  deadlineRuleCode String?
+  required         Boolean
+  order            Int
+  sourceUrl        String?
+  sourceVerifiedAt DateTime?  @db.Date
+
+  // order — зарезервированное слово SQL, но Prisma экранирует имена колонок
+  // сама (data-model.md § 1): @@unique генерирует корректный DDL, ручного SQL
+  // не требуется.
+  @@unique([planKey, order])
+}
+
+// Досье пострадавшего — docs/research/data-model.md § 5.
+model Sinistre {
+  id              String         @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  userId          String         @db.Uuid
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  codeInsee       String
+  commune         Commune        @relation(fields: [codeInsee], references: [codeInsee], onDelete: Restrict)
+  // Enum, выбирается пользователем; сопоставляется с ArreteEntry.risque через
+  // classifyRisques.
+  risque          RisqueCatnat
+  eventDate       DateTime       @db.Date
+  // null, пока ни один arrêté не признал (или не отказал) коммуну; restrict —
+  // чистка справочника не может задеть чужое досье.
+  arreteEntryId   String?        @db.Uuid
+  arreteEntry     ArreteEntry?   @relation(fields: [arreteEntryId], references: [id], onDelete: Restrict)
+  declarationDate DateTime?      @db.Date
+  status          SinistreStatus
+  createdAt       DateTime       @default(now()) @db.Timestamptz(6)
+  steps           Step[]
+  // Sinistre(codeInsee, status) не создаётся здесь — заводит фаза, которая
+  // пишет запрос под него (docs/plan/sinistre-plan.md, Фаза 3).
+
+  @@index([userId])
+}
+
+// Шаг синистра — снапшот шаблона на момент создания синистра
+// (docs/research/data-model.md § 5); шаблон дальше не читается.
+model Step {
+  id               String               @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  sinistreId       String               @db.Uuid
+  sinistre         Sinistre             @relation(fields: [sinistreId], references: [id], onDelete: Cascade)
+  name             String
+  description      String
+  // null у шага, добавленного пользователем (fromTemplate: false).
+  anchor           StepAnchor?
+  // Для пересчёта при появлении якоря; в contracts поля нет — серверное.
+  offsetDays       Int?
+  // null, пока якорь не наступил.
+  plannedDate      DateTime?            @db.Date
+  // Остальные StepStatus — на чтении (data-model.md § 1).
+  persistedStatus  StepPersistedStatus?
+  completedAt      DateTime?            @db.Date
+  // false — шаг никогда не пересчитывается (добавлен пользователем).
+  fromTemplate     Boolean
+  // Какая версия правила дала дату — data-model.md § 5.
+  deadlineRuleId   String?              @db.Uuid
+  deadlineRule     DeadlineRule?        @relation(fields: [deadlineRuleId], references: [id], onDelete: Restrict)
+  order            Int
+  sourceUrl        String?
+  sourceVerifiedAt DateTime?            @db.Date
+
+  // Частичный индекс (plannedDate) where persistedStatus is null не создаётся
+  // здесь — заводит фаза напоминаний вместе со своим запросом.
 }

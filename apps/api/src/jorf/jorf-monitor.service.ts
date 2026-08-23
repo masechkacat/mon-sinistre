@@ -7,6 +7,7 @@ import { Cron } from '@nestjs/schedule';
 import { errorSummary, stackOf } from 'src/common/error-report';
 import { normalizeCommuneName } from 'src/communes/normalize-commune-name';
 import type { EnvironmentVariables } from 'src/config/env.validation';
+import { DeadlineRuleService } from 'src/deadline-rules/deadline-rule.service';
 import { DECLARATION_ASSUREUR_CODE } from 'src/deadline-rules/deadline-rule.seed';
 import { dateToIsoDate } from 'src/deadline-rules/resolve-deadline';
 import type { Prisma } from 'src/generated/prisma/client';
@@ -15,7 +16,10 @@ import { isUniqueViolationOn } from 'src/prisma/prisma-error';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { generateVeilleToken } from 'src/veille/veille-token';
 import { DilaClient } from './dila/dila.client';
-import { type CommuneReferentialEntry, matchCommune } from './recipients/match-commune';
+import {
+  type CommuneReferentialEntry,
+  matchCommune,
+} from './recipients/match-commune';
 import {
   type MonitorAlertForMail,
   monitorAlertMailFor,
@@ -333,6 +337,7 @@ export class JorfMonitorService {
     private readonly dila: DilaClient,
     private readonly mail: MailService,
     private readonly config: ConfigService<EnvironmentVariables, true>,
+    private readonly deadlineRules: DeadlineRuleService,
   ) {}
 
   /**
@@ -526,10 +531,10 @@ export class JorfMonitorService {
   /**
    * The send step, isolated from the rest of the tick: everything it needs —
    * the déclaration `DeadlineRule` above all, which {@link
-   * loadDeclarationRule} throws over by design — can fail, and a failure
-   * there must not cost the ingest. Without this an environment whose seed
-   * never ran would abort every run before {@link DilaClient.listDeltas},
-   * indefinitely, and stop finding arrêtés at all.
+   * DeadlineRuleService.resolveActive} throws over by design — can fail, and
+   * a failure there must not cost the ingest. Without this an environment
+   * whose seed never ran would abort every run before {@link
+   * DilaClient.listDeltas}, indefinitely, and stop finding arrêtés at all.
    */
   private async drainOutbox(pass: SendPass): Promise<void> {
     try {
@@ -1166,7 +1171,11 @@ export class JorfMonitorService {
       ),
     );
 
-    const declarationRule = await this.loadDeclarationRule(arrete.publishedAt);
+    const declarationRule = await this.deadlineRules.resolveActive(
+      DECLARATION_ASSUREUR_CODE,
+      'DATE_PUBLICATION_ARRETE',
+      arrete.publishedAt,
+    );
     const arreteForMail: ArreteForMail = {
       publishedAt: dateToIsoDate(arrete.publishedAt),
       legifranceUrl: arrete.legifranceUrl,
@@ -1288,36 +1297,5 @@ export class JorfMonitorService {
       where: { id: notification.id },
       data: { sentAt: new Date() },
     });
-  }
-
-  /**
-   * The active `DECLARATION_ASSUREUR` `DeadlineRule` for a given arrêté,
-   * resolved by `publishedAt`. `anchor` is part of the key, not just of the
-   * row: `veille-arrete-mail.ts` counts the deadline from `publishedAt`
-   * unconditionally, so a row anchored anywhere else describes a deadline
-   * this code cannot compute — better no mail than a mail whose date the
-   * table contradicts. Legal deadlines come only from this table (ТЗ § 7);
-   * an environment whose seed never ran throws here rather than falling back
-   * to a hard-coded number, and {@link drainOutbox} keeps that from costing
-   * the ingest.
-   */
-  private async loadDeclarationRule(
-    publishedAt: Date,
-  ): Promise<DeclarationDeadlineRule> {
-    const rule = await this.prisma.deadlineRule.findFirst({
-      where: {
-        code: DECLARATION_ASSUREUR_CODE,
-        anchor: 'DATE_PUBLICATION_ARRETE',
-        effectiveFrom: { lte: publishedAt },
-        OR: [{ effectiveTo: null }, { effectiveTo: { gte: publishedAt } }],
-      },
-      select: { duration: true, unit: true },
-    });
-    if (!rule) {
-      throw new Error(
-        `jorf monitor: no active DeadlineRule ${DECLARATION_ASSUREUR_CODE} anchored on DATE_PUBLICATION_ARRETE for ${publishedAt.toISOString().slice(0, 10)}`,
-      );
-    }
-    return rule;
   }
 }

@@ -5,6 +5,10 @@ import type { DurationUnit } from 'src/generated/prisma/enums';
 export const dateToIsoDate = (value: Date): IsoDate =>
   toIsoDate(value.toISOString().slice(0, 10));
 
+/** UTC midnight of an `IsoDate`, the reverse of {@link dateToIsoDate} — the one conversion callers needing date arithmetic on an `IsoDate` use, instead of each spelling out the `T00:00:00Z` parse themselves. */
+export const isoDateToDate = (value: IsoDate): Date =>
+  new Date(`${value}T00:00:00Z`);
+
 /** Days in the UTC month a `Date` points at — day 0 of the next month is the last day of this one. */
 const daysInUtcMonth = (date: Date): number =>
   new Date(
@@ -30,7 +34,7 @@ export function resolveDeadline(
   duration: number,
   unit: DurationUnit,
 ): IsoDate {
-  const date = new Date(`${anchor}T00:00:00Z`);
+  const date = isoDateToDate(anchor);
   if (unit === 'MONTHS') {
     const day = date.getUTCDate();
     date.setUTCDate(1);

@@ -12,6 +12,12 @@ export interface JwtUser {
   id: string;
 }
 
+/** The shape of a request past `JwtAuthGuard` — every controller with a
+ * route under it types `@Req()` with this, not a local copy. */
+export interface RequestWithJwtUser {
+  readonly user: JwtUser;
+}
+
 /**
  * Verifies the access token from the `Authorization: Bearer` header against
  * `JWT_SECRET` — the same secret `AuthService.issueTokens` signs it with.
