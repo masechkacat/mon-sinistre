@@ -187,6 +187,14 @@ export interface Step {
   source: SourceReference | null;
 }
 
+/**
+ * A sinistre with its plan — response body of `POST /sinistres`,
+ * `GET /sinistres/:id` and `PATCH /sinistres/:id`.
+ */
+export interface SinistreDetail extends Sinistre {
+  steps: Step[];
+}
+
 /** A file attached to an inventory item. Stored privately; served via signed URLs only. */
 export interface FileRef {
   id: string;

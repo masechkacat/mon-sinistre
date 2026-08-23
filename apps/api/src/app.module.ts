@@ -14,6 +14,7 @@ import { HealthController } from './health/health.controller';
 import { JorfModule } from './jorf/jorf.module';
 import { MailModule } from './mail/mail.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { SinistresModule } from './sinistres/sinistres.module';
 import { VeilleModule } from './veille/veille.module';
 
 /** Exported for the tests, which must not restate the number. */
@@ -40,6 +41,7 @@ export const GLOBAL_RATE_LIMIT = { ttl: 60_000, limit: 100 } as const;
     CommunesModule,
     VeilleModule,
     JorfModule,
+    SinistresModule,
   ],
   controllers: [HealthController],
   providers: [

@@ -59,6 +59,11 @@ export const fr = {
       expired: 'Votre session a expiré, veuillez vous reconnecter.',
     },
   },
+  sinistres: {
+    eventDateInFuture:
+      'La date de l’événement ne peut pas être postérieure à aujourd’hui.',
+    unknownCommune: 'Commune inconnue.',
+  },
   mail: {
     senderName: 'Mon Sinistre',
     terms: {

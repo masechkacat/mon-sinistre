@@ -104,6 +104,10 @@ export const COMMUNE_SEARCH_LIMIT = 10;
  */
 export const COMMUNE_SEARCH_MIN_QUERY_LENGTH = 2;
 
+/** Length of an INSEE commune code (e.g. `30189`, `2A004`, `97101`) — every
+ * DTO validating one against the referential uses this, not a repeated `5`. */
+export const INSEE_CODE_LENGTH = 5;
+
 /** How long a veille confirmation link stays valid, in days. */
 export const VEILLE_CONFIRM_TTL_DAYS = 7;
 
