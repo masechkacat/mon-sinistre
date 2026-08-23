@@ -305,4 +305,108 @@ describe('SinistresController (integration)', () => {
 
     expect(res.statusCode).toBe(400);
   });
+
+  // GET /sinistres and DELETE /sinistres/:id, docs/plan/sinistre-plan.md,
+  // Фаза 2 (issue #151).
+  describe('GET /sinistres and DELETE /sinistres/:id', () => {
+    async function createSinistre(
+      headers: ReturnType<typeof withBearer>,
+      eventDate = '2026-06-01',
+    ): Promise<string> {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/sinistres',
+        headers,
+        payload: { codeInsee: '30189', risque: 'INONDATION', eventDate },
+      });
+      const { id } = JSON.parse(res.payload) as { id: string };
+      return id;
+    }
+
+    it("lists only the caller's own sinistres, freshest created first", async () => {
+      const ownerEmail = await createUser(prisma);
+      const ownerHeaders = await bearerFor(ownerEmail);
+      const firstId = await createSinistre(ownerHeaders, '2026-05-01');
+      const secondId = await createSinistre(ownerHeaders, '2026-06-01');
+
+      const otherEmail = await createUser(prisma);
+      const otherHeaders = await bearerFor(otherEmail);
+      await createSinistre(otherHeaders, '2026-06-01');
+
+      const res = await app.inject({
+        method: 'GET',
+        url: '/sinistres',
+        headers: ownerHeaders,
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.payload) as { id: string }[];
+      expect(body.map((s) => s.id)).toEqual([secondId, firstId]);
+    });
+
+    it('deletes a sinistre and cascades its steps', async () => {
+      const email = await createUser(prisma);
+      const headers = await bearerFor(email);
+      const id = await createSinistre(headers);
+      const stepCountBefore = await prisma.step.count({
+        where: { sinistreId: id },
+      });
+      expect(stepCountBefore).toBeGreaterThan(0);
+
+      const res = await app.inject({
+        method: 'DELETE',
+        url: `/sinistres/${id}`,
+        headers,
+      });
+
+      expect(res.statusCode).toBe(204);
+      expect(await prisma.sinistre.findUnique({ where: { id } })).toBeNull();
+      expect(await prisma.step.count({ where: { sinistreId: id } })).toBe(0);
+    });
+
+    it('answers the same 404 for deleting a sinistre owned by someone else as for a nonexistent one', async () => {
+      const ownerEmail = await createUser(prisma);
+      const ownerHeaders = await bearerFor(ownerEmail);
+      const id = await createSinistre(ownerHeaders);
+
+      const otherEmail = await createUser(prisma);
+      const otherHeaders = await bearerFor(otherEmail);
+
+      const [otherDeletes, nonexistent] = await Promise.all([
+        app.inject({
+          method: 'DELETE',
+          url: `/sinistres/${id}`,
+          headers: otherHeaders,
+        }),
+        app.inject({
+          method: 'DELETE',
+          url: '/sinistres/00000000-0000-0000-0000-000000000000',
+          headers: otherHeaders,
+        }),
+      ]);
+
+      expect(otherDeletes.statusCode).toBe(404);
+      expect(nonexistent.statusCode).toBe(404);
+      expect(otherDeletes.payload).toBe(nonexistent.payload);
+      // Not actually deleted — the other user's call must not have touched it.
+      expect(
+        await prisma.sinistre.findUnique({ where: { id } }),
+      ).not.toBeNull();
+    });
+
+    it('deletes the account cleanly when it still owns a sinistre', async () => {
+      const email = await createUser(prisma);
+      const headers = await bearerFor(email);
+      const id = await createSinistre(headers);
+
+      const res = await app.inject({
+        method: 'DELETE',
+        url: '/auth/me',
+        headers,
+      });
+
+      expect(res.statusCode).toBe(204);
+      expect(await prisma.sinistre.findUnique({ where: { id } })).toBeNull();
+    });
+  });
 });

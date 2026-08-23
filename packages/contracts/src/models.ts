@@ -195,6 +195,9 @@ export interface SinistreDetail extends Sinistre {
   steps: Step[];
 }
 
+/** Response body of `GET /sinistres` — one row per sinistre, no steps. */
+export type SinistreSummary = Sinistre;
+
 /** A file attached to an inventory item. Stored privately; served via signed URLs only. */
 export interface FileRef {
   id: string;

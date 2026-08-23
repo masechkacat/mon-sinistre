@@ -1,7 +1,10 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   ParseUUIDPipe,
   Post,
@@ -9,14 +12,16 @@ import {
 } from '@nestjs/common';
 import {
   ApiCreatedResponse,
+  ApiNoContentResponse,
   ApiOkResponse,
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
-import type { SinistreDetail } from '@mon-sinistre/contracts';
+import type { SinistreDetail, SinistreSummary } from '@mon-sinistre/contracts';
 import type { RequestWithJwtUser } from 'src/auth/passport/jwt.strategy';
 import { CreateSinistreDto } from './dto/create-sinistre.dto';
 import { SinistreDetailResponseDto } from './dto/sinistre-detail-response.dto';
+import { SinistreSummaryResponseDto } from './dto/sinistre-summary-response.dto';
 import { SinistresService } from './sinistres.service';
 
 /** No `@Public()` anywhere — every route goes through the global
@@ -43,6 +48,16 @@ export class SinistresController {
     return this.sinistres.create(req.user.id, dto);
   }
 
+  @Get()
+  @ApiOperation({
+    summary: 'List the caller’s sinistres',
+    description: 'Own dossiers only, freshest created first.',
+  })
+  @ApiOkResponse({ type: SinistreSummaryResponseDto, isArray: true })
+  async findAll(@Req() req: RequestWithJwtUser): Promise<SinistreSummary[]> {
+    return this.sinistres.findAll(req.user.id);
+  }
+
   @Get(':id')
   @ApiOperation({
     summary: 'Read one sinistre with its plan',
@@ -59,5 +74,21 @@ export class SinistresController {
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<SinistreDetail> {
     return this.sinistres.findOne(req.user.id, id);
+  }
+
+  @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: 'Delete a sinistre',
+    description:
+      'Its steps and links cascade by schema. Same ownership answer as ' +
+      'GET /sinistres/:id.',
+  })
+  @ApiNoContentResponse()
+  async remove(
+    @Req() req: RequestWithJwtUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<void> {
+    await this.sinistres.remove(req.user.id, id);
   }
 }

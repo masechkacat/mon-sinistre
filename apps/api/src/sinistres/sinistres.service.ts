@@ -4,7 +4,11 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import type { IsoDate, SinistreDetail } from '@mon-sinistre/contracts';
+import type {
+  IsoDate,
+  SinistreDetail,
+  SinistreSummary,
+} from '@mon-sinistre/contracts';
 import type { StepAnchor } from 'src/generated/prisma/enums';
 import { errorSummary, stackOf } from 'src/common/error-report';
 import { DeadlineRuleService } from 'src/deadline-rules/deadline-rule.service';
@@ -20,7 +24,7 @@ import {
 } from './build-step-snapshot';
 import type { CreateSinistreDto } from './dto/create-sinistre.dto';
 import { CATNAT_PLAN_KEY } from 'src/step-templates/step-template.seed';
-import { toSinistreDetail } from './to-sinistre-detail';
+import { toSinistreDetail, toSinistreSummary } from './to-sinistre-detail';
 
 @Injectable()
 export class SinistresService {
@@ -134,5 +138,27 @@ export class SinistresService {
       throw new NotFoundException();
     }
     return toSinistreDetail(sinistre, sinistre.steps, todayInParis());
+  }
+
+  /** Freshest first — a returning user's most recent dossier is what they
+   * came back to check on. */
+  async findAll(userId: string): Promise<SinistreSummary[]> {
+    const sinistres = await this.prisma.sinistre.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+    });
+    return sinistres.map(toSinistreSummary);
+  }
+
+  /** Ownership check same as {@link findOne}. `deleteMany` rather than
+   * read-then-delete keeps that check inside the one query; its steps
+   * cascade by schema (`onDelete: Cascade`). */
+  async remove(userId: string, id: string): Promise<void> {
+    const { count } = await this.prisma.sinistre.deleteMany({
+      where: { id, userId },
+    });
+    if (count === 0) {
+      throw new NotFoundException();
+    }
   }
 }
