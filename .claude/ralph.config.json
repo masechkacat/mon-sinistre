@@ -1,6 +1,6 @@
 {
-  "feature": "user-account",
-  "phases": [5],
+  "feature": "sinistre-plan",
+  "phases": [1],
   "maxIterations": 8,
   "stallLimit": 2,
   "model": "claude-sonnet-5",
