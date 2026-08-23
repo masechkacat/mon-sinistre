@@ -2,8 +2,8 @@ import path from 'node:path';
 import { expect, test } from '@playwright/test';
 import { ESLint } from 'eslint';
 import { toIsoDate } from '@mon-sinistre/contracts';
-import { formatDateFr } from '../src/i18n/date';
-import { fr } from '../src/i18n/fr';
+import { formatDateFr } from '../../src/i18n/date';
+import { fr } from '../../src/i18n/fr';
 
 test('the rendered page shows strings from the localization file', async ({
   page,
@@ -23,7 +23,7 @@ test('formatDateFr renders an IsoDate in French without a day shift', () => {
   expect(formatDateFr(toIsoDate('2026-12-31'))).toBe('31 décembre 2026');
 });
 
-const webRoot = path.resolve(__dirname, '..');
+const webRoot = path.resolve(__dirname, '..', '..');
 
 async function literalViolations(code: string) {
   const eslint = new ESLint({ cwd: webRoot });

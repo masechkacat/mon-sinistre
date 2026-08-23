@@ -1,5 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
-import { testApiBaseUrl } from './tests/env';
+import { testApiBaseUrl } from './tests/support/env';
 
 export default defineConfig({
   testDir: './tests',

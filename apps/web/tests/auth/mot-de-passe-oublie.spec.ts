@@ -1,8 +1,8 @@
 import { expect, test } from '@playwright/test';
-import { fr } from '../src/i18n/fr';
-import { expectNoAxeViolations } from './a11y';
-import { testApiBaseUrl } from './env';
-import { expectErrorTiedTo } from './form';
+import { fr } from '../../src/i18n/fr';
+import { expectNoAxeViolations } from '../support/a11y';
+import { testApiBaseUrl } from '../support/env';
+import { expectErrorTiedTo } from '../support/form';
 
 const EMAIL = 'sinistre@example.fr';
 

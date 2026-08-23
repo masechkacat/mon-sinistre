@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
-import { expectNoAxeViolations } from './a11y';
-import { gotoPage, pages } from './pages';
+import { expectNoAxeViolations } from '../support/a11y';
+import { gotoPage, pages } from '../support/pages';
 
 const themes = ['light', 'dark'] as const;
 

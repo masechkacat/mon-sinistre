@@ -25,6 +25,17 @@ Next.js 16 (App Router, `src/app/`), React 19, Tailwind CSS 4 (через PostCS
 
 Запуск, сборка, линт и тесты — из корня (`npm run dev:web`, `npm run build`, `npm run lint`, `npm run test:web` — Playwright). API ожидается на http://localhost:3001. Доменная логика тестируется в API. Линтер — eslint c `eslint-config-next` (flat config в `eslint.config.mjs`), запускается pre-commit хуком.
 
+## Тесты
+
+`tests/` разложен по предмету: `support/` — общие хелперы (`a11y`, `pages`,
+`form`, `communes`, `session-mock`, `env`, `strings`), остальные каталоги —
+спеки по фичам (`auth/`, `veille/`, `compte/`, `components/`) и по сквозным
+свойствам (`a11y/` — axe, reflow, reduced-motion, i18n; `pages/` — публичные
+страницы; `app/` — слой запросов). Новый спек кладётся в существующую группу,
+хелпер — только в `support/`, и оттуда же переиспользуется, а не копируется в
+соседний спек. Пути к файлам считаются от корня приложения через `__dirname` —
+проверять при переносе спека между каталогами.
+
 ## Особенности сборки
 
 - `@mon-sinistre/contracts` резолвится в собранный `dist/` пакета (поле `main`), как и в API: перед первым запуском web нужен `npm run build:contracts` из корня, при параллельной правке типов — `npm run dev:contracts`. `transpilePackages` в `next.config.ts` не меняет резолюцию — он держит пакет в watch-списке dev-сервера, чтобы пересборка dist подхватывалась без перезапуска.

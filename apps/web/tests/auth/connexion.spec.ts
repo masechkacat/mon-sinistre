@@ -4,10 +4,10 @@ import {
   type Page,
   type Route as PlaywrightRoute,
 } from '@playwright/test';
-import { fr } from '../src/i18n/fr';
-import { expectNoAxeViolations } from './a11y';
-import { testApiBaseUrl } from './env';
-import { expectErrorTiedTo, VALID_PASSWORD as PASSWORD } from './form';
+import { fr } from '../../src/i18n/fr';
+import { expectNoAxeViolations } from '../support/a11y';
+import { testApiBaseUrl } from '../support/env';
+import { expectErrorTiedTo, VALID_PASSWORD as PASSWORD } from '../support/form';
 
 const EMAIL = 'sinistre@example.fr';
 

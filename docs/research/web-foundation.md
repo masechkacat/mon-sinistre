@@ -55,6 +55,12 @@ eslint 9 + `eslint-config-next` 16 (flat config), Node 24. Тестов и
   `webServer: { command: 'npm run build && npm run start', port: 3000, env: { TEST_ROUTES: '1' }, reuseExistingServer: false, timeout: 180_000 }`.
   `reuseExistingServer: false` осознанно: подхваченный dev-сервер сделал бы
   тесты фазы 3 ложно-зелёными.
+
+> **Расхождение с реализацией (23.08.2026):** тесты с тех пор разложены по
+> каталогам — хелперы в `tests/support/`, спеки по группам (`auth/`, `veille/`,
+> `compte/`, `a11y/`, `pages/`, `components/`, `app/`). Ниже путь к хелперу
+> назван так, как он выглядел на дату отчёта; правила при переезде не менялись.
+
 - Общий хелпер `tests/a11y.ts`:
 
   ```ts

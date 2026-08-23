@@ -1,9 +1,9 @@
 import { expect, test } from '@playwright/test';
-import { fr } from '../src/i18n/fr';
-import { expectNoAxeViolations } from './a11y';
-import { testApiBaseUrl } from './env';
-import { VALID_PASSWORD as PASSWORD } from './form';
-import { ACCESS_TOKEN, mockSession } from './session-mock';
+import { fr } from '../../src/i18n/fr';
+import { expectNoAxeViolations } from '../support/a11y';
+import { testApiBaseUrl } from '../support/env';
+import { VALID_PASSWORD as PASSWORD } from '../support/form';
+import { ACCESS_TOKEN, mockSession } from '../support/session-mock';
 
 const EMAIL = 'sinistre@example.fr';
 const REFRESH_COOKIE = 'refresh_token=jeton-refresh-test';

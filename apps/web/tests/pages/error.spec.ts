@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
-import { fr } from '../src/i18n/fr';
-import { gotoPage, serverError } from './pages';
+import { fr } from '../../src/i18n/fr';
+import { gotoPage, serverError } from '../support/pages';
 
 // Axe in both themes, landmarks, the keyboard pass and reflow come from the
 // shared suites iterating `pages` — only the content is asserted here. The

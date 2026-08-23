@@ -1,7 +1,7 @@
 import type { Route } from 'next';
 import { expect, type Page } from '@playwright/test';
-import { legalPages } from '../src/lib/legal-pages';
-import { fr } from '../src/i18n/fr';
+import { legalPages } from '../../src/lib/legal-pages';
+import { fr } from '../../src/i18n/fr';
 import { testApiBaseUrl } from './env';
 
 // The status is asserted because a mistyped path would render the not-found

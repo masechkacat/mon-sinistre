@@ -4,9 +4,9 @@ import {
   type Page,
   type Route as PlaywrightRoute,
 } from '@playwright/test';
-import { fr } from '../src/i18n/fr';
-import { expectNoAxeViolations } from './a11y';
-import { testApiBaseUrl } from './env';
+import { fr } from '../../src/i18n/fr';
+import { expectNoAxeViolations } from '../support/a11y';
+import { testApiBaseUrl } from '../support/env';
 
 const PENDING_TOKEN = 'jeton-changement-en-attente';
 

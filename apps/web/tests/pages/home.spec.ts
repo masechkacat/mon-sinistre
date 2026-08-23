@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
-import { fr } from '../src/i18n/fr';
-import { gotoPage, home } from './pages';
-import { stringLeaves } from './strings';
+import { fr } from '../../src/i18n/fr';
+import { gotoPage, home } from '../support/pages';
+import { stringLeaves } from '../support/strings';
 
 test('home: exactly one h1, section headings in order', async ({ page }) => {
   await gotoPage(page, home);

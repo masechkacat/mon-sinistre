@@ -1,6 +1,6 @@
 import { expect, type Page, type Route } from '@playwright/test';
 import type { Commune } from '@mon-sinistre/contracts';
-import { fr } from '../src/i18n/fr';
+import { fr } from '../../src/i18n/fr';
 
 export const CHATEAU: Commune = {
   codeInsee: '02168',

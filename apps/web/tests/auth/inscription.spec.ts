@@ -1,8 +1,8 @@
 import { expect, test } from '@playwright/test';
-import { fr } from '../src/i18n/fr';
-import { expectNoAxeViolations } from './a11y';
-import { testApiBaseUrl } from './env';
-import { expectErrorTiedTo, VALID_PASSWORD, WEAK_PASSWORD } from './form';
+import { fr } from '../../src/i18n/fr';
+import { expectNoAxeViolations } from '../support/a11y';
+import { testApiBaseUrl } from '../support/env';
+import { expectErrorTiedTo, VALID_PASSWORD, WEAK_PASSWORD } from '../support/form';
 
 test('submitting with a password that does not meet the CNIL rules reports an error tied to the field, and does not send the request', async ({
   page,

@@ -1,6 +1,6 @@
 import { createServer, type IncomingMessage, type Server } from 'node:http';
 import { expect, test } from '@playwright/test';
-import { testApiBaseUrl } from './env';
+import { testApiBaseUrl } from '../support/env';
 
 // route.ts runs server-side (the web app's own Node process), so unlike the
 // browser-side calls covered elsewhere, page.route cannot intercept it —

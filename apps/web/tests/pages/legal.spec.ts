@@ -1,8 +1,8 @@
 import { expect, test } from '@playwright/test';
-import { fr } from '../src/i18n/fr';
-import { legalPages } from '../src/lib/legal-pages';
-import { gotoPage, home } from './pages';
-import { stringLeaves } from './strings';
+import { fr } from '../../src/i18n/fr';
+import { legalPages } from '../../src/lib/legal-pages';
+import { gotoPage, home } from '../support/pages';
+import { stringLeaves } from '../support/strings';
 
 // Axe in both themes, landmarks, the keyboard pass and reflow come from the
 // shared suites iterating `pages` — only navigation and content live here.

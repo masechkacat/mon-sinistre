@@ -1,9 +1,9 @@
 import { expect, test, type Page } from '@playwright/test';
 import { VEILLE_MAX_COMMUNES, type Commune } from '@mon-sinistre/contracts';
-import { fr } from '../src/i18n/fr';
-import { expectNoAxeViolations } from './a11y';
-import { CHATEAU, NIMES, mockCommuneSearch, selectNimes } from './communes';
-import { testApiBaseUrl } from './env';
+import { fr } from '../../src/i18n/fr';
+import { expectNoAxeViolations } from '../support/a11y';
+import { CHATEAU, NIMES, mockCommuneSearch, selectNimes } from '../support/communes';
+import { testApiBaseUrl } from '../support/env';
 
 // A chip holds the name next to its remove button, so no element's text is
 // the name alone; the remove button is what the chip is addressable by.

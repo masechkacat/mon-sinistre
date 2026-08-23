@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { gotoPage, pages } from './pages';
+import { gotoPage, pages } from '../support/pages';
 
 // 640 px is not arbitrary: Chrome implements 200 % zoom by shrinking the CSS
 // viewport, so a 1280 px window at 200 % IS a 640 px viewport (WCAG 1.4.4,

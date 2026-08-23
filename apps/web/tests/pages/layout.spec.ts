@@ -1,7 +1,7 @@
 import { AxeBuilder } from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
-import { fr } from '../src/i18n/fr';
-import { gotoPage, pages } from './pages';
+import { fr } from '../../src/i18n/fr';
+import { gotoPage, pages } from '../support/pages';
 
 // Landmarks and heading order are "best-practice" axe rules, outside the WCAG
 // tags of expectNoAxeViolations — hence the explicit rule list here.
