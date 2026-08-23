@@ -4,6 +4,7 @@ import {
   DurationUnit,
   FileKind,
   PasswordResetStatus,
+  RisqueCatnat,
   SinistreStatus,
   StepAnchor,
   StepStatus,
@@ -129,8 +130,8 @@ export interface CurrentUserResponse {
 export interface Sinistre {
   id: string;
   communeCode: string;
-  /** Risk label; free text until an arrêté entry is linked. */
-  risque: string;
+  /** Risk category the user selects at creation; matched against `ArreteEntry.risque` via `classifyRisques`. */
+  risque: RisqueCatnat;
   /** Date the damage occurred — first anchor of the plan. */
   eventDate: IsoDate;
   /**
@@ -153,8 +154,13 @@ export interface StepTemplate {
   name: string;
   description: string;
   anchor: StepAnchor;
-  /** Days added to the anchor date. Negative means "before". */
-  offsetDays: number;
+  /**
+   * Days added to the anchor date; negative means "before". Null for a step
+   * with no offset of its own — its date comes from a legal deadline rule
+   * instead, or isn't known at all yet (docs/research/sinistre-plan.md,
+   * "Схема").
+   */
+  offsetDays: number | null;
   required: boolean;
   order: number;
   source: SourceReference;

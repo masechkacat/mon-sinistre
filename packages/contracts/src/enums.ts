@@ -33,6 +33,26 @@ export enum StepAnchor {
   DATE_SINISTRE = 'DATE_SINISTRE',
   DATE_PUBLICATION_ARRETE = 'DATE_PUBLICATION_ARRETE',
   DATE_DECLARATION = 'DATE_DECLARATION',
+  /**
+   * Anchors of the post-declaration insurer deadlines — docs/research/sinistre-plan.md,
+   * "Сроки страховщика после декларации".
+   */
+  DATE_ETAT_ESTIMATIF = 'DATE_ETAT_ESTIMATIF',
+  DATE_ETAT_ESTIMATIF_OU_EXPERTISE = 'DATE_ETAT_ESTIMATIF_OU_EXPERTISE',
+  DATE_ACCORD_INDEMNISATION = 'DATE_ACCORD_INDEMNISATION',
+}
+
+/**
+ * Six values, deliberately coarser than the official CatNat risk categories —
+ * docs/research/sinistre-plan.md, "Классификация риска".
+ */
+export enum RisqueCatnat {
+  INONDATION = 'INONDATION',
+  SECHERESSE = 'SECHERESSE',
+  MOUVEMENT_TERRAIN = 'MOUVEMENT_TERRAIN',
+  SEISME = 'SEISME',
+  AVALANCHE = 'AVALANCHE',
+  VENTS_CYCLONIQUES = 'VENTS_CYCLONIQUES',
 }
 
 /**
@@ -196,6 +216,13 @@ export const ACCOUNT_FORGOT_PASSWORD_PATH = '/mot-de-passe-oublie';
  * actually cancelled by it.
  */
 export const ACCOUNT_MAIL_UNSUBSCRIBE_PATH = '/compte/desabonnement';
+
+/**
+ * Path of the sinistre screen, relative to `FRONTEND_URL` — the link carried
+ * by the sinistre-arrêté mail (docs/research/sinistre-plan.md, "Письмо
+ * владельцу синистра"), same convention as the `VEILLE_*_PATH` constants.
+ */
+export const SINISTRE_PATH = '/sinistres';
 
 /**
  * `pending`/`active` reflect `Veille.confirmedAt`; `invalid` covers both an
