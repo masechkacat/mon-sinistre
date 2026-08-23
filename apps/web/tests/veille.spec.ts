@@ -1,16 +1,9 @@
-import { expect, test, type Locator } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 import { fr } from '../src/i18n/fr';
 import { expectNoAxeViolations } from './a11y';
 import { NIMES, mockCommuneSearch, selectNimes } from './communes';
 import { testApiBaseUrl } from './env';
-
-async function expectErrorTiedTo(field: Locator, error: Locator) {
-  await expect(error).toBeVisible();
-  await expect(error).toHaveAttribute('role', 'alert');
-  const errorId = await error.getAttribute('id');
-  expect(errorId).not.toBeNull();
-  await expect(field).toHaveAttribute('aria-describedby', String(errorId));
-}
+import { expectErrorTiedTo } from './form';
 
 test('submitting without a commune reports an error tied to the field, and does not send the request', async ({
   page,

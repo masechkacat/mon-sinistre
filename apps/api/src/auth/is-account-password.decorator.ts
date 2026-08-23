@@ -1,5 +1,6 @@
 import { registerDecorator } from 'class-validator';
 import {
+  PASSWORD_MAX_BYTES,
   PASSWORD_MIN_CHAR_CLASSES,
   PASSWORD_MIN_LENGTH,
   isValidPassword,
@@ -24,6 +25,7 @@ export function IsAccountPassword(): PropertyDecorator {
         defaultMessage: (): string =>
           fr.auth.password.requirements(
             String(PASSWORD_MIN_LENGTH),
+            String(PASSWORD_MAX_BYTES),
             String(PASSWORD_MIN_CHAR_CLASSES),
           ),
       },

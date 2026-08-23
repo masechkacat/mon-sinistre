@@ -17,11 +17,17 @@ import { useFocusOnSuccess } from '@/lib/use-focus-on-success';
  */
 export function AnnouncedResult({
   result,
+  resultAction,
   announce,
   testId,
   children,
 }: {
   result: { title: string; description: string } | undefined;
+  /** What the person does next from the result screen — a link onwards. Not
+   * part of `result`: the announcement above reads the outcome, and a live
+   * region that also read the link would announce a control the reader is
+   * about to reach anyway. */
+  resultAction?: ReactNode;
   announce: boolean;
   testId?: string;
   children: ReactNode;
@@ -39,10 +45,9 @@ export function AnnouncedResult({
           data-testid={testId}
           className="outline-none"
         >
-          <MessageScreen
-            title={result.title}
-            description={result.description}
-          />
+          <MessageScreen title={result.title} description={result.description}>
+            {resultAction}
+          </MessageScreen>
         </div>
       ) : (
         children

@@ -1,5 +1,6 @@
 export const queryKeys = {
   health: () => ['health'] as const,
+  currentUser: () => ['auth', 'me'] as const,
   communes: (q: string) => ['communes', q] as const,
   veilleConfirmation: (token: string) =>
     ['veille', 'confirmation', token] as const,

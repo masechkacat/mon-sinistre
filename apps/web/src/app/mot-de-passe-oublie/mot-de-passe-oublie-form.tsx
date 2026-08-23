@@ -2,11 +2,8 @@
 
 import { Field } from '@base-ui/react/field';
 import { useMutation } from '@tanstack/react-query';
-import Link from 'next/link';
 import { useState, type FormEvent } from 'react';
-import type { Commune } from '@mon-sinistre/contracts';
 import { AnnouncedResult } from '@/components/announced-result';
-import { CommuneMultiSelect } from '@/components/commune-multi-select';
 import { FieldError } from '@/components/field-error';
 import { PageContainer } from '@/components/page-container';
 import { PageTitle } from '@/components/page-title';
@@ -21,20 +18,21 @@ import { validateEmail } from '@/lib/email-pattern';
 import { cn } from '@/lib/utils';
 import { fr } from '@/i18n/fr';
 
-interface SubscribeInput {
+interface RequestResetInput {
   email: string;
-  communeCodes: string[];
 }
 
-export function VeilleForm() {
+// The API answers 204 whatever the address turns out to be
+// (apps/api/src/auth/CLAUDE.md, "requestPasswordReset") — this form has
+// exactly one outcome to show on a successful submit, never a branch on
+// whether the account exists.
+export function MotDePasseOublieForm() {
   const [email, setEmail] = useState('');
-  const [communes, setCommunes] = useState<Commune[]>([]);
   const [emailError, setEmailError] = useState<string>();
-  const [communesError, setCommunesError] = useState<string>();
 
   const mutation = useMutation({
-    mutationFn: (input: SubscribeInput) =>
-      apiFetch<void>('/veille', {
+    mutationFn: (input: RequestResetInput) =>
+      apiFetch<void>('/auth/password-reset', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(input),
@@ -45,32 +43,28 @@ export function VeilleForm() {
     event.preventDefault();
     const trimmedEmail = email.trim();
     const nextEmailError = validateEmail(trimmedEmail, {
-      required: fr.veille.form.emailRequiredError,
-      invalid: fr.veille.form.emailInvalidError,
+      required: fr.compte.motDePasseOublie.emailRequiredError,
+      invalid: fr.compte.motDePasseOublie.emailInvalidError,
     });
-    const nextCommunesError =
-      communes.length === 0 ? fr.veille.form.communesRequiredError : undefined;
 
     setEmailError(nextEmailError);
-    setCommunesError(nextCommunesError);
-    if (nextEmailError || nextCommunesError) return;
+    if (nextEmailError) return;
 
-    mutation.mutate({
-      email: trimmedEmail,
-      communeCodes: communes.map((commune) => commune.codeInsee),
-    });
+    mutation.mutate({ email: trimmedEmail });
   };
 
   return (
     <AnnouncedResult
-      result={mutation.isSuccess ? fr.veille.confirmationSent : undefined}
+      result={mutation.isSuccess ? fr.compte.motDePasseOublie.sent : undefined}
       announce={mutation.isSuccess}
-      testId="veille-confirmation"
+      testId="mot-de-passe-oublie-sent"
     >
       <PageContainer className="space-y-8">
         <section className="space-y-4">
-          <PageTitle>{fr.veille.page.title}</PageTitle>
-          <p className="text-lg text-muted-foreground">{fr.veille.page.lead}</p>
+          <PageTitle>{fr.compte.motDePasseOublie.page.title}</PageTitle>
+          <p className="text-lg text-muted-foreground">
+            {fr.compte.motDePasseOublie.lead}
+          </p>
         </section>
 
         <form
@@ -81,16 +75,17 @@ export function VeilleForm() {
         >
           <Field.Root invalid={Boolean(emailError)} className="space-y-1.5">
             <Field.Label className="block text-sm font-medium">
-              {fr.veille.form.emailLabel}
+              {fr.compte.motDePasseOublie.emailLabel}
             </Field.Label>
             <Field.Control
               type="email"
+              autoComplete="email"
               value={email}
               onChange={(event) => {
                 setEmail(event.target.value);
                 setEmailError(undefined);
               }}
-              placeholder={fr.veille.form.emailPlaceholder}
+              placeholder={fr.compte.motDePasseOublie.emailPlaceholder}
               className={cn(
                 inputFrameClassName,
                 'w-full px-3 py-1.5 text-sm outline-none focus:border-ring focus:ring-3 focus:ring-ring/50',
@@ -100,29 +95,10 @@ export function VeilleForm() {
             <FieldError error={emailError} />
           </Field.Root>
 
-          <CommuneMultiSelect
-            value={communes}
-            onValueChange={(next) => {
-              setCommunes(next);
-              if (next.length > 0) setCommunesError(undefined);
-            }}
-            error={communesError}
-          />
-
-          <p className="text-sm text-muted-foreground">
-            {fr.veille.form.purpose}{' '}
-            <Link
-              href="/politique-de-confidentialite"
-              className="underline underline-offset-4"
-            >
-              {fr.veille.form.privacyPolicyLink}
-            </Link>
-          </p>
-
           <Button type="submit" disabled={mutation.isPending}>
             {mutation.isPending
-              ? fr.veille.form.submitting
-              : fr.veille.form.submit}
+              ? fr.compte.motDePasseOublie.submitting
+              : fr.compte.motDePasseOublie.submit}
           </Button>
 
           {mutation.isError ? <RequestError /> : null}

@@ -1,6 +1,7 @@
 import { plainToInstance } from 'class-transformer';
 import { validate as validateInstance } from 'class-validator';
 import {
+  PASSWORD_MAX_BYTES,
   PASSWORD_MIN_CHAR_CLASSES,
   PASSWORD_MIN_LENGTH,
 } from '@mon-sinistre/contracts';
@@ -51,6 +52,7 @@ describe('RegisterDto', () => {
     expect(Object.values(passwordError?.constraints ?? {})).toContain(
       fr.auth.password.requirements(
         String(PASSWORD_MIN_LENGTH),
+        String(PASSWORD_MAX_BYTES),
         String(PASSWORD_MIN_CHAR_CLASSES),
       ),
     );

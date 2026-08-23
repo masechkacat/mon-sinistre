@@ -69,6 +69,36 @@ export const veilleChange = {
       }),
     ),
 } as const;
+export const inscription = {
+  path: '/inscription' satisfies Route,
+  status: 200,
+} as const;
+export const connexion = {
+  path: '/connexion' satisfies Route,
+  status: 200,
+} as const;
+export const compteSupprime = {
+  path: '/compte-supprime' satisfies Route,
+  status: 200,
+} as const;
+// Unlike veilleConfirmation, no mockApi: nothing fires on load (see
+// CompteConfirmation's own docblock) — the button is on screen from the
+// first paint, no in-flight request for a shared suite to race.
+export const confirmation = {
+  path: '/confirmation?token=invalide' as Route,
+  status: 200,
+} as const;
+export const motDePasseOublie = {
+  path: '/mot-de-passe-oublie' satisfies Route,
+  status: 200,
+} as const;
+// Same rationale as confirmation above: the form's own POST is the only
+// request ReinitialisationForm ever sends, never on load.
+export const reinitialisation = {
+  path: '/reinitialisation?token=invalide' as Route,
+  status: 200,
+} as const;
+
 // Derived from the registry the footer renders, so a legal page cannot be
 // covered by the shared suites while missing from the site, or vice versa.
 const legalEntries = legalPages.map(
@@ -83,6 +113,12 @@ export const pages = [
   veilleConfirmation,
   veilleDesinscriptionConfirmer,
   veilleChange,
+  inscription,
+  confirmation,
+  connexion,
+  compteSupprime,
+  motDePasseOublie,
+  reinitialisation,
   ...legalEntries,
 ] as const;
 
