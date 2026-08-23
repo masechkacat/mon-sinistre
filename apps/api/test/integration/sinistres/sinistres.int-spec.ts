@@ -1,7 +1,12 @@
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
+import { todayInParis } from 'src/common/time/today-in-paris';
+import { resolveDeadline } from 'src/deadline-rules/resolve-deadline';
 import { fr } from 'src/i18n/fr';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { seedDeadlineRules } from 'src/deadline-rules/deadline-rule.seed';
+import {
+  PROVISION_INDEMNITE_CODE,
+  seedDeadlineRules,
+} from 'src/deadline-rules/deadline-rule.seed';
 import { seedStepTemplates } from 'src/step-templates/step-template.seed';
 import { createIntTestApp } from 'test/helpers/app';
 import { commune } from 'test/helpers/commune';
@@ -94,9 +99,10 @@ describe('SinistresController (integration)', () => {
   it('rejects an eventDate in the future with a French message', async () => {
     const email = await createUser(prisma);
     const headers = await bearerFor(email);
-    const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000)
-      .toISOString()
-      .slice(0, 10);
+    // Tomorrow in Europe/Paris, the timezone the validator compares against:
+    // a UTC "tomorrow" is already today in Paris between 22:00 and midnight
+    // UTC, and the request would be accepted.
+    const tomorrow = resolveDeadline(todayInParis(), 1, 'DAYS');
 
     const res = await app.inject({
       method: 'POST',
@@ -111,6 +117,85 @@ describe('SinistresController (integration)', () => {
 
     expect(res.statusCode).toBe(400);
     expect(res.payload).toContain(fr.sinistres.eventDateInFuture);
+  });
+
+  it('names the actual problem for a date that is not a real YYYY-MM-DD, rather than calling it a future date', async () => {
+    const email = await createUser(prisma);
+    const headers = await bearerFor(email);
+
+    const [malformed, missing] = await Promise.all([
+      app.inject({
+        method: 'POST',
+        url: '/sinistres',
+        headers,
+        payload: {
+          codeInsee: '30189',
+          risque: 'INONDATION',
+          eventDate: '2026-02-30',
+        },
+      }),
+      app.inject({
+        method: 'POST',
+        url: '/sinistres',
+        headers,
+        payload: { codeInsee: '30189', risque: 'INONDATION' },
+      }),
+    ]);
+
+    expect(malformed.statusCode).toBe(400);
+    expect(malformed.payload).toContain(fr.sinistres.eventDateInvalid);
+    expect(malformed.payload).not.toContain(fr.sinistres.eventDateInFuture);
+    expect(missing.statusCode).toBe(400);
+    expect(missing.payload).toContain(fr.sinistres.eventDateRequired);
+  });
+
+  it('still creates the dossier when a DeadlineRule is missing: the steps that need no rule keep their dates, the one that does gets no source', async () => {
+    const email = await createUser(prisma);
+    const headers = await bearerFor(email);
+    // A referential gap — an admin closed the rule and its successor has not
+    // started yet — must not cost the user the whole plan.
+    await prisma.deadlineRule.deleteMany({
+      where: { code: PROVISION_INDEMNITE_CODE },
+    });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/sinistres',
+      headers,
+      payload: {
+        codeInsee: '30189',
+        risque: 'INONDATION',
+        eventDate: '2026-06-01',
+      },
+    });
+
+    expect(res.statusCode).toBe(201);
+    const body = JSON.parse(res.payload) as {
+      steps: {
+        anchor: string | null;
+        plannedDate: string | null;
+        source: { url: string } | null;
+      }[];
+    };
+    const sinistreSteps = body.steps.filter(
+      (s) => s.anchor === 'DATE_SINISTRE',
+    );
+    expect(sinistreSteps.length).toBeGreaterThan(0);
+    for (const step of sinistreSteps) {
+      expect(step.plannedDate).not.toBeNull();
+    }
+    expect(
+      body.steps.some(
+        (s) => s.anchor === 'DATE_PUBLICATION_ARRETE' && s.source !== null,
+      ),
+    ).toBe(true);
+    const orphaned = body.steps.filter(
+      (s) => s.anchor === 'DATE_ETAT_ESTIMATIF',
+    );
+    expect(orphaned.length).toBeGreaterThan(0);
+    for (const step of orphaned) {
+      expect(step.source).toBeNull();
+    }
   });
 
   it('does not change an already-created sinistre when the StepTemplate is edited afterwards', async () => {

@@ -6,6 +6,8 @@ const template = (
     anchor: 'DATE_SINISTRE' | 'DATE_PUBLICATION_ARRETE' | 'DATE_DECLARATION';
     offsetDays: number | null;
     deadlineRuleCode: string | null;
+    sourceUrl: string | null;
+    sourceVerifiedAt: Date | null;
   }> = {},
 ) => ({
   name: 'Photographier',
@@ -17,6 +19,8 @@ const template = (
       ? null
       : overrides.deadlineRuleCode,
   order: 1,
+  sourceUrl: overrides.sourceUrl ?? null,
+  sourceVerifiedAt: overrides.sourceVerifiedAt ?? null,
 });
 
 const rule = {
@@ -81,6 +85,36 @@ describe('buildStepSnapshot', () => {
     );
     expect(step.plannedDate).toBeNull();
     expect(step.deadlineRuleId).toBeNull();
+  });
+
+  it('cites the template own source when the step has no rule of its own', () => {
+    const step = buildStepSnapshot(
+      template({
+        offsetDays: 3,
+        sourceUrl: 'https://service-public.example/',
+        sourceVerifiedAt: new Date('2026-08-20'),
+      }),
+      { DATE_SINISTRE: toIsoDate('2026-06-01') },
+      null,
+    );
+    expect(step.sourceUrl).toBe('https://service-public.example/');
+    expect(step.sourceVerifiedAt).toEqual(new Date('2026-08-20'));
+  });
+
+  it('cites the rule rather than the template when both carry a source', () => {
+    const step = buildStepSnapshot(
+      template({
+        anchor: 'DATE_PUBLICATION_ARRETE',
+        offsetDays: null,
+        deadlineRuleCode: 'DECLARATION_ASSUREUR',
+        sourceUrl: 'https://service-public.example/',
+        sourceVerifiedAt: new Date('2026-08-20'),
+      }),
+      { DATE_PUBLICATION_ARRETE: toIsoDate('2026-07-01') },
+      rule,
+    );
+    expect(step.sourceUrl).toBe('https://legifrance.example/');
+    expect(step.sourceVerifiedAt).toEqual(new Date('2026-08-18'));
   });
 
   it('copies name, description, anchor, offsetDays and order straight from the template', () => {

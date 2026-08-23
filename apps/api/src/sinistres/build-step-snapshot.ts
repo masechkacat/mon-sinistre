@@ -10,6 +10,8 @@ export interface StepTemplateRow {
   offsetDays: number | null;
   deadlineRuleCode: string | null;
   order: number;
+  sourceUrl: string | null;
+  sourceVerifiedAt: Date | null;
 }
 
 /** The `DeadlineRule` fields a step needs to print its date and cite its source. */
@@ -61,6 +63,12 @@ export function buildStepSnapshot(
           ? resolveDeadline(anchorDate, template.offsetDays, 'DAYS')
           : null;
 
+  // Источник — из правила, когда оно резолвилось, иначе собственный источник
+  // шаблона (docs/research/data-model.md § Step: «копия из шаблона или
+  // правила»); url и дата сверки берутся из одного и того же источника, иначе
+  // шаг сослался бы на текст, которого по этой дате никто не проверял.
+  const source = rule ?? template;
+
   return {
     name: template.name,
     description: template.description,
@@ -70,7 +78,7 @@ export function buildStepSnapshot(
     order: template.order,
     fromTemplate: true,
     deadlineRuleId: rule?.id ?? null,
-    sourceUrl: rule?.sourceUrl ?? null,
-    sourceVerifiedAt: rule?.sourceVerifiedAt ?? null,
+    sourceUrl: source.sourceUrl ?? null,
+    sourceVerifiedAt: source.sourceVerifiedAt ?? null,
   };
 }
