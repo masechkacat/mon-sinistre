@@ -1,6 +1,10 @@
 import { createHash } from 'node:crypto';
 
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
+import {
+  ThrottlerStorage,
+  type ThrottlerStorageService,
+} from '@nestjs/throttler';
 import { ACCOUNT_RESET_PATH } from '@mon-sinistre/contracts';
 import { createIntTestApp } from 'src/app.int-helper';
 import { captureLogs } from 'src/mail/mail-log.test-helper';
@@ -14,6 +18,7 @@ describe('POST /auth/password-reset (integration)', () => {
   let app: NestFastifyApplication;
   let prisma: PrismaService;
   let transport: RecordingTransport;
+  let throttler: ThrottlerStorageService;
   const logs = captureLogs();
 
   const post = (body: object) =>
@@ -30,6 +35,7 @@ describe('POST /auth/password-reset (integration)', () => {
     });
 
     prisma = app.get(PrismaService);
+    throttler = app.get<ThrottlerStorageService>(ThrottlerStorage);
   });
 
   afterAll(async () => {
@@ -38,6 +44,9 @@ describe('POST /auth/password-reset (integration)', () => {
 
   beforeEach(async () => {
     transport.sent.length = 0;
+    // The file shares one IP across more submissions than a person would
+    // make — why: `register.int-spec.ts`, same reason.
+    throttler.storage.clear();
     await prisma.$executeRaw`TRUNCATE TABLE "User", "PasswordReset", "AccountFormEmail" CASCADE`;
   });
 

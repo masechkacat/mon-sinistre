@@ -14,6 +14,7 @@ import * as bcrypt from 'bcrypt';
 import {
   ACCOUNT_CONFIRM_TTL_DAYS,
   ACCOUNT_EMAIL_LIMIT,
+  ACCOUNT_REGISTRATION_MAIL_LIMIT,
   LOGIN_ATTEMPT_LIMIT,
   PASSWORD_RESET_TTL_HOURS,
   SESSION_INACTIVITY_DAYS,
@@ -22,6 +23,7 @@ import {
   type LoginResponse,
   type PasswordResetStatus,
 } from '@mon-sinistre/contracts';
+import { withAddressLock } from 'src/common/address-lock';
 import {
   awaitingConfirmation,
   expiredUnconfirmed,
@@ -149,28 +151,51 @@ export class AuthService {
    * extracted into one shared implementation: `src/mail/CLAUDE.md` — "лимит
    * частоты конкретной фичи живёт у фичи, которая его считает" — only the
    * HMAC primitive (`hashEmail`) is common, the counting logic stays with
-   * whichever feature owns the table. Unlike `sendFormMail`, the input is
-   * built by the caller rather than deferred behind the limit check: none of
-   * the three mails here does a DB write of its own to save (the token or
-   * `PasswordReset` row it carries is already committed by the time this
-   * runs), so there is nothing a suppressed mail would need to leave
-   * un-rotated.
+   * whichever feature owns the table.
+   *
+   * `limit` is the caller's share of `ACCOUNT_EMAIL_LIMIT`, not a second
+   * limit: registration mails stop at `ACCOUNT_REGISTRATION_MAIL_LIMIT` so
+   * that five of them — which anybody can trigger for somebody else's
+   * address — cannot starve the password-reset mail (the constant's own
+   * docblock in contracts). One counter, one daily total.
+   *
+   * `compose` runs behind the limit check and inside its transaction, so a
+   * write made for the mail's own sake (rotating a confirmation token) never
+   * commits for a mail that is then suppressed, and returning `null` (the row
+   * vanished mid-flight) aborts without costing an attempt. `send()` is the
+   * one step left outside: the transport's own delivery budget
+   * (`SCALEWAY_TEM_TIMEOUT_MS`, 10 s) outlives Prisma's 5 s
+   * interactive-transaction default, so a slow-but-successful send inside
+   * would abort the row it announces.
    */
   private async sendAccountMail(
     email: string,
-    input: ComposeMailInput,
+    limit: number,
+    compose: (
+      tx: Prisma.TransactionClient,
+    ) => ComposeMailInput | null | Promise<ComposeMailInput | null>,
   ): Promise<void> {
     const emailHash = hashEmail(email, this.emailHashSecret);
-    const sentRecently = await this.prisma.accountFormEmail.count({
-      where: { emailHash, sentAt: { gte: new Date(Date.now() - DAY_MS) } },
-    });
-    if (sentRecently >= ACCOUNT_EMAIL_LIMIT) return;
+    const charged = await withAddressLock(
+      this.prisma,
+      emailHash,
+      async (tx) => {
+        const sentRecently = await tx.accountFormEmail.count({
+          where: { emailHash, sentAt: { gte: new Date(Date.now() - DAY_MS) } },
+        });
+        if (sentRecently >= limit) return null;
 
-    const charged = await this.prisma.accountFormEmail.create({
-      data: { emailHash },
-    });
+        const input = await compose(tx);
+        if (!input) return null;
+
+        const row = await tx.accountFormEmail.create({ data: { emailHash } });
+        return { id: row.id, input };
+      },
+    );
+    if (!charged) return;
+
     try {
-      await this.mail.send(input);
+      await this.mail.send(charged.input);
     } catch (error) {
       if (error instanceof MailCompositionError) {
         await this.prisma.accountFormEmail.delete({
@@ -185,10 +210,10 @@ export class AuthService {
    * Anti-enumeration (PRD, «Ограничения»): whatever the address turns out to
    * be, this resolves without throwing, same shape as veille's
    * `upsertSubscription` (`src/veille/veille.service.ts`) — nothing → create;
-   * unconfirmed → rewrite the password with the last form's, extend the
-   * deadline and rotate the confirmation token, all in
-   * `claimUnconfirmedAccount`'s single statement; confirmed → the row is
-   * left untouched and mailed the "vous avez déjà un compte" notice instead
+   * unconfirmed → rewrite the password with the last form's and extend the
+   * deadline in `claimUnconfirmedAccount`'s single statement, then mail a
+   * freshly rotated confirmation link; confirmed → the row is left untouched
+   * and mailed the "vous avez déjà un compte" notice instead
    * (`alreadyRegisteredMailFor`, its own doc comment). The branch is decided
    * by `claimUnconfirmedAccount`'s own write, so a row is never rewritten —
    * or resurrected — on the strength of a lookup it has since outlived (the
@@ -196,84 +221,104 @@ export class AuthService {
    * channel: `src/auth/CLAUDE.md`, «Anti-enumeration: временная асимметрия
    * по времени ответа»).
    *
-   * The mail goes out after the write, never inside a transaction with it:
-   * the transport's own delivery budget (`SCALEWAY_TEM_TIMEOUT_MS`, 10 s)
-   * outlives Prisma's 5 s interactive-transaction default, so a
-   * slow-but-successful send inside one would abort the row it announces. A
-   * delivery failure therefore leaves the account behind with a token
-   * nobody holds — a state that heals itself: the retry lands in the
-   * rewritten branch, which rotates the token and mails the fresh link. The
-   * address already in `User` — the only constraint a caller-supplied value
-   * can violate here, the token hash being 256 random bits apart
-   * (`isUniqueViolationOn`, not the global Prisma mapping: a 409 here would
-   * tell a caller the address is already registered) — this create can
-   * still meet is one lost race against a concurrent submission for the
-   * same brand-new address; that caller keeps its 204 and gets no mail, the
-   * same acceptance as before this issue.
+   * The confirmation token of the rewritten branch is rotated inside
+   * `sendAccountMail`'s `compose`, not by the claim — same rule as veille's
+   * `resendConfirmationMail`: only a mail that actually goes out gets to
+   * invalidate the link of the mail before it. Rotating in the claim would
+   * mean a registration past the limit kills the link of the last mail that
+   * did go out and then sends nothing of its own, leaving the person unable
+   * to confirm until the 24h window rolls off — six requests, from anybody
+   * who knows the address is pending. The deadline is extended either way — a
+   * suppressed mail leaves the link from the previous one working, and
+   * working for longer, which is the point.
+   *
+   * The mail goes out after the write, never inside a transaction with it —
+   * why: `sendAccountMail`. A delivery failure therefore leaves the account
+   * behind with a token nobody holds — a state that heals itself: the retry
+   * lands in the rewritten branch, which rotates the token and mails the
+   * fresh link. The address already in `User` — the only constraint a
+   * caller-supplied value can violate here, the token hash being 256 random
+   * bits apart (`isUniqueViolationOn`, not the global Prisma mapping: a 409
+   * here would tell a caller the address is already registered) — this
+   * create can still meet is one lost race against a concurrent submission
+   * for the same brand-new address; that caller keeps its 204 and gets no
+   * mail, the same acceptance as before this issue.
    */
   async register(dto: RegisterDto): Promise<void> {
     const passwordHash = await bcrypt.hash(dto.password, this.saltRounds);
-    const confirm = generateSecureToken();
-    const claim = await this.claimUnconfirmedAccount(
-      dto.email,
-      passwordHash,
-      confirm.hash,
-    );
+    const claim = await this.claimUnconfirmedAccount(dto.email, passwordHash);
     if (claim === 'confirmed') {
       await this.sendAccountMail(
         dto.email,
-        alreadyRegisteredMailFor(dto.email),
+        ACCOUNT_REGISTRATION_MAIL_LIMIT,
+        () => alreadyRegisteredMailFor(dto.email),
       );
       return;
     }
-    if (claim === 'absent') {
-      try {
-        await this.prisma.user.create({
-          data: {
-            email: dto.email,
-            passwordHash,
-            confirmTokenHash: confirm.hash,
-            confirmExpiresAt: nextConfirmExpiresAt(),
-          },
-        });
-      } catch (error) {
-        if (isUniqueViolationOn(error, 'email')) return;
-        throw error;
-      }
+    if (claim === 'rewritten') {
+      await this.sendAccountMail(
+        dto.email,
+        ACCOUNT_REGISTRATION_MAIL_LIMIT,
+        async (tx) => {
+          const confirm = generateSecureToken();
+          const rotated = await tx.user.updateMany({
+            where: { email: dto.email, confirmedAt: null },
+            data: { confirmTokenHash: confirm.hash },
+          });
+          // The account was confirmed between the claim and this rotation:
+          // the link it holds must keep working, and there is nothing left
+          // to confirm anyway.
+          if (rotated.count === 0) return null;
+          return confirmationMailFor(dto.email, confirm.token);
+        },
+      );
+      return;
     }
-    await this.sendAccountMail(
-      dto.email,
+
+    const confirm = generateSecureToken();
+    try {
+      await this.prisma.user.create({
+        data: {
+          email: dto.email,
+          passwordHash,
+          confirmTokenHash: confirm.hash,
+          confirmExpiresAt: nextConfirmExpiresAt(),
+        },
+      });
+    } catch (error) {
+      if (isUniqueViolationOn(error, 'email')) return;
+      throw error;
+    }
+    // Nothing to rotate here — the token this mails was created with the row
+    // and has never been mailed before, so a suppressed mail costs no link.
+    await this.sendAccountMail(dto.email, ACCOUNT_REGISTRATION_MAIL_LIMIT, () =>
       confirmationMailFor(dto.email, confirm.token),
     );
   }
 
   /**
    * Decides `register`'s branch by taking it, same shape as veille's
-   * `claimUnconfirmed`: the conditional `updateMany` rewrites the password,
-   * the deadline and the confirmation token in the same statement that
-   * claims the row — one write, so no failure or concurrent confirmation
-   * can land between a rewritten password and the token that belongs with
-   * it; whichever of this claim and a confirmation commits first is what
-   * the other sees, and a link the claim rotates out is replaced by the one
-   * `register` mails right after. The deadline is deliberately not part of
-   * the condition: reviving a row whose window has already lapsed but that
-   * the hourly cleanup (phase 4) hasn't swept yet is what this branch
-   * exists for. `count === 0` leaves two states worth telling apart, and
-   * the read that follows names them: a confirmed row (the caller's write
-   * matched nothing to claim), or nothing at all — deleted before the
-   * claim, or never created — which `register` treats the same as a
-   * brand-new address.
+   * `claimUnconfirmed`: the conditional `updateMany` rewrites the password
+   * and the deadline in the same statement that claims the row — one write,
+   * so no failure or concurrent confirmation can land between them. The
+   * confirmation token is deliberately not part of it (`register`'s
+   * docblock): it rotates only for a mail that goes out. The deadline is
+   * deliberately not part of the condition either: reviving a row whose
+   * window has already lapsed but that the hourly cleanup (phase 4) hasn't
+   * swept yet is what this branch exists for. `count === 0` leaves two states
+   * worth telling apart, and the read that follows names them: a confirmed
+   * row (the caller's write matched nothing to claim), or nothing at all —
+   * deleted before the claim, or never created — which `register` treats the
+   * same as a brand-new address.
    */
   private async claimUnconfirmedAccount(
     email: string,
     passwordHash: string,
-    confirmTokenHash: string,
   ): Promise<'confirmed' | 'rewritten' | 'absent'> {
     const claimed = await this.prisma.user.updateMany({
       where: { email, confirmedAt: null },
       data: {
         passwordHash,
-        confirmTokenHash,
         confirmExpiresAt: nextConfirmExpiresAt(),
       },
     });
@@ -332,7 +377,11 @@ export class AuthService {
       if (isForeignKeyViolation(error)) return;
       throw error;
     }
-    await this.sendAccountMail(email, passwordResetMailFor(email, reset.token));
+    // The full `ACCOUNT_EMAIL_LIMIT`, not the registration share: this is the
+    // mail the reserve exists for (contracts, `ACCOUNT_REGISTRATION_MAIL_LIMIT`).
+    await this.sendAccountMail(email, ACCOUNT_EMAIL_LIMIT, () =>
+      passwordResetMailFor(email, reset.token),
+    );
   }
 
   /**
@@ -351,9 +400,11 @@ export class AuthService {
    * `endAllSessions`). The account is confirmed if it wasn't yet — spending
    * a token that was mailed to the address proves the mailbox the same way
    * the confirmation link would, and without this the reset would set a
-   * password that `validateCredentials` still refuses. A failure past the
-   * claim rolls the claim back too, leaving the token usable for a retry
-   * instead of burning it on a 500.
+   * password that `validateCredentials` still refuses. The address's
+   * `LoginAttempt` counter is cleared with the rest — an owner whose counter
+   * an attacker filled must be able to come back through the one route the
+   * attacker has no access to. A failure past the claim rolls the claim back too,
+   * leaving the token usable for a retry instead of burning it on a 500.
    */
   async resetPassword(
     token: string,
@@ -380,15 +431,19 @@ export class AuthService {
         where: { userId: reset.userId, usedAt: null },
         data: { usedAt: new Date() },
       });
-      await tx.user.update({
+      const { email } = await tx.user.update({
         where: { id: reset.userId },
         data: { passwordHash },
+        select: { email: true },
       });
       await tx.user.updateMany({
         where: { id: reset.userId, confirmedAt: null },
         data: { confirmedAt: new Date() },
       });
       await this.endAllSessions(reset.userId, tx);
+      await tx.loginAttempt.deleteMany({
+        where: { emailHash: hashEmail(email, this.emailHashSecret) },
+      });
       return 'reset';
     });
   }
@@ -397,43 +452,78 @@ export class AuthService {
    * `null` covers three causes — unknown address, wrong password, unconfirmed
    * account — on purpose: `LocalStrategy` answers all three with the same 401
    * (`src/auth/CLAUDE.md`, anti-enumeration), so telling them apart here would
-   * only invite the caller to do it there. Every one of the three now also
-   * writes a `LoginAttempt` row counted toward `LOGIN_ATTEMPT_LIMIT`
+   * only invite the caller to do it there. Every one of the three writes a
+   * `LoginAttempt` row counted toward `LOGIN_ATTEMPT_LIMIT`
    * (`packages/contracts/src/password.ts` has the limit and its source), same
-   * shape as `sendAccountMail`'s `AccountFormEmail` gate above. The count is
-   * checked before this method does anything else, so it is what a caller
-   * over the limit pays for — not the `findUnique` or the `bcrypt.compare`
-   * past it. A login under the threshold is not charged and does not reset
-   * the counter — only the hourly cleanup (phase 4) ages it out.
+   * shape as `sendAccountMail`'s `AccountFormEmail` gate above.
+   *
+   * The password is checked before the counter is, and a correct one is let
+   * through however many failures precede it — the limit gates *failures*,
+   * which is what a brute-force attempt is made of. Checking the counter
+   * first would hand an attacker a rolling lockout of any address they know:
+   * ten wrong passwords an hour, trivially spread across IPs, and the owner
+   * is refused with the right password too. That is the DoS-on-the-victim the
+   * research rejected account lockout for (`docs/research/user-account.md`,
+   * «Ограничение попыток входа»), only rolling. A success clears the
+   * address's counter outright, and so does a completed password reset
+   * (`resetPassword`) — the two ways of proving the address is yours.
+   *
+   * The cost of checking first is one bcrypt (~250 ms) for a caller already
+   * over the limit; the per-IP `AUTH_FORM_RATE_LIMIT` is what bounds that,
+   * and the compare runs for an unknown address anyway (`dummyPasswordHash`).
    */
   async validateCredentials(
     email: string,
     password: string,
   ): Promise<AuthenticatedUser | null> {
     const emailHash = hashEmail(email, this.emailHashSecret);
-    const recentFailures = await this.prisma.loginAttempt.count({
-      where: {
-        emailHash,
-        attemptedAt: { gte: new Date(Date.now() - HOUR_MS) },
-      },
-    });
-    if (recentFailures >= LOGIN_ATTEMPT_LIMIT) {
-      throw new HttpException(
-        fr.auth.login.tooManyAttempts,
-        HttpStatus.TOO_MANY_REQUESTS,
-      );
-    }
-
     const user = await this.prisma.user.findUnique({ where: { email } });
     const passwordMatches = await bcrypt.compare(
       password,
       user?.passwordHash ?? this.dummyPasswordHash,
     );
     if (!user || !user.confirmedAt || !passwordMatches) {
-      await this.prisma.loginAttempt.create({ data: { emailHash } });
+      await this.chargeFailedLogin(emailHash);
       return null;
     }
+
+    await this.prisma.loginAttempt.deleteMany({ where: { emailHash } });
     return { id: user.id, email: user.email };
+  }
+
+  /**
+   * Counts one failure and refuses everything past the limit. The count and
+   * the insert share one transaction and one address lock (`withAddressLock`,
+   * `src/common/address-lock.ts`) — unlocked, a pipelined burst all reads the
+   * same pre-limit count and buys itself that many extra guesses. A request
+   * already over the limit is not recorded: the window has to be able to roll
+   * off while an attacker keeps knocking, or the lockout never ends. The 429
+   * is thrown outside the transaction so it cannot be read as a rollback of
+   * anything.
+   */
+  private async chargeFailedLogin(emailHash: string): Promise<void> {
+    const overLimit = await withAddressLock(
+      this.prisma,
+      emailHash,
+      async (tx) => {
+        const recentFailures = await tx.loginAttempt.count({
+          where: {
+            emailHash,
+            attemptedAt: { gte: new Date(Date.now() - HOUR_MS) },
+          },
+        });
+        if (recentFailures >= LOGIN_ATTEMPT_LIMIT) return true;
+
+        await tx.loginAttempt.create({ data: { emailHash } });
+        return false;
+      },
+    );
+    if (overLimit) {
+      throw new HttpException(
+        fr.auth.login.tooManyAttempts,
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
   }
 
   /**

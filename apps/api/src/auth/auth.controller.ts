@@ -60,15 +60,28 @@ const REFRESH_COOKIE_PATH = '/auth';
 export const SESSION_RATE_LIMIT = { ttl: 60_000, limit: 30 } as const;
 
 /**
- * Per-IP cap on every public form-style auth endpoint (register,
- * confirmation, login, password-reset request and confirm) — same pair of
- * layers as veille's form endpoint (`VEILLE_FORM_RATE_LIMIT`, its own
- * docblock has the "why"), on top of the global one (`app.module.ts`) and,
- * for login, the per-address counter (`AuthService.validateCredentials`,
- * `LOGIN_ATTEMPT_LIMIT`). Exported for the spec, which must not restate the
- * number.
+ * Per-IP cap on the public auth endpoints that mail nobody — confirmation,
+ * login, password-reset confirm — on top of the global one (`app.module.ts`)
+ * and, for login, the per-address counter
+ * (`AuthService.validateCredentials`, `LOGIN_ATTEMPT_LIMIT`). Roomier than
+ * `AUTH_MAIL_RATE_LIMIT` below because the cost of a request here stops at
+ * this server: a person mistyping a password, and a mail client prefetching
+ * a confirmation link, both fit. Exported for the spec, which must not
+ * restate the number.
  */
 export const AUTH_FORM_RATE_LIMIT = { ttl: 60_000, limit: 30 } as const;
+
+/**
+ * Per-IP cap on the two endpoints that mail a third-party address (register,
+ * password-reset request) — the same number and the same reasoning as
+ * veille's form endpoint (`VEILLE_FORM_RATE_LIMIT`, its own docblock has the
+ * "why"): this is the only limit that bounds mailing to *many* addresses at
+ * once, since the per-address limit (`ACCOUNT_EMAIL_LIMIT`) counts one
+ * address at a time and would let a victim per request through. A human
+ * registers, or asks for a reset, once. Exported for the spec, which must
+ * not restate the number.
+ */
+export const AUTH_MAIL_RATE_LIMIT = { ttl: 60_000, limit: 5 } as const;
 
 interface RequestWithUser {
   readonly user: AuthenticatedUser;
@@ -99,7 +112,7 @@ export class AuthController {
   }
 
   @Public()
-  @Throttle({ default: AUTH_FORM_RATE_LIMIT })
+  @Throttle({ default: AUTH_MAIL_RATE_LIMIT })
   @Post('register')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
@@ -136,7 +149,7 @@ export class AuthController {
   }
 
   @Public()
-  @Throttle({ default: AUTH_FORM_RATE_LIMIT })
+  @Throttle({ default: AUTH_MAIL_RATE_LIMIT })
   @Post('password-reset')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({

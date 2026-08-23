@@ -1,6 +1,10 @@
 import { createHash } from 'node:crypto';
 
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
+import {
+  ThrottlerStorage,
+  type ThrottlerStorageService,
+} from '@nestjs/throttler';
 import * as bcrypt from 'bcrypt';
 import {
   ACCOUNT_CONFIRM_PATH,
@@ -13,12 +17,14 @@ import { mailLinksOf, tokenFrom } from 'src/mail/mail-links.test-helper';
 import { MAIL_TRANSPORT } from 'src/mail/mail-transport';
 import { RecordingTransport } from 'src/mail/mail-transport.test-helper';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { AUTH_MAIL_RATE_LIMIT } from './auth.controller';
 import { createUser } from './session.test-helper';
 
 describe('POST /auth/register (integration)', () => {
   let app: NestFastifyApplication;
   let prisma: PrismaService;
   let transport: RecordingTransport;
+  let throttler: ThrottlerStorageService;
   const logs = captureLogs();
 
   const post = (body: object) =>
@@ -32,6 +38,7 @@ describe('POST /auth/register (integration)', () => {
     });
 
     prisma = app.get(PrismaService);
+    throttler = app.get<ThrottlerStorageService>(ThrottlerStorage);
   });
 
   afterAll(async () => {
@@ -40,6 +47,10 @@ describe('POST /auth/register (integration)', () => {
 
   beforeEach(async () => {
     transport.sent.length = 0;
+    // Every spec below but the rate-limit one submits the form more often
+    // than a person would: `AUTH_MAIL_RATE_LIMIT` counts per IP, and the
+    // whole file shares one.
+    throttler.storage.clear();
     await prisma.$executeRaw`TRUNCATE TABLE "User", "AccountFormEmail" CASCADE`;
   });
 
@@ -205,6 +216,21 @@ describe('POST /auth/register (integration)', () => {
 
       logs.expectNoTraceOf(email, 'Def!67890');
     });
+  });
+
+  it('stops mailing further addresses once one caller passes the per-IP rate limit', async () => {
+    const submit = (n: number) =>
+      post({ email: `victime${n}@example.fr`, password: 'Abc12345' });
+
+    for (let i = 0; i < AUTH_MAIL_RATE_LIMIT.limit; i++) {
+      expect((await submit(i)).statusCode).toBe(204);
+    }
+    const refused = await submit(AUTH_MAIL_RATE_LIMIT.limit);
+
+    // The per-address counter never sees these: each address is a different
+    // one, which is exactly what the IP limit is for.
+    expect(refused.statusCode).toBe(429);
+    expect(transport.sent).toHaveLength(AUTH_MAIL_RATE_LIMIT.limit);
   });
 
   it('rejects a password that does not meet the CNIL policy with a 400', async () => {

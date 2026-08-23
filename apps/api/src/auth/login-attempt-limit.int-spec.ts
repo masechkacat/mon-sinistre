@@ -5,6 +5,8 @@ import {
 } from '@nestjs/throttler';
 import { LOGIN_ATTEMPT_LIMIT } from '@mon-sinistre/contracts';
 import { createIntTestApp } from 'src/app.int-helper';
+import { hashSecureToken } from 'src/common/secure-token';
+import { HOUR_MS } from 'src/common/time';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { createUser as createUserIn, PASSWORD } from './session.test-helper';
 
@@ -35,7 +37,7 @@ describe('login attempt rate limit (LOGIN_ATTEMPT_LIMIT)', () => {
 
   beforeEach(async () => {
     throttler.storage.clear();
-    await prisma.$executeRaw`TRUNCATE TABLE "User", "LoginAttempt" CASCADE`;
+    await prisma.$executeRaw`TRUNCATE TABLE "User", "LoginAttempt", "PasswordReset" CASCADE`;
   });
 
   it('answers 429 for an unknown address after LOGIN_ATTEMPT_LIMIT failures within the hour', async () => {
@@ -80,6 +82,63 @@ describe('login attempt rate limit (LOGIN_ATTEMPT_LIMIT)', () => {
     const res = await login(email, PASSWORD);
 
     expect(res.statusCode).toBe(200);
+  });
+
+  it('lets the right password through past the limit, and clears the address counter', async () => {
+    const email = await createUser();
+
+    for (let i = 0; i < LOGIN_ATTEMPT_LIMIT; i++) {
+      await login(email, 'wrong-password');
+    }
+    expect((await login(email, 'wrong-password')).statusCode).toBe(429);
+
+    const res = await login(email, PASSWORD);
+
+    // Otherwise ten wrong guesses an hour — cheap, and spreadable across IPs
+    // — lock the owner out of their own account indefinitely.
+    expect(res.statusCode).toBe(200);
+    expect(await prisma.loginAttempt.count()).toBe(0);
+  });
+
+  it('clears the counter on a completed password reset', async () => {
+    const email = await createUser();
+    await prisma.passwordReset.create({
+      data: {
+        user: { connect: { email } },
+        tokenHash: hashSecureToken('reset-token'),
+        expiresAt: new Date(Date.now() + HOUR_MS),
+      },
+    });
+    for (let i = 0; i < LOGIN_ATTEMPT_LIMIT; i++) {
+      await login(email, 'wrong-password');
+    }
+    expect(await prisma.loginAttempt.count()).toBe(LOGIN_ATTEMPT_LIMIT);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/auth/password-reset/confirm',
+      payload: { token: 'reset-token', password: 'Def!67890' },
+    });
+
+    expect(JSON.parse(res.payload)).toEqual({ status: 'reset' });
+    expect(await prisma.loginAttempt.count()).toBe(0);
+  });
+
+  it('does not overshoot the limit when the failures arrive at once', async () => {
+    const email = 'inconnu-3@example.fr';
+    const burst = LOGIN_ATTEMPT_LIMIT * 2;
+
+    const answers = await Promise.all(
+      Array.from({ length: burst }, () => login(email, 'wrong-password')),
+    );
+
+    // The invariant, not a reproduction of the race it guards against:
+    // whatever the interleaving, the counter never passes the limit
+    // (`withAddressLock`, `src/common/address-lock.ts`).
+    expect(await prisma.loginAttempt.count()).toBe(LOGIN_ATTEMPT_LIMIT);
+    expect(answers.filter((res) => res.statusCode === 429)).toHaveLength(
+      burst - LOGIN_ATTEMPT_LIMIT,
+    );
   });
 
   it('keeps counting failures for one address without affecting another', async () => {

@@ -37,6 +37,7 @@ CNIL, bcrypt, JWT-сессии с ротацией, глобальный guard, 
 | поисковый ключ коммуны       | `normalizeCommuneName` (`src/communes/`)                |
 | одноразовый токен ссылки     | `generateSecureToken`/`hashSecureToken` (`src/common/`) |
 | HMAC-хеш адреса для счётчика | `hashEmail` (`src/common/`)                             |
+| атомарный счётчик по адресу  | `withAddressLock` (`src/common/address-lock.ts`)        |
 | описание ошибки в логе       | `errorSummary`/`stackOf` (`src/common/`)                |
 | изоляция шага часовой чистки | `runGuarded` (`src/common/scheduled-cleanup.ts`)        |
 | строки для пользователя      | `src/i18n/fr.ts`                                        |

@@ -47,9 +47,14 @@
   часа, счётчик `AccountFormEmail` по HMAC-хешу адреса — `hashEmail`,
   `src/common/email-hash.ts`) и точка отправки всех трёх писем фичи
   (подтверждение, «у вас уже есть аккаунт», сброс пароля); один счётчик на
-  все три, не отдельный на каждое (`docs/research/user-account.md`). Та же
-  форма, что `VeilleService.sendFormMail` — письма veille и account считаются
-  раздельно, в разных таблицах.
+  все три, не отдельный на каждое (`docs/research/user-account.md`), но
+  регистрационные письма берут из него лишь `ACCOUNT_REGISTRATION_MAIL_LIMIT`
+  — зачем этот резерв, сказано у константы в contracts. Письмо собирается
+  `compose`-колбэком **за** проверкой лимита и в её транзакции, поэтому
+  ротация токена подтверждения не переживает подавленное письмо (докблоки
+  `sendAccountMail` и `register`). Та же форма, что
+  `VeilleService.sendFormMail` — письма veille и account считаются раздельно,
+  в разных таблицах.
 - Генерация и хеширование токена подтверждения — `generateSecureToken`/
   `hashSecureToken` (`src/common/secure-token.ts`, общий с veille):
   `randomBytes(32).base64url` в письмо, `sha256` hex в базу; второй генерации
@@ -96,10 +101,17 @@
   `LoginAttempt` (лимит попыток входа, фаза 4): порог `LOGIN_ATTEMPT_LIMIT` и
   его основание — `packages/contracts/src/password.ts`, рядом с
   `PASSWORD_RULES_SOURCE` (та же délibération). Хеш адреса — тот же `hashEmail`
-  и тот же секрет, что у лимита писем выше; строка пишется только на отказ, не
-  на успешный вход. `AUTH_FORM_RATE_LIMIT` (`auth.controller.ts`) — жёсткий
-  `@Throttle` по IP поверх на всех публичных form-эндпоинтах, включая этот;
-  его «почему» — в докблоке константы. Успешный вход — `AuthService.login`: access
+  и тот же секрет, что у лимита писем выше; строка пишется только на отказ.
+  **Порог гасит только неудачи**: пароль сверяется раньше счётчика, верный
+  проходит и счётчик обнуляет (как и завершённый сброс пароля в
+  `resetPassword`) — иначе десять чужих неудач в час держали бы владельца
+  снаружи бесконечно; «почему» целиком — в докблоке `validateCredentials`.
+  Счёт и вставка — под `withAddressLock` (`src/common/address-lock.ts`), общей
+  обвязкой атомарности счётчиков по адресу. `AUTH_FORM_RATE_LIMIT`
+  (`auth.controller.ts`) — жёсткий `@Throttle` по IP поверх на публичных
+  эндпоинтах, которые никому не пишут, `AUTH_MAIL_RATE_LIMIT` — вшестеро
+  строже, на тех двух, что шлют письмо на произвольный адрес (`register`,
+  `password-reset`); «почему» у каждой константы своё. Успешный вход — `AuthService.login`: access
   (`JWT_SECRET`, `ACCESS_TOKEN_EXPIRY`) в теле ответа, refresh
   (`JWT_REFRESH_SECRET`, срок — `SESSION_INACTIVITY_DAYS` из contracts, не
   переменная окружения: это число web показывает людям) — httpOnly-cookie
@@ -189,7 +201,10 @@
   те же, что у `sendAccountMail` и `validateCredentials` выше). Каждый
   `deleteMany` идёт через `runGuarded` (`src/common/scheduled-cleanup.ts`,
   общий с `VeilleService.cleanupExpired`) — падение одного не стоит хода
-  остальным; второй копии этой обвязки не заводить.
+  остальным; второй копии этой обвязки не заводить. Что расписание вообще
+  взведено, проверяет единственная спека модуля, поднимающая планировщик, —
+  `auth-schedule.spec.ts` (её докблок объясняет, почему без неё удаление
+  `@Cron` оставило бы прогон зелёным).
 - `@fastify/cookie` регистрируется общей функцией `registerCookiePlugin`
   (`src/config/fastify-cookie.ts`) — и в `main.ts`, и в `createIntTestApp`
   (`src/app.int-helper.ts`): без неё `reply.setCookie` не существует ни в
