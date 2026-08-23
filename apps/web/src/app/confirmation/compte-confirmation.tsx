@@ -1,6 +1,7 @@
 'use client';
 
 import { useMutation } from '@tanstack/react-query';
+import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import type {
   AccountConfirmationResponse,
@@ -48,6 +49,17 @@ export function CompteConfirmation() {
   return (
     <AnnouncedResult
       result={result}
+      resultAction={
+        status === 'confirmed' ? (
+          <Link
+            href="/connexion"
+            className="underline underline-offset-4"
+            data-testid="compte-confirmation-login-link"
+          >
+            {fr.compte.confirmation.loginLink}
+          </Link>
+        ) : undefined
+      }
       announce={confirmMutation.isSuccess}
       testId="compte-confirmation-result"
     >

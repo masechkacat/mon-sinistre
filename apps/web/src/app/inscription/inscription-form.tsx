@@ -140,6 +140,13 @@ export function InscriptionForm() {
               : fr.compte.inscription.submit}
           </Button>
 
+          <p className="text-sm">
+            {fr.compte.inscription.alreadyRegistered}{' '}
+            <Link href="/connexion" className="underline underline-offset-4">
+              {fr.compte.inscription.loginLink}
+            </Link>
+          </p>
+
           {mutation.isError ? <RequestError /> : null}
         </form>
       </PageContainer>

@@ -1,10 +1,10 @@
 import type { CurrentUserResponse } from '@mon-sinistre/contracts';
-import { apiFetch } from './client';
+import { authApiFetch } from './client';
 
 export function fetchCurrentUser() {
-  return apiFetch<CurrentUserResponse>('/auth/me');
+  return authApiFetch<CurrentUserResponse>('/auth/me');
 }
 
 export function deleteAccount() {
-  return apiFetch<void>('/auth/me', { method: 'DELETE' });
+  return authApiFetch<void>('/auth/me', { method: 'DELETE' });
 }

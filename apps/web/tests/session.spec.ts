@@ -2,7 +2,11 @@ import { expect, test } from '@playwright/test';
 import { fr } from '../src/i18n/fr';
 import { expectNoAxeViolations } from './a11y';
 import { testApiBaseUrl } from './env';
-import { mockSession } from './session-mock';
+import { VALID_PASSWORD as PASSWORD } from './form';
+import { ACCESS_TOKEN, mockSession } from './session-mock';
+
+const EMAIL = 'sinistre@example.fr';
+const REFRESH_COOKIE = 'refresh_token=jeton-refresh-test';
 
 test('a session with a valid refresh cookie survives a page reload', async ({
   page,
@@ -50,6 +54,46 @@ test('logging out makes the protected page unreachable, including through the br
   // on both paths because logout flipped it.
   await page.goBack();
   await expect(page.getByTestId('espace-personnel-content')).toHaveCount(0);
+});
+
+test('logging in stores the refresh cookie, and the silent refresh sends it back', async ({
+  page,
+}) => {
+  // The one test that does not take the session for granted: it checks the
+  // browser actually keeps and returns the `refresh_token` cookie. The API is
+  // a different origin, so a request sent without `credentials: 'include'`
+  // has its `Set-Cookie` dropped — a session that works until the first
+  // reload and dies there, which every mocked-refresh test above would still
+  // report as green.
+  await page.route(`${testApiBaseUrl}/auth/login`, (route) =>
+    route.fulfill({
+      status: 200,
+      headers: {
+        'content-type': 'application/json',
+        'set-cookie': `${REFRESH_COOKIE}; Path=/; HttpOnly; SameSite=Lax`,
+      },
+      body: JSON.stringify({ accessToken: ACCESS_TOKEN }),
+    }),
+  );
+  let refreshRequestCookies: string | undefined;
+  await page.route(`${testApiBaseUrl}/auth/refresh`, (route) => {
+    refreshRequestCookies = route.request().headers().cookie;
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ accessToken: ACCESS_TOKEN }),
+    });
+  });
+
+  await page.goto('/connexion');
+  await page.getByLabel(fr.compte.connexion.emailLabel).fill(EMAIL);
+  await page.getByLabel(fr.compte.connexion.passwordLabel).fill(PASSWORD);
+  await page.getByRole('button', { name: fr.compte.connexion.submit }).click();
+  await expect(page.getByTestId('espace-personnel-content')).toBeVisible();
+
+  await page.reload();
+  await expect(page.getByTestId('espace-personnel-content')).toBeVisible();
+  expect(refreshRequestCookies).toContain(REFRESH_COOKIE);
 });
 
 for (const colorScheme of ['light', 'dark'] as const) {

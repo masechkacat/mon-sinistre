@@ -123,6 +123,13 @@ test('the page shows the purpose of the data and links to the privacy policy', a
   ).toHaveAttribute('href', '/politique-de-confidentialite');
 });
 
+test('the page links to the login page', async ({ page }) => {
+  await page.goto('/inscription');
+  await expect(
+    page.getByRole('link', { name: fr.compte.inscription.loginLink }),
+  ).toHaveAttribute('href', '/connexion');
+});
+
 for (const colorScheme of ['light', 'dark'] as const) {
   test(`axe: the confirmation screen is clean — theme ${colorScheme}`, async ({
     page,

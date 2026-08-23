@@ -147,6 +147,13 @@ export function ConnexionForm() {
             : fr.compte.connexion.submit}
         </Button>
 
+        <p className="text-sm">
+          {fr.compte.connexion.noAccount}{' '}
+          <Link href="/inscription" className="underline underline-offset-4">
+            {fr.compte.connexion.registerLink}
+          </Link>
+        </p>
+
         {invalidCredentials ? (
           <Alert variant="destructive" data-testid="connexion-error">
             <AlertTitle>{fr.compte.connexion.invalidError}</AlertTitle>

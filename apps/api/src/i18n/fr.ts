@@ -27,10 +27,13 @@ export const fr = {
        * not templates, and the space before ":" must stay a literal U+00A0
        * (French typography, see fr.mail.footer.noReply below).
        */
-      requirements: (minLength: string, minClasses: string) =>
+      requirements: (minLength: string, maxBytes: string, minClasses: string) =>
         'Le mot de passe doit compter au moins ' +
         minLength +
-        ' caractères et combiner au moins ' +
+        ' caractères, ne pas dépasser ' +
+        maxBytes +
+        ' octets (un caractère accentué ou un emoji en compte plusieurs) et ' +
+        'combiner au moins ' +
         minClasses +
         ' des catégories suivantes : majuscule, minuscule, chiffre, caractère spécial.',
     },

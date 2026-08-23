@@ -46,97 +46,116 @@ export function EspacePersonnel() {
     onSuccess: () => clearSessionAndNavigate(ACCOUNT_DELETED_PATH),
   });
 
-  if (status === 'checking') {
-    return <p data-testid="session-status">{fr.session.checking}</p>;
-  }
-
+  // The page keeps its chrome while the silent refresh runs: an early return
+  // of the bare status line would leave the document with no `h1` at all
+  // (WCAG 2.1 AA, axe `page-has-heading-one`) for as long as the check takes,
+  // and the title is already true — this is the espace personnel, loading.
+  // `aria-busy` rather than a `role="status"` region: the region would be
+  // mounted with its text already inside, which is the case screen readers
+  // routinely fail to announce (see components/announced-result.tsx), so it
+  // would cost a live region and announce nothing.
   return (
     <PageContainer className="space-y-6">
-      <div data-testid="espace-personnel-content" className="space-y-6">
-        <PageTitle>{fr.compte.espacePersonnel.page.title}</PageTitle>
-        <p className="text-lg text-muted-foreground">
-          {fr.compte.espacePersonnel.intro}
-        </p>
-        {userQuery.data ? (
-          <p data-testid="espace-personnel-email">
-            <span className="font-medium">
-              {fr.compte.espacePersonnel.emailLabel}{' '}
-            </span>
-            {userQuery.data.email}
+      <PageTitle>{fr.compte.espacePersonnel.page.title}</PageTitle>
+
+      <div className="space-y-6" aria-busy={status === 'checking'}>
+        {status === 'checking' ? (
+          <p
+            data-testid="session-status"
+            className="text-lg text-muted-foreground"
+          >
+            {fr.session.checking}
           </p>
-        ) : null}
-        {userQuery.isError ? <RequestError /> : null}
-
-        <Button type="button" onClick={() => endSession()}>
-          {fr.session.logout}
-        </Button>
-
-        <div className="space-y-3 border-t pt-6">
-          {!confirmingDelete ? (
-            // A plain button, not <Button>: it needs a real DOM ref to
-            // receive focus back when the panel below closes (see
-            // `wasConfirmingRef` above), and the wrapper component does not
-            // forward one — `buttonVariants` keeps the same look without
-            // re-deriving it.
-            <button
-              ref={deleteTriggerRef}
-              type="button"
-              className={buttonVariants({ variant: 'destructive' })}
-              onClick={() => setConfirmingDelete(true)}
-            >
-              {fr.compte.espacePersonnel.deleteAccount.button}
-            </button>
-          ) : (
-            // Not `role="alert"` (Alert component): that role is for
-            // time-sensitive notifications, not for a panel that itself
-            // holds the interactive controls — `role="group"` plus an
-            // explicit accessible name is the pattern for a disclosure like
-            // this one, and it is what receives focus below.
-            <div
-              ref={confirmPanelRef}
-              tabIndex={-1}
-              role="group"
-              aria-labelledby="delete-account-warning-title"
-              aria-describedby="delete-account-warning-description"
-              data-testid="delete-account-confirm"
-              className="space-y-3 rounded-lg border border-destructive/30 bg-destructive/5 p-4 outline-none"
-            >
-              <p
-                id="delete-account-warning-title"
-                className="font-medium text-destructive"
-              >
-                {fr.compte.espacePersonnel.deleteAccount.warning.title}
+        ) : (
+          <div data-testid="espace-personnel-content" className="space-y-6">
+            <p className="text-lg text-muted-foreground">
+              {fr.compte.espacePersonnel.intro}
+            </p>
+            {userQuery.data ? (
+              <p data-testid="espace-personnel-email">
+                <span className="font-medium">
+                  {fr.compte.espacePersonnel.emailLabel}{' '}
+                </span>
+                {userQuery.data.email}
               </p>
-              <p
-                id="delete-account-warning-description"
-                className="text-sm text-muted-foreground"
-              >
-                {fr.compte.espacePersonnel.deleteAccount.warning.description}
-              </p>
-              <div className="flex gap-2">
-                <Button
+            ) : null}
+            {userQuery.isError ? <RequestError /> : null}
+
+            <Button type="button" onClick={() => endSession()}>
+              {fr.session.logout}
+            </Button>
+
+            <div className="space-y-3 border-t pt-6">
+              {!confirmingDelete ? (
+                // A plain button, not <Button>: it needs a real DOM ref to
+                // receive focus back when the panel below closes (see
+                // `wasConfirmingRef` above), and the wrapper component does not
+                // forward one — `buttonVariants` keeps the same look without
+                // re-deriving it.
+                <button
+                  ref={deleteTriggerRef}
                   type="button"
-                  variant="outline"
-                  onClick={() => setConfirmingDelete(false)}
-                  disabled={deleteMutation.isPending}
+                  className={buttonVariants({ variant: 'destructive' })}
+                  onClick={() => setConfirmingDelete(true)}
                 >
-                  {fr.compte.espacePersonnel.deleteAccount.cancel}
-                </Button>
-                <Button
-                  type="button"
-                  variant="destructive"
-                  onClick={() => deleteMutation.mutate()}
-                  disabled={deleteMutation.isPending}
+                  {fr.compte.espacePersonnel.deleteAccount.button}
+                </button>
+              ) : (
+                // Not `role="alert"` (Alert component): that role is for
+                // time-sensitive notifications, not for a panel that itself
+                // holds the interactive controls — `role="group"` plus an
+                // explicit accessible name is the pattern for a disclosure like
+                // this one, and it is what receives focus below.
+                <div
+                  ref={confirmPanelRef}
+                  tabIndex={-1}
+                  role="group"
+                  aria-labelledby="delete-account-warning-title"
+                  aria-describedby="delete-account-warning-description"
+                  data-testid="delete-account-confirm"
+                  className="space-y-3 rounded-lg border border-destructive/30 bg-destructive/5 p-4 outline-none"
                 >
-                  {deleteMutation.isPending
-                    ? fr.compte.espacePersonnel.deleteAccount.deleting
-                    : fr.compte.espacePersonnel.deleteAccount.confirm}
-                </Button>
-              </div>
-              {deleteMutation.isError ? <RequestError /> : null}
+                  <p
+                    id="delete-account-warning-title"
+                    className="font-medium text-destructive"
+                  >
+                    {fr.compte.espacePersonnel.deleteAccount.warning.title}
+                  </p>
+                  <p
+                    id="delete-account-warning-description"
+                    className="text-sm text-muted-foreground"
+                  >
+                    {
+                      fr.compte.espacePersonnel.deleteAccount.warning
+                        .description
+                    }
+                  </p>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setConfirmingDelete(false)}
+                      disabled={deleteMutation.isPending}
+                    >
+                      {fr.compte.espacePersonnel.deleteAccount.cancel}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      onClick={() => deleteMutation.mutate()}
+                      disabled={deleteMutation.isPending}
+                    >
+                      {deleteMutation.isPending
+                        ? fr.compte.espacePersonnel.deleteAccount.deleting
+                        : fr.compte.espacePersonnel.deleteAccount.confirm}
+                    </Button>
+                  </div>
+                  {deleteMutation.isError ? <RequestError /> : null}
+                </div>
+              )}
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </PageContainer>
   );

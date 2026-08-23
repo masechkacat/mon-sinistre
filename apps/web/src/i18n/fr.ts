@@ -1,4 +1,5 @@
 import {
+  PASSWORD_MAX_BYTES,
   PASSWORD_MIN_CHAR_CLASSES,
   PASSWORD_MIN_LENGTH,
 } from '@mon-sinistre/contracts';
@@ -23,6 +24,12 @@ const CONFIRMER = 'Confirmer';
 const CONFIRMATION_EN_COURS = 'Confirmation en cours…';
 const VERIFIEZ_BOITE_EMAIL = 'Vérifiez votre boîte e-mail';
 
+// The two account entry points name each other, so each label is written
+// once and reused by the page it titles and by the link that leads there
+// (compte.inscription, compte.connexion, compte.confirmation below).
+const CREER_UN_COMPTE = 'Créer un compte';
+const SE_CONNECTER = 'Se connecter';
+
 // Shared by every form with a plain email field (veille.form,
 // compte.inscription below) — one wording per fact, not one copy per
 // feature.
@@ -40,9 +47,12 @@ const PRIVACY_POLICY_LINK = 'Consulter notre politique de confidentialité';
 const PASSWORD_REQUIREMENTS =
   'Le mot de passe doit compter au moins ' +
   String(PASSWORD_MIN_LENGTH) +
-  ' caractères et combiner au moins ' +
+  ' caractères, ne pas dépasser ' +
+  String(PASSWORD_MAX_BYTES) +
+  ' octets (un caractère accentué ou un emoji en compte plusieurs) et ' +
+  'combiner au moins ' +
   String(PASSWORD_MIN_CHAR_CLASSES) +
-  ' des catégories suivantes : majuscule, minuscule, chiffre, caractère spécial.';
+  ' des catégories suivantes  : majuscule, minuscule, chiffre, caractère spécial.';
 
 // Shared by every form with a password field (compte.inscription,
 // compte.reinitialisation below) — one wording per fact, not one copy per
@@ -178,7 +188,7 @@ export const fr = {
   },
   compte: {
     inscription: {
-      page: { title: 'Créer un compte' },
+      page: { title: CREER_UN_COMPTE },
       lead: 'Créez votre compte pour accéder à votre espace personnel et suivre votre sinistre.',
       emailLabel: EMAIL_LABEL,
       emailPlaceholder: EMAIL_PLACEHOLDER,
@@ -192,6 +202,8 @@ export const fr = {
       privacyPolicyLink: PRIVACY_POLICY_LINK,
       submit: 'Créer mon compte',
       submitting: 'Création en cours…',
+      alreadyRegistered: 'Vous avez déjà un compte ?',
+      loginLink: SE_CONNECTER,
       confirmationSent: {
         title: VERIFIEZ_BOITE_EMAIL,
         description:
@@ -211,13 +223,14 @@ export const fr = {
         description:
           'Votre compte est activé. Vous pouvez maintenant vous connecter.',
       },
+      loginLink: SE_CONNECTER,
       invalid: {
         title: LIEN_INVALIDE,
         description: LIEN_CONFIRMATION_INVALIDE_DESCRIPTION,
       },
     },
     connexion: {
-      page: { title: 'Se connecter' },
+      page: { title: SE_CONNECTER },
       lead: 'Connectez-vous pour accéder à votre espace personnel.',
       emailLabel: EMAIL_LABEL,
       emailPlaceholder: EMAIL_PLACEHOLDER,
@@ -225,10 +238,12 @@ export const fr = {
       emailInvalidError: EMAIL_INVALID_ERROR,
       passwordLabel: 'Mot de passe',
       passwordRequiredError: 'Indiquez votre mot de passe.',
-      submit: 'Se connecter',
+      submit: SE_CONNECTER,
       submitting: 'Connexion en cours…',
       invalidError: 'Adresse e-mail ou mot de passe incorrect.',
       forgotPasswordLink: 'Mot de passe oublié ?',
+      noAccount: 'Pas encore de compte ?',
+      registerLink: CREER_UN_COMPTE,
     },
     motDePasseOublie: {
       page: { title: 'Mot de passe oublié' },

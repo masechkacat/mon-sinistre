@@ -105,6 +105,63 @@ test('the page links to the forgotten-password request page', async ({
   ).toHaveAttribute('href', '/mot-de-passe-oublie');
 });
 
+test('the page links to account creation', async ({ page }) => {
+  await page.goto('/connexion');
+  await expect(
+    page.getByRole('link', { name: fr.compte.connexion.registerLink }),
+  ).toHaveAttribute('href', '/inscription');
+});
+
+test('a wrong password on a live session stays on the form instead of being taken for a lost session', async ({
+  page,
+}) => {
+  // Reaching /connexion with a session still in memory is an ordinary
+  // browser "back" away. The 401 that follows belongs to the login form —
+  // treating it as an expired session would replay the failed login (one
+  // more try against the rate limit) and then reload the page away from the
+  // error message the person has to read.
+  let accepted = true;
+  await page.route(`${testApiBaseUrl}/auth/login`, (route: PlaywrightRoute) =>
+    accepted
+      ? route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ accessToken: 'jeton-acces-test' }),
+        })
+      : route.fulfill({
+          status: 401,
+          contentType: 'application/json',
+          body: '{}',
+        }),
+  );
+  let refreshCalls = 0;
+  await page.route(`${testApiBaseUrl}/auth/refresh`, (route) => {
+    refreshCalls += 1;
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ accessToken: 'jeton-acces-test' }),
+    });
+  });
+
+  await page.goto('/connexion');
+  await fillLoginForm(page, { email: EMAIL, password: PASSWORD });
+  await expect(page.getByTestId('espace-personnel-content')).toBeVisible();
+
+  await page.goBack();
+  await expect(page).toHaveURL(/\/connexion$/);
+
+  accepted = false;
+  const refreshCallsBefore = refreshCalls;
+  await fillLoginForm(page, { email: EMAIL, password: 'wrong-password' });
+
+  await expect(page.getByTestId('connexion-error')).toContainText(
+    fr.compte.connexion.invalidError,
+  );
+  await expect(page).toHaveURL(/\/connexion$/);
+  expect(refreshCalls).toBe(refreshCallsBefore);
+});
+
 for (const colorScheme of ['light', 'dark'] as const) {
   test(`axe: the login form is clean — theme ${colorScheme}`, async ({
     page,

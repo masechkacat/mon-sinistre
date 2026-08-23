@@ -67,6 +67,11 @@ test('clicking the button activates the account, changes the screen, and announc
   await expect(
     page.getByRole('button', { name: fr.compte.confirmation.confirmButton }),
   ).toHaveCount(0);
+  // Activation is not the end of the road: the screen has to offer the way
+  // on, or the only route to the login page is typing its address.
+  await expect(
+    page.getByRole('link', { name: fr.compte.confirmation.loginLink }),
+  ).toHaveAttribute('href', '/connexion');
 });
 
 test('a rejected token shows "lien invalide" after the click', async ({
