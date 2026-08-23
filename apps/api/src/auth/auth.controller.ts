@@ -40,8 +40,8 @@ import { RegisterDto } from './dto/register.dto';
 import { RequestPasswordResetDto } from './dto/request-password-reset.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ResetPasswordResponseDto } from './dto/reset-password-response.dto';
-import type { JwtUser } from './jwt.strategy';
-import { LocalAuthGuard } from './local-auth.guard';
+import type { JwtUser } from './passport/jwt.strategy';
+import { LocalAuthGuard } from './passport/local-auth.guard';
 import { Public } from './public.decorator';
 
 /** Exported for the specs, which replay the cookie by name. */

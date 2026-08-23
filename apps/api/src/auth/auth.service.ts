@@ -43,10 +43,10 @@ import {
   isUniqueViolationOn,
 } from 'src/prisma/prisma-error';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { alreadyRegisteredMailFor } from './account-already-registered-mail';
-import { confirmationMailFor } from './account-confirmation-mail';
+import { alreadyRegisteredMailFor } from './mails/account-already-registered-mail';
+import { confirmationMailFor } from './mails/account-confirmation-mail';
 import type { RegisterDto } from './dto/register.dto';
-import { passwordResetMailFor } from './password-reset-mail';
+import { passwordResetMailFor } from './mails/password-reset-mail';
 
 const nextConfirmExpiresAt = (): Date => addDays(ACCOUNT_CONFIRM_TTL_DAYS);
 const nextPasswordResetExpiresAt = (): Date =>

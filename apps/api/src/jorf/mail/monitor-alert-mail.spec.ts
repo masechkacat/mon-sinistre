@@ -1,6 +1,6 @@
 import { VEILLE_UNSUBSCRIBE_PATH } from '@mon-sinistre/contracts';
 import { fr } from 'src/i18n/fr';
-import { MailComposer } from 'src/mail/mail-composer';
+import { MailComposer } from 'src/mail/compose/mail-composer';
 import { MAX_ALERTS_DETAILED, monitorAlertMailFor } from './monitor-alert-mail';
 
 const FRONTEND_URL = 'https://app.example.test';

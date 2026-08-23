@@ -1,7 +1,7 @@
 import { fr } from 'src/i18n/fr';
 import { mailLinksOf } from 'test/helpers/mail-links';
 import { MailCompositionError } from 'src/mail/mail-composition.error';
-import { MailComposer, type MailComposerOptions } from 'src/mail/mail-composer';
+import { MailComposer, type MailComposerOptions } from 'src/mail/compose/mail-composer';
 import type { ComposeMailInput } from 'src/mail/mail-message';
 
 const FRONTEND_URL = 'https://app.example.test';

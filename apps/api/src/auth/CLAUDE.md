@@ -37,9 +37,9 @@
   валидатор пароля модуля (правило CNIL cas n° 2 из `@mon-sinistre/contracts`,
   единое французское сообщение из `fr.auth.password.requirements`); DTO сброса
   пароля (фаза 3) переиспользует его, второй не заводить.
-- `account-confirmation-mail.ts` (`confirmationMailFor`) — единственная
+- `mails/account-confirmation-mail.ts` (`confirmationMailFor`) — единственная
   сборка письма подтверждения; спека рядом её и зовёт, второго описания не
-  заводить. `account-already-registered-mail.ts` (`alreadyRegisteredMailFor`)
+  заводить. `mails/account-already-registered-mail.ts` (`alreadyRegisteredMailFor`)
   — тем же образом единственная сборка письма «у вас уже есть аккаунт»,
   ссылка — `ACCOUNT_FORGOT_PASSWORD_PATH` (contracts, докблок объясняет
   отличие от `ACCOUNT_RESET_PATH`). `AuthService.sendAccountMail` —
@@ -70,7 +70,7 @@
   hourly cleanup (phase 4) sweeps it, and a successful reset spends it with
   the rest. `P2003` on the insert — the account deleted between the
   lookup and the write — answers the same as an unknown address, same
-  reasoning as `issueTokens`'s own `P2003` handling above. `password-reset-mail.ts`
+  reasoning as `issueTokens`'s own `P2003` handling above. `mails/password-reset-mail.ts`
   (`passwordResetMailFor`) is the one build of that mail; it reuses
   `fr.mail.account.reason` rather than restating why the person is on the
   list.
@@ -83,8 +83,8 @@
   (`ResetPasswordDto`) extends the shared `TokenDto` and reuses
   `IsAccountPassword` for the new password — same policy and message as
   `RegisterDto`, second copy not warranted.
-- `POST /auth/login` → `LocalAuthGuard` (`local-auth.guard.ts`, оборачивает
-  `passport-local`) → `LocalStrategy` (`local.strategy.ts`) →
+- `POST /auth/login` → `LocalAuthGuard` (`passport/local-auth.guard.ts`, оборачивает
+  `passport-local`) → `LocalStrategy` (`passport/local.strategy.ts`) →
   `AuthService.validateCredentials`. Гвард выполняется раньше пайпа — тело
   запроса он читает сырым, а не через провалидированный `LoginDto`, поэтому
   `LocalStrategy.validate` нормализует адрес сам (`normalizeEmail`,
@@ -161,9 +161,9 @@
   вошедшими). Cookie чистится всегда, тем же `clearCookie` с тем же
   `path=/auth`, что и её установка — иначе браузер не найдёт совпадающую
   cookie для удаления.
-- Глобальный `JwtAuthGuard` (`jwt-auth.guard.ts`) — зарегистрирован как
+- Глобальный `JwtAuthGuard` (`passport/jwt-auth.guard.ts`) — зарегистрирован как
   `APP_GUARD` в `app.module.ts`, оборачивает passport-стратегию `jwt`
-  (`jwt.strategy.ts`, тот же `JWT_SECRET`, что подписывает access-токен в
+  (`passport/jwt.strategy.ts`, тот же `JWT_SECRET`, что подписывает access-токен в
   `AuthService.issueTokens`): без валидного `Authorization: Bearer` любой
   эндпоинт отвечает 401. `JwtStrategy.validate` сверх подписи и срока
   проверяет `typ`, `sub` и существование аккаунта — зачем, в его докблоке.
@@ -178,7 +178,7 @@
   возвращает email владельца access-токена (espace personnel). Без
   `@Public()` — проходит через глобальный `JwtAuthGuard`, как любой новый
   эндпоинт по умолчанию. `req.user.id` берётся из `JwtUser`
-  (`jwt.strategy.ts`, тот же тип, что кладёт guard на запрос); стратегия уже
+  (`passport/jwt.strategy.ts`, тот же тип, что кладёт guard на запрос); стратегия уже
   убедилась, что аккаунт есть, так что `P2025` → `404` из `findUniqueOrThrow`
   остаётся только гонке с удалением между guard'ом и запросом — второй ветки
   «не найден» здесь не заводить.

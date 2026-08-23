@@ -1,4 +1,4 @@
-import { MailComposer } from 'src/mail/mail-composer';
+import { MailComposer } from 'src/mail/compose/mail-composer';
 import { captureLogs } from 'test/helpers/mail-log';
 import { MailDeliveryError } from 'src/mail/mail-delivery.error';
 import type { MailMessage } from 'src/mail/mail-message';
@@ -8,7 +8,7 @@ import {
   SCALEWAY_TEM_URL,
   ScalewayMailTransport,
   type ScalewayMailConfig,
-} from 'src/mail/scaleway-mail.transport';
+} from 'src/mail/transports/scaleway-mail.transport';
 
 const RECIPIENT = 'destinataire@example.test';
 const UNSUBSCRIBE_URL = 'https://app.example.test/desabonnement/jeton-123';

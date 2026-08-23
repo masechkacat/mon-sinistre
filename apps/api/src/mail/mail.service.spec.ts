@@ -7,8 +7,8 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { Test, type TestingModule } from '@nestjs/testing';
 
 import { configFor } from 'test/helpers/config';
-import { FileMailTransport } from 'src/mail/file-mail.transport';
-import { MailComposer } from 'src/mail/mail-composer';
+import { FileMailTransport } from 'src/mail/transports/file-mail.transport';
+import { MailComposer } from 'src/mail/compose/mail-composer';
 import { captureLogs } from 'test/helpers/mail-log';
 import { MailCompositionError } from 'src/mail/mail-composition.error';
 import { MailDeliveryError } from 'src/mail/mail-delivery.error';
@@ -20,7 +20,7 @@ import { MailService } from 'src/mail/mail.service';
 import {
   SCALEWAY_TEM_URL,
   ScalewayMailTransport,
-} from 'src/mail/scaleway-mail.transport';
+} from 'src/mail/transports/scaleway-mail.transport';
 
 const RECIPIENT = 'destinataire@example.test';
 const FRONTEND_URL = 'https://app.example.test';

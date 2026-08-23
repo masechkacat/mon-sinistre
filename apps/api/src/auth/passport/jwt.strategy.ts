@@ -4,7 +4,7 @@ import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import type { EnvironmentVariables } from 'src/config/env.validation';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { TOKEN_TYPE, type TokenPayload } from './auth.service';
+import { TOKEN_TYPE, type TokenPayload } from '../auth.service';
 
 /** What `validate` below returns — Passport attaches it to the request as
  * `req.user` once `JwtAuthGuard` defers to this strategy. */

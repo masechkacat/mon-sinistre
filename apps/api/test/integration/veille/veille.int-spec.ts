@@ -14,7 +14,7 @@ import {
 } from '@mon-sinistre/contracts';
 import { createIntTestApp } from 'test/helpers/app';
 import { fr } from 'src/i18n/fr';
-import { MailComposer } from 'src/mail/mail-composer';
+import { MailComposer } from 'src/mail/compose/mail-composer';
 import { MailCompositionError } from 'src/mail/mail-composition.error';
 import { MailDeliveryError } from 'src/mail/mail-delivery.error';
 import { captureLogs } from 'test/helpers/mail-log';

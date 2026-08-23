@@ -6,7 +6,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
 import { AllExceptionsFilter } from './common/http/all-exceptions.filter';
 import { TokenThrottlerGuard } from './common/http/token-throttler.guard';
 import { AuthModule } from './auth/auth.module';
-import { JwtAuthGuard } from './auth/jwt-auth.guard';
+import { JwtAuthGuard } from './auth/passport/jwt-auth.guard';
 import { CommunesModule } from './communes/communes.module';
 import { validateEnv } from './config/env.validation';
 import { HealthController } from './health/health.controller';

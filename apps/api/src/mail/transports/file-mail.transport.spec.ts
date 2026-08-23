@@ -1,10 +1,10 @@
 import {
   FileMailTransport,
   type MailOutbox,
-} from 'src/mail/file-mail.transport';
+} from 'src/mail/transports/file-mail.transport';
 import { mailLinksOf } from 'test/helpers/mail-links';
 import { captureLogs } from 'test/helpers/mail-log';
-import { MailComposer } from 'src/mail/mail-composer';
+import { MailComposer } from 'src/mail/compose/mail-composer';
 import { MailDeliveryError } from 'src/mail/mail-delivery.error';
 import type { ComposeMailInput, MailMessage } from 'src/mail/mail-message';
 

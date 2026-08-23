@@ -1,7 +1,7 @@
 import { Injectable, type ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { AuthGuard } from '@nestjs/passport';
-import { IS_PUBLIC_KEY } from './public.decorator';
+import { IS_PUBLIC_KEY } from '../public.decorator';
 
 /** Registered globally as `APP_GUARD` (`app.module.ts`) — mechanics and the
  * fail-closed rationale: `src/auth/CLAUDE.md`. */

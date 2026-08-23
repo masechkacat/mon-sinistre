@@ -6,8 +6,8 @@ import type {
   MailMessage,
   ResolvedMailBlock,
 } from 'src/mail/mail-message';
-import { renderHtml } from 'src/mail/render-html';
-import { renderText } from 'src/mail/render-text';
+import { renderHtml } from 'src/mail/compose/render-html';
+import { renderText } from 'src/mail/compose/render-text';
 
 export interface MailComposerOptions {
   /** FRONTEND_URL: the base every link of every email is built on. */

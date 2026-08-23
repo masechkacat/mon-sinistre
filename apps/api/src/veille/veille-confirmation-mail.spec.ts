@@ -5,7 +5,7 @@ import {
 } from '@mon-sinistre/contracts';
 import { fr } from 'src/i18n/fr';
 import { mailLinksOf } from 'test/helpers/mail-links';
-import { MailComposer } from 'src/mail/mail-composer';
+import { MailComposer } from 'src/mail/compose/mail-composer';
 import { confirmationMailFor } from './veille-confirmation-mail';
 
 const FRONTEND_URL = 'https://app.example.test';
