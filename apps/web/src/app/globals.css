@@ -105,7 +105,14 @@
   --muted-foreground: oklch(0.556 0 0);
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
+  /* Darker than the shadcn default (L 0.577): the destructive controls put
+     this colour as text on its own tint, and the tints stack — the confirm
+     button (`bg-destructive/10`) sits inside the confirmation panel
+     (`bg-destructive/5`), the darkest ground the colour is read on. There
+     0.577 measures 3.6:1 and 0.52 still only 4.3:1, both under the 4.5:1
+     the project owes WCAG 2.1 AA; 0.48 measures 4.8:1. Raising it again
+     means re-checking that stacked case, not just text on white. */
+  --destructive: oklch(0.48 0.245 27.325);
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
   --ring: oklch(0.708 0 0);

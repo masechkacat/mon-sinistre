@@ -121,9 +121,14 @@ export function EspacePersonnel() {
                   >
                     {fr.compte.espacePersonnel.deleteAccount.warning.title}
                   </p>
+                  {/* Full-strength text, not `text-muted-foreground`: on the
+                      tinted panel behind it that grey measures 4.3:1, under
+                      the 4.5:1 owed (WCAG 2.1 AA) — and the one paragraph
+                      saying the deletion is irreversible is the last thing to
+                      render pale. */}
                   <p
                     id="delete-account-warning-description"
-                    className="text-sm text-muted-foreground"
+                    className="text-sm"
                   >
                     {
                       fr.compte.espacePersonnel.deleteAccount.warning
