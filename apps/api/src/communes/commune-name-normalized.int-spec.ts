@@ -4,10 +4,11 @@ import { normalizeCommuneName } from './normalize-commune-name';
 
 /**
  * The migration that carries the search key, checked against the real schema:
- * the column is added nullable (the backfill is a rerun of the idempotent
- * import, not SQL in the migration — docs/research/commune-referential.md),
- * and it is declared `COLLATE "C"` so that a plain btree serves both the
- * prefix LIKE and the ORDER BY of the search.
+ * the column is NOT NULL (added nullable while the backfill — a rerun of the
+ * idempotent import, not SQL in the migration — was still outstanding on
+ * deployments; docs/research/commune-referential.md), and it is declared
+ * `COLLATE "C"` so that a plain btree serves both the prefix LIKE and the
+ * ORDER BY of the search.
  *
  * Prisma expresses neither the collation nor an operator class in the schema
  * and does not read them back from the database, so `migrate dev` will never
@@ -29,17 +30,17 @@ describe('Commune.nameNormalized migration (integration)', () => {
     await prisma.$executeRaw`TRUNCATE TABLE "Commune" CASCADE`;
   });
 
-  it('adds nameNormalized as a nullable text column', async () => {
+  it('requires nameNormalized on every row', async () => {
     const columns = await prisma.$queryRaw<
       { data_type: string; is_nullable: string }[]
     >`SELECT data_type, is_nullable
         FROM information_schema.columns
        WHERE table_name = 'Commune' AND column_name = 'nameNormalized'`;
 
-    // Nullable on purpose: rows imported before this migration have no search
-    // key yet. NOT NULL comes as a separate migration once the import fills
-    // the column and has been rerun.
-    expect(columns).toEqual([{ data_type: 'text', is_nullable: 'YES' }]);
+    // NOT NULL is what makes a skipped `seed` after `migration:deploy`
+    // impossible to miss: without it a row with no search key is invisible to
+    // every search by name, and nothing fails loudly.
+    expect(columns).toEqual([{ data_type: 'text', is_nullable: 'NO' }]);
   });
 
   it('declares nameNormalized COLLATE "C" so the sort order is portable', async () => {
