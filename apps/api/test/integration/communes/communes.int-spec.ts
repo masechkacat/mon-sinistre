@@ -4,8 +4,8 @@ import {
   COMMUNE_SEARCH_MIN_QUERY_LENGTH,
   Commune,
 } from '@mon-sinistre/contracts';
-import { createIntTestApp } from 'src/app.int-helper';
-import { commune } from 'src/communes/commune.test-helper';
+import { createIntTestApp } from 'test/helpers/app';
+import { commune } from 'test/helpers/commune';
 import { MAX_QUERY_LENGTH } from 'src/communes/dto/search-communes-query.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
 

@@ -12,19 +12,19 @@ import {
   VEILLE_MAX_COMMUNES,
   VEILLE_UNSUBSCRIBE_PATH,
 } from '@mon-sinistre/contracts';
-import { createIntTestApp } from 'src/app.int-helper';
+import { createIntTestApp } from 'test/helpers/app';
 import { fr } from 'src/i18n/fr';
 import { MailComposer } from 'src/mail/mail-composer';
 import { MailCompositionError } from 'src/mail/mail-composition.error';
 import { MailDeliveryError } from 'src/mail/mail-delivery.error';
-import { captureLogs } from 'src/mail/mail-log.test-helper';
-import { tokenFrom } from 'src/mail/mail-links.test-helper';
+import { captureLogs } from 'test/helpers/mail-log';
+import { tokenFrom } from 'test/helpers/mail-links';
 import type { MailMessage } from 'src/mail/mail-message';
 import { MAIL_TRANSPORT, type MailTransport } from 'src/mail/mail-transport';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { VEILLE_FORM_RATE_LIMIT } from 'src/veille/veille.controller';
 import { DAY_MS, VeilleService } from 'src/veille/veille.service';
-import { communeFixture } from 'src/veille/veille.test-helper';
+import { communeFixture } from 'test/helpers/veille';
 
 class RecordingTransport implements MailTransport {
   readonly sent: MailMessage[] = [];

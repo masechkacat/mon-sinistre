@@ -1,7 +1,7 @@
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
-import { createIntTestApp } from 'src/app.int-helper';
+import { createIntTestApp } from 'test/helpers/app';
 import { MAIL_TRANSPORT } from 'src/mail/mail-transport';
-import { RecordingTransport } from 'src/mail/mail-transport.test-helper';
+import { RecordingTransport } from 'test/helpers/mail-transport';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { REFRESH_COOKIE_NAME } from 'src/auth/auth.controller';
 import {
@@ -12,7 +12,7 @@ import {
   refreshCookieOf,
   refreshSetCookieOf,
   withBearer,
-} from 'src/auth/session.test-helper';
+} from 'test/helpers/session';
 
 describe('DELETE /auth/me (integration)', () => {
   let app: NestFastifyApplication;

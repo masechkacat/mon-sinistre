@@ -7,13 +7,13 @@ import {
   VEILLE_CHANGE_PATH,
   VEILLE_CONFIRM_PATH,
 } from '@mon-sinistre/contracts';
-import { createIntTestApp } from 'src/app.int-helper';
-import { tokenFrom } from 'src/mail/mail-links.test-helper';
+import { createIntTestApp } from 'test/helpers/app';
+import { tokenFrom } from 'test/helpers/mail-links';
 import { MAIL_TRANSPORT } from 'src/mail/mail-transport';
-import { RecordingTransport } from 'src/mail/mail-transport.test-helper';
+import { RecordingTransport } from 'test/helpers/mail-transport';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { DAY_MS } from 'src/veille/veille.service';
-import { communeFixture, createChangeRequest } from 'src/veille/veille.test-helper';
+import { communeFixture, createChangeRequest } from 'test/helpers/veille';
 
 describe('/veille/changement (integration)', () => {
   let app: NestFastifyApplication;

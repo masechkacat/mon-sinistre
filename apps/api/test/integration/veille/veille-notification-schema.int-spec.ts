@@ -1,7 +1,7 @@
 import { PrismaClient } from 'src/generated/prisma/client';
-import { arreteData } from 'src/jorf/arrete.test-helper';
-import { createIntTestPrismaClient } from 'src/prisma/prisma-client.int-helper';
-import { veilleData } from 'src/veille/veille.test-helper';
+import { arreteData } from 'test/helpers/arrete';
+import { createIntTestPrismaClient } from 'test/helpers/prisma-client';
+import { veilleData } from 'test/helpers/veille';
 
 // Schema-level guarantees of the VeilleNotification outbox migration:
 // docs/research/data-model.md § 6, docs/plan/jorf-monitor.md, Фаза 3.

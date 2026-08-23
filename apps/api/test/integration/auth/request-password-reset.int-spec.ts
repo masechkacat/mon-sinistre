@@ -6,13 +6,13 @@ import {
   type ThrottlerStorageService,
 } from '@nestjs/throttler';
 import { ACCOUNT_RESET_PATH } from '@mon-sinistre/contracts';
-import { createIntTestApp } from 'src/app.int-helper';
-import { captureLogs } from 'src/mail/mail-log.test-helper';
-import { tokenFrom } from 'src/mail/mail-links.test-helper';
+import { createIntTestApp } from 'test/helpers/app';
+import { captureLogs } from 'test/helpers/mail-log';
+import { tokenFrom } from 'test/helpers/mail-links';
 import { MAIL_TRANSPORT } from 'src/mail/mail-transport';
-import { RecordingTransport } from 'src/mail/mail-transport.test-helper';
+import { RecordingTransport } from 'test/helpers/mail-transport';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { createUser as createUserIn } from 'src/auth/session.test-helper';
+import { createUser as createUserIn } from 'test/helpers/session';
 
 describe('POST /auth/password-reset (integration)', () => {
   let app: NestFastifyApplication;

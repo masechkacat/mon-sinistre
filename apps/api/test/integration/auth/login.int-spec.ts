@@ -1,13 +1,13 @@
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
-import { createIntTestApp } from 'src/app.int-helper';
-import { captureLogs } from 'src/mail/mail-log.test-helper';
+import { createIntTestApp } from 'test/helpers/app';
+import { captureLogs } from 'test/helpers/mail-log';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { REFRESH_COOKIE_NAME } from 'src/auth/auth.controller';
 import {
   createUser as createUserIn,
   PASSWORD,
   refreshSetCookieOf,
-} from 'src/auth/session.test-helper';
+} from 'test/helpers/session';
 
 describe('POST /auth/login (integration)', () => {
   let app: NestFastifyApplication;

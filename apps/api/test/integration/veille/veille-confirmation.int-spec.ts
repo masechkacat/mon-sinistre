@@ -1,8 +1,8 @@
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
-import { createIntTestApp } from 'src/app.int-helper';
+import { createIntTestApp } from 'test/helpers/app';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { DAY_MS } from 'src/veille/veille.service';
-import { createVeille } from 'src/veille/veille.test-helper';
+import { createVeille } from 'test/helpers/veille';
 import { VEILLE_TOKEN_LENGTH } from 'src/veille/veille-token';
 
 describe('/veille/confirmation (integration)', () => {

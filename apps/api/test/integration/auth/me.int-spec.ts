@@ -1,12 +1,12 @@
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
-import { createIntTestApp } from 'src/app.int-helper';
+import { createIntTestApp } from 'test/helpers/app';
 import { PrismaService } from 'src/prisma/prisma.service';
 import {
   accessTokenOf,
   createUser,
   login,
   withBearer,
-} from 'src/auth/session.test-helper';
+} from 'test/helpers/session';
 
 describe('GET /auth/me (integration)', () => {
   let app: NestFastifyApplication;

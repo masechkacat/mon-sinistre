@@ -1,6 +1,6 @@
-import { MailDeliveryError } from './mail-delivery.error';
-import type { MailMessage } from './mail-message';
-import type { MailTransport } from './mail-transport';
+import { MailDeliveryError } from 'src/mail/mail-delivery.error';
+import type { MailMessage } from 'src/mail/mail-message';
+import type { MailTransport } from 'src/mail/mail-transport';
 
 /**
  * The plain case every spec that overrides `MAIL_TRANSPORT` needs: accept and

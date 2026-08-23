@@ -1,7 +1,7 @@
 import type { PrismaService } from 'src/prisma/prisma.service';
-import { nextChangeExpiresAt, nextConfirmExpiresAt } from './veille.service';
-import { commune } from 'src/communes/commune.test-helper';
-import { generateVeilleToken } from './veille-token';
+import { nextChangeExpiresAt, nextConfirmExpiresAt } from 'src/veille/veille.service';
+import { commune } from 'test/helpers/commune';
+import { generateVeilleToken } from 'src/veille/veille-token';
 
 /**
  * A `Commune` row for veille's FK on `VeilleCommune`, where only the code has

@@ -5,7 +5,7 @@ import {
   ThrottlerStorage,
   type ThrottlerStorageService,
 } from '@nestjs/throttler';
-import { createIntTestApp } from 'src/app.int-helper';
+import { createIntTestApp } from 'test/helpers/app';
 import type { EnvironmentVariables } from 'src/config/env.validation';
 import type { Prisma } from 'src/generated/prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
@@ -21,7 +21,7 @@ import {
   login,
   refresh as refreshWith,
   refreshCookieOf,
-} from 'src/auth/session.test-helper';
+} from 'test/helpers/session';
 
 describe('POST /auth/refresh (integration)', () => {
   let app: NestFastifyApplication;

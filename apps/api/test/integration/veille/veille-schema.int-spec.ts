@@ -1,8 +1,8 @@
 import { PrismaClient } from 'src/generated/prisma/client';
 import { isForeignKeyViolation } from 'src/prisma/prisma-error';
-import { createIntTestPrismaClient } from 'src/prisma/prisma-client.int-helper';
-import { veilleData } from 'src/veille/veille.test-helper';
-import { commune } from 'src/communes/commune.test-helper';
+import { createIntTestPrismaClient } from 'test/helpers/prisma-client';
+import { veilleData } from 'test/helpers/veille';
+import { commune } from 'test/helpers/commune';
 
 // Schema-level guarantees of the veille migration:
 // docs/research/veille-subscription-lifecycle.md.

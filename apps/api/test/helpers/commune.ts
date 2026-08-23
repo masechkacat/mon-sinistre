@@ -1,4 +1,4 @@
-import { normalizeCommuneName } from './normalize-commune-name';
+import { normalizeCommuneName } from 'src/communes/normalize-commune-name';
 
 const SOURCE = {
   sourceUrl: 'https://geo.api.gouv.fr/communes',

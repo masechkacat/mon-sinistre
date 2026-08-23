@@ -1,5 +1,5 @@
 import { PrismaClient } from 'src/generated/prisma/client';
-import { createIntTestPrismaClient } from 'src/prisma/prisma-client.int-helper';
+import { createIntTestPrismaClient } from 'test/helpers/prisma-client';
 import { DEADLINE_RULE_SEED, seedDeadlineRules } from 'src/deadline-rules/deadline-rule.seed';
 
 // Schema-level guarantees of the DeadlineRule migration:

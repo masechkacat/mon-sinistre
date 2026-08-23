@@ -6,7 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
-import { createIntTestApp } from 'src/app.int-helper';
+import { createIntTestApp } from 'test/helpers/app';
 import { Public } from 'src/auth/public.decorator';
 import { Prisma } from 'src/generated/prisma/client';
 

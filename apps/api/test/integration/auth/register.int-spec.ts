@@ -10,15 +10,15 @@ import {
   ACCOUNT_CONFIRM_PATH,
   ACCOUNT_FORGOT_PASSWORD_PATH,
 } from '@mon-sinistre/contracts';
-import { createIntTestApp } from 'src/app.int-helper';
+import { createIntTestApp } from 'test/helpers/app';
 import { DAY_MS } from 'src/common/time';
-import { captureLogs } from 'src/mail/mail-log.test-helper';
-import { mailLinksOf, tokenFrom } from 'src/mail/mail-links.test-helper';
+import { captureLogs } from 'test/helpers/mail-log';
+import { mailLinksOf, tokenFrom } from 'test/helpers/mail-links';
 import { MAIL_TRANSPORT } from 'src/mail/mail-transport';
-import { RecordingTransport } from 'src/mail/mail-transport.test-helper';
+import { RecordingTransport } from 'test/helpers/mail-transport';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { AUTH_MAIL_RATE_LIMIT } from 'src/auth/auth.controller';
-import { createUser } from 'src/auth/session.test-helper';
+import { createUser } from 'test/helpers/session';
 
 describe('POST /auth/register (integration)', () => {
   let app: NestFastifyApplication;

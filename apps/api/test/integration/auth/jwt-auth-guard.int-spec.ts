@@ -1,6 +1,6 @@
 import { Controller, Get } from '@nestjs/common';
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
-import { createIntTestApp } from 'src/app.int-helper';
+import { createIntTestApp } from 'test/helpers/app';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { REFRESH_COOKIE_NAME } from 'src/auth/auth.controller';
 import {
@@ -9,7 +9,7 @@ import {
   login,
   refreshCookieOf,
   withBearer,
-} from 'src/auth/session.test-helper';
+} from 'test/helpers/session';
 import { Public } from 'src/auth/public.decorator';
 
 /**

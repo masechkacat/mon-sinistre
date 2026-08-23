@@ -4,7 +4,7 @@ import {
   PASSWORD_RESET_TTL_HOURS,
 } from '@mon-sinistre/contracts';
 import { fr } from 'src/i18n/fr';
-import { mailLinksOf } from 'src/mail/mail-links.test-helper';
+import { mailLinksOf } from 'test/helpers/mail-links';
 import { MailComposer } from 'src/mail/mail-composer';
 import { passwordResetMailFor } from './password-reset-mail';
 

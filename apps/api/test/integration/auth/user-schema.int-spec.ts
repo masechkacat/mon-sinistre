@@ -1,6 +1,6 @@
 import { PrismaClient } from 'src/generated/prisma/client';
-import { createIntTestPrismaClient } from 'src/prisma/prisma-client.int-helper';
-import { userData } from 'src/auth/user-data.test-helper';
+import { createIntTestPrismaClient } from 'test/helpers/prisma-client';
+import { userData } from 'test/helpers/user-data';
 
 // Schema-level guarantees of the User / RefreshToken migration:
 // docs/research/user-account.md, docs/research/data-model.md § 5.

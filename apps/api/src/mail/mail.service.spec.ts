@@ -6,15 +6,15 @@ import { Injectable, Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { Test, type TestingModule } from '@nestjs/testing';
 
-import { configFor } from 'src/config/config.test-helper';
+import { configFor } from 'test/helpers/config';
 import { FileMailTransport } from 'src/mail/file-mail.transport';
 import { MailComposer } from 'src/mail/mail-composer';
-import { captureLogs } from 'src/mail/mail-log.test-helper';
+import { captureLogs } from 'test/helpers/mail-log';
 import { MailCompositionError } from 'src/mail/mail-composition.error';
 import { MailDeliveryError } from 'src/mail/mail-delivery.error';
 import type { ComposeMailInput, MailMessage } from 'src/mail/mail-message';
 import { MAIL_TRANSPORT, type MailTransport } from 'src/mail/mail-transport';
-import { RecordingTransport } from 'src/mail/mail-transport.test-helper';
+import { RecordingTransport } from 'test/helpers/mail-transport';
 import { MailModule } from 'src/mail/mail.module';
 import { MailService } from 'src/mail/mail.service';
 import {

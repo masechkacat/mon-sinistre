@@ -1,5 +1,5 @@
 import { fr } from 'src/i18n/fr';
-import { mailLinksOf } from 'src/mail/mail-links.test-helper';
+import { mailLinksOf } from 'test/helpers/mail-links';
 import { MailCompositionError } from 'src/mail/mail-composition.error';
 import { MailComposer, type MailComposerOptions } from 'src/mail/mail-composer';
 import type { ComposeMailInput } from 'src/mail/mail-message';

@@ -4,11 +4,11 @@ import {
   type ThrottlerStorageService,
 } from '@nestjs/throttler';
 import { LOGIN_ATTEMPT_LIMIT } from '@mon-sinistre/contracts';
-import { createIntTestApp } from 'src/app.int-helper';
+import { createIntTestApp } from 'test/helpers/app';
 import { hashSecureToken } from 'src/common/secure-token';
 import { HOUR_MS } from 'src/common/time';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { createUser as createUserIn, PASSWORD } from 'src/auth/session.test-helper';
+import { createUser as createUserIn, PASSWORD } from 'test/helpers/session';
 
 describe('login attempt rate limit (LOGIN_ATTEMPT_LIMIT)', () => {
   let app: NestFastifyApplication;

@@ -2,7 +2,7 @@ import * as bcrypt from 'bcrypt';
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { DAY_MS } from 'src/common/time';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { REFRESH_COOKIE_NAME } from './auth.controller';
+import { REFRESH_COOKIE_NAME } from 'src/auth/auth.controller';
 
 /** Cheap on purpose — this is a test fixture's cost, not a real account's. */
 const TEST_SALT_ROUNDS = 4;

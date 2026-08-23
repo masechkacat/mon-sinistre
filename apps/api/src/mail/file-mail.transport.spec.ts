@@ -2,8 +2,8 @@ import {
   FileMailTransport,
   type MailOutbox,
 } from 'src/mail/file-mail.transport';
-import { mailLinksOf } from 'src/mail/mail-links.test-helper';
-import { captureLogs } from 'src/mail/mail-log.test-helper';
+import { mailLinksOf } from 'test/helpers/mail-links';
+import { captureLogs } from 'test/helpers/mail-log';
 import { MailComposer } from 'src/mail/mail-composer';
 import { MailDeliveryError } from 'src/mail/mail-delivery.error';
 import type { ComposeMailInput, MailMessage } from 'src/mail/mail-message';

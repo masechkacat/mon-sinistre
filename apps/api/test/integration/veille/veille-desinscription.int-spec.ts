@@ -1,8 +1,8 @@
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { GLOBAL_RATE_LIMIT } from 'src/app.module';
-import { createIntTestApp } from 'src/app.int-helper';
+import { createIntTestApp } from 'test/helpers/app';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { communeFixture, createVeille } from 'src/veille/veille.test-helper';
+import { communeFixture, createVeille } from 'test/helpers/veille';
 
 describe('POST /veille/desinscription (integration)', () => {
   let app: NestFastifyApplication;

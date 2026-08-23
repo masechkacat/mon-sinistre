@@ -14,7 +14,7 @@ import { AuthService } from './auth.service';
  * The auth counterpart of `veille/veille-schedule.spec.ts`, and for the same
  * reason its docblock spells out: every other spec of this module calls
  * `cleanupExpired` directly and the integration harness boots without a
- * scheduler (`src/app.int-helper.ts`), so deleting the `@Cron` decorator — or
+ * scheduler (`test/helpers/app.ts`), so deleting the `@Cron` decorator — or
  * the `ScheduleModule` of `AppModule` — would leave the whole suite green
  * while unconfirmed accounts, spent reset rows and rate counters piled up in
  * production. Veille's spec cannot cover this one: it registers its own

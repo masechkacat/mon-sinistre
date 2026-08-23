@@ -3,7 +3,7 @@ import {
   ThrottlerStorage,
   type ThrottlerStorageService,
 } from '@nestjs/throttler';
-import { createIntTestApp } from 'src/app.int-helper';
+import { createIntTestApp } from 'test/helpers/app';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { REFRESH_COOKIE_NAME, SESSION_RATE_LIMIT } from 'src/auth/auth.controller';
 import { REFRESH_ROTATION_GRACE_MS } from 'src/auth/auth.service';
@@ -14,7 +14,7 @@ import {
   refresh as refreshWith,
   refreshCookieOf,
   refreshSetCookieOf,
-} from 'src/auth/session.test-helper';
+} from 'test/helpers/session';
 
 describe('POST /auth/logout (integration)', () => {
   let app: NestFastifyApplication;

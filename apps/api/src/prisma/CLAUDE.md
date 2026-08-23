@@ -63,7 +63,7 @@ Connection string собирает `database-url.ts` из
 
 ## Клиент для интеграционных тестов
 
-`prisma-client.int-helper.ts` — `createIntTestPrismaClient` для спеков, которым
+`test/helpers/prisma-client.ts` — `createIntTestPrismaClient` для спеков, которым
 Nest не нужен (импорт работает вне контекста, тесты миграций — на сыром SQL).
 `$disconnect` в `afterAll` — на вызывающей стороне, иначе прогон повиснет на
 открытом пуле. Спеки, поднимающие `AppModule`, берут `PrismaService` из

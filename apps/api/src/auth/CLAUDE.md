@@ -207,7 +207,7 @@
   `@Cron` оставило бы прогон зелёным).
 - `@fastify/cookie` регистрируется общей функцией `registerCookiePlugin`
   (`src/config/fastify-cookie.ts`) — и в `main.ts`, и в `createIntTestApp`
-  (`src/app.int-helper.ts`): без неё `reply.setCookie` не существует ни в
+  (`test/helpers/app.ts`): без неё `reply.setCookie` не существует ни в
   проде, ни в интеграционных тестах.
 - `ACCOUNT_MAIL_UNSUBSCRIBE_PATH` (contracts) — выделенный путь без страницы:
   ни одноразовый токен другого письма того же аккаунта (предзагрузка ссылок

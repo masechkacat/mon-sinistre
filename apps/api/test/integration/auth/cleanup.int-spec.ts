@@ -1,10 +1,10 @@
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
-import { createIntTestApp } from 'src/app.int-helper';
+import { createIntTestApp } from 'test/helpers/app';
 import { DAY_MS, HOUR_MS } from 'src/common/time';
-import { captureLogs } from 'src/mail/mail-log.test-helper';
+import { captureLogs } from 'test/helpers/mail-log';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { AuthService } from 'src/auth/auth.service';
-import { createUser } from 'src/auth/session.test-helper';
+import { createUser } from 'test/helpers/session';
 
 describe('AuthService.cleanupExpired (integration)', () => {
   let app: NestFastifyApplication;

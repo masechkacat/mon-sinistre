@@ -1,5 +1,5 @@
 import { PrismaClient } from 'src/generated/prisma/client';
-import { createIntTestPrismaClient } from 'src/prisma/prisma-client.int-helper';
+import { createIntTestPrismaClient } from 'test/helpers/prisma-client';
 import {
   CommuneImportService,
   CommuneImportSource,

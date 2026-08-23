@@ -1,5 +1,5 @@
 import { MailComposer } from 'src/mail/mail-composer';
-import { captureLogs } from 'src/mail/mail-log.test-helper';
+import { captureLogs } from 'test/helpers/mail-log';
 import { MailDeliveryError } from 'src/mail/mail-delivery.error';
 import type { MailMessage } from 'src/mail/mail-message';
 import { MailService } from 'src/mail/mail.service';

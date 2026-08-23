@@ -1,6 +1,6 @@
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
-import { createIntTestApp } from 'src/app.int-helper';
-import { captureLogs } from 'src/mail/mail-log.test-helper';
+import { createIntTestApp } from 'test/helpers/app';
+import { captureLogs } from 'test/helpers/mail-log';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { DAY_MS, VeilleService } from 'src/veille/veille.service';
 import { generateVeilleToken } from 'src/veille/veille-token';
@@ -9,7 +9,7 @@ import {
   createChangeRequest,
   createFormEmail,
   createVeille,
-} from 'src/veille/veille.test-helper';
+} from 'test/helpers/veille';
 
 describe('VeilleService.cleanupExpired (integration)', () => {
   let app: NestFastifyApplication;

@@ -9,12 +9,12 @@ import {
   ACCOUNT_REGISTRATION_MAIL_LIMIT,
   VEILLE_FORM_EMAIL_DAILY_LIMIT,
 } from '@mon-sinistre/contracts';
-import { createIntTestApp } from 'src/app.int-helper';
-import { tokenFrom } from 'src/mail/mail-links.test-helper';
+import { createIntTestApp } from 'test/helpers/app';
+import { tokenFrom } from 'test/helpers/mail-links';
 import { MAIL_TRANSPORT } from 'src/mail/mail-transport';
-import { RecordingTransport } from 'src/mail/mail-transport.test-helper';
+import { RecordingTransport } from 'test/helpers/mail-transport';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { communeFixture } from 'src/veille/veille.test-helper';
+import { communeFixture } from 'test/helpers/veille';
 
 describe('account mail rate limit (ACCOUNT_EMAIL_LIMIT)', () => {
   let app: NestFastifyApplication;
