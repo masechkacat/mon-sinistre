@@ -2174,6 +2174,34 @@ describe('applyRectificatif recomputes linked sinistres (issue #163)', () => {
     expect(transport.sent.length).toBe(sentBefore);
   });
 
+  it('names the unresolved commune, not the risque, when the referential stopped placing it', async () => {
+    await serve(MORNING, { reconnues: [AMIGNY] });
+    await monitor.run();
+    const { sinistre } = await createSinistre('2026-06-10');
+
+    // The referential's spelling drifts away from the JO's between the two
+    // revisions: the annexe is reprinted unchanged, but its line now resolves
+    // to `codeInsee: null`, so the entry stops matching for a reason that has
+    // nothing to do with risque or period.
+    await prisma.commune.update({
+      where: { codeInsee: '02005' },
+      data: {
+        name: 'Villeneuve-sur-Oise',
+        nameNormalized: 'villeneuve sur oise',
+      },
+    });
+    await serve(EVENING, { reconnues: [AMIGNY], publishedAt: '2026-07-05' });
+    await monitor.run();
+
+    const alerts = await prisma.monitorAlert.findMany({
+      where: { kind: 'LINKED_ENTRY_CHANGED' },
+    });
+    expect(alerts).toHaveLength(1);
+    expect(alerts[0]?.detail).toContain(sinistre.id);
+    expect(alerts[0]?.detail).toContain('commune non résolue');
+    expect(alerts[0]?.detail).not.toContain('risque');
+  });
+
   it('a sinistre whose event date falls outside the corrected period stays linked and raises an alert', async () => {
     await serve(MORNING, { reconnues: [AMIGNY] });
     await monitor.run();
@@ -2204,9 +2232,10 @@ describe('applyRectificatif recomputes linked sinistres (issue #163)', () => {
   });
 });
 
-// Второй проход applyRectificatif: matchSinistres по добавленным/исправленным
-// entries — docs/plan/sinistre-plan.md, Фаза 5 (issue #164).
-describe('applyRectificatif links newly-matching sinistres (issue #164)', () => {
+// Привязка синистров к строкам, добавленным rectificatif'ом: матчинг делает
+// linkSinistres в конце прогона, rectificatif лишь помечает свои строки —
+// docs/plan/sinistre-plan.md, Фаза 5 (issue #164).
+describe('a rectificatif links newly-matching sinistres (issue #164)', () => {
   const RECT_NOR = 'INTJ2600041A';
   const RECT_TITLE =
     "Arrêté du 1er juillet 2026 portant reconnaissance de l'état de catastrophe naturelle";
@@ -2370,6 +2399,57 @@ describe('applyRectificatif links newly-matching sinistres (issue #164)', () => 
 
     expect(transport.sent.filter((m) => m.to === email)).toHaveLength(1);
     expect(await prisma.sinistreNotification.count()).toBe(1);
+  });
+
+  it('anchors the deadline on the earliest arrêté recognising the commune, not on the rectificatif of the same run', async () => {
+    await serve(MORNING, { reconnues: [AMIGNY] });
+    await monitor.run();
+    const { headers, sinistre } = await createSinistre('24290');
+    const rule = await prisma.deadlineRule.findFirstOrThrow({
+      where: { code: 'DECLARATION_ASSUREUR' },
+    });
+
+    // Two deltas in one run: the rectificatif adds Mussidan to the arrêté
+    // published 1 July, and a second arrêté published 25 June recognises the
+    // same commune. The déclaration deadline runs from the earlier
+    // publication — anchoring it later is the direction the product may never
+    // round towards (корневой CLAUDE.md, "более консервативное значение").
+    await serve(EVENING, { reconnues: [AMIGNY, MUSSIDAN] });
+    const EARLIER_NOR = 'INTJ2600042A';
+    const EARLIER_TEXT_ID = 'JORFTEXT000000004201';
+    served[NIGHT] = await buildTarball({
+      'jorf/simple/JORF/CONT/2026/06/25/JORFCONT000000004200.xml': buildTocXml(
+        EARLIER_TEXT_ID,
+        RECT_TITLE,
+      ),
+      [`jorf/simple/JORF/CONT/2026/06/25/${EARLIER_TEXT_ID}.xml`]:
+        buildArreteXml({
+          id: EARLIER_TEXT_ID,
+          nor: EARLIER_NOR,
+          title: RECT_TITLE,
+          publishedAt: '2026-06-25',
+          reconnues: [MUSSIDAN],
+        }),
+    });
+    currentFetch = stubFetch(Object.keys(served), served);
+    await monitor.run();
+
+    const linked = await getSinistre(headers, sinistre.id);
+    expect(
+      linked.steps.find((s) => s.anchor === 'DATE_PUBLICATION_ARRETE')
+        ?.plannedDate,
+    ).toBe(resolveDeadline(toIsoDate('2026-06-25'), rule.duration, rule.unit));
+    const stored = await prisma.sinistre.findUniqueOrThrow({
+      where: { id: sinistre.id },
+      select: { arreteEntry: { select: { arrete: { select: { nor: true } } } } },
+    });
+    expect(stored.arreteEntry?.arrete.nor).toBe(EARLIER_NOR);
+    // The winning line is not one the rectificatif touched, so the letter is
+    // the ordinary publication one.
+    const notification = await prisma.sinistreNotification.findFirstOrThrow({
+      where: { sinistreId: sinistre.id },
+    });
+    expect(notification.kind).toBe('PUBLICATION');
   });
 
   it('a rectificatif adding a commune as non reconnue links it without mailing the owner', async () => {
