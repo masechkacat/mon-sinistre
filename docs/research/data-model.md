@@ -197,10 +197,11 @@ docs/research/jorf-monitor.md, «Расписание прогонов».
 ### MonitorAlert
 
 id, `kind` enum (`UNPARSEABLE_ANNEXE` / `UNMATCHED_COMMUNE` /
-`OUTCOME_CHANGED` / `NOTIFICATION_STUCK`), `detail` text, `arreteId` uuid null → Arrete (**SetNull**,
+`OUTCOME_CHANGED` / `NOTIFICATION_STUCK` / `LINKED_ENTRY_CHANGED`), `detail` text, `arreteId` uuid null → Arrete (**SetNull**,
 не cascade — алерт переживает удаление породившего его arrêté), `createdAt`.
 Поводы и содержимое `detail` — docs/research/jorf-monitor.md, «Алерты
-администратору».
+администратору»; повод `LINKED_ENTRY_CHANGED` — docs/research/sinistre-plan.md,
+«Пересчёт при rectificatif и алерт `LINKED_ENTRY_CHANGED`».
 
 ## 5. Аккаунт и синистр
 

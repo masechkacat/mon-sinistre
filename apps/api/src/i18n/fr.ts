@@ -164,6 +164,8 @@ export const fr = {
             'Un texte rectificatif a changé l’issue d’une commune déjà enregistrée.',
           NOTIFICATION_STUCK:
             'Un courriel de veille n’a pas pu être remis après plusieurs tentatives.',
+          LINKED_ENTRY_CHANGED:
+            'Un texte rectificatif a modifié une commune à laquelle un ou plusieurs sinistres sont déjà rattachés.',
         },
         more: (count: string) =>
           `${count} autres alertes ne sont pas détaillées ici. Toutes sont enregistrées et consultables côté serveur.`,
