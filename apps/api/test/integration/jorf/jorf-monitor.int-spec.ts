@@ -2174,6 +2174,46 @@ describe('applyRectificatif recomputes linked sinistres (issue #163)', () => {
     expect(transport.sent.length).toBe(sentBefore);
   });
 
+  it('moves the insurer deadlines when the corrected publication lands after the déclaration', async () => {
+    await serve(MORNING, { reconnues: [AMIGNY] });
+    await monitor.run();
+    const { headers, sinistre } = await createSinistre('2026-06-10');
+    // Declared two days after the original publication, so the
+    // `DATE_DECLARATION` anchor — max(déclaration, publication) — is the
+    // déclaration date; the rectificatif below pushes publication past it.
+    await app.inject({
+      method: 'PATCH',
+      url: `/sinistres/${sinistre.id}`,
+      headers,
+      payload: { declarationDate: '2026-07-03' },
+    });
+
+    await serve(EVENING, { reconnues: [AMIGNY], publishedAt: '2026-07-10' });
+    await monitor.run();
+
+    const steps = await prisma.step.findMany({
+      where: {
+        sinistreId: sinistre.id,
+        anchor: 'DATE_DECLARATION',
+        fromTemplate: true,
+        deadlineRuleId: { not: null },
+      },
+      include: { deadlineRule: true },
+    });
+    expect(steps.length).toBeGreaterThan(0);
+    for (const step of steps) {
+      const rule = step.deadlineRule;
+      expect(step.plannedDate?.toISOString().slice(0, 10)).toBe(
+        rule &&
+          resolveDeadline(toIsoDate('2026-07-10'), rule.duration, rule.unit),
+      );
+    }
+    const alerts = await prisma.monitorAlert.findMany({
+      where: { kind: 'LINKED_ENTRY_CHANGED' },
+    });
+    expect(alerts[0]?.detail).toContain('échéances assureur');
+  });
+
   it('names the unresolved commune, not the risque, when the referential stopped placing it', async () => {
     await serve(MORNING, { reconnues: [AMIGNY] });
     await monitor.run();

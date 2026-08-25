@@ -38,6 +38,8 @@ import {
   type MatchArreteEntry,
   type MatchCandidateSinistre,
 } from 'src/sinistres/match-sinistres';
+import { anchorDatesOf } from 'src/sinistres/anchor-dates';
+import { recomputeDeclarationSteps } from 'src/sinistres/recompute-declaration-steps';
 import { sinistreStatus } from 'src/sinistres/sinistre-status';
 import { generateVeilleToken } from 'src/veille/veille-token';
 import { DilaClient } from './dila/dila.client';
@@ -934,12 +936,18 @@ export class JorfMonitorService {
    * applyLink} (always writes it) and {@link recomputeLinkedSinistres}
    * (writes only when it actually changed), so a `PATCH /sinistres/:id`
    * racing either one is never clobbered by a status computed off stale
-   * data. `null` when the sinistre no longer exists (deleted mid-loop). */
+   * data. `declarationDate` comes back with it because that same read is the
+   * fresh one the `DATE_DECLARATION` anchor needs. `null` when the sinistre
+   * no longer exists (deleted mid-loop). */
   private async recomputeStatus(
     tx: Prisma.TransactionClient,
     sinistreId: string,
     outcome: ArreteEntryOutcome,
-  ): Promise<{ current: SinistreStatus; next: SinistreStatus } | null> {
+  ): Promise<{
+    current: SinistreStatus;
+    next: SinistreStatus;
+    declarationDate: IsoDate | null;
+  } | null> {
     const current = await tx.sinistre.findUnique({
       where: { id: sinistreId },
       select: { status: true, declarationDate: true },
@@ -947,15 +955,17 @@ export class JorfMonitorService {
     if (!current) {
       return null;
     }
+    const declarationDate = current.declarationDate
+      ? dateToIsoDate(current.declarationDate)
+      : null;
     return {
       current: current.status as SinistreStatus,
       next: sinistreStatus({
         current: current.status as SinistreStatus,
         link: { outcome },
-        declarationDate: current.declarationDate
-          ? dateToIsoDate(current.declarationDate)
-          : null,
+        declarationDate,
       }),
+      declarationDate,
     };
   }
 
@@ -1456,6 +1466,7 @@ export class JorfMonitorService {
     const alerts: MonitorAlertForMail[] = [];
     const recorded = new Set(existing.monitorAlerts.map((a) => a.detail));
     const pairs = pairEntries(existing.entries, matched);
+    const previousPublishedAt = dateToIsoDate(existing.publishedAt);
     const publishedAt = isoDateToDate(parsed.publishedAt);
     const publishedAtChanged =
       existing.publishedAt.getTime() !== publishedAt.getTime();
@@ -1536,9 +1547,17 @@ export class JorfMonitorService {
                 existing.id,
                 parsed.nor,
                 linkedByEntry.get(match.id) ?? [],
-                toMatchEntry(match.id, codeInsee, entry, parsed.publishedAt),
+                {
+                  entry: toMatchEntry(
+                    match.id,
+                    codeInsee,
+                    entry,
+                    parsed.publishedAt,
+                  ),
+                  previousPublishedAt,
+                  rule: declarationRule,
+                },
                 successorOf,
-                declarationRule,
               );
             }
           }
@@ -1652,6 +1671,13 @@ export class JorfMonitorService {
    * research "Шаблон плана"), and `SinistresService.update`'s own recompute
    * reuses a step's already-chosen rule rather than re-resolving it too.
    *
+   * A moved `publishedAt` also moves the `DATE_DECLARATION` anchor of a
+   * dossier declared before it — that anchor is
+   * `max(declarationDate, arretePublishedAt)` ({@link anchorDatesOf}), so the
+   * insurer's own deadlines are recomputed through the same {@link
+   * recomputeDeclarationSteps} `SinistresService.update` calls when the owner
+   * declares, never a second copy of it.
+   *
    * A sinistre `matchSinistres` would no longer link — the entry's `risque`
    * or period moved out from under it, or its commune stopped resolving — is
    * left linked and only alerted: per the research decision, only a person
@@ -1668,13 +1694,17 @@ export class JorfMonitorService {
     arreteId: string,
     nor: string,
     sinistres: readonly LinkedSinistre[],
-    matchEntry: MatchArreteEntry,
+    revision: {
+      entry: MatchArreteEntry;
+      previousPublishedAt: IsoDate;
+      rule: ResolvedDeadlineRule | null;
+    },
     successorOf: ReadonlyMap<string, string>,
-    rule: ResolvedDeadlineRule | null,
   ): Promise<void> {
     if (sinistres.length === 0) {
       return;
     }
+    const { entry: matchEntry, previousPublishedAt, rule } = revision;
 
     // `undefined` means "leave the step as it is" (a referential gap), never
     // conflated with `null` ("no déclaration deadline exists to date").
@@ -1724,7 +1754,27 @@ export class JorfMonitorService {
         matchSinistres([matchEntry], [toMatchCandidate(sinistre)], successorOf)
           .length > 0;
 
-      if (!statusChanged && !stepChanged && stillMatches) {
+      // The insurer's own deadlines hang off `DATE_DECLARATION`, which is
+      // `max(declarationDate, arretePublishedAt)` ({@link anchorDatesOf}) —
+      // a corrected publication date moves them too, for a dossier already
+      // declared before it.
+      const eventDate = dateToIsoDate(sinistre.eventDate);
+      const declarationAnchor = (arretePublishedAt: IsoDate) =>
+        anchorDatesOf({
+          eventDate,
+          declarationDate: status.declarationDate,
+          arretePublishedAt,
+        }).DATE_DECLARATION ?? null;
+      const anchorBefore = declarationAnchor(previousPublishedAt);
+      const anchorAfter = declarationAnchor(matchEntry.publishedAt);
+      const declarationAnchorMoved = anchorBefore !== anchorAfter;
+
+      if (
+        !statusChanged &&
+        !stepChanged &&
+        !declarationAnchorMoved &&
+        stillMatches
+      ) {
         continue;
       }
 
@@ -1740,6 +1790,13 @@ export class JorfMonitorService {
         if (updated.count === 0) {
           continue;
         }
+      }
+      if (declarationAnchorMoved) {
+        await recomputeDeclarationSteps(tx, sinistre.id, {
+          eventDate,
+          declarationDate: status.declarationDate,
+          arretePublishedAt: matchEntry.publishedAt,
+        });
       }
       if (stepChanged) {
         const updated = await this.updateDeclarationStep(
@@ -1769,6 +1826,8 @@ export class JorfMonitorService {
         statusChanged && `statut ${status.current} → ${newStatus}`,
         stepChanged &&
           `échéance déclaration ${oldPlannedDate ?? '—'} → ${newPlannedDate ?? '—'}`,
+        declarationAnchorMoved &&
+          `échéances assureur ${anchorBefore ?? '—'} → ${anchorAfter ?? '—'}`,
         !stillMatches &&
           (matchEntry.codeInsee === null
             ? 'commune non résolue par le référentiel'

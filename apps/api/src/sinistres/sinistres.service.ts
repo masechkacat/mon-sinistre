@@ -29,12 +29,12 @@ import { todayInParis } from 'src/common/time/today-in-paris';
 import { anchorDatesOf } from './anchor-dates';
 import {
   buildStepSnapshot,
-  resolveStepPlannedDate,
   type ResolvedDeadlineRule,
   type StepTemplateRow,
 } from './build-step-snapshot';
 import type { CreateSinistreDto } from './dto/create-sinistre.dto';
 import { matchSinistres, toMatchArreteEntry } from './match-sinistres';
+import { recomputeDeclarationSteps } from './recompute-declaration-steps';
 import { CATNAT_PLAN_KEY } from 'src/step-templates/step-template.seed';
 import { sinistreStatus } from './sinistre-status';
 import {
@@ -264,13 +264,7 @@ export class SinistresService {
     return this.prisma.$transaction(async (tx) => {
       const sinistre = await tx.sinistre.findFirst({
         where: { id, userId },
-        include: {
-          steps: {
-            orderBy: { order: 'asc' },
-            include: { deadlineRule: true },
-          },
-          arreteEntry: { include: { arrete: true } },
-        },
+        include: { arreteEntry: { include: { arrete: true } } },
       });
       if (!sinistre) {
         throw new NotFoundException();
@@ -284,11 +278,6 @@ export class SinistresService {
       const arretePublishedAt = sinistre.arreteEntry
         ? dateToIsoDate(sinistre.arreteEntry.arrete.publishedAt)
         : null;
-      const declarationAnchorDate = anchorDatesOf({
-        eventDate,
-        declarationDate,
-        arretePublishedAt,
-      }).DATE_DECLARATION;
       const status = sinistreStatus({
         current: sinistre.status as SinistreStatus,
         link: sinistre.arreteEntry
@@ -307,25 +296,11 @@ export class SinistresService {
         },
       });
 
-      for (const step of sinistre.steps) {
-        // `fromTemplate` does not follow from `anchor`: a user-added step is
-        // left anchorless by convention, not by the schema (root `CLAUDE.md`).
-        if (step.anchor !== 'DATE_DECLARATION' || !step.fromTemplate) {
-          continue;
-        }
-        const plannedDate = resolveStepPlannedDate(
-          declarationAnchorDate,
-          step.deadlineRuleId !== null,
-          step.deadlineRule,
-          step.offsetDays,
-        );
-        await tx.step.update({
-          where: { id: step.id },
-          data: {
-            plannedDate: plannedDate ? isoDateToDate(plannedDate) : null,
-          },
-        });
-      }
+      await recomputeDeclarationSteps(tx, id, {
+        eventDate,
+        declarationDate,
+        arretePublishedAt,
+      });
 
       const updated = await tx.sinistre.findUniqueOrThrow({
         where: { id },
