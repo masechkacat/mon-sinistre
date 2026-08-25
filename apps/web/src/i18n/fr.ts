@@ -30,6 +30,11 @@ const VERIFIEZ_BOITE_EMAIL = 'Vérifiez votre boîte e-mail';
 const CREER_UN_COMPTE = 'Créer un compte';
 const SE_CONNECTER = 'Se connecter';
 
+// Shared by every commune search field (veille.form's multi-select,
+// commune.select below) — one wording per fact, not one copy per feature.
+const COMMUNE_SEARCH_PLACEHOLDER = 'Nom de la commune ou code INSEE';
+const COMMUNE_NONE_FOUND = 'Aucune commune trouvée';
+
 // Shared by every form with a plain email field (veille.form,
 // compte.inscription below) — one wording per fact, not one copy per
 // feature.
@@ -104,6 +109,12 @@ export const fr = {
       ],
     },
   },
+  commune: {
+    searchPlaceholder: COMMUNE_SEARCH_PLACEHOLDER,
+    noneFound: COMMUNE_NONE_FOUND,
+    clearSelection: 'Effacer la commune sélectionnée',
+    selected: (label: string) => `Commune sélectionnée : ${label}`,
+  },
   veille: {
     page: {
       title: 'Être prévenu·e en cas de catastrophe naturelle',
@@ -111,9 +122,9 @@ export const fr = {
     },
     form: {
       communesLabel: 'Communes à surveiller',
-      communesPlaceholder: 'Nom de la commune ou code INSEE',
+      communesPlaceholder: COMMUNE_SEARCH_PLACEHOLDER,
       removeCommune: (name: string) => `Retirer ${name}`,
-      noCommuneFound: 'Aucune commune trouvée',
+      noCommuneFound: COMMUNE_NONE_FOUND,
       communesFound: (count: number) =>
         count === 1 ? '1 commune trouvée' : `${count} communes trouvées`,
       maxCommunesReached: (max: number) =>
