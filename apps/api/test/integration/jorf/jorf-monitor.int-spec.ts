@@ -1993,6 +1993,528 @@ describe('sinistre linking on ingest (issue #157)', () => {
   });
 });
 
+// Первый проход applyRectificatif: пересчёт статуса и plannedDate уже
+// привязанных синистров тронутых entries — docs/plan/sinistre-plan.md,
+// Фаза 5 (issue #163).
+describe('applyRectificatif recomputes linked sinistres (issue #163)', () => {
+  const RECT_NOR = 'INTJ2600040A';
+  const RECT_TITLE =
+    "Arrêté du 1er juillet 2026 portant reconnaissance de l'état de catastrophe naturelle";
+  const TEXT_ID = 'JORFTEXT000000004001';
+  const AMIGNY = [
+    'Aisne',
+    'Amigny-Rouy',
+    'Inondations',
+    '01/06/2026',
+    '20/06/2026',
+  ];
+  const MORNING = 'JORFSIMPLE_20260701-060000.tar.gz';
+  const EVENING = 'JORFSIMPLE_20260701-230000.tar.gz';
+
+  let app: NestFastifyApplication;
+  let prisma: PrismaService;
+  let monitor: JorfMonitorService;
+  let transport: RecordingTransport;
+  let currentFetch: FetchFn;
+  let served: Record<string, Buffer>;
+
+  beforeAll(async () => {
+    transport = new RecordingTransport();
+    app = await createIntTestApp({
+      customize: (builder) =>
+        builder
+          .overrideProvider(DilaClient)
+          .useValue(new DilaClient((...args) => currentFetch(...args)))
+          .overrideProvider(MAIL_TRANSPORT)
+          .useValue(transport),
+    });
+    prisma = app.get(PrismaService);
+    monitor = app.get(JorfMonitorService);
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  beforeEach(async () => {
+    transport.sent.length = 0;
+    served = {};
+    await prisma.$executeRaw`TRUNCATE TABLE "User", "Commune", "DeadlineRule", "StepTemplate", "Sinistre", "Arrete", "JorfDelta", "MonitorLock", "MonitorAlert" CASCADE`;
+    await prisma.commune.create({
+      data: communeFixture('02005', 'Amigny-Rouy', '02', 'Aisne'),
+    });
+    await seedDeadlineRules(prisma);
+    await seedStepTemplates(prisma);
+  });
+
+  /** Same NOR across both calls: a rectificatif, not a second arrêté. */
+  const serve = async (delta: string, revision: ArreteRevision) => {
+    served[delta] = await buildTarball({
+      'jorf/simple/JORF/CONT/2026/07/01/JORFCONT000000004000.xml': buildTocXml(
+        TEXT_ID,
+        RECT_TITLE,
+      ),
+      [`jorf/simple/JORF/CONT/2026/07/01/${TEXT_ID}.xml`]: buildArreteXml({
+        id: TEXT_ID,
+        nor: RECT_NOR,
+        title: RECT_TITLE,
+        ...revision,
+      }),
+    });
+    currentFetch = stubFetch(Object.keys(served), served);
+  };
+
+  async function createSinistre(eventDate = '2026-06-10') {
+    const email = await createUser(prisma);
+    const headers = await headersForEmail(app, prisma, email);
+    const res = await app.inject({
+      method: 'POST',
+      url: '/sinistres',
+      headers,
+      payload: { codeInsee: '02005', risque: 'INONDATION', eventDate },
+    });
+    const sinistre = JSON.parse(res.payload) as {
+      id: string;
+      status: string;
+      arreteEntryId: string | null;
+    };
+    return { headers, sinistre };
+  }
+
+  async function getSinistre(
+    headers: ReturnType<typeof withBearer>,
+    id: string,
+  ) {
+    const res = await app.inject({
+      method: 'GET',
+      url: `/sinistres/${id}`,
+      headers,
+    });
+    return JSON.parse(res.payload) as {
+      id: string;
+      status: string;
+      arreteEntryId: string | null;
+      steps: { anchor: string | null; plannedDate: string | null }[];
+    };
+  }
+
+  it('a rectificatif flipping REFUSE → RECONNU relinks the sinistre and assigns its déclaration deadline', async () => {
+    await serve(MORNING, { nonReconnues: [AMIGNY] });
+    await monitor.run();
+    const { headers, sinistre } = await createSinistre('2026-06-10');
+    expect(sinistre.status).toBe('ARRETE_REFUSE');
+    const rule = await prisma.deadlineRule.findFirstOrThrow({
+      where: { code: 'DECLARATION_ASSUREUR' },
+    });
+
+    await serve(EVENING, { reconnues: [AMIGNY] });
+    await monitor.run();
+
+    const relinked = await getSinistre(headers, sinistre.id);
+    expect(relinked.status).toBe('ARRETE_PUBLIE');
+    expect(relinked.arreteEntryId).toBe(sinistre.arreteEntryId);
+    const step = relinked.steps.find(
+      (s) => s.anchor === 'DATE_PUBLICATION_ARRETE',
+    );
+    expect(step?.plannedDate).toBe(
+      resolveDeadline(toIsoDate('2026-07-01'), rule.duration, rule.unit),
+    );
+    const alerts = await prisma.monitorAlert.findMany({
+      where: { kind: 'LINKED_ENTRY_CHANGED' },
+    });
+    expect(alerts).toHaveLength(1);
+    expect(alerts[0]?.detail).toContain(sinistre.id);
+  });
+
+  it('a rectificatif that only moves the publication date recomputes the déclaration deadline (critère PRD № 12)', async () => {
+    await serve(MORNING, { reconnues: [AMIGNY] });
+    await monitor.run();
+    const { headers, sinistre } = await createSinistre('2026-06-10');
+    const linked = await getSinistre(headers, sinistre.id);
+    const rule = await prisma.deadlineRule.findFirstOrThrow({
+      where: { code: 'DECLARATION_ASSUREUR' },
+    });
+
+    await serve(EVENING, { reconnues: [AMIGNY], publishedAt: '2026-07-05' });
+    await monitor.run();
+
+    const moved = await getSinistre(headers, sinistre.id);
+    const step = moved.steps.find(
+      (s) => s.anchor === 'DATE_PUBLICATION_ARRETE',
+    );
+    expect(step?.plannedDate).not.toBe(
+      linked.steps.find((s) => s.anchor === 'DATE_PUBLICATION_ARRETE')
+        ?.plannedDate,
+    );
+    expect(step?.plannedDate).toBe(
+      resolveDeadline(toIsoDate('2026-07-05'), rule.duration, rule.unit),
+    );
+  });
+
+  it('a rectificatif flipping RECONNU → REFUSE clears the déclaration deadline and sends no mail', async () => {
+    await serve(MORNING, { reconnues: [AMIGNY] });
+    await monitor.run();
+    const { headers, sinistre } = await createSinistre('2026-06-10');
+    const linked = await getSinistre(headers, sinistre.id);
+    expect(
+      linked.steps.find((s) => s.anchor === 'DATE_PUBLICATION_ARRETE')
+        ?.plannedDate,
+    ).not.toBeNull();
+    const sentBefore = transport.sent.length;
+
+    await serve(EVENING, { nonReconnues: [AMIGNY] });
+    await monitor.run();
+
+    const refused = await getSinistre(headers, sinistre.id);
+    expect(refused.status).toBe('ARRETE_REFUSE');
+    expect(
+      refused.steps.find((s) => s.anchor === 'DATE_PUBLICATION_ARRETE')
+        ?.plannedDate,
+    ).toBeNull();
+    expect(transport.sent.length).toBe(sentBefore);
+  });
+
+  it('moves the insurer deadlines when the corrected publication lands after the déclaration', async () => {
+    await serve(MORNING, { reconnues: [AMIGNY] });
+    await monitor.run();
+    const { headers, sinistre } = await createSinistre('2026-06-10');
+    // Declared two days after the original publication, so the
+    // `DATE_DECLARATION` anchor — max(déclaration, publication) — is the
+    // déclaration date; the rectificatif below pushes publication past it.
+    await app.inject({
+      method: 'PATCH',
+      url: `/sinistres/${sinistre.id}`,
+      headers,
+      payload: { declarationDate: '2026-07-03' },
+    });
+
+    await serve(EVENING, { reconnues: [AMIGNY], publishedAt: '2026-07-10' });
+    await monitor.run();
+
+    const steps = await prisma.step.findMany({
+      where: {
+        sinistreId: sinistre.id,
+        anchor: 'DATE_DECLARATION',
+        fromTemplate: true,
+        deadlineRuleId: { not: null },
+      },
+      include: { deadlineRule: true },
+    });
+    expect(steps.length).toBeGreaterThan(0);
+    for (const step of steps) {
+      const rule = step.deadlineRule;
+      expect(step.plannedDate?.toISOString().slice(0, 10)).toBe(
+        rule &&
+          resolveDeadline(toIsoDate('2026-07-10'), rule.duration, rule.unit),
+      );
+    }
+    const alerts = await prisma.monitorAlert.findMany({
+      where: { kind: 'LINKED_ENTRY_CHANGED' },
+    });
+    expect(alerts[0]?.detail).toContain('échéances assureur');
+  });
+
+  it('names the unresolved commune, not the risque, when the referential stopped placing it', async () => {
+    await serve(MORNING, { reconnues: [AMIGNY] });
+    await monitor.run();
+    const { sinistre } = await createSinistre('2026-06-10');
+
+    // The referential's spelling drifts away from the JO's between the two
+    // revisions: the annexe is reprinted unchanged, but its line now resolves
+    // to `codeInsee: null`, so the entry stops matching for a reason that has
+    // nothing to do with risque or period.
+    await prisma.commune.update({
+      where: { codeInsee: '02005' },
+      data: {
+        name: 'Villeneuve-sur-Oise',
+        nameNormalized: 'villeneuve sur oise',
+      },
+    });
+    await serve(EVENING, { reconnues: [AMIGNY], publishedAt: '2026-07-05' });
+    await monitor.run();
+
+    const alerts = await prisma.monitorAlert.findMany({
+      where: { kind: 'LINKED_ENTRY_CHANGED' },
+    });
+    expect(alerts).toHaveLength(1);
+    expect(alerts[0]?.detail).toContain(sinistre.id);
+    expect(alerts[0]?.detail).toContain('commune non résolue');
+    expect(alerts[0]?.detail).not.toContain('risque');
+  });
+
+  it('a sinistre whose event date falls outside the corrected period stays linked and raises an alert', async () => {
+    await serve(MORNING, { reconnues: [AMIGNY] });
+    await monitor.run();
+    // Right at the edge of the original 01/06–20/06 window — the rectificatif
+    // below shortens it to 01/06–10/06, pushing this dossier's date out.
+    const { headers, sinistre } = await createSinistre('2026-06-15');
+    expect(sinistre.status).toBe('ARRETE_PUBLIE');
+
+    const AMIGNY_SHORTENED = [
+      'Aisne',
+      'Amigny-Rouy',
+      'Inondations',
+      '01/06/2026',
+      '10/06/2026',
+    ];
+    await serve(EVENING, { reconnues: [AMIGNY_SHORTENED] });
+    await monitor.run();
+
+    const after = await getSinistre(headers, sinistre.id);
+    // Not unlinked — a person, not the monitor, may take an assigned
+    // deadline away (docs/research/sinistre-plan.md, «Пересчёт при rectificatif»).
+    expect(after.arreteEntryId).toBe(sinistre.arreteEntryId);
+    const alerts = await prisma.monitorAlert.findMany({
+      where: { kind: 'LINKED_ENTRY_CHANGED' },
+    });
+    expect(alerts).toHaveLength(1);
+    expect(alerts[0]?.detail).toContain(sinistre.id);
+  });
+});
+
+// Привязка синистров к строкам, добавленным rectificatif'ом: матчинг делает
+// linkSinistres в конце прогона, rectificatif лишь помечает свои строки —
+// docs/plan/sinistre-plan.md, Фаза 5 (issue #164).
+describe('a rectificatif links newly-matching sinistres (issue #164)', () => {
+  const RECT_NOR = 'INTJ2600041A';
+  const RECT_TITLE =
+    "Arrêté du 1er juillet 2026 portant reconnaissance de l'état de catastrophe naturelle";
+  const TEXT_ID = 'JORFTEXT000000004101';
+  const AMIGNY = [
+    'Aisne',
+    'Amigny-Rouy',
+    'Inondations',
+    '01/06/2026',
+    '20/06/2026',
+  ];
+  const MUSSIDAN = [
+    'Dordogne',
+    'Mussidan',
+    'Inondations',
+    '01/06/2026',
+    '20/06/2026',
+  ];
+  const MORNING = 'JORFSIMPLE_20260701-060000.tar.gz';
+  const EVENING = 'JORFSIMPLE_20260701-230000.tar.gz';
+  const NIGHT = 'JORFSIMPLE_20260702-060000.tar.gz';
+
+  let app: NestFastifyApplication;
+  let prisma: PrismaService;
+  let monitor: JorfMonitorService;
+  let transport: RecordingTransport;
+  let currentFetch: FetchFn;
+  let served: Record<string, Buffer>;
+
+  beforeAll(async () => {
+    transport = new RecordingTransport();
+    app = await createIntTestApp({
+      customize: (builder) =>
+        builder
+          .overrideProvider(DilaClient)
+          .useValue(new DilaClient((...args) => currentFetch(...args)))
+          .overrideProvider(MAIL_TRANSPORT)
+          .useValue(transport),
+    });
+    prisma = app.get(PrismaService);
+    monitor = app.get(JorfMonitorService);
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  beforeEach(async () => {
+    transport.sent.length = 0;
+    served = {};
+    await prisma.$executeRaw`TRUNCATE TABLE "User", "Commune", "DeadlineRule", "StepTemplate", "Sinistre", "Arrete", "JorfDelta", "MonitorLock", "MonitorAlert" CASCADE`;
+    await prisma.commune.create({
+      data: communeFixture('02005', 'Amigny-Rouy', '02', 'Aisne'),
+    });
+    await prisma.commune.create({
+      data: communeFixture('24290', 'Mussidan', '24', 'Dordogne'),
+    });
+    await seedDeadlineRules(prisma);
+    await seedStepTemplates(prisma);
+  });
+
+  /** Same NOR across every call: a rectificatif, not a second arrêté. */
+  const serve = async (delta: string, revision: ArreteRevision) => {
+    served[delta] = await buildTarball({
+      'jorf/simple/JORF/CONT/2026/07/01/JORFCONT000000004100.xml': buildTocXml(
+        TEXT_ID,
+        RECT_TITLE,
+      ),
+      [`jorf/simple/JORF/CONT/2026/07/01/${TEXT_ID}.xml`]: buildArreteXml({
+        id: TEXT_ID,
+        nor: RECT_NOR,
+        title: RECT_TITLE,
+        ...revision,
+      }),
+    });
+    currentFetch = stubFetch(Object.keys(served), served);
+  };
+
+  async function createSinistre(codeInsee: string, eventDate = '2026-06-10') {
+    const email = `${randomUUID()}@example.fr`;
+    await createUser(prisma, { email });
+    const headers = await headersForEmail(app, prisma, email);
+    const res = await app.inject({
+      method: 'POST',
+      url: '/sinistres',
+      headers,
+      payload: { codeInsee, risque: 'INONDATION', eventDate },
+    });
+    const sinistre = JSON.parse(res.payload) as {
+      id: string;
+      status: string;
+      arreteEntryId: string | null;
+    };
+    return { headers, email, sinistre };
+  }
+
+  async function getSinistre(
+    headers: ReturnType<typeof withBearer>,
+    id: string,
+  ) {
+    const res = await app.inject({
+      method: 'GET',
+      url: `/sinistres/${id}`,
+      headers,
+    });
+    return JSON.parse(res.payload) as {
+      id: string;
+      status: string;
+      arreteEntryId: string | null;
+      steps: { anchor: string | null; plannedDate: string | null }[];
+    };
+  }
+
+  it('links a sinistre of a commune added by a rectificatif and mails its owner', async () => {
+    await serve(MORNING, { reconnues: [AMIGNY] });
+    await monitor.run();
+    const { headers, email, sinistre } = await createSinistre('24290');
+    expect(sinistre.arreteEntryId).toBeNull();
+    const rule = await prisma.deadlineRule.findFirstOrThrow({
+      where: { code: 'DECLARATION_ASSUREUR' },
+    });
+
+    await serve(EVENING, { reconnues: [AMIGNY, MUSSIDAN] });
+    await monitor.run();
+
+    const linked = await getSinistre(headers, sinistre.id);
+    expect(linked.status).toBe('ARRETE_PUBLIE');
+    expect(linked.arreteEntryId).not.toBeNull();
+    const step = linked.steps.find(
+      (s) => s.anchor === 'DATE_PUBLICATION_ARRETE',
+    );
+    expect(step?.plannedDate).toBe(
+      resolveDeadline(toIsoDate('2026-07-01'), rule.duration, rule.unit),
+    );
+
+    const mail = transport.sent.find((m) => m.to === email);
+    expect(mail).toBeDefined();
+    expect(mail?.text).toContain('Mussidan');
+    const notification = await prisma.sinistreNotification.findFirstOrThrow({
+      where: { sinistreId: sinistre.id },
+    });
+    expect(notification.kind).toBe('RECTIFICATIF_RECONNU');
+    expect(notification.sentAt).not.toBeNull();
+  });
+
+  it('a repeat run of the same rectificatif does not send a second letter', async () => {
+    await serve(MORNING, { reconnues: [AMIGNY] });
+    await monitor.run();
+    const { email } = await createSinistre('24290');
+
+    await serve(EVENING, { reconnues: [AMIGNY, MUSSIDAN] });
+    await monitor.run();
+    expect(transport.sent.filter((m) => m.to === email)).toHaveLength(1);
+
+    // Same NOR, byte-identical content under a new delta name — the
+    // contentHash-unchanged shortcut (`ingestArrete`), not a second pass over
+    // the same entries.
+    served[NIGHT] = served[EVENING]!;
+    currentFetch = stubFetch(Object.keys(served), served);
+    await monitor.run();
+
+    expect(transport.sent.filter((m) => m.to === email)).toHaveLength(1);
+    expect(await prisma.sinistreNotification.count()).toBe(1);
+  });
+
+  it('anchors the deadline on the earliest arrêté recognising the commune, not on the rectificatif of the same run', async () => {
+    await serve(MORNING, { reconnues: [AMIGNY] });
+    await monitor.run();
+    const { headers, sinistre } = await createSinistre('24290');
+    const rule = await prisma.deadlineRule.findFirstOrThrow({
+      where: { code: 'DECLARATION_ASSUREUR' },
+    });
+
+    // Two deltas in one run: the rectificatif adds Mussidan to the arrêté
+    // published 1 July, and a second arrêté published 25 June recognises the
+    // same commune. The déclaration deadline runs from the earlier
+    // publication — anchoring it later is the direction the product may never
+    // round towards (корневой CLAUDE.md, "более консервативное значение").
+    await serve(EVENING, { reconnues: [AMIGNY, MUSSIDAN] });
+    const EARLIER_NOR = 'INTJ2600042A';
+    const EARLIER_TEXT_ID = 'JORFTEXT000000004201';
+    served[NIGHT] = await buildTarball({
+      'jorf/simple/JORF/CONT/2026/06/25/JORFCONT000000004200.xml': buildTocXml(
+        EARLIER_TEXT_ID,
+        RECT_TITLE,
+      ),
+      [`jorf/simple/JORF/CONT/2026/06/25/${EARLIER_TEXT_ID}.xml`]:
+        buildArreteXml({
+          id: EARLIER_TEXT_ID,
+          nor: EARLIER_NOR,
+          title: RECT_TITLE,
+          publishedAt: '2026-06-25',
+          reconnues: [MUSSIDAN],
+        }),
+    });
+    currentFetch = stubFetch(Object.keys(served), served);
+    await monitor.run();
+
+    const linked = await getSinistre(headers, sinistre.id);
+    expect(
+      linked.steps.find((s) => s.anchor === 'DATE_PUBLICATION_ARRETE')
+        ?.plannedDate,
+    ).toBe(resolveDeadline(toIsoDate('2026-06-25'), rule.duration, rule.unit));
+    const stored = await prisma.sinistre.findUniqueOrThrow({
+      where: { id: sinistre.id },
+      select: { arreteEntry: { select: { arrete: { select: { nor: true } } } } },
+    });
+    expect(stored.arreteEntry?.arrete.nor).toBe(EARLIER_NOR);
+    // The winning line is not one the rectificatif touched, so the letter is
+    // the ordinary publication one.
+    const notification = await prisma.sinistreNotification.findFirstOrThrow({
+      where: { sinistreId: sinistre.id },
+    });
+    expect(notification.kind).toBe('PUBLICATION');
+  });
+
+  it('a rectificatif adding a commune as non reconnue links it without mailing the owner', async () => {
+    await serve(MORNING, { reconnues: [AMIGNY] });
+    await monitor.run();
+    const { headers, email, sinistre } = await createSinistre('24290');
+
+    await serve(EVENING, {
+      reconnues: [AMIGNY],
+      nonReconnues: [MUSSIDAN],
+    });
+    await monitor.run();
+
+    const linked = await getSinistre(headers, sinistre.id);
+    expect(linked.status).toBe('ARRETE_REFUSE');
+    expect(linked.arreteEntryId).not.toBeNull();
+    expect(
+      linked.steps.find((s) => s.anchor === 'DATE_PUBLICATION_ARRETE')
+        ?.plannedDate,
+    ).toBeNull();
+    expect(transport.sent.find((m) => m.to === email)).toBeUndefined();
+    expect(await prisma.sinistreNotification.count()).toBe(0);
+  });
+});
+
 // Outbox письма владельцу синистра, дедупликация с veille по строкам arrêté
 // на отправке — docs/plan/sinistre-plan.md, Фаза 4 (issue #161).
 describe('sinistre notification outbox (issue #161)', () => {

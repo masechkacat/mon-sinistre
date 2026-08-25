@@ -129,6 +129,7 @@ describe('Arrete / ArreteEntry / JorfDelta / MonitorAlert schema (integration)',
     'UNPARSEABLE_ANNEXE',
     'UNMATCHED_COMMUNE',
     'OUTCOME_CHANGED',
+    'LINKED_ENTRY_CHANGED',
   ] as const)('inserts a MonitorAlert of kind %s', async (kind) => {
     const alert = await prisma.monitorAlert.create({
       data: { kind, detail: 'NOR INTE2600001A' },

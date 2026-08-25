@@ -275,6 +275,7 @@ enum MonitorAlertKind {
   UNMATCHED_COMMUNE
   OUTCOME_CHANGED
   NOTIFICATION_STUCK
+  LINKED_ENTRY_CHANGED
 }
 
 // Повод, который монитор JO не может разрешить сам, — docs/research/jorf-monitor.md,

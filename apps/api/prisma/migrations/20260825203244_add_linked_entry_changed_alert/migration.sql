@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "MonitorAlertKind" ADD VALUE 'LINKED_ENTRY_CHANGED';
