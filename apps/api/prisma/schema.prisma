@@ -201,22 +201,23 @@ enum ArreteEntryOutcome {
 // монитором JO. contentHash — по распарсенному содержимому, не сырому XML —
 // почему: docs/research/jorf-monitor.md, «Дедупликация, contentHash и rectificatifs».
 model Arrete {
-  id            String               @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  id                    String                  @id @default(dbgenerated("uuidv7()")) @db.Uuid
   // Ключ дедупликации.
-  nor           String               @unique
-  signedAt      DateTime             @db.Date
+  nor                   String                  @unique
+  signedAt              DateTime                @db.Date
   // Только из XML JORF — не дата появления файла в выгрузке DILA и не GASPAR
   // (жёсткое ограничение проекта).
-  publishedAt   DateTime             @db.Date
-  jorfNumber    String
-  legifranceUrl String
+  publishedAt           DateTime                @db.Date
+  jorfNumber            String
+  legifranceUrl         String
   // Когда монитор впервые/последний раз встретил этот NOR в дельтах DILA.
-  firstSeenAt   DateTime             @db.Timestamptz(6)
-  lastSeenAt    DateTime             @db.Timestamptz(6)
-  contentHash   String
-  entries       ArreteEntry[]
-  monitorAlerts MonitorAlert[]
-  notifications VeilleNotification[]
+  firstSeenAt           DateTime                @db.Timestamptz(6)
+  lastSeenAt            DateTime                @db.Timestamptz(6)
+  contentHash           String
+  entries               ArreteEntry[]
+  monitorAlerts         MonitorAlert[]
+  notifications         VeilleNotification[]
+  sinistreNotifications SinistreNotification[]
 }
 
 // Одна строка annexe арретé — docs/research/data-model.md § 4.
@@ -408,6 +409,7 @@ model Sinistre {
   status          SinistreStatus
   createdAt       DateTime       @default(now()) @db.Timestamptz(6)
   steps           Step[]
+  notifications   SinistreNotification[]
   // Sinistre(codeInsee, status) не создаётся здесь — заводит фаза, которая
   // пишет запрос под него (docs/plan/sinistre-plan.md, Фаза 3).
 
@@ -442,4 +444,28 @@ model Step {
 
   // Частичный индекс (plannedDate) where persistedStatus is null не создаётся
   // здесь — заводит фаза напоминаний вместе со своим запросом.
+}
+
+enum SinistreNotificationKind {
+  PUBLICATION
+  RECTIFICATIF_RECONNU
+}
+
+// Outbox письма владельцу синистра — форма VeilleNotification (sentAt
+// nullable, attempts) плюс kind в ключе: признание коммуны rectificatif'ом —
+// второй повод написать, не повтор первого (docs/research/data-model.md § 5,
+// docs/research/sinistre-plan.md, «Схема: Sinistre, Step, StepTemplate,
+// SinistreNotification»).
+model SinistreNotification {
+  id         String                   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  sinistreId String                   @db.Uuid
+  sinistre   Sinistre                 @relation(fields: [sinistreId], references: [id], onDelete: Cascade)
+  arreteId   String                   @db.Uuid
+  arrete     Arrete                   @relation(fields: [arreteId], references: [id], onDelete: Restrict)
+  kind       SinistreNotificationKind
+  sentAt     DateTime?                @db.Timestamptz(6)
+  // Неудачных попыток отправки — data-model.md § 6 (тот же приём, что у VeilleNotification).
+  attempts   Int                      @default(0)
+
+  @@unique([sinistreId, arreteId, kind])
 }

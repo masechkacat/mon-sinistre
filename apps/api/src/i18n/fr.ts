@@ -191,6 +191,20 @@ export const fr = {
         legifranceLink: 'Consulter le texte complet sur Légifrance',
         reason: 'vous suivez une ou plusieurs communes concernées par ce texte',
       },
+      // deadline and legifranceLink are not repeated here — the composer
+      // reuses fr.mail.jorf.notification's own strings for that sentence and
+      // that link, worded identically for the same fact.
+      sinistreNotification: {
+        subject: 'Catastrophe naturelle — votre sinistre',
+        // «Déclarer» dans ce produit, c'est la déclaration à l'assurance —
+        // celle que la phrase suivante du message donne encore à faire ;
+        // l'annoncer ici comme déjà faite ferait manquer ce délai.
+        intro: (commune: string, risque: string, publishedDate: string) =>
+          `Le Journal officiel du ${publishedDate} publie ${ARRETE_CATNAT}, qui reconnaît l’état de catastrophe naturelle pour ${commune} (${risque}). Ce texte concerne le dossier que vous suivez sur Mon Sinistre.`,
+        sinistreLink: 'Voir mon dossier',
+        reason:
+          'vous suivez un dossier de sinistre concernant cette commune sur Mon Sinistre',
+      },
     },
   },
 } as const;

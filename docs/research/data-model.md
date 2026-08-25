@@ -289,6 +289,16 @@ Auth уже решён (api/CLAUDE.md): Passport local + JWT, refresh с рот�
 фильтрует по `userId` **в условии** через join цепочки (правило: чужой и
 несуществующий объект неразличимы, 404).
 
+### SinistreNotification
+
+Outbox письма владельцу синистра — форма `VeilleNotification` (§ 6): id,
+sinistreId → Sinistre (cascade), arreteId → Arrete (restrict), sentAt (null =
+pending), attempts. Отличие — `kind` (`PUBLICATION` / `RECTIFICATIF_RECONNU`) в
+ключе: `unique(sinistreId, arreteId, kind)`, потому что признание коммуны
+rectificatif'ом (фаза 5) — второй повод написать, не повтор первого
+(`docs/research/sinistre-plan.md`, § «Схема: Sinistre, Step, StepTemplate,
+SinistreNotification»).
+
 ## 6. Veille и идемпотентность рассылок
 
 - `Veille`: id, email, confirmedAt (null = не подтверждена, писем не получает),

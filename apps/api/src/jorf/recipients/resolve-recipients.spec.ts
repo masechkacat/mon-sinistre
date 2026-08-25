@@ -1,6 +1,7 @@
 import {
   type SubscribedCommune,
   resolveRecipients,
+  subtractCoveredEntries,
 } from './resolve-recipients';
 
 function sub(overrides: Partial<SubscribedCommune>): SubscribedCommune {
@@ -104,5 +105,41 @@ describe('resolveRecipients', () => {
 
   it('gives an empty list for an arrêté with no matching subscribers', () => {
     expect(resolveRecipients(['30189'], new Map(), [])).toEqual([]);
+  });
+});
+
+describe('subtractCoveredEntries', () => {
+  const entry = (id: string, risque: string) => ({ id, risque });
+
+  it('drops a covered entry and keeps the rest (critère PRD № 14)', () => {
+    expect(
+      subtractCoveredEntries(
+        [entry('entry-1', 'Inondations'), entry('entry-2', 'Sécheresse')],
+        new Set(['entry-1']),
+      ),
+    ).toEqual([entry('entry-2', 'Sécheresse')]);
+  });
+
+  it('returns every entry unchanged when nothing is covered', () => {
+    const entries = [entry('entry-1', 'Inondations')];
+
+    expect(subtractCoveredEntries(entries, new Set())).toEqual(entries);
+  });
+
+  it('returns an empty list when every entry is covered', () => {
+    expect(
+      subtractCoveredEntries(
+        [entry('entry-1', 'Inondations')],
+        new Set(['entry-1']),
+      ),
+    ).toEqual([]);
+  });
+
+  it('ignores a covered id the list does not carry', () => {
+    const entries = [entry('entry-1', 'Inondations')];
+
+    expect(subtractCoveredEntries(entries, new Set(['entry-9']))).toEqual(
+      entries,
+    );
   });
 });
