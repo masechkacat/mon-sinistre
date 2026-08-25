@@ -728,14 +728,10 @@ export class JorfMonitorService {
 
       let rule: ResolvedDeadlineRule | null = null;
       if (entry.outcome === 'RECONNU') {
-        const publishedAt = dateToIsoDate(entry.arrete.publishedAt);
-        if (!ruleByPublishedAt.has(publishedAt)) {
-          ruleByPublishedAt.set(
-            publishedAt,
-            await this.resolveDeclarationRuleGuarded(publishedAt),
-          );
-        }
-        rule = ruleByPublishedAt.get(publishedAt) ?? null;
+        rule = await this.resolveRuleMemoized(
+          dateToIsoDate(entry.arrete.publishedAt),
+          ruleByPublishedAt,
+        );
       }
 
       await this.applyLink(link.sinistreId, entry, rule);
@@ -794,6 +790,83 @@ export class JorfMonitorService {
     }
   }
 
+  /** The "resolve once per publication date, reuse for every entry that
+   * shares it" memoization {@link linkSinistres} and {@link
+   * recomputeLinkedSinistres} both need — {@link DeadlineRuleService.resolveActive}
+   * throws by design, and a batch of entries or sinistres sharing one
+   * `publishedAt` must not pay for that resolve twice. */
+  private async resolveRuleMemoized(
+    publishedAt: IsoDate,
+    cache: Map<IsoDate, ResolvedDeadlineRule | null>,
+  ): Promise<ResolvedDeadlineRule | null> {
+    if (!cache.has(publishedAt)) {
+      cache.set(
+        publishedAt,
+        await this.resolveDeclarationRuleGuarded(publishedAt),
+      );
+    }
+    return cache.get(publishedAt) ?? null;
+  }
+
+  /** Writes the `DATE_PUBLICATION_ARRETE` step's `plannedDate` and, when a
+   * rule resolved, its citation — the one `updateMany` shape {@link applyLink}
+   * (always, on a fresh RECONNU link) and {@link recomputeLinkedSinistres}
+   * (only when it actually changed) both need. */
+  private updateDeclarationStep(
+    tx: Prisma.TransactionClient,
+    sinistreId: string,
+    plannedDate: IsoDate | null,
+    rule: ResolvedDeadlineRule | null,
+  ) {
+    return tx.step.updateMany({
+      where: {
+        sinistreId,
+        anchor: 'DATE_PUBLICATION_ARRETE',
+        fromTemplate: true,
+      },
+      data: {
+        plannedDate: plannedDate ? isoDateToDate(plannedDate) : null,
+        ...(rule
+          ? {
+              deadlineRuleId: rule.id,
+              sourceUrl: rule.sourceUrl,
+              sourceVerifiedAt: rule.sourceVerifiedAt,
+            }
+          : {}),
+      },
+    });
+  }
+
+  /** Reads `status`/`declarationDate` fresh and returns the status
+   * `sinistreStatus` computes off `outcome` for it — shared by {@link
+   * applyLink} (always writes it) and {@link recomputeLinkedSinistres}
+   * (writes only when it actually changed), so a `PATCH /sinistres/:id`
+   * racing either one is never clobbered by a status computed off stale
+   * data. `null` when the sinistre no longer exists (deleted mid-loop). */
+  private async recomputeStatus(
+    tx: Prisma.TransactionClient,
+    sinistreId: string,
+    outcome: ArreteEntryOutcome,
+  ): Promise<{ current: SinistreStatus; next: SinistreStatus } | null> {
+    const current = await tx.sinistre.findUnique({
+      where: { id: sinistreId },
+      select: { status: true, declarationDate: true },
+    });
+    if (!current) {
+      return null;
+    }
+    return {
+      current: current.status as SinistreStatus,
+      next: sinistreStatus({
+        current: current.status as SinistreStatus,
+        link: { outcome },
+        declarationDate: current.declarationDate
+          ? dateToIsoDate(current.declarationDate)
+          : null,
+      }),
+    };
+  }
+
   /**
    * Applies one `matchSinistres` link: sets `arreteEntryId` and recomputes
    * `status` through the shared `sinistreStatus` (docs/research/
@@ -830,28 +903,17 @@ export class JorfMonitorService {
     rule: ResolvedDeadlineRule | null,
   ): Promise<void> {
     await this.prisma.$transaction(async (tx) => {
-      // `findUnique`, not `findUniqueOrThrow`: a `DELETE /sinistres/:id`
-      // between `linkSinistres`'s batch read and this link's turn in the loop
-      // costs that one dossier, not every link the run has yet to apply.
-      const current = await tx.sinistre.findUnique({
-        where: { id: sinistreId },
-        select: { status: true, declarationDate: true },
-      });
-      if (!current) {
+      // `findUnique`, not `findUniqueOrThrow`, inside {@link recomputeStatus}:
+      // a `DELETE /sinistres/:id` between `linkSinistres`'s batch read and
+      // this link's turn in the loop costs that one dossier, not every link
+      // the run has yet to apply.
+      const status = await this.recomputeStatus(tx, sinistreId, entry.outcome);
+      if (!status) {
         return;
       }
       await tx.sinistre.update({
         where: { id: sinistreId },
-        data: {
-          arreteEntryId: entry.id,
-          status: sinistreStatus({
-            current: current.status as SinistreStatus,
-            link: { outcome: entry.outcome },
-            declarationDate: current.declarationDate
-              ? dateToIsoDate(current.declarationDate)
-              : null,
-          }),
-        },
+        data: { arreteEntryId: entry.id, status: status.next },
       });
       if (entry.outcome === 'RECONNU' && rule) {
         const plannedDate = resolveStepPlannedDate(
@@ -860,19 +922,7 @@ export class JorfMonitorService {
           rule,
           null,
         );
-        await tx.step.updateMany({
-          where: {
-            sinistreId,
-            anchor: 'DATE_PUBLICATION_ARRETE',
-            fromTemplate: true,
-          },
-          data: {
-            plannedDate: plannedDate ? isoDateToDate(plannedDate) : null,
-            deadlineRuleId: rule.id,
-            sourceUrl: rule.sourceUrl,
-            sourceVerifiedAt: rule.sourceVerifiedAt,
-          },
-        });
+        await this.updateDeclarationStep(tx, sinistreId, plannedDate, rule);
         // One row, but `createMany` for its `skipDuplicates`, the same
         // guard and the same reason as {@link queueNotifications}: a row
         // this dossier already carries would abort not just its own link but
@@ -1297,7 +1347,9 @@ export class JorfMonitorService {
     const recorded = new Set(existing.monitorAlerts.map((a) => a.detail));
     const pairs = pairEntries(existing.entries, matched);
     const publishedAt = isoDateToDate(parsed.publishedAt);
-    if (existing.publishedAt.getTime() !== publishedAt.getTime()) {
+    const publishedAtChanged =
+      existing.publishedAt.getTime() !== publishedAt.getTime();
+    if (publishedAtChanged) {
       // The anchor of the 30-day déclaration deadline moving under everyone
       // this arrêté covers. It follows the XML like every other field of the
       // row — the JO is the only source (ТЗ § 7) — but not quietly.
@@ -1305,6 +1357,10 @@ export class JorfMonitorService {
         `jorf monitor: NOR ${parsed.nor} publication date ${existing.publishedAt.toISOString().slice(0, 10)} → ${parsed.publishedAt}`,
       );
     }
+    // One `DeadlineRule` resolve per publication date, not per touched entry
+    // — every entry of the same arrêté shares the same `publishedAt`, the
+    // same memoization {@link linkSinistres} uses.
+    const ruleByPublishedAt = new Map<IsoDate, ResolvedDeadlineRule | null>();
     // What this revision adds — the set {@link queueNotifications} fans out
     // to, so a rectificatif that only corrects or flips the outcome of an
     // already-notified commune (PRD critère "смена исхода... не порождает
@@ -1338,11 +1394,26 @@ export class JorfMonitorService {
                 }),
               );
             }
-            if (!isUnchangedEntry(match, codeInsee, entry)) {
+            const entryChanged = !isUnchangedEntry(match, codeInsee, entry);
+            if (entryChanged) {
               await tx.arreteEntry.update({
                 where: { id: match.id },
                 data: entryData(entry, codeInsee),
               });
+            }
+            if (entryChanged || publishedAtChanged) {
+              await this.recomputeLinkedSinistres(
+                tx,
+                alerts,
+                existing.id,
+                parsed.nor,
+                match.id,
+                entry,
+                codeInsee,
+                parsed.publishedAt,
+                successorOf,
+                ruleByPublishedAt,
+              );
             }
           }
           await this.alertIfUnmatched(
@@ -1386,6 +1457,161 @@ export class JorfMonitorService {
       { timeout: INGEST_TX_TIMEOUT_MS },
     );
     await this.notifyAdmin(alerts);
+  }
+
+  /**
+   * The rectificatif's first pass (docs/plan/sinistre-plan.md, Фаза 5, issue
+   * #163; docs/research/sinistre-plan.md, "Пересчёт при rectificatif"): every
+   * `Sinistre` already linked to a touched entry gets its `status` recomputed
+   * off the new `outcome` and its `DATE_PUBLICATION_ARRETE` step's
+   * `plannedDate` off the new `publishedAt`, through the same
+   * `sinistreStatus`/`resolveStepPlannedDate` pair `linkSinistres` and
+   * `SinistresService` already use — never a second copy of that arithmetic.
+   * A no-op read when the entry has no linked sinistre yet: the second pass
+   * (`matchSinistres` over added/corrected entries, a later issue) is what
+   * creates new links, not this one.
+   *
+   * `outcome === RECONNU` resolves the déclaration `DeadlineRule` again, on
+   * the (possibly moved) `publishedAt` — a version change or a corrected date
+   * can both change which rule applies. A referential gap leaves the step
+   * exactly as it was, the same isolation {@link resolveDeclarationRuleGuarded}
+   * gives `linkSinistres`; `outcome !== RECONNU` clears `plannedDate` back to
+   * null (no déclaration deadline exists to date) but deliberately leaves
+   * `deadlineRuleId`/`sourceUrl`/`sourceVerifiedAt` as last resolved, never
+   * nulled — `SinistresService.create`'s own REFUSE steps keep a citation
+   * without a date the same way (resolved off the sinistre's creation date,
+   * research "Шаблон плана"), and `SinistresService.update`'s own recompute
+   * reuses a step's already-chosen rule rather than re-resolving it too.
+   *
+   * A sinistre `matchSinistres` would no longer link — the entry's `risque`
+   * or period moved out from under it — is left linked and only alerted: per
+   * the research decision, only a person may take an already-assigned
+   * deadline away.
+   *
+   * Every difference this produces (`status`, `plannedDate`, or the
+   * mismatch) raises one `LINKED_ENTRY_CHANGED` `MonitorAlert` per sinistre —
+   * data-model.md § 4 requires an alert on every change to a linked entry's
+   * legal consequences.
+   */
+  private async recomputeLinkedSinistres(
+    tx: Prisma.TransactionClient,
+    alerts: MonitorAlertForMail[],
+    arreteId: string,
+    nor: string,
+    entryId: string,
+    entry: ParsedArreteEntry,
+    codeInsee: string | null,
+    publishedAt: IsoDate,
+    successorOf: ReadonlyMap<string, string>,
+    ruleByPublishedAt: Map<IsoDate, ResolvedDeadlineRule | null>,
+  ): Promise<void> {
+    const sinistres = await tx.sinistre.findMany({
+      where: { arreteEntryId: entryId },
+      select: { id: true, codeInsee: true, risque: true, eventDate: true },
+    });
+    if (sinistres.length === 0) {
+      return;
+    }
+
+    // `undefined` means "leave the step as it is" (a referential gap), never
+    // conflated with `null` ("no déclaration deadline exists to date").
+    let newPlannedDate: IsoDate | null | undefined = null;
+    let rule: ResolvedDeadlineRule | null = null;
+    if ((entry.outcome as string) === 'RECONNU') {
+      rule = await this.resolveRuleMemoized(publishedAt, ruleByPublishedAt);
+      newPlannedDate = rule
+        ? resolveStepPlannedDate(publishedAt, true, rule, null)
+        : undefined;
+    }
+
+    const matchEntry = {
+      id: entryId,
+      codeInsee,
+      risque: entry.risque,
+      eventStart: entry.eventStart,
+      eventEnd: entry.eventEnd,
+      outcome: entry.outcome,
+      publishedAt,
+    };
+
+    for (const sinistre of sinistres) {
+      // {@link recomputeStatus} reads fresh, not carried over from the batch
+      // findMany above: a `PATCH /sinistres/:id` committing between that
+      // read and this sinistre's turn in the loop must not be clobbered by
+      // a status computed off stale data (e.g. a CLOS or a just-set DECLARE
+      // landing mid-loop).
+      const status = await this.recomputeStatus(tx, sinistre.id, entry.outcome);
+      if (!status) {
+        continue;
+      }
+      const newStatus = status.next;
+      const statusChanged =
+        (newStatus as string) !== (status.current as string);
+
+      const step = await tx.step.findFirst({
+        where: {
+          sinistreId: sinistre.id,
+          anchor: 'DATE_PUBLICATION_ARRETE',
+          fromTemplate: true,
+        },
+      });
+      const oldPlannedDate = step?.plannedDate
+        ? dateToIsoDate(step.plannedDate)
+        : null;
+      const stepChanged =
+        step !== null &&
+        newPlannedDate !== undefined &&
+        oldPlannedDate !== newPlannedDate;
+
+      const stillMatches =
+        matchSinistres(
+          [matchEntry],
+          [
+            {
+              id: sinistre.id,
+              codeInsee: sinistre.codeInsee,
+              risque: sinistre.risque as RisqueCatnat,
+              eventDate: dateToIsoDate(sinistre.eventDate),
+            },
+          ],
+          successorOf,
+        ).length > 0;
+
+      if (!statusChanged && !stepChanged && stillMatches) {
+        continue;
+      }
+
+      if (statusChanged) {
+        await tx.sinistre.update({
+          where: { id: sinistre.id },
+          data: { status: newStatus },
+        });
+      }
+      if (stepChanged) {
+        await this.updateDeclarationStep(
+          tx,
+          sinistre.id,
+          newPlannedDate ?? null,
+          rule,
+        );
+      }
+
+      const changes = [
+        statusChanged && `statut ${status.current} → ${newStatus}`,
+        stepChanged &&
+          `échéance déclaration ${oldPlannedDate ?? '—'} → ${newPlannedDate ?? '—'}`,
+        !stillMatches && 'ne correspond plus au sinistre (risque ou période)',
+      ].filter((line): line is string => typeof line === 'string');
+      alerts.push(
+        await tx.monitorAlert.create({
+          data: {
+            kind: 'LINKED_ENTRY_CHANGED',
+            arreteId,
+            detail: `NOR ${nor}: sinistre ${sinistre.id} — ${changes.join('; ')}`,
+          },
+        }),
+      );
+    }
   }
 
   /**
