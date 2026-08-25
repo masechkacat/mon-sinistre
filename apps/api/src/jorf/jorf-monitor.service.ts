@@ -57,7 +57,7 @@ import {
 import {
   type SubscribedCommune,
   resolveRecipients,
-  subtractCoveredCommunes,
+  subtractCoveredEntries,
 } from './recipients/resolve-recipients';
 import { selectCatnatTextIds } from './parse/select-catnat-texts';
 import {
@@ -575,10 +575,10 @@ export class JorfMonitorService {
    * DilaClient.listDeltas}, indefinitely, and stop finding arrêtés at all.
    *
    * Sinistre drains first, veille second — not an arbitrary order: {@link
-   * loadVeilleMails}'s dedup against {@link loadSinistreCoveredCommunes} only
-   * counts a commune as "told" once its `SinistreNotification` is actually
+   * loadVeilleMails}'s dedup against {@link loadSinistreCoveredEntries} only
+   * counts an entry as "told" once its `SinistreNotification` is actually
    * `sentAt`, not merely queued, so a sinistre letter that keeps failing
-   * never permanently silences the veille letter for the same commune. This
+   * never permanently silences the veille letter for the same entry. This
    * order lets the common case — the sinistre send succeeding right here —
    * still dedup the veille mail composed a few lines later in the same pass,
    * instead of only from the run after.
@@ -873,8 +873,13 @@ export class JorfMonitorService {
             sourceVerifiedAt: rule.sourceVerifiedAt,
           },
         });
-        await tx.sinistreNotification.create({
-          data: { sinistreId, arreteId: entry.arreteId, kind: 'PUBLICATION' },
+        // One row, but `createMany` for its `skipDuplicates`, the same
+        // guard and the same reason as {@link queueNotifications}: a row
+        // this dossier already carries would abort not just its own link but
+        // every link left in the run.
+        await tx.sinistreNotification.createMany({
+          data: [{ sinistreId, arreteId: entry.arreteId, kind: 'PUBLICATION' }],
+          skipDuplicates: true,
         });
       }
     });
@@ -1525,7 +1530,7 @@ export class JorfMonitorService {
         (recipient) => [recipient.veilleId, recipient.codeInsee],
       ),
     );
-    const coveredByEmail = await this.loadSinistreCoveredCommunes(arreteId);
+    const coveredByEmail = await this.loadSinistreCoveredEntries(arreteId);
     const emailByVeille = new Map(
       (
         await this.prisma.veille.findMany({
@@ -1546,18 +1551,40 @@ export class JorfMonitorService {
         continue;
       }
 
-      // Drops a commune this same address was already told about by a
-      // sinistre letter for this arrêté (docs/research/sinistre-plan.md,
-      // "Письмо владельцу синистра и дедупликация с veille") — before the
-      // token rotation below, so a row left with nothing to mail after
-      // dedup never burns one (same reason the empty-`codes` branch above
-      // returns early).
+      const relevant: { id: string; mail: ArreteEntryForMail }[] = [];
+      for (const entry of arrete.entries) {
+        if (
+          entry.codeInsee === null ||
+          !codes.includes(entry.codeInsee) ||
+          !entry.commune
+        ) {
+          continue;
+        }
+        relevant.push({
+          id: entry.id,
+          mail: {
+            commune: {
+              name: entry.commune.name,
+              departementName: entry.commune.departementName,
+            },
+            risque: entry.risque,
+            eventStart: dateToIsoDate(entry.eventStart),
+            eventEnd: dateToIsoDate(entry.eventEnd),
+            outcome: entry.outcome,
+          },
+        });
+      }
+
+      // Drops what a sinistre letter this same address already got covers
+      // ({@link subtractCoveredEntries}) — before the token rotation below,
+      // so a row left with nothing to mail after dedup never burns one (same
+      // reason the empty-`codes` branch above returns early).
       const email = emailByVeille.get(notification.veilleId);
       const covered = email ? coveredByEmail.get(email) : undefined;
-      const remainingCodes = covered
-        ? subtractCoveredCommunes(codes, covered)
-        : codes;
-      if (remainingCodes.length === 0) {
+      const remaining = covered
+        ? subtractCoveredEntries(relevant, covered)
+        : relevant;
+      if (remaining.length === 0) {
         mails.set(notification.id, null);
         continue;
       }
@@ -1567,34 +1594,13 @@ export class JorfMonitorService {
         continue;
       }
 
-      const entries: ArreteEntryForMail[] = [];
-      for (const entry of arrete.entries) {
-        if (
-          entry.codeInsee === null ||
-          !remainingCodes.includes(entry.codeInsee) ||
-          !entry.commune
-        ) {
-          continue;
-        }
-        entries.push({
-          commune: {
-            name: entry.commune.name,
-            departementName: entry.commune.departementName,
-          },
-          risque: entry.risque,
-          eventStart: dateToIsoDate(entry.eventStart),
-          eventEnd: dateToIsoDate(entry.eventEnd),
-          outcome: entry.outcome,
-        });
-      }
-
       mails.set(
         notification.id,
         veilleArreteMailFor(
           recipient.email,
           recipient.unsubscribeToken,
           arreteForMail,
-          entries,
+          remaining.map((entry) => entry.mail),
           declarationRule,
         ),
       );
@@ -1603,33 +1609,41 @@ export class JorfMonitorService {
   }
 
   /**
-   * Address → communes a sinistre `PUBLICATION` letter has actually told for
-   * this arrêté (docs/research/sinistre-plan.md, "Письмо владельцу синистра
-   * и дедупликация с veille") — what {@link loadVeilleMails} subtracts from
-   * a watcher's own commune list, through {@link subtractCoveredCommunes},
-   * before composing their mail. Filtered to `sentAt: { not: null }`, not
-   * merely queued: a sinistre letter that keeps failing must not permanently
-   * silence the veille letter for the same commune too — {@link drainOutbox}
-   * runs the sinistre adapter first precisely so a send that succeeds this
-   * very pass still counts here, and only a send that has actually gone out
-   * ever suppresses the veille mail.
+   * Address → the arrêté entries a sinistre `PUBLICATION` letter has actually
+   * told it about (docs/research/sinistre-plan.md, "Письмо владельцу синистра
+   * и дедупликация с veille") — what {@link loadVeilleMails} subtracts from a
+   * watcher's own entry list, through {@link subtractCoveredEntries}, before
+   * composing their mail. The entry is read off the sinistre's current link,
+   * the same one {@link loadSinistreMails} composes the letter from, so the
+   * two never disagree about what was said; a dossier unlinked or relinked
+   * since covers nothing, and its watcher hears about the commune again —
+   * the safe direction of the two.
+   *
+   * Filtered to `sentAt: { not: null }`, not merely queued: a sinistre letter
+   * that keeps failing must not permanently silence the veille letter for the
+   * same entry too — {@link drainOutbox} runs the sinistre adapter first
+   * precisely so a send that succeeds this very pass still counts here, and
+   * only a send that has actually gone out ever suppresses the veille mail.
    */
-  private async loadSinistreCoveredCommunes(
+  private async loadSinistreCoveredEntries(
     arreteId: string,
   ): Promise<Map<string, Set<string>>> {
     const rows = await this.prisma.sinistreNotification.findMany({
       where: { arreteId, kind: 'PUBLICATION', sentAt: { not: null } },
       select: {
         sinistre: {
-          select: { codeInsee: true, user: { select: { email: true } } },
+          select: { arreteEntryId: true, user: { select: { email: true } } },
         },
       },
     });
     const byEmail = new Map<string, Set<string>>();
     for (const { sinistre } of rows) {
-      const codes = byEmail.get(sinistre.user.email) ?? new Set<string>();
-      codes.add(sinistre.codeInsee);
-      byEmail.set(sinistre.user.email, codes);
+      if (sinistre.arreteEntryId === null) {
+        continue;
+      }
+      const entryIds = byEmail.get(sinistre.user.email) ?? new Set<string>();
+      entryIds.add(sinistre.arreteEntryId);
+      byEmail.set(sinistre.user.email, entryIds);
     }
     return byEmail;
   }

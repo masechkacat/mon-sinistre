@@ -92,17 +92,23 @@ export function resolveRecipients(
 }
 
 /**
- * Drops the communes a sinistre letter to the same address already named for
+ * Drops the entries a sinistre letter to the same address already named for
  * this arrêté (docs/research/sinistre-plan.md, "Письмо владельцу синистра и
- * дедупликация с veille") — a watcher who is also a sinistre's owner must not
- * be told the same commune twice, but a commune `coveredCommunes` does not
- * name is untouched: they still learn about it through the veille letter.
- * The caller decides what an empty result means (drain without sending); this
- * function only computes the remainder.
+ * дедупликация с veille"). The unit is the entry, not its commune: an arrêté
+ * names the same commune once per (risque, période) and can recognise one and
+ * refuse another, while the sinistre letter covers exactly the one entry its
+ * dossier is linked to — subtracting the whole commune would silence the
+ * arrêté's verdict on that commune's other risques, which no letter would
+ * then carry. Identity is the entry id, not a (commune, risque, période)
+ * tuple, so the two sides cannot disagree over a merged commune's code the
+ * way `codeInsee` would (PRD, "Коммуна сопоставляется через
+ * `successorCodeInsee`").
+ * The caller decides what an empty result means (drain without sending);
+ * this function only computes the remainder.
  */
-export function subtractCoveredCommunes(
-  codes: readonly string[],
-  coveredCommunes: ReadonlySet<string>,
-): string[] {
-  return codes.filter((code) => !coveredCommunes.has(code));
+export function subtractCoveredEntries<Entry extends { id: string }>(
+  entries: readonly Entry[],
+  coveredEntryIds: ReadonlySet<string>,
+): Entry[] {
+  return entries.filter((entry) => !coveredEntryIds.has(entry.id));
 }

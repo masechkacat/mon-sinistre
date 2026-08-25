@@ -1993,8 +1993,8 @@ describe('sinistre linking on ingest (issue #157)', () => {
   });
 });
 
-// Outbox письма владельцу синистра, дедупликация с veille по коммунам на
-// отправке — docs/plan/sinistre-plan.md, Фаза 4 (issue #161).
+// Outbox письма владельцу синистра, дедупликация с veille по строкам arrêté
+// на отправке — docs/plan/sinistre-plan.md, Фаза 4 (issue #161).
 describe('sinistre notification outbox (issue #161)', () => {
   const TITLE =
     "Arrêté du 1er juillet 2026 portant reconnaissance de l'état de catastrophe naturelle";
@@ -2238,5 +2238,122 @@ describe('sinistre notification outbox (issue #161)', () => {
         where: { sinistreId: sinistre.id },
       }),
     ).toBe(0);
+  });
+
+  it('still tells the owner about a second entry of the same commune through veille (critère PRD № 14)', async () => {
+    await prisma.commune.create({
+      data: communeFixture('02005', 'Amigny-Rouy', '02', 'Aisne'),
+    });
+    const email = 'proprietaire-7@example.fr';
+    await createSinistre(email, '02005');
+    await createVeille(prisma, {
+      email,
+      confirmedAt: new Date(),
+      communeCodes: ['02005'],
+    });
+
+    const MORNING = 'JORFSIMPLE_20260701-060000.tar.gz';
+    currentFetch = stubFetch([MORNING], {
+      [MORNING]: await buildDelta('JORFTEXT000000005501', 'INTJ2600055A', {
+        reconnues: [AMIGNY],
+        nonReconnues: [
+          ['Aisne', 'Amigny-Rouy', 'Sécheresse', '01/07/2025', '30/09/2025'],
+        ],
+      }),
+    });
+    await monitor.run();
+
+    // Письмо синистра называет одну строку arrêté — признание по наводнению;
+    // отказ по засухе той же коммуны не покрыт ничем, кроме veille-письма.
+    const toOwner = transport.sent.filter((m) => m.to === email);
+    expect(toOwner).toHaveLength(2);
+    expect(toOwner.filter((m) => m.text.includes('Sécheresse'))).toHaveLength(
+      1,
+    );
+    expect(toOwner.filter((m) => m.text.includes('Inondations'))).toHaveLength(
+      1,
+    );
+  });
+
+  it('deduplicates through the successor code when the commune merged after the dossier was opened', async () => {
+    await prisma.commune.create({
+      data: communeFixture('02005', 'Amigny-Rouy', '02', 'Aisne'),
+    });
+    await prisma.commune.create({
+      data: communeFixture('02006', 'Autreville', '02', 'Aisne'),
+    });
+    const email = 'proprietaire-8@example.fr';
+    await createSinistre(email, '02005');
+    await createVeille(prisma, {
+      email,
+      confirmedAt: new Date(),
+      communeCodes: ['02005'],
+    });
+    await prisma.commune.update({
+      where: { codeInsee: '02005' },
+      data: {
+        successorCodeInsee: '02006',
+        effectiveTo: new Date('2026-06-25'),
+      },
+    });
+
+    const MORNING = 'JORFSIMPLE_20260701-060000.tar.gz';
+    currentFetch = stubFetch([MORNING], {
+      [MORNING]: await buildDelta('JORFTEXT000000005601', 'INTJ2600056A', {
+        reconnues: [
+          ['Aisne', 'Autreville', 'Inondations', '01/06/2026', '20/06/2026'],
+        ],
+      }),
+    });
+    await monitor.run();
+
+    const toOwner = transport.sent.filter((m) => m.to === email);
+    expect(toOwner).toHaveLength(1);
+    expect(toOwner[0]?.text).toContain('Amigny-Rouy');
+  });
+
+  it('a duplicate outbox row does not abort the link it announces', async () => {
+    await prisma.commune.create({
+      data: communeFixture('02005', 'Amigny-Rouy', '02', 'Aisne'),
+    });
+    const { sinistre } = await createSinistre(
+      'proprietaire-9@example.fr',
+      '02005',
+    );
+
+    const MORNING = 'JORFSIMPLE_20260701-060000.tar.gz';
+    const tarball = await buildDelta('JORFTEXT000000005701', 'INTJ2600057A', {
+      reconnues: [AMIGNY],
+    });
+    currentFetch = stubFetch([MORNING], { [MORNING]: tarball });
+    await monitor.run();
+    expect(transport.sent).toHaveLength(1);
+
+    // Досье снова в кандидатах, строка outbox по нему уже есть — так вернёт
+    // его пересчёт rectificatif (фаза 5).
+    await prisma.step.updateMany({
+      where: {
+        sinistreId: sinistre.id,
+        anchor: 'DATE_PUBLICATION_ARRETE',
+        fromTemplate: true,
+      },
+      data: { plannedDate: null },
+    });
+    await monitor.run();
+
+    const step = await prisma.step.findFirstOrThrow({
+      where: {
+        sinistreId: sinistre.id,
+        anchor: 'DATE_PUBLICATION_ARRETE',
+        fromTemplate: true,
+      },
+    });
+    expect(step.plannedDate).not.toBeNull();
+    expect(
+      await prisma.sinistreNotification.count({
+        where: { sinistreId: sinistre.id },
+      }),
+    ).toBe(1);
+    expect(transport.sent).toHaveLength(1);
   });
 });

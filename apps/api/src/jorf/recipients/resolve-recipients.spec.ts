@@ -1,7 +1,7 @@
 import {
   type SubscribedCommune,
   resolveRecipients,
-  subtractCoveredCommunes,
+  subtractCoveredEntries,
 } from './resolve-recipients';
 
 function sub(overrides: Partial<SubscribedCommune>): SubscribedCommune {
@@ -108,27 +108,38 @@ describe('resolveRecipients', () => {
   });
 });
 
-describe('subtractCoveredCommunes', () => {
-  it('drops a covered commune and keeps the rest (critère PRD № 14)', () => {
+describe('subtractCoveredEntries', () => {
+  const entry = (id: string, risque: string) => ({ id, risque });
+
+  it('drops a covered entry and keeps the rest (critère PRD № 14)', () => {
     expect(
-      subtractCoveredCommunes(['30189', '30001'], new Set(['30189'])),
-    ).toEqual(['30001']);
+      subtractCoveredEntries(
+        [entry('entry-1', 'Inondations'), entry('entry-2', 'Sécheresse')],
+        new Set(['entry-1']),
+      ),
+    ).toEqual([entry('entry-2', 'Sécheresse')]);
   });
 
-  it('returns every code unchanged when nothing is covered', () => {
-    expect(subtractCoveredCommunes(['30189', '30001'], new Set())).toEqual([
-      '30189',
-      '30001',
-    ]);
+  it('returns every entry unchanged when nothing is covered', () => {
+    const entries = [entry('entry-1', 'Inondations')];
+
+    expect(subtractCoveredEntries(entries, new Set())).toEqual(entries);
   });
 
-  it('returns an empty list when every code is covered', () => {
-    expect(subtractCoveredCommunes(['30189'], new Set(['30189']))).toEqual([]);
+  it('returns an empty list when every entry is covered', () => {
+    expect(
+      subtractCoveredEntries(
+        [entry('entry-1', 'Inondations')],
+        new Set(['entry-1']),
+      ),
+    ).toEqual([]);
   });
 
-  it('ignores a covered code the list does not carry', () => {
-    expect(subtractCoveredCommunes(['30189'], new Set(['99999']))).toEqual([
-      '30189',
-    ]);
+  it('ignores a covered id the list does not carry', () => {
+    const entries = [entry('entry-1', 'Inondations')];
+
+    expect(subtractCoveredEntries(entries, new Set(['entry-9']))).toEqual(
+      entries,
+    );
   });
 });
