@@ -95,6 +95,12 @@ describe('sinistre arrête mail (fr.mail.jorf.sinistreNotification)', () => {
     expect(message.text).not.toMatch(/@/);
   });
 
+  it('does not tell the reader they have already declared to their insurer', () => {
+    // Единственный дедлайн письма — та самая декларация страховщику; сказать
+    // «vous avez déclaré» значит объявить её выполненной.
+    expect(mailFor().text).not.toMatch(/déclaré/i);
+  });
+
   it('keeps the subject above the 10-character floor of the provider', () => {
     const message = mailFor();
 
