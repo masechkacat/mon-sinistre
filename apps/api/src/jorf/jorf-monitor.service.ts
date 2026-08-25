@@ -19,6 +19,7 @@ import type { Prisma } from 'src/generated/prisma/client';
 import type {
   ArreteEntryOutcome,
   MonitorAlertKind,
+  SinistreNotificationKind,
 } from 'src/generated/prisma/enums';
 import type { ComposeMailInput } from 'src/mail/mail-message';
 import { MailService } from 'src/mail/mail.service';
@@ -31,6 +32,9 @@ import {
 import {
   matchSinistres,
   toMatchArreteEntry,
+  type MatchArreteEntry,
+  type MatchCandidateSinistre,
+  type SinistreArreteLink,
 } from 'src/sinistres/match-sinistres';
 import { sinistreStatus } from 'src/sinistres/sinistre-status';
 import { generateVeilleToken } from 'src/veille/veille-token';
@@ -136,6 +140,26 @@ const INGEST_TX_TIMEOUT_MS = 60_000;
 /** UTC midnight of an `IsoDate`, for `@db.Date` columns — the Prisma client requires a full ISO-8601 `Date`, not a bare `YYYY-MM-DD` string. */
 const isoDateToDate = (value: IsoDate): Date => new Date(`${value}T00:00:00Z`);
 
+/**
+ * The `Sinistre.findMany` candidate filter shared by {@link
+ * JorfMonitorService.linkSinistres} (ingest) and {@link
+ * JorfMonitorService.matchRectificatifEntries} (rectificatif second pass,
+ * docs/plan/sinistre-plan.md, Фаза 5, issue #164) — "declaration deadline
+ * still undated" rather than a status list, for the reason {@link
+ * JorfMonitorService.linkSinistres}'s docblock gives: it is the one query
+ * that also catches a `DeadlineRule` gap, not just unlinked and
+ * `ARRETE_REFUSE` dossiers.
+ */
+const UNDATED_DECLARATION_STEP: Prisma.SinistreWhereInput = {
+  steps: {
+    some: {
+      anchor: 'DATE_PUBLICATION_ARRETE',
+      fromTemplate: true,
+      plannedDate: null,
+    },
+  },
+};
+
 /** `monitorAlerts` comes along as the key {@link JorfMonitorService.alertIfUnmatched} deduplicates by: an alert already recorded for a commune must not be raised, nor emailed, again on every rectificatif that follows. */
 type StoredArrete = Prisma.ArreteGetPayload<{
   include: { entries: true; monitorAlerts: { select: { detail: true } } };
@@ -193,6 +217,61 @@ function entryData(
     eventEnd: isoDateToDate(entry.eventEnd),
     outcome: entry.outcome,
     motivation: entry.motivation,
+  };
+}
+
+/** A parsed line reduced to {@link MatchArreteEntry}, the shape `matchSinistres`
+ * takes — shared by {@link JorfMonitorService.recomputeLinkedSinistres} and
+ * {@link JorfMonitorService.matchRectificatifEntries}: both build it off the
+ * same `ParsedArreteEntry`, an already-known `id`/`codeInsee` and the
+ * revision's `publishedAt`. */
+function toMatchEntry(
+  id: string,
+  codeInsee: string | null,
+  entry: ParsedArreteEntry,
+  publishedAt: IsoDate,
+): MatchArreteEntry {
+  return {
+    id,
+    codeInsee,
+    risque: entry.risque,
+    eventStart: entry.eventStart,
+    eventEnd: entry.eventEnd,
+    outcome: entry.outcome,
+    publishedAt,
+  };
+}
+
+/**
+ * Just enough of a matched `ArreteEntry` to resolve its déclaration rule and
+ * apply its link — {@link JorfMonitorService.applyMatchedLinks}'s shared
+ * shape for {@link JorfMonitorService.linkSinistres}'s raw query row and
+ * {@link JorfMonitorService.matchRectificatifEntries}'s `MatchArreteEntry`,
+ * which otherwise agree on every field but `publishedAt`'s type and the
+ * presence of `arreteId`.
+ */
+interface LinkableEntry {
+  id: string;
+  arreteId: string;
+  outcome: ArreteEntryOutcome;
+  publishedAt: IsoDate;
+}
+
+/** A queried `Sinistre` row reduced to {@link MatchCandidateSinistre} —
+ * shared by {@link JorfMonitorService.linkSinistres} and {@link
+ * JorfMonitorService.matchRectificatifEntries}, the two callers that query
+ * {@link UNDATED_DECLARATION_STEP} candidates before calling `matchSinistres`. */
+function toMatchCandidate(sinistre: {
+  id: string;
+  codeInsee: string;
+  risque: string;
+  eventDate: Date;
+}): MatchCandidateSinistre {
+  return {
+    id: sinistre.id,
+    codeInsee: sinistre.codeInsee,
+    risque: sinistre.risque as RisqueCatnat,
+    eventDate: dateToIsoDate(sinistre.eventDate),
   };
 }
 
@@ -651,15 +730,7 @@ export class JorfMonitorService {
     // resolveDeclarationRuleGuarded}). A status list loses the refused
     // dossier the moment its owner declares, and never sees that gap at all.
     const sinistres = await this.prisma.sinistre.findMany({
-      where: {
-        steps: {
-          some: {
-            anchor: 'DATE_PUBLICATION_ARRETE',
-            fromTemplate: true,
-            plannedDate: null,
-          },
-        },
-      },
+      where: UNDATED_DECLARATION_STEP,
       select: { id: true, codeInsee: true, risque: true, eventDate: true },
     });
     if (sinistres.length === 0) {
@@ -699,19 +770,24 @@ export class JorfMonitorService {
 
     const links = matchSinistres(
       entries.map(toMatchArreteEntry),
-      sinistres.map((sinistre) => ({
-        id: sinistre.id,
-        codeInsee: sinistre.codeInsee,
-        risque: sinistre.risque as RisqueCatnat,
-        eventDate: dateToIsoDate(sinistre.eventDate),
-      })),
+      sinistres.map(toMatchCandidate),
       successorOf,
     );
     if (links.length === 0) {
       return;
     }
 
-    const entryById = new Map(entries.map((entry) => [entry.id, entry]));
+    const entryById = new Map(
+      entries.map((entry) => [
+        entry.id,
+        {
+          id: entry.id,
+          arreteId: entry.arreteId,
+          outcome: entry.outcome,
+          publishedAt: dateToIsoDate(entry.arrete.publishedAt),
+        },
+      ]),
+    );
     // Memoized per publication date, resolved ahead of every write below —
     // {@link DeadlineRuleService.resolveActive} throws by design, and doing
     // that inside the transaction that applies a link would abort a write
@@ -720,22 +796,22 @@ export class JorfMonitorService {
     // и передаёт внутрь").
     const ruleByPublishedAt = new Map<IsoDate, ResolvedDeadlineRule | null>();
 
-    for (const link of links) {
-      const entry = entryById.get(link.arreteEntryId);
-      if (!entry) {
-        continue;
-      }
-
-      let rule: ResolvedDeadlineRule | null = null;
-      if (entry.outcome === 'RECONNU') {
-        rule = await this.resolveRuleMemoized(
-          dateToIsoDate(entry.arrete.publishedAt),
-          ruleByPublishedAt,
-        );
-      }
-
-      await this.applyLink(link.sinistreId, entry, rule);
-    }
+    await this.applyMatchedLinks(
+      links,
+      entryById,
+      ruleByPublishedAt,
+      (sinistreId, entry, rule) =>
+        this.applyLink(
+          sinistreId,
+          {
+            id: entry.id,
+            arreteId: entry.arreteId,
+            outcome: entry.outcome,
+            arrete: { publishedAt: isoDateToDate(entry.publishedAt) },
+          },
+          rule,
+        ),
+    );
   }
 
   /** The one `resolveActive` call for the déclaration-délai rule, shared by
@@ -890,7 +966,9 @@ export class JorfMonitorService {
    * `linkSinistres`'s only path to a `SinistreNotification`: a sinistre
    * linked at creation time (`SinistresService.create`) never reaches this
    * method, so it never gets one either (research, "Как применять" —
-   * "Синистр, привязанный при создании ... письма не получает").
+   * "Синистр, привязанный при создании ... письма не получает"). Opens its
+   * own transaction, unlike {@link applyLinkTx}: `linkSinistres` runs outside
+   * any transaction of its own, one link at a time.
    */
   private async applyLink(
     sinistreId: string,
@@ -902,37 +980,96 @@ export class JorfMonitorService {
     },
     rule: ResolvedDeadlineRule | null,
   ): Promise<void> {
-    await this.prisma.$transaction(async (tx) => {
-      // `findUnique`, not `findUniqueOrThrow`, inside {@link recomputeStatus}:
-      // a `DELETE /sinistres/:id` between `linkSinistres`'s batch read and
-      // this link's turn in the loop costs that one dossier, not every link
-      // the run has yet to apply.
-      const status = await this.recomputeStatus(tx, sinistreId, entry.outcome);
-      if (!status) {
-        return;
-      }
-      await tx.sinistre.update({
-        where: { id: sinistreId },
-        data: { arreteEntryId: entry.id, status: status.next },
-      });
-      if (entry.outcome === 'RECONNU' && rule) {
-        const plannedDate = resolveStepPlannedDate(
-          dateToIsoDate(entry.arrete.publishedAt),
-          true,
-          rule,
-          null,
-        );
-        await this.updateDeclarationStep(tx, sinistreId, plannedDate, rule);
-        // One row, but `createMany` for its `skipDuplicates`, the same
-        // guard and the same reason as {@link queueNotifications}: a row
-        // this dossier already carries would abort not just its own link but
-        // every link left in the run.
-        await tx.sinistreNotification.createMany({
-          data: [{ sinistreId, arreteId: entry.arreteId, kind: 'PUBLICATION' }],
-          skipDuplicates: true,
-        });
-      }
+    await this.prisma.$transaction((tx) =>
+      this.applyLinkTx(tx, sinistreId, entry, rule, 'PUBLICATION'),
+    );
+  }
+
+  /**
+   * {@link applyLink}'s body, on a caller-supplied `tx` and a caller-chosen
+   * `notificationKind` — the second use is {@link matchRectificatifEntries}
+   * (docs/plan/sinistre-plan.md, Фаза 5, issue #164), which runs inside
+   * `applyRectificatif`'s own transaction and writes `RECTIFICATIF_RECONNU`
+   * instead of `PUBLICATION`, the same `kind`-in-the-key distinction
+   * `docs/research/sinistre-plan.md` ("Схема...") draws.
+   */
+  private async applyLinkTx(
+    tx: Prisma.TransactionClient,
+    sinistreId: string,
+    entry: {
+      id: string;
+      arreteId: string;
+      outcome: ArreteEntryOutcome;
+      arrete: { publishedAt: Date };
+    },
+    rule: ResolvedDeadlineRule | null,
+    notificationKind: SinistreNotificationKind,
+  ): Promise<void> {
+    // `findUnique`, not `findUniqueOrThrow`, inside {@link recomputeStatus}:
+    // a `DELETE /sinistres/:id` between the caller's batch read and this
+    // link's turn in the loop costs that one dossier, not every link left to
+    // apply.
+    const status = await this.recomputeStatus(tx, sinistreId, entry.outcome);
+    if (!status) {
+      return;
+    }
+    await tx.sinistre.update({
+      where: { id: sinistreId },
+      data: { arreteEntryId: entry.id, status: status.next },
     });
+    if (entry.outcome === 'RECONNU' && rule) {
+      const plannedDate = resolveStepPlannedDate(
+        dateToIsoDate(entry.arrete.publishedAt),
+        true,
+        rule,
+        null,
+      );
+      await this.updateDeclarationStep(tx, sinistreId, plannedDate, rule);
+      // One row, but `createMany` for its `skipDuplicates`, the same guard
+      // and the same reason as {@link queueNotifications}: a row this
+      // dossier already carries would abort not just its own link but every
+      // link left in the run.
+      await tx.sinistreNotification.createMany({
+        data: [
+          { sinistreId, arreteId: entry.arreteId, kind: notificationKind },
+        ],
+        skipDuplicates: true,
+      });
+    }
+  }
+
+  /**
+   * The `matchSinistres` result loop {@link linkSinistres} and {@link
+   * matchRectificatifEntries} both run: resolve the déclaration rule for a
+   * `RECONNU` entry (memoized per `publishedAt`, {@link resolveRuleMemoized})
+   * and hand the link to `apply`. The two callers differ only in which
+   * transaction the link commits under and which `SinistreNotificationKind`
+   * it writes — both belong in `apply`, not here.
+   */
+  private async applyMatchedLinks(
+    links: readonly SinistreArreteLink[],
+    entryById: ReadonlyMap<string, LinkableEntry>,
+    ruleByPublishedAt: Map<IsoDate, ResolvedDeadlineRule | null>,
+    apply: (
+      sinistreId: string,
+      entry: LinkableEntry,
+      rule: ResolvedDeadlineRule | null,
+    ) => Promise<void>,
+  ): Promise<void> {
+    for (const link of links) {
+      const entry = entryById.get(link.arreteEntryId);
+      if (!entry) {
+        continue;
+      }
+      let rule: ResolvedDeadlineRule | null = null;
+      if (entry.outcome === 'RECONNU') {
+        rule = await this.resolveRuleMemoized(
+          entry.publishedAt,
+          ruleByPublishedAt,
+        );
+      }
+      await apply(link.sinistreId, entry, rule);
+    }
   }
 
   private async loadCommuneReferential(): Promise<CommuneReferentialEntry[]> {
@@ -1371,14 +1508,23 @@ export class JorfMonitorService {
     // the referential and a later revision resolves it, that commune's
     // watchers are being notified for the first time, not again.
     const addedCodes: (string | null)[] = [];
+    // Added or corrected entries only — the pool {@link matchRectificatifEntries}
+    // (second pass, docs/plan/sinistre-plan.md, Фаза 5, issue #164) matches
+    // against. An entry left untouched by this revision cannot newly qualify
+    // any sinistre: its commune, risque and period are exactly what a match
+    // is decided on.
+    const touchedEntries: MatchArreteEntry[] = [];
     await this.prisma.$transaction(
       async (tx) => {
         for (const { entry, codeInsee, match } of pairs) {
           if (!match) {
-            await tx.arreteEntry.create({
+            const created = await tx.arreteEntry.create({
               data: { arreteId: existing.id, ...entryData(entry, codeInsee) },
             });
             addedCodes.push(codeInsee);
+            touchedEntries.push(
+              toMatchEntry(created.id, codeInsee, entry, parsed.publishedAt),
+            );
           } else {
             if (codeInsee !== null && match.codeInsee !== codeInsee) {
               addedCodes.push(codeInsee);
@@ -1400,6 +1546,9 @@ export class JorfMonitorService {
                 where: { id: match.id },
                 data: entryData(entry, codeInsee),
               });
+              touchedEntries.push(
+                toMatchEntry(match.id, codeInsee, entry, parsed.publishedAt),
+              );
             }
             if (entryChanged || publishedAtChanged) {
               await this.recomputeLinkedSinistres(
@@ -1441,6 +1590,15 @@ export class JorfMonitorService {
           successorOf,
           options,
         );
+        if (touchedEntries.length > 0) {
+          await this.matchRectificatifEntries(
+            tx,
+            touchedEntries,
+            existing.id,
+            successorOf,
+            ruleByPublishedAt,
+          );
+        }
 
         await tx.arrete.update({
           where: { id: existing.id },
@@ -1467,9 +1625,18 @@ export class JorfMonitorService {
    * `plannedDate` off the new `publishedAt`, through the same
    * `sinistreStatus`/`resolveStepPlannedDate` pair `linkSinistres` and
    * `SinistresService` already use — never a second copy of that arithmetic.
-   * A no-op read when the entry has no linked sinistre yet: the second pass
-   * (`matchSinistres` over added/corrected entries, a later issue) is what
-   * creates new links, not this one.
+   * A no-op read when the entry has no linked sinistre yet: {@link
+   * matchRectificatifEntries} (second pass) is what creates new links, not
+   * this one.
+   *
+   * A step whose `plannedDate` goes from unset to set — a `REFUSE → RECONNU`
+   * flip on the very entry a sinistre is already linked to — queues a
+   * `RECTIFICATIF_RECONNU` `SinistreNotification` (docs/research/
+   * sinistre-plan.md, "Пересчёт при rectificatif": "письмо владельцу уходит
+   * там, где сроки появляются"). Moving an already-dated deadline (critère
+   * PRD № 12) does not: the date changes, but it was never missing, so
+   * nothing newly needs telling. The reverse flip — `plannedDate` going back
+   * to unset — sends nothing either way.
    *
    * `outcome === RECONNU` resolves the déclaration `DeadlineRule` again, on
    * the (possibly moved) `publishedAt` — a version change or a corrected date
@@ -1524,15 +1691,7 @@ export class JorfMonitorService {
         : undefined;
     }
 
-    const matchEntry = {
-      id: entryId,
-      codeInsee,
-      risque: entry.risque,
-      eventStart: entry.eventStart,
-      eventEnd: entry.eventEnd,
-      outcome: entry.outcome,
-      publishedAt,
-    };
+    const matchEntry = toMatchEntry(entryId, codeInsee, entry, publishedAt);
 
     for (const sinistre of sinistres) {
       // {@link recomputeStatus} reads fresh, not carried over from the batch
@@ -1594,6 +1753,18 @@ export class JorfMonitorService {
           newPlannedDate ?? null,
           rule,
         );
+        if (oldPlannedDate === null && newPlannedDate) {
+          await tx.sinistreNotification.createMany({
+            data: [
+              {
+                sinistreId: sinistre.id,
+                arreteId,
+                kind: 'RECTIFICATIF_RECONNU',
+              },
+            ],
+            skipDuplicates: true,
+          });
+        }
       }
 
       const changes = [
@@ -1612,6 +1783,78 @@ export class JorfMonitorService {
         }),
       );
     }
+  }
+
+  /**
+   * The rectificatif's second pass (docs/plan/sinistre-plan.md, Фаза 5, issue
+   * #164; docs/research/sinistre-plan.md, "Пересчёт при rectificatif"):
+   * `matchSinistres` over every entry this revision added or corrected
+   * ({@link applyRectificatif}'s `touchedEntries`), against the same
+   * candidate pool `linkSinistres` draws from on ingest
+   * ({@link UNDATED_DECLARATION_STEP}) — a rectificatif routinely adds
+   * communes to the annexe and corrects an event period, and a sinistre that
+   * only qualifies now must not wait for the next arrêté to get linked.
+   * Applied through {@link applyLinkTx} with `RECTIFICATIF_RECONNU`, not
+   * `PUBLICATION` — the unique key on `kind` is exactly what lets a dossier
+   * whose commune is only now recognised get its letter through this path.
+   * `entryChanged` already covers an outcome flip on a still-unlinked or
+   * `ARRETE_REFUSE` candidate, so a corrected line resolving to `REFUSE`
+   * still links here (no letter, {@link applyLinkTx}'s own branch) rather
+   * than waiting for a `RECONNU` revision to notice it.
+   */
+  private async matchRectificatifEntries(
+    tx: Prisma.TransactionClient,
+    touchedEntries: readonly MatchArreteEntry[],
+    arreteId: string,
+    successorOf: ReadonlyMap<string, string>,
+    ruleByPublishedAt: Map<IsoDate, ResolvedDeadlineRule | null>,
+  ): Promise<void> {
+    const candidates = await tx.sinistre.findMany({
+      where: UNDATED_DECLARATION_STEP,
+      select: { id: true, codeInsee: true, risque: true, eventDate: true },
+    });
+    if (candidates.length === 0) {
+      return;
+    }
+
+    const links = matchSinistres(
+      touchedEntries,
+      candidates.map(toMatchCandidate),
+      successorOf,
+    );
+    if (links.length === 0) {
+      return;
+    }
+
+    const entryById = new Map(
+      touchedEntries.map((entry) => [
+        entry.id,
+        {
+          id: entry.id,
+          arreteId,
+          outcome: entry.outcome,
+          publishedAt: entry.publishedAt,
+        },
+      ]),
+    );
+    await this.applyMatchedLinks(
+      links,
+      entryById,
+      ruleByPublishedAt,
+      (sinistreId, entry, rule) =>
+        this.applyLinkTx(
+          tx,
+          sinistreId,
+          {
+            id: entry.id,
+            arreteId: entry.arreteId,
+            outcome: entry.outcome,
+            arrete: { publishedAt: isoDateToDate(entry.publishedAt) },
+          },
+          rule,
+          'RECTIFICATIF_RECONNU',
+        ),
+    );
   }
 
   /**
@@ -1835,15 +2078,19 @@ export class JorfMonitorService {
   }
 
   /**
-   * Address → the arrêté entries a sinistre `PUBLICATION` letter has actually
-   * told it about (docs/research/sinistre-plan.md, "Письмо владельцу синистра
-   * и дедупликация с veille") — what {@link loadVeilleMails} subtracts from a
+   * Address → the arrêté entries a sinistre letter has actually told it about
+   * (docs/research/sinistre-plan.md, "Письмо владельцу синистра и
+   * дедупликация с veille") — what {@link loadVeilleMails} subtracts from a
    * watcher's own entry list, through {@link subtractCoveredEntries}, before
-   * composing their mail. The entry is read off the sinistre's current link,
-   * the same one {@link loadSinistreMails} composes the letter from, so the
-   * two never disagree about what was said; a dossier unlinked or relinked
-   * since covers nothing, and its watcher hears about the commune again —
-   * the safe direction of the two.
+   * composing their mail. Both `kind`s count: a `RECTIFICATIF_RECONNU` letter
+   * ({@link matchRectificatifEntries}, {@link recomputeLinkedSinistres}) tells
+   * the owner about the entry exactly as a `PUBLICATION` one does — the
+   * dedup this method feeds does not care which arrêté revision prompted the
+   * letter. The entry is read off the sinistre's current link, the same one
+   * {@link loadSinistreMails} composes the letter from, so the two never
+   * disagree about what was said; a dossier unlinked or relinked since covers
+   * nothing, and its watcher hears about the commune again — the safe
+   * direction of the two.
    *
    * Filtered to `sentAt: { not: null }`, not merely queued: a sinistre letter
    * that keeps failing must not permanently silence the veille letter for the
@@ -1855,7 +2102,7 @@ export class JorfMonitorService {
     arreteId: string,
   ): Promise<Map<string, Set<string>>> {
     const rows = await this.prisma.sinistreNotification.findMany({
-      where: { arreteId, kind: 'PUBLICATION', sentAt: { not: null } },
+      where: { arreteId, sentAt: { not: null } },
       select: {
         sinistre: {
           select: { arreteEntryId: true, user: { select: { email: true } } },
@@ -1877,7 +2124,12 @@ export class JorfMonitorService {
   /**
    * The sinistre half of the shared outbox drain (`src/jorf/mail/
    * drain-outbox.ts`) — loading, composing and marking `SinistreNotification`
-   * rows. No `SendPass`, unlike {@link veilleOutboxAdapter}: this letter's
+   * rows, both `kind`s alike: `sinistreArreteMailFor` composes the same
+   * letter off the sinistre's current link regardless of whether the row is
+   * `PUBLICATION` or `RECTIFICATIF_RECONNU` (docs/research/sinistre-plan.md,
+   * "Пересчёт при rectificatif" — the `kind` only disambiguates the
+   * `unique(sinistreId, arreteId, kind)` key, it carries no wording of its
+   * own). No `SendPass`, unlike {@link veilleOutboxAdapter}: this letter's
    * unsubscribe link carries no rotating token ({@link
    * sinistreArreteMailFor}), so there is nothing to memoize across the run's
    * two drains.
@@ -1890,7 +2142,7 @@ export class JorfMonitorService {
     return {
       loadPending: () =>
         this.prisma.sinistreNotification.findMany({
-          where: { sentAt: null, kind: 'PUBLICATION' },
+          where: { sentAt: null },
           select: {
             id: true,
             sinistreId: true,

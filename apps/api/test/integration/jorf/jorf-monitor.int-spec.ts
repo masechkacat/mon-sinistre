@@ -2204,6 +2204,197 @@ describe('applyRectificatif recomputes linked sinistres (issue #163)', () => {
   });
 });
 
+// Второй проход applyRectificatif: matchSinistres по добавленным/исправленным
+// entries — docs/plan/sinistre-plan.md, Фаза 5 (issue #164).
+describe('applyRectificatif links newly-matching sinistres (issue #164)', () => {
+  const RECT_NOR = 'INTJ2600041A';
+  const RECT_TITLE =
+    "Arrêté du 1er juillet 2026 portant reconnaissance de l'état de catastrophe naturelle";
+  const TEXT_ID = 'JORFTEXT000000004101';
+  const AMIGNY = [
+    'Aisne',
+    'Amigny-Rouy',
+    'Inondations',
+    '01/06/2026',
+    '20/06/2026',
+  ];
+  const MUSSIDAN = [
+    'Dordogne',
+    'Mussidan',
+    'Inondations',
+    '01/06/2026',
+    '20/06/2026',
+  ];
+  const MORNING = 'JORFSIMPLE_20260701-060000.tar.gz';
+  const EVENING = 'JORFSIMPLE_20260701-230000.tar.gz';
+  const NIGHT = 'JORFSIMPLE_20260702-060000.tar.gz';
+
+  let app: NestFastifyApplication;
+  let prisma: PrismaService;
+  let monitor: JorfMonitorService;
+  let transport: RecordingTransport;
+  let currentFetch: FetchFn;
+  let served: Record<string, Buffer>;
+
+  beforeAll(async () => {
+    transport = new RecordingTransport();
+    app = await createIntTestApp({
+      customize: (builder) =>
+        builder
+          .overrideProvider(DilaClient)
+          .useValue(new DilaClient((...args) => currentFetch(...args)))
+          .overrideProvider(MAIL_TRANSPORT)
+          .useValue(transport),
+    });
+    prisma = app.get(PrismaService);
+    monitor = app.get(JorfMonitorService);
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  beforeEach(async () => {
+    transport.sent.length = 0;
+    served = {};
+    await prisma.$executeRaw`TRUNCATE TABLE "User", "Commune", "DeadlineRule", "StepTemplate", "Sinistre", "Arrete", "JorfDelta", "MonitorLock", "MonitorAlert" CASCADE`;
+    await prisma.commune.create({
+      data: communeFixture('02005', 'Amigny-Rouy', '02', 'Aisne'),
+    });
+    await prisma.commune.create({
+      data: communeFixture('24290', 'Mussidan', '24', 'Dordogne'),
+    });
+    await seedDeadlineRules(prisma);
+    await seedStepTemplates(prisma);
+  });
+
+  /** Same NOR across every call: a rectificatif, not a second arrêté. */
+  const serve = async (delta: string, revision: ArreteRevision) => {
+    served[delta] = await buildTarball({
+      'jorf/simple/JORF/CONT/2026/07/01/JORFCONT000000004100.xml': buildTocXml(
+        TEXT_ID,
+        RECT_TITLE,
+      ),
+      [`jorf/simple/JORF/CONT/2026/07/01/${TEXT_ID}.xml`]: buildArreteXml({
+        id: TEXT_ID,
+        nor: RECT_NOR,
+        title: RECT_TITLE,
+        ...revision,
+      }),
+    });
+    currentFetch = stubFetch(Object.keys(served), served);
+  };
+
+  async function createSinistre(codeInsee: string, eventDate = '2026-06-10') {
+    const email = `${randomUUID()}@example.fr`;
+    await createUser(prisma, { email });
+    const headers = await headersForEmail(app, prisma, email);
+    const res = await app.inject({
+      method: 'POST',
+      url: '/sinistres',
+      headers,
+      payload: { codeInsee, risque: 'INONDATION', eventDate },
+    });
+    const sinistre = JSON.parse(res.payload) as {
+      id: string;
+      status: string;
+      arreteEntryId: string | null;
+    };
+    return { headers, email, sinistre };
+  }
+
+  async function getSinistre(
+    headers: ReturnType<typeof withBearer>,
+    id: string,
+  ) {
+    const res = await app.inject({
+      method: 'GET',
+      url: `/sinistres/${id}`,
+      headers,
+    });
+    return JSON.parse(res.payload) as {
+      id: string;
+      status: string;
+      arreteEntryId: string | null;
+      steps: { anchor: string | null; plannedDate: string | null }[];
+    };
+  }
+
+  it('links a sinistre of a commune added by a rectificatif and mails its owner', async () => {
+    await serve(MORNING, { reconnues: [AMIGNY] });
+    await monitor.run();
+    const { headers, email, sinistre } = await createSinistre('24290');
+    expect(sinistre.arreteEntryId).toBeNull();
+    const rule = await prisma.deadlineRule.findFirstOrThrow({
+      where: { code: 'DECLARATION_ASSUREUR' },
+    });
+
+    await serve(EVENING, { reconnues: [AMIGNY, MUSSIDAN] });
+    await monitor.run();
+
+    const linked = await getSinistre(headers, sinistre.id);
+    expect(linked.status).toBe('ARRETE_PUBLIE');
+    expect(linked.arreteEntryId).not.toBeNull();
+    const step = linked.steps.find(
+      (s) => s.anchor === 'DATE_PUBLICATION_ARRETE',
+    );
+    expect(step?.plannedDate).toBe(
+      resolveDeadline(toIsoDate('2026-07-01'), rule.duration, rule.unit),
+    );
+
+    const mail = transport.sent.find((m) => m.to === email);
+    expect(mail).toBeDefined();
+    expect(mail?.text).toContain('Mussidan');
+    const notification = await prisma.sinistreNotification.findFirstOrThrow({
+      where: { sinistreId: sinistre.id },
+    });
+    expect(notification.kind).toBe('RECTIFICATIF_RECONNU');
+    expect(notification.sentAt).not.toBeNull();
+  });
+
+  it('a repeat run of the same rectificatif does not send a second letter', async () => {
+    await serve(MORNING, { reconnues: [AMIGNY] });
+    await monitor.run();
+    const { email } = await createSinistre('24290');
+
+    await serve(EVENING, { reconnues: [AMIGNY, MUSSIDAN] });
+    await monitor.run();
+    expect(transport.sent.filter((m) => m.to === email)).toHaveLength(1);
+
+    // Same NOR, byte-identical content under a new delta name — the
+    // contentHash-unchanged shortcut (`ingestArrete`), not a second pass over
+    // the same entries.
+    served[NIGHT] = served[EVENING]!;
+    currentFetch = stubFetch(Object.keys(served), served);
+    await monitor.run();
+
+    expect(transport.sent.filter((m) => m.to === email)).toHaveLength(1);
+    expect(await prisma.sinistreNotification.count()).toBe(1);
+  });
+
+  it('a rectificatif adding a commune as non reconnue links it without mailing the owner', async () => {
+    await serve(MORNING, { reconnues: [AMIGNY] });
+    await monitor.run();
+    const { headers, email, sinistre } = await createSinistre('24290');
+
+    await serve(EVENING, {
+      reconnues: [AMIGNY],
+      nonReconnues: [MUSSIDAN],
+    });
+    await monitor.run();
+
+    const linked = await getSinistre(headers, sinistre.id);
+    expect(linked.status).toBe('ARRETE_REFUSE');
+    expect(linked.arreteEntryId).not.toBeNull();
+    expect(
+      linked.steps.find((s) => s.anchor === 'DATE_PUBLICATION_ARRETE')
+        ?.plannedDate,
+    ).toBeNull();
+    expect(transport.sent.find((m) => m.to === email)).toBeUndefined();
+    expect(await prisma.sinistreNotification.count()).toBe(0);
+  });
+});
+
 // Outbox письма владельцу синистра, дедупликация с veille по строкам arrêté
 // на отправке — docs/plan/sinistre-plan.md, Фаза 4 (issue #161).
 describe('sinistre notification outbox (issue #161)', () => {
