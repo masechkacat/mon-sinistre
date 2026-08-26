@@ -5,9 +5,41 @@ export class ApiError extends Error {
   constructor(
     public readonly status: number,
     public readonly path: string,
+    /** First validation message from the API's JSON body, when it has one —
+     * lets a form relay the API's own French wording instead of guessing at
+     * one. */
+    public readonly detail?: string,
+    /** True when `detail` came from Nest's `ValidationPipe` (`{ message:
+     * string[] }`, always an array — even for one failing field) rather
+     * than a plain `throw new BadRequestException('some sentence')`
+     * (`{ message: string }`) written by hand somewhere in a service. Lets
+     * a caller trust that `detail` is about the field it validated,
+     * instead of an unrelated business error it would otherwise mislabel. */
+    public readonly detailIsFieldError: boolean = false,
   ) {
     super(`API error ${status} on ${path}`);
     this.name = 'ApiError';
+  }
+}
+
+interface ErrorDetail {
+  detail?: string;
+  detailIsFieldError: boolean;
+}
+
+async function readErrorDetail(response: Response): Promise<ErrorDetail> {
+  try {
+    const body: unknown = await response.json();
+    const message = (body as { message?: unknown } | null)?.message;
+    if (typeof message === 'string') {
+      return { detail: message, detailIsFieldError: false };
+    }
+    if (Array.isArray(message) && typeof message[0] === 'string') {
+      return { detail: message[0], detailIsFieldError: true };
+    }
+    return { detailIsFieldError: false };
+  } catch {
+    return { detailIsFieldError: false };
   }
 }
 
@@ -58,7 +90,8 @@ async function performFetch<T>(
   }
 
   if (!response.ok) {
-    throw new ApiError(response.status, path);
+    const { detail, detailIsFieldError } = await readErrorDetail(response);
+    throw new ApiError(response.status, path, detail, detailIsFieldError);
   }
   // A bodyless success (204/205 — deletions, unsubscribes) is still a success:
   // response.json() would reject on the empty body and surface as an error.

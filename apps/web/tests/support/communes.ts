@@ -42,8 +42,11 @@ export async function mockCommuneSearch(route: Route) {
   });
 }
 
-export async function selectNimes(page: Page) {
-  const input = page.getByLabel(fr.veille.form.communesLabel);
+export async function selectNimes(
+  page: Page,
+  label: string = fr.veille.form.communesLabel,
+) {
+  const input = page.getByLabel(label);
   await input.focus();
   await page.keyboard.type('Nimes');
   await expect(page.getByRole('option', { name: /Nîmes/ })).toBeVisible();

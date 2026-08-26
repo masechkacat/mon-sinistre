@@ -16,8 +16,7 @@ export interface CreateSinistreInput {
   eventDate: IsoDate;
 }
 
-// Consumed by the /sinistres/nouveau page (docs/plan/sinistre-plan.md, Фаза 6) —
-// not called yet, but that page is the very next task in the same phase.
+// Consumed by the /sinistres/nouveau page (docs/plan/sinistre-plan.md, Фаза 6).
 export function createSinistre(input: CreateSinistreInput) {
   return authApiFetch<SinistreDetail>('/sinistres', {
     method: 'POST',

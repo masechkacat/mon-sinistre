@@ -2,6 +2,7 @@ import {
   PASSWORD_MAX_BYTES,
   PASSWORD_MIN_CHAR_CLASSES,
   PASSWORD_MIN_LENGTH,
+  RisqueCatnat,
 } from '@mon-sinistre/contracts';
 
 // The space before ":" and "?" is a literal U+00A0, not a typo — same
@@ -305,6 +306,51 @@ export const fr = {
       page: { title: 'Compte supprimé' },
       description:
         'Votre compte et toutes les données associées ont été supprimés.',
+    },
+  },
+  sinistres: {
+    risque: {
+      label: 'Quel est le risque à l’origine des dégâts ?',
+      requiredError: 'Choisissez le risque à l’origine des dégâts.',
+      options: {
+        [RisqueCatnat.INONDATION]: {
+          label: 'Inondation',
+          description:
+            'Débordement d’un cours d’eau, submersion marine ou remontée de nappe phréatique.',
+        },
+        [RisqueCatnat.SECHERESSE]: {
+          label: 'Sécheresse',
+          description:
+            'Fissures dans les murs, apparues après un épisode de sécheresse qui a fait bouger le sol argileux sous la maison.',
+        },
+        [RisqueCatnat.MOUVEMENT_TERRAIN]: {
+          label: 'Mouvement de terrain',
+          description:
+            'Glissement de terrain, effondrement ou chute de blocs — hors fissures liées à la sécheresse.',
+        },
+        [RisqueCatnat.SEISME]: {
+          label: 'Séisme',
+          description: 'Tremblement de terre ou éruption volcanique.',
+        },
+        [RisqueCatnat.AVALANCHE]: {
+          label: 'Avalanche',
+          description: 'Coulée de neige.',
+        },
+        [RisqueCatnat.VENTS_CYCLONIQUES]: {
+          label: 'Vents cycloniques',
+          description: 'Vents violents liés à un cyclone.',
+        },
+      },
+    },
+    nouveau: {
+      page: { title: 'Déclarer un sinistre' },
+      lead: 'Indiquez la commune, le risque et la date de l’événement pour créer votre dossier et recevoir votre plan d’actions.',
+      communeLabel: 'Commune concernée',
+      communeRequiredError: 'Choisissez la commune concernée.',
+      eventDateLabel: 'Date de l’événement',
+      eventDateRequiredError: 'Indiquez la date de l’événement.',
+      submit: 'Créer mon dossier',
+      submitting: 'Création en cours…',
     },
   },
   session: {
