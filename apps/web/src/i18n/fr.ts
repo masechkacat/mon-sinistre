@@ -2,6 +2,8 @@ import {
   PASSWORD_MAX_BYTES,
   PASSWORD_MIN_CHAR_CLASSES,
   PASSWORD_MIN_LENGTH,
+  RisqueCatnat,
+  SinistreStatus,
 } from '@mon-sinistre/contracts';
 
 // The space before ":" and "?" is a literal U+00A0, not a typo — same
@@ -29,6 +31,11 @@ const VERIFIEZ_BOITE_EMAIL = 'Vérifiez votre boîte e-mail';
 // (compte.inscription, compte.connexion, compte.confirmation below).
 const CREER_UN_COMPTE = 'Créer un compte';
 const SE_CONNECTER = 'Se connecter';
+
+// Shared by every commune search field (veille.form's multi-select,
+// commune.select below) — one wording per fact, not one copy per feature.
+const COMMUNE_SEARCH_PLACEHOLDER = 'Nom de la commune ou code INSEE';
+const COMMUNE_NONE_FOUND = 'Aucune commune trouvée';
 
 // Shared by every form with a plain email field (veille.form,
 // compte.inscription below) — one wording per fact, not one copy per
@@ -104,6 +111,12 @@ export const fr = {
       ],
     },
   },
+  commune: {
+    searchPlaceholder: COMMUNE_SEARCH_PLACEHOLDER,
+    noneFound: COMMUNE_NONE_FOUND,
+    clearSelection: 'Effacer la commune sélectionnée',
+    selected: (label: string) => `Commune sélectionnée : ${label}`,
+  },
   veille: {
     page: {
       title: 'Être prévenu·e en cas de catastrophe naturelle',
@@ -111,9 +124,9 @@ export const fr = {
     },
     form: {
       communesLabel: 'Communes à surveiller',
-      communesPlaceholder: 'Nom de la commune ou code INSEE',
+      communesPlaceholder: COMMUNE_SEARCH_PLACEHOLDER,
       removeCommune: (name: string) => `Retirer ${name}`,
-      noCommuneFound: 'Aucune commune trouvée',
+      noCommuneFound: COMMUNE_NONE_FOUND,
       communesFound: (count: number) =>
         count === 1 ? '1 commune trouvée' : `${count} communes trouvées`,
       maxCommunesReached: (max: number) =>
@@ -277,6 +290,7 @@ export const fr = {
     espacePersonnel: {
       page: { title: 'Espace personnel' },
       intro: 'Vous êtes connecté·e à votre espace personnel.',
+      sinistresLink: 'Voir mes sinistres',
       emailLabel: `${EMAIL_LABEL} :`,
       deleteAccount: {
         button: 'Supprimer mon compte',
@@ -294,6 +308,75 @@ export const fr = {
       page: { title: 'Compte supprimé' },
       description:
         'Votre compte et toutes les données associées ont été supprimés.',
+    },
+  },
+  sinistres: {
+    risque: {
+      label: 'Quel est le risque à l’origine des dégâts ?',
+      requiredError: 'Choisissez le risque à l’origine des dégâts.',
+      options: {
+        [RisqueCatnat.INONDATION]: {
+          label: 'Inondation',
+          description:
+            'Débordement d’un cours d’eau, submersion marine ou remontée de nappe phréatique.',
+        },
+        [RisqueCatnat.SECHERESSE]: {
+          label: 'Sécheresse',
+          description:
+            'Fissures dans les murs, apparues après un épisode de sécheresse qui a fait bouger le sol argileux sous la maison.',
+        },
+        [RisqueCatnat.MOUVEMENT_TERRAIN]: {
+          label: 'Mouvement de terrain',
+          description:
+            'Glissement de terrain, effondrement ou chute de blocs — hors fissures liées à la sécheresse.',
+        },
+        [RisqueCatnat.SEISME]: {
+          label: 'Séisme',
+          description: 'Tremblement de terre ou éruption volcanique.',
+        },
+        [RisqueCatnat.AVALANCHE]: {
+          label: 'Avalanche',
+          description: 'Coulée de neige.',
+        },
+        [RisqueCatnat.VENTS_CYCLONIQUES]: {
+          label: 'Vents cycloniques',
+          description: 'Vents violents liés à un cyclone.',
+        },
+      },
+    },
+    nouveau: {
+      page: { title: 'Déclarer un sinistre' },
+      lead: 'Indiquez la commune, le risque et la date de l’événement pour créer votre dossier et recevoir votre plan d’actions.',
+      communeLabel: 'Commune concernée',
+      communeRequiredError: 'Choisissez la commune concernée.',
+      eventDateLabel: 'Date de l’événement',
+      eventDateRequiredError: 'Indiquez la date de l’événement.',
+      submit: 'Créer mon dossier',
+      submitting: 'Création en cours…',
+    },
+    // Values are the letter of SinistreStatus (root CLAUDE.md, «Не
+    // дублировать»); labels are the only French text a status carries — the
+    // list screen shows the status in words, not only via colour (WCAG 2.1
+    // AA, apps/web/CLAUDE.md).
+    statut: {
+      [SinistreStatus.AVANT_ARRETE]: 'En attente de la publication d’un arrêté',
+      [SinistreStatus.ARRETE_PUBLIE]: 'Arrêté publié',
+      [SinistreStatus.ARRETE_REFUSE]: 'Arrêté refusé pour cette commune',
+      [SinistreStatus.DECLARE]: 'Déclaré à l’assureur',
+      [SinistreStatus.CLOS]: 'Dossier clos',
+      [SinistreStatus.SANS_SUITE]: 'Sans suite',
+    },
+    liste: {
+      page: { title: 'Mes sinistres' },
+      lead: 'Retrouvez ici les dossiers que vous avez créés et leur avancement.',
+      newSinistre: 'Déclarer un sinistre',
+      empty: {
+        description:
+          'Vous n’avez pas encore de dossier. Créez-en un pour recevoir votre plan d’actions après une catastrophe naturelle : démarches, délais et rappels.',
+      },
+      communeCode: (code: string) => `Commune (code INSEE ${code})`,
+      eventDate: (date: string) => `Événement du ${date}`,
+      viewLink: 'Voir mon dossier',
     },
   },
   session: {
