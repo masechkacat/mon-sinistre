@@ -3,6 +3,7 @@ import {
   PASSWORD_MIN_CHAR_CLASSES,
   PASSWORD_MIN_LENGTH,
   RisqueCatnat,
+  SinistreStatus,
 } from '@mon-sinistre/contracts';
 
 // The space before ":" and "?" is a literal U+00A0, not a typo — same
@@ -289,6 +290,7 @@ export const fr = {
     espacePersonnel: {
       page: { title: 'Espace personnel' },
       intro: 'Vous êtes connecté·e à votre espace personnel.',
+      sinistresLink: 'Voir mes sinistres',
       emailLabel: `${EMAIL_LABEL} :`,
       deleteAccount: {
         button: 'Supprimer mon compte',
@@ -351,6 +353,30 @@ export const fr = {
       eventDateRequiredError: 'Indiquez la date de l’événement.',
       submit: 'Créer mon dossier',
       submitting: 'Création en cours…',
+    },
+    // Values are the letter of SinistreStatus (root CLAUDE.md, «Не
+    // дублировать»); labels are the only French text a status carries — the
+    // list screen shows the status in words, not only via colour (WCAG 2.1
+    // AA, apps/web/CLAUDE.md).
+    statut: {
+      [SinistreStatus.AVANT_ARRETE]: 'En attente de la publication d’un arrêté',
+      [SinistreStatus.ARRETE_PUBLIE]: 'Arrêté publié',
+      [SinistreStatus.ARRETE_REFUSE]: 'Arrêté refusé pour cette commune',
+      [SinistreStatus.DECLARE]: 'Déclaré à l’assureur',
+      [SinistreStatus.CLOS]: 'Dossier clos',
+      [SinistreStatus.SANS_SUITE]: 'Sans suite',
+    },
+    liste: {
+      page: { title: 'Mes sinistres' },
+      lead: 'Retrouvez ici les dossiers que vous avez créés et leur avancement.',
+      newSinistre: 'Déclarer un sinistre',
+      empty: {
+        description:
+          'Vous n’avez pas encore de dossier. Créez-en un pour recevoir votre plan d’actions après une catastrophe naturelle : démarches, délais et rappels.',
+      },
+      communeCode: (code: string) => `Commune (code INSEE ${code})`,
+      eventDate: (date: string) => `Événement du ${date}`,
+      viewLink: 'Voir mon dossier',
     },
   },
   session: {
