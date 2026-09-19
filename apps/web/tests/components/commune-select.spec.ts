@@ -1,7 +1,12 @@
 import { expect, test } from '@playwright/test';
 import { fr } from '../../src/i18n/fr';
 import { expectNoAxeViolations } from '../support/a11y';
-import { CHATEAU, NIMES, mockCommuneSearch } from '../support/communes';
+import {
+  CHATEAU,
+  NIMES,
+  holdCommuneSearch,
+  mockCommuneSearch,
+} from '../support/communes';
 import { testApiBaseUrl } from '../support/env';
 
 test('a commune is found and selected with the keyboard, and the selection is announced', async ({
@@ -56,19 +61,10 @@ test('a second search replaces the selection from the keyboard', async ({
 test('a search still in flight does not let Enter commit the previous result', async ({
   page,
 }) => {
-  // Mirrors the multi-select's own in-flight spec: the « Chateau » answer is
-  // held until released, so the stale window is deterministic. Here the stake
-  // is higher — the committed commune is what the arrêté match and the
-  // declaration deadline are computed from.
-  let releaseSearch = () => {};
-  const searchHeld = new Promise<void>((resolve) => {
-    releaseSearch = resolve;
-  });
-  await page.route(`${testApiBaseUrl}/communes**`, async (route) => {
-    const q = new URL(route.request().url()).searchParams.get('q') ?? '';
-    if (q === 'Chateau') await searchHeld;
-    await mockCommuneSearch(route);
-  });
+  // Here the stake is higher than in the multi-select's own in-flight spec:
+  // the committed commune is what the arrêté match and the declaration
+  // deadline are computed from.
+  const { release } = await holdCommuneSearch(page, 'Chateau');
   await page.goto('/test-commune-select');
 
   const input = page.getByLabel('Commune');
@@ -85,7 +81,7 @@ test('a search still in flight does not let Enter commit the previous result', a
   await page.keyboard.press('Enter');
   await expect(page.getByTestId('selected-code')).toHaveText('');
 
-  releaseSearch();
+  release();
   await expect(
     page.getByRole('option', { name: /Château-Thierry/ }),
   ).toBeVisible();

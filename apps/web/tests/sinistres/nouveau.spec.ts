@@ -112,8 +112,6 @@ test('a year outside four digits is reported, not swallowed by a dead button', a
 
   await page.goto('/sinistres/nouveau');
   await selectCommuneAndRisque(page);
-  // The HTML spec allows "four or more" digits of year and Chrome lets one be
-  // typed, so this value really does reach the submit handler.
   const dateInput = page.getByLabel(fr.sinistres.nouveau.eventDateLabel);
   await dateInput.fill('30000-06-15');
   await page.getByRole('button', { name: fr.sinistres.nouveau.submit }).click();

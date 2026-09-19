@@ -1,6 +1,7 @@
 import { expect, type Page, type Route } from '@playwright/test';
 import type { Commune } from '@mon-sinistre/contracts';
 import { fr } from '../../src/i18n/fr';
+import { testApiBaseUrl } from './env';
 
 export const CHATEAU: Commune = {
   codeInsee: '02168',
@@ -40,6 +41,26 @@ export async function mockCommuneSearch(route: Route) {
     contentType: 'application/json',
     body: JSON.stringify(communesMatching(q)),
   });
+}
+
+/**
+ * Installs the commune search mock with the answer to one query held back
+ * until the returned `release` is called: the window in which the popup shows
+ * the previous query's results is then deterministic instead of depending on
+ * timing. Shared by both combobox specs — each one asserts that a stale list
+ * cannot be committed.
+ */
+export async function holdCommuneSearch(page: Page, heldQuery: string) {
+  let release = () => {};
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route(`${testApiBaseUrl}/communes**`, async (route) => {
+    const q = new URL(route.request().url()).searchParams.get('q') ?? '';
+    if (q === heldQuery) await held;
+    await mockCommuneSearch(route);
+  });
+  return { release: () => release() };
 }
 
 export async function selectNimes(
