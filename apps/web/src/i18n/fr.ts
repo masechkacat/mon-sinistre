@@ -374,7 +374,6 @@ export const fr = {
         description:
           'Vous n’avez pas encore de dossier. Créez-en un pour recevoir votre plan d’actions après une catastrophe naturelle : démarches, délais et rappels.',
       },
-      communeCode: (code: string) => `Commune (code INSEE ${code})`,
       eventDate: (date: string) => `Événement du ${date}`,
       viewLink: 'Voir mon dossier',
     },

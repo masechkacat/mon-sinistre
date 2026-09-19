@@ -220,7 +220,7 @@ export function SinistreNouveauForm() {
           <FieldError error={eventDateFieldError} />
         </Field.Root>
 
-        <Button type="submit" disabled={mutation.isPending}>
+        <Button type="submit" size="touch" disabled={mutation.isPending}>
           {mutation.isPending
             ? fr.sinistres.nouveau.submitting
             : fr.sinistres.nouveau.submit}

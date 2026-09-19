@@ -2,6 +2,7 @@ import {
   RisqueCatnat,
   SinistreStatus,
   StepAnchor,
+  type Commune,
   type IsoDate,
   type SinistreDetail,
   type SinistreSummary,
@@ -15,7 +16,7 @@ import { stepStatus } from './step-status';
 /** The `Sinistre` fields `toSinistreDetail` needs off a Prisma row. */
 export interface SinistreRow {
   id: string;
-  codeInsee: string;
+  commune: Commune;
   risque: string;
   eventDate: Date;
   arreteEntryId: string | null;
@@ -70,7 +71,7 @@ export function toStepResponse(step: StepRow, today: IsoDate): Step {
 export function toSinistreSummary(sinistre: SinistreRow): SinistreSummary {
   return {
     id: sinistre.id,
-    communeCode: sinistre.codeInsee,
+    commune: sinistre.commune,
     risque: sinistre.risque as RisqueCatnat,
     eventDate: dateToIsoDate(sinistre.eventDate),
     arreteEntryId: sinistre.arreteEntryId,

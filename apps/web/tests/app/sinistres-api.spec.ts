@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { fr } from '../../src/i18n/fr';
+import { NIMES } from '../support/communes';
 import { testApiBaseUrl } from '../support/env';
 import { mockSession } from '../support/session-mock';
 
@@ -31,7 +32,7 @@ test('a signed-in session lists the caller’s sinistres', async ({ page }) => {
       body: JSON.stringify([
         {
           id: '11111111-1111-1111-1111-111111111111',
-          communeCode: '30189',
+          commune: NIMES,
           risque: 'INONDATION',
           eventDate: '2026-06-15',
           arreteEntryId: null,

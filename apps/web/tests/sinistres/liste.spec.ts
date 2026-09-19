@@ -1,6 +1,8 @@
 import { expect, test } from '@playwright/test';
+import { communeLabel } from '../../src/lib/commune-label';
 import { fr } from '../../src/i18n/fr';
 import { expectNoAxeViolations } from '../support/a11y';
+import { NIMES } from '../support/communes';
 import { testApiBaseUrl } from '../support/env';
 import { mockSession } from '../support/session-mock';
 
@@ -10,7 +12,7 @@ const SINISTRE_ID_2 = '22222222-2222-2222-2222-222222222222';
 function sinistreSummary(overrides: Partial<Record<string, unknown>> = {}) {
   return {
     id: SINISTRE_ID_1,
-    communeCode: '30189',
+    commune: NIMES,
     risque: 'INONDATION',
     eventDate: '2026-06-15',
     arreteEntryId: null,
@@ -66,6 +68,10 @@ test('lists two of the caller’s sinistres, each with its status in words and i
 
   const card1 = page.getByTestId(`sinistre-card-${SINISTRE_ID_1}`);
   const card2 = page.getByTestId(`sinistre-card-${SINISTRE_ID_2}`);
+  // The commune is named, not coded: an INSEE number tells the person
+  // nothing about which of their dossiers they are looking at.
+  await expect(card1.getByText(communeLabel(NIMES))).toBeVisible();
+  await expect(card1.getByText(NIMES.codeInsee)).toHaveCount(0);
   await expect(card1.getByText(fr.sinistres.statut.AVANT_ARRETE)).toBeVisible();
   await expect(
     card2.getByText(fr.sinistres.statut.ARRETE_PUBLIE),

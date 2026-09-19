@@ -10,6 +10,7 @@ import { buttonVariants } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatDateFr } from '@/i18n/date';
 import { fr } from '@/i18n/fr';
+import { communeLabel } from '@/lib/commune-label';
 import { fetchSinistres } from '@/lib/api/sinistres';
 import { queryKeys } from '@/lib/api/keys';
 import { useSessionGuard } from '@/lib/api/use-session-guard';
@@ -31,7 +32,10 @@ export function SinistresListe() {
             {fr.sinistres.liste.lead}
           </p>
         </div>
-        <Link href="/sinistres/nouveau" className={buttonVariants()}>
+        <Link
+          href="/sinistres/nouveau"
+          className={buttonVariants({ size: 'touch' })}
+        >
           {fr.sinistres.liste.newSinistre}
         </Link>
       </section>
@@ -71,7 +75,7 @@ export function SinistresListe() {
                     </CardHeader>
                     <CardContent className="space-y-2">
                       <p className="text-sm text-muted-foreground">
-                        {fr.sinistres.liste.communeCode(sinistre.communeCode)}
+                        {communeLabel(sinistre.commune)}
                       </p>
                       <p className="text-sm text-muted-foreground">
                         {fr.sinistres.liste.eventDate(
@@ -85,7 +89,7 @@ export function SinistresListe() {
                         href={`/sinistres/${sinistre.id}` as Route}
                         className={buttonVariants({
                           variant: 'outline',
-                          size: 'sm',
+                          size: 'touch',
                         })}
                       >
                         {fr.sinistres.liste.viewLink}

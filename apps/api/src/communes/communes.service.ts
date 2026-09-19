@@ -3,6 +3,7 @@ import { COMMUNE_SEARCH_LIMIT, Commune } from '@mon-sinistre/contracts';
 import { escapeLikePattern } from 'src/prisma/escape-like-pattern';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { normalizeCommuneName } from './normalize-commune-name';
+import { communeFields } from './commune-fields';
 
 @Injectable()
 export class CommunesService {
@@ -28,12 +29,7 @@ export class CommunesService {
       },
       orderBy: { nameNormalized: 'asc' },
       take: COMMUNE_SEARCH_LIMIT,
-      select: {
-        codeInsee: true,
-        name: true,
-        departementCode: true,
-        departementName: true,
-      },
+      select: communeFields,
     });
   }
 }

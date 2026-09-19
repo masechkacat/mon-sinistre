@@ -11,7 +11,7 @@ const SINISTRE_ID = '11111111-1111-1111-1111-111111111111';
 function sinistreDetail(overrides: Partial<Record<string, unknown>> = {}) {
   return {
     id: SINISTRE_ID,
-    communeCode: NIMES.codeInsee,
+    commune: NIMES,
     risque: 'INONDATION',
     eventDate: '2026-06-15',
     arreteEntryId: null,
