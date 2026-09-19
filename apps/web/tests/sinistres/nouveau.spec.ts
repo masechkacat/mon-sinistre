@@ -99,6 +99,32 @@ test('a failed submit puts focus on the first field in error, not on the button'
   await expect(page.getByRole('radio').first()).toBeFocused();
 });
 
+test('a year outside four digits is reported, not swallowed by a dead button', async ({
+  page,
+}) => {
+  await page.route(`${testApiBaseUrl}/communes**`, mockCommuneSearch);
+  let createCalled = false;
+  await page.route(`${testApiBaseUrl}/sinistres`, (route) => {
+    createCalled = true;
+    return route.fulfill({ status: 201, body: '{}' });
+  });
+  await mockSession(page).install();
+
+  await page.goto('/sinistres/nouveau');
+  await selectCommuneAndRisque(page);
+  // The HTML spec allows "four or more" digits of year and Chrome lets one be
+  // typed, so this value really does reach the submit handler.
+  const dateInput = page.getByLabel(fr.sinistres.nouveau.eventDateLabel);
+  await dateInput.fill('30000-06-15');
+  await page.getByRole('button', { name: fr.sinistres.nouveau.submit }).click();
+
+  await expectErrorTiedTo(
+    dateInput,
+    page.getByText(fr.sinistres.nouveau.eventDateInvalidError),
+  );
+  expect(createCalled).toBe(false);
+});
+
 test('a future event date shows the API’s French error, tied to the field and announced', async ({
   page,
 }) => {

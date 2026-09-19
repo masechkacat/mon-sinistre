@@ -42,6 +42,22 @@ export function CommuneSelect({
   // CommuneMultiSelect's chips container.
   const fieldRef = useRef<HTMLDivElement>(null);
 
+  // A stale list must not be committable (`searchSettled` in
+  // use-commune-search.ts says when it is stale): Enter on it would pick a
+  // commune unrelated to what is typed, and here that commune is what the
+  // arrêté match and the declaration deadline are computed from. Clearing
+  // the field is never stale, so it stays allowed.
+  const handleValueChange = (
+    next: Commune | null,
+    eventDetails: Combobox.Root.ChangeEventDetails,
+  ) => {
+    if (next !== null && !searchSettled) {
+      eventDetails.cancel();
+      return;
+    }
+    onValueChange(next);
+  };
+
   return (
     <Field.Root invalid={Boolean(error)}>
       <Combobox.Root
@@ -50,7 +66,7 @@ export function CommuneSelect({
         items={items}
         filteredItems={items}
         value={value}
-        onValueChange={onValueChange}
+        onValueChange={handleValueChange}
         inputValue={inputValue}
         onInputValueChange={onInputValueChange}
         itemToStringLabel={communeLabel}

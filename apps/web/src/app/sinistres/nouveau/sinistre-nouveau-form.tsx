@@ -8,7 +8,7 @@ import { useMutation } from '@tanstack/react-query';
 import type { Route } from 'next';
 import { useRouter } from 'next/navigation';
 import { useRef, useState, type FormEvent } from 'react';
-import { RisqueCatnat, toIsoDate, type Commune } from '@mon-sinistre/contracts';
+import { RisqueCatnat, isIsoDate, type Commune } from '@mon-sinistre/contracts';
 import { CommuneSelect } from '@/components/commune-select';
 import { FieldError } from '@/components/field-error';
 import { PageContainer } from '@/components/page-container';
@@ -95,14 +95,22 @@ export function SinistreNouveauForm() {
     const nextRisqueError = risque
       ? undefined
       : fr.sinistres.risque.requiredError;
-    const nextEventDateError = eventDate
-      ? undefined
-      : fr.sinistres.nouveau.eventDateRequiredError;
+    // `input type="date"` yields either '' or YYYY-MM-DD — but the year is
+    // "four or more" digits per the HTML spec, and Chrome lets one be typed,
+    // so a five-digit year reaches here and is not an IsoDate. Without this
+    // the branded constructor throws inside the submit handler and the
+    // button just does nothing.
+    const eventDateIsValid = isIsoDate(eventDate);
+    const nextEventDateError = !eventDate
+      ? fr.sinistres.nouveau.eventDateRequiredError
+      : eventDateIsValid
+        ? undefined
+        : fr.sinistres.nouveau.eventDateInvalidError;
 
     setCommuneError(nextCommuneError);
     setRisqueError(nextRisqueError);
     setEventDateError(nextEventDateError);
-    if (!commune || !risque || nextEventDateError) {
+    if (!commune || !risque || !eventDateIsValid) {
       focusFirstError({
         commune: nextCommuneError,
         risque: nextRisqueError,
@@ -114,7 +122,7 @@ export function SinistreNouveauForm() {
     mutation.mutate({
       codeInsee: commune.codeInsee,
       risque,
-      eventDate: toIsoDate(eventDate),
+      eventDate,
     });
   };
 

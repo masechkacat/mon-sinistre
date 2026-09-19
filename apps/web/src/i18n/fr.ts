@@ -353,6 +353,8 @@ export const fr = {
       eventDateHint:
         'Le jour où les dégâts se sont produits : jour, mois, puis année. Par exemple 05/09/2026 pour le 5 septembre 2026.',
       eventDateRequiredError: 'Indiquez la date de l’événement.',
+      eventDateInvalidError:
+        'Vérifiez l’année : elle doit comporter quatre chiffres.',
       submit: 'Créer mon dossier',
       submitting: 'Création en cours…',
     },
