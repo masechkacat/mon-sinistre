@@ -69,7 +69,7 @@ export function SinistresListe() {
                 >
                   <Card>
                     <CardHeader>
-                      <CardTitle>
+                      <CardTitle as="h2">
                         {fr.sinistres.risque.options[sinistre.risque].label}
                       </CardTitle>
                     </CardHeader>

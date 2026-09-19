@@ -350,6 +350,8 @@ export const fr = {
       communeLabel: 'Commune concernée',
       communeRequiredError: 'Choisissez la commune concernée.',
       eventDateLabel: 'Date de l’événement',
+      eventDateHint:
+        'Le jour où les dégâts se sont produits : jour, mois, puis année. Par exemple 05/09/2026 pour le 5 septembre 2026.',
       eventDateRequiredError: 'Indiquez la date de l’événement.',
       submit: 'Créer mon dossier',
       submitting: 'Création en cours…',

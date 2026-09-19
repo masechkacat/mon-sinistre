@@ -7,7 +7,7 @@ import { RadioGroup } from '@base-ui/react/radio-group';
 import { useMutation } from '@tanstack/react-query';
 import type { Route } from 'next';
 import { useRouter } from 'next/navigation';
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { RisqueCatnat, toIsoDate, type Commune } from '@mon-sinistre/contracts';
 import { CommuneSelect } from '@/components/commune-select';
 import { FieldError } from '@/components/field-error';
@@ -36,6 +36,7 @@ export function SinistreNouveauForm() {
   const [communeError, setCommuneError] = useState<string>();
   const [risqueError, setRisqueError] = useState<string>();
   const [eventDateError, setEventDateError] = useState<string>();
+  const formRef = useRef<HTMLFormElement>(null);
 
   const mutation = useMutation({
     mutationFn: createSinistre,
@@ -66,6 +67,26 @@ export function SinistreNouveauForm() {
   const eventDateFieldError = eventDateError ?? apiEventDateError;
   const requestFailed = mutation.isError && !apiEventDateError;
 
+  // Validation waits for the submit on purpose — an error raised the moment
+  // someone tabs past a field they meant to come back to is the last thing
+  // this audience needs — so the submit owes them the way back: the first
+  // field in error takes focus, instead of leaving the person at a button
+  // with the problem scrolled off above it.
+  const focusFirstError = (errors: {
+    commune?: string;
+    risque?: string;
+    eventDate?: string;
+  }) => {
+    const form = formRef.current;
+    if (!form) return;
+    const selector = errors.commune
+      ? 'input[role="combobox"]'
+      : errors.risque
+        ? '[role="radio"]'
+        : 'input[type="date"]';
+    form.querySelector<HTMLElement>(selector)?.focus();
+  };
+
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const nextCommuneError = commune
@@ -81,7 +102,14 @@ export function SinistreNouveauForm() {
     setCommuneError(nextCommuneError);
     setRisqueError(nextRisqueError);
     setEventDateError(nextEventDateError);
-    if (!commune || !risque || nextEventDateError) return;
+    if (!commune || !risque || nextEventDateError) {
+      focusFirstError({
+        commune: nextCommuneError,
+        risque: nextRisqueError,
+        eventDate: nextEventDateError,
+      });
+      return;
+    }
 
     mutation.mutate({
       codeInsee: commune.codeInsee,
@@ -114,6 +142,7 @@ export function SinistreNouveauForm() {
       </section>
 
       <form
+        ref={formRef}
         className="space-y-6"
         onSubmit={handleSubmit}
         noValidate
@@ -203,6 +232,14 @@ export function SinistreNouveauForm() {
           <Field.Label className="block text-sm font-medium">
             {fr.sinistres.nouveau.eventDateLabel}
           </Field.Label>
+          {/* The segmented date input prints its own order from the browser's
+              locale, not from `<html lang="fr">`: on an English-locale
+              browser this field reads mm/dd/yyyy. The 30-day declaration
+              deadline runs from whatever lands here, so the order is spelled
+              out rather than left to the widget. */}
+          <Field.Description className="block text-sm text-muted-foreground">
+            {fr.sinistres.nouveau.eventDateHint}
+          </Field.Description>
           <Field.Control
             type="date"
             value={eventDate}

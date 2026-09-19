@@ -72,6 +72,14 @@ test('lists two of the caller’s sinistres, each with its status in words and i
   // nothing about which of their dossiers they are looking at.
   await expect(card1.getByText(communeLabel(NIMES))).toBeVisible();
   await expect(card1.getByText(NIMES.codeInsee)).toHaveCount(0);
+  // Each dossier is a heading: that is how a screen-reader user moves
+  // between them without walking every line of every card.
+  await expect(
+    card1.getByRole('heading', {
+      level: 2,
+      name: fr.sinistres.risque.options.INONDATION.label,
+    }),
+  ).toBeVisible();
   await expect(card1.getByText(fr.sinistres.statut.AVANT_ARRETE)).toBeVisible();
   await expect(
     card2.getByText(fr.sinistres.statut.ARRETE_PUBLIE),

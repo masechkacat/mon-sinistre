@@ -3,7 +3,7 @@ import { fr } from '../../src/i18n/fr';
 import { expectNoAxeViolations } from '../support/a11y';
 import { NIMES, mockCommuneSearch, selectNimes } from '../support/communes';
 import { testApiBaseUrl } from '../support/env';
-import { expectErrorTiedTo } from '../support/form';
+import { describedByIds, expectErrorTiedTo } from '../support/form';
 import { mockSession } from '../support/session-mock';
 
 const SINISTRE_ID = '11111111-1111-1111-1111-111111111111';
@@ -57,6 +57,46 @@ test('submitting empty reports errors tied to each field, and does not send the 
     page.getByText(fr.sinistres.nouveau.eventDateRequiredError),
   );
   expect(createCalled).toBe(false);
+});
+
+test('the date field says which order to type, and the hint is tied to it', async ({
+  page,
+}) => {
+  await page.route(`${testApiBaseUrl}/communes**`, mockCommuneSearch);
+  await mockSession(page).install();
+
+  await page.goto('/sinistres/nouveau');
+
+  const hint = page.getByText(fr.sinistres.nouveau.eventDateHint);
+  await expect(hint).toBeVisible();
+  const hintId = await hint.getAttribute('id');
+  expect(hintId).not.toBeNull();
+  expect(
+    await describedByIds(page.getByLabel(fr.sinistres.nouveau.eventDateLabel)),
+  ).toContain(String(hintId));
+});
+
+test('a failed submit puts focus on the first field in error, not on the button', async ({
+  page,
+}) => {
+  await page.route(`${testApiBaseUrl}/communes**`, mockCommuneSearch);
+  await mockSession(page).install();
+
+  await page.goto('/sinistres/nouveau');
+  const submit = page.getByRole('button', {
+    name: fr.sinistres.nouveau.submit,
+  });
+
+  await submit.click();
+  await expect(
+    page.getByLabel(fr.sinistres.nouveau.communeLabel),
+  ).toBeFocused();
+
+  // With the commune answered, the walk moves on to the next open question
+  // rather than sending the person back to the top of the form.
+  await selectNimes(page, fr.sinistres.nouveau.communeLabel);
+  await submit.click();
+  await expect(page.getByRole('radio').first()).toBeFocused();
 });
 
 test('a future event date shows the API’s French error, tied to the field and announced', async ({
@@ -116,7 +156,12 @@ test('an unrelated 400 (a plain business error, not a field validator) shows the
   const alert = page.getByTestId('request-error');
   await expect(alert).toHaveAttribute('role', 'alert');
   await expect(page.getByText('Commune inconnue.')).toHaveCount(0);
-  await expect(dateInput).not.toHaveAttribute('aria-describedby');
+  // The field describes itself with its hint and nothing else: an error
+  // wired to it here would be this business failure wearing the date's name.
+  const hintId = await page
+    .getByText(fr.sinistres.nouveau.eventDateHint)
+    .getAttribute('id');
+  expect(await describedByIds(dateInput)).toEqual([String(hintId)]);
 });
 
 test('a successful submission leads to the sinistre screen', async ({
