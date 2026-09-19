@@ -67,6 +67,13 @@ export function SinistreNouveauForm() {
   const eventDateFieldError = eventDateError ?? apiEventDateError;
   const requestFailed = mutation.isError && !apiEventDateError;
 
+  // A failed request describes the form as it was sent, so the first edit to
+  // any field makes that answer stale — the banner cannot outlive the state
+  // it was about, whichever field the person goes back to.
+  const dismissRequestError = () => {
+    if (mutation.isError) mutation.reset();
+  };
+
   // Validation waits for the submit on purpose — an error raised the moment
   // someone tabs past a field they meant to come back to is the last thing
   // this audience needs — so the submit owes them the way back: the first
@@ -161,6 +168,7 @@ export function SinistreNouveauForm() {
           onValueChange={(next) => {
             setCommune(next);
             if (next) setCommuneError(undefined);
+            dismissRequestError();
           }}
           label={fr.sinistres.nouveau.communeLabel}
           error={communeError}
@@ -181,6 +189,7 @@ export function SinistreNouveauForm() {
               onValueChange={(next) => {
                 setRisque(next);
                 setRisqueError(undefined);
+                dismissRequestError();
               }}
               className="mt-2 space-y-3"
             >
@@ -254,7 +263,7 @@ export function SinistreNouveauForm() {
             onChange={(event) => {
               setEventDate(event.target.value);
               setEventDateError(undefined);
-              if (mutation.isError) mutation.reset();
+              dismissRequestError();
             }}
             className={cn(
               inputFrameClassName,

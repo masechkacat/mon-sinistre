@@ -12,6 +12,16 @@ const NO_ITEMS: Commune[] = [];
 
 const SEARCH_DEBOUNCE_MS = 250;
 
+export interface UseCommuneSearchOptions {
+  /**
+   * Text the input holds that is not a query. A single-selection combobox
+   * syncs its input to the chosen item's label, and that label is nobody's
+   * search: it matches no commune name, so searching it spends a request to
+   * answer « aucune commune trouvée » over a perfectly valid choice.
+   */
+  selectedLabel?: string | null;
+}
+
 export interface UseCommuneSearchResult {
   inputValue: string;
   onInputValueChange: (value: string) => void;
@@ -29,10 +39,13 @@ export interface UseCommuneSearchResult {
  * without it Base UI clears the highlight every time `items` is replaced, so
  * an answer arriving between ArrowDown and Enter would select nothing.
  */
-export function useCommuneSearch(): UseCommuneSearchResult {
+export function useCommuneSearch({
+  selectedLabel,
+}: UseCommuneSearchOptions = {}): UseCommuneSearchResult {
   const [inputValue, setInputValue] = useState('');
   const [query, setQuery] = useState('');
-  const searchEnabled = query.length >= COMMUNE_SEARCH_MIN_QUERY_LENGTH;
+  const searchEnabled =
+    query.length >= COMMUNE_SEARCH_MIN_QUERY_LENGTH && query !== selectedLabel;
 
   useEffect(() => {
     const typed = inputValue.trim();

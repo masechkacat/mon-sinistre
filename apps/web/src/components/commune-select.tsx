@@ -37,7 +37,7 @@ export function CommuneSelect({
   error,
 }: CommuneSelectProps) {
   const { inputValue, onInputValueChange, items, searchSettled } =
-    useCommuneSearch();
+    useCommuneSearch({ selectedLabel: value && communeLabel(value) });
   // The popup anchors to the whole input group, mirroring
   // CommuneMultiSelect's chips container.
   const fieldRef = useRef<HTMLDivElement>(null);

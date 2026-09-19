@@ -62,42 +62,44 @@ export function SinistresListe() {
 
           {query.data && query.data.length > 0 ? (
             <ul className="space-y-4">
-              {query.data.map((sinistre) => (
-                <li
-                  key={sinistre.id}
-                  data-testid={`sinistre-card-${sinistre.id}`}
-                >
-                  <Card>
-                    <CardHeader>
-                      <CardTitle as="h2">
-                        {fr.sinistres.risque.options[sinistre.risque].label}
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-2">
-                      <p className="text-sm text-muted-foreground">
-                        {communeLabel(sinistre.commune)}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {fr.sinistres.liste.eventDate(
-                          formatDateFr(sinistre.eventDate),
-                        )}
-                      </p>
-                      <p className="text-sm font-medium">
-                        {fr.sinistres.statut[sinistre.status]}
-                      </p>
-                      <Link
-                        href={`/sinistres/${sinistre.id}` as Route}
-                        className={buttonVariants({
-                          variant: 'outline',
-                          size: 'touch',
-                        })}
-                      >
-                        {fr.sinistres.liste.viewLink}
-                      </Link>
-                    </CardContent>
-                  </Card>
-                </li>
-              ))}
+              {query.data.map((sinistre) => {
+                const dossier = fr.sinistres.liste.dossierLabel(
+                  fr.sinistres.risque.options[sinistre.risque].label,
+                  communeLabel(sinistre.commune),
+                );
+                return (
+                  <li
+                    key={sinistre.id}
+                    data-testid={`sinistre-card-${sinistre.id}`}
+                  >
+                    <Card>
+                      <CardHeader>
+                        <CardTitle as="h2">{dossier}</CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-2">
+                        <p className="text-sm text-muted-foreground">
+                          {fr.sinistres.liste.eventDate(
+                            formatDateFr(sinistre.eventDate),
+                          )}
+                        </p>
+                        <p className="text-sm font-medium">
+                          {fr.sinistres.statut[sinistre.status]}
+                        </p>
+                        <Link
+                          href={`/sinistres/${sinistre.id}` as Route}
+                          aria-label={fr.sinistres.liste.viewLinkFor(dossier)}
+                          className={buttonVariants({
+                            variant: 'outline',
+                            size: 'touch',
+                          })}
+                        >
+                          {fr.sinistres.liste.viewLink}
+                        </Link>
+                      </CardContent>
+                    </Card>
+                  </li>
+                );
+              })}
             </ul>
           ) : null}
         </>

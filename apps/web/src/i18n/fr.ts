@@ -66,6 +66,10 @@ const PASSWORD_REQUIREMENTS =
 // feature.
 const PASSWORD_REQUIRED_ERROR = 'Choisissez un mot de passe.';
 
+// The dossier link is written once and read twice below (sinistres.liste):
+// as the text on screen, and inside the longer name a screen reader gets.
+const VOIR_MON_DOSSIER = 'Voir mon dossier';
+
 export const fr = {
   serviceName: 'Mon Sinistre',
   layout: {
@@ -379,7 +383,10 @@ export const fr = {
           'Vous n’avez pas encore de dossier. Créez-en un pour recevoir votre plan d’actions après une catastrophe naturelle : démarches, délais et rappels.',
       },
       eventDate: (date: string) => `Événement du ${date}`,
-      viewLink: 'Voir mon dossier',
+      dossierLabel: (risque: string, commune: string) =>
+        `${risque} — ${commune}`,
+      viewLink: VOIR_MON_DOSSIER,
+      viewLinkFor: (dossier: string) => `${VOIR_MON_DOSSIER} : ${dossier}`,
     },
   },
   session: {

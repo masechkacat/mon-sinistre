@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { communeLabel } from '../../src/lib/commune-label';
 import { fr } from '../../src/i18n/fr';
 import { expectNoAxeViolations } from '../support/a11y';
 import {
@@ -56,6 +57,33 @@ test('a second search replaces the selection from the keyboard', async ({
   await page.keyboard.press('Enter');
 
   await expect(page.getByTestId('selected-code')).toHaveText(NIMES.codeInsee);
+});
+
+test('the chosen commune is not searched again as if it were a query', async ({
+  page,
+}) => {
+  const queries: string[] = [];
+  await page.route(`${testApiBaseUrl}/communes**`, async (route) => {
+    queries.push(new URL(route.request().url()).searchParams.get('q') ?? '');
+    await mockCommuneSearch(route);
+  });
+  await page.goto('/test-commune-select');
+
+  const input = page.getByLabel('Commune');
+  await input.focus();
+  await page.keyboard.type('Nimes');
+  await expect(page.getByRole('option', { name: /Nîmes/ })).toBeVisible();
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('Enter');
+  await expect(page.getByTestId('selected-code')).toHaveText(NIMES.codeInsee);
+
+  // A fixed wait, not a poll: the assertion is that something never happens,
+  // and the debounce window (250 ms) is when it would. The selected label is
+  // no commune's name, so searching it answers « aucune commune » over a
+  // choice the person just made.
+  await page.waitForTimeout(500);
+  expect(queries).not.toContain(communeLabel(NIMES));
+  await expect(page.getByText(fr.commune.noneFound)).toBeHidden();
 });
 
 test('a search still in flight does not let Enter commit the previous result', async ({

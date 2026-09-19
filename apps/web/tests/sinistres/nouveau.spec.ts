@@ -188,6 +188,29 @@ test('an unrelated 400 (a plain business error, not a field validator) shows the
   expect(await describedByIds(dateInput)).toEqual([String(hintId)]);
 });
 
+test('the failure banner goes away when any field is edited, not only the date', async ({
+  page,
+}) => {
+  await page.route(`${testApiBaseUrl}/communes**`, mockCommuneSearch);
+  await page.route(`${testApiBaseUrl}/sinistres`, (route) => route.abort());
+  await mockSession(page).install();
+
+  await page.goto('/sinistres/nouveau');
+  await selectCommuneAndRisque(page);
+  await page.getByLabel(fr.sinistres.nouveau.eventDateLabel).fill('2026-06-15');
+  await page.getByRole('button', { name: fr.sinistres.nouveau.submit }).click();
+
+  const banner = page.getByTestId('request-error');
+  await expect(banner).toBeVisible();
+
+  // The banner describes the form as it was sent; changing the risque makes
+  // that answer stale, so it must not outlive the state it was about.
+  await page
+    .getByRole('radio', { name: fr.sinistres.risque.options.SECHERESSE.label })
+    .click();
+  await expect(banner).toBeHidden();
+});
+
 test('a successful submission leads to the sinistre screen', async ({
   page,
 }) => {

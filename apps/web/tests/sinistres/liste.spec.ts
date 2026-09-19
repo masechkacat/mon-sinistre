@@ -72,13 +72,20 @@ test('lists two of the caller’s sinistres, each with its status in words and i
   // nothing about which of their dossiers they are looking at.
   await expect(card1.getByText(communeLabel(NIMES))).toBeVisible();
   await expect(card1.getByText(NIMES.codeInsee)).toHaveCount(0);
-  // Each dossier is a heading: that is how a screen-reader user moves
-  // between them without walking every line of every card.
+  // Each dossier is a heading, and the heading names the commune too: the
+  // risque alone repeats across dossiers, so heading navigation would land on
+  // two identical « Inondation » and tell them apart by nothing.
+  const dossier1 = fr.sinistres.liste.dossierLabel(
+    fr.sinistres.risque.options.INONDATION.label,
+    communeLabel(NIMES),
+  );
   await expect(
-    card1.getByRole('heading', {
-      level: 2,
-      name: fr.sinistres.risque.options.INONDATION.label,
-    }),
+    card1.getByRole('heading', { level: 2, name: dossier1 }),
+  ).toBeVisible();
+  // The link says « Voir mon dossier » on screen for everyone, but its name
+  // carries the dossier — a links list otherwise reads the same phrase twice.
+  await expect(
+    card1.getByRole('link', { name: fr.sinistres.liste.viewLinkFor(dossier1) }),
   ).toBeVisible();
   await expect(card1.getByText(fr.sinistres.statut.AVANT_ARRETE)).toBeVisible();
   await expect(
