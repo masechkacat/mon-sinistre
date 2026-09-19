@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
+import Link from 'next/link';
 import { fr } from '@/i18n/fr';
 import { PageContainer } from '@/components/page-container';
 import { PageTitle } from '@/components/page-title';
@@ -80,6 +81,13 @@ export function EspacePersonnel() {
               </p>
             ) : null}
             {userQuery.isError ? <RequestError /> : null}
+
+            <Link
+              href="/sinistres"
+              className={buttonVariants({ variant: 'outline' })}
+            >
+              {fr.compte.espacePersonnel.sinistresLink}
+            </Link>
 
             <Button type="button" onClick={() => endSession()}>
               {fr.session.logout}

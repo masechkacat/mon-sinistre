@@ -37,6 +37,7 @@ import { matchSinistres, toMatchArreteEntry } from './match-sinistres';
 import { recomputeDeclarationSteps } from './recompute-declaration-steps';
 import { CATNAT_PLAN_KEY } from 'src/step-templates/step-template.seed';
 import { sinistreStatus } from './sinistre-status';
+import { communeFields } from 'src/communes/commune-fields';
 import {
   toSinistreDetail,
   toSinistreSummary,
@@ -123,7 +124,10 @@ export class SinistresService {
         }),
         steps: { create: steps },
       },
-      include: { steps: { orderBy: { order: 'asc' } } },
+      include: {
+        commune: { select: communeFields },
+        steps: { orderBy: { order: 'asc' } },
+      },
     });
 
     return toSinistreDetail(sinistre, sinistre.steps, today);
@@ -228,7 +232,10 @@ export class SinistresService {
   async findOne(userId: string, id: string): Promise<SinistreDetail> {
     const sinistre = await this.prisma.sinistre.findFirst({
       where: { id, userId },
-      include: { steps: { orderBy: { order: 'asc' } } },
+      include: {
+        commune: { select: communeFields },
+        steps: { orderBy: { order: 'asc' } },
+      },
     });
     if (!sinistre) {
       throw new NotFoundException();
@@ -242,6 +249,7 @@ export class SinistresService {
     const sinistres = await this.prisma.sinistre.findMany({
       where: { userId },
       orderBy: { createdAt: 'desc' },
+      include: { commune: { select: communeFields } },
     });
     return sinistres.map(toSinistreSummary);
   }
@@ -304,7 +312,10 @@ export class SinistresService {
 
       const updated = await tx.sinistre.findUniqueOrThrow({
         where: { id },
-        include: { steps: { orderBy: { order: 'asc' } } },
+        include: {
+          commune: { select: communeFields },
+          steps: { orderBy: { order: 'asc' } },
+        },
       });
       return toSinistreDetail(updated, updated.steps, todayInParis());
     });

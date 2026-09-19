@@ -129,7 +129,7 @@ export interface CurrentUserResponse {
 /** One insurance claim being accompanied. */
 export interface Sinistre {
   id: string;
-  communeCode: string;
+  commune: Commune;
   /** Risk category the user selects at creation; matched against `ArreteEntry.risque` via `classifyRisques`. */
   risque: RisqueCatnat;
   /** Date the damage occurred — first anchor of the plan. */

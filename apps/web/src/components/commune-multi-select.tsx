@@ -2,29 +2,18 @@
 
 import { Combobox } from '@base-ui/react/combobox';
 import { Field } from '@base-ui/react/field';
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { CheckIcon, XIcon } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
-import {
-  COMMUNE_SEARCH_MIN_QUERY_LENGTH,
-  VEILLE_MAX_COMMUNES,
-  type Commune,
-} from '@mon-sinistre/contracts';
+import { useRef } from 'react';
+import { VEILLE_MAX_COMMUNES, type Commune } from '@mon-sinistre/contracts';
 import { FieldError } from '@/components/field-error';
 import {
   inputFrameClassName,
   inputFrameInvalidClassName,
 } from '@/components/ui/input';
-import { apiFetch } from '@/lib/api/client';
-import { queryKeys } from '@/lib/api/keys';
+import { useCommuneSearch } from '@/lib/api/use-commune-search';
 import { communeLabel } from '@/lib/commune-label';
 import { cn } from '@/lib/utils';
 import { fr } from '@/i18n/fr';
-
-// Declared once so `items` keeps its identity between renders with no results.
-const NO_ITEMS: Commune[] = [];
-
-const SEARCH_DEBOUNCE_MS = 250;
 
 const isSameCommune = (a: Commune, b: Commune) => a.codeInsee === b.codeInsee;
 
@@ -40,10 +29,7 @@ export interface CommuneMultiSelectProps {
  * (docs/research/veille-subscription-lifecycle.md, «Страницы web и форма
  * подписки»): server-side filtering via `filteredItems`, the ceiling is
  * enforced here because the primitive has no notion of a selection limit.
- *
- * `autoHighlight` is what makes the keyboard work with a server-filtered list:
- * without it Base UI clears the highlight every time the items are replaced,
- * so an answer arriving between ArrowDown and Enter selected nothing.
+ * Search behaviour is `useCommuneSearch`.
  */
 export function CommuneMultiSelect({
   value,
@@ -51,39 +37,8 @@ export function CommuneMultiSelect({
   id,
   error,
 }: CommuneMultiSelectProps) {
-  const [inputValue, setInputValue] = useState('');
-  const [query, setQuery] = useState('');
-  const searchEnabled = query.length >= COMMUNE_SEARCH_MIN_QUERY_LENGTH;
-
-  useEffect(() => {
-    const typed = inputValue.trim();
-    const timer = setTimeout(() => setQuery(typed), SEARCH_DEBOUNCE_MS);
-    return () => clearTimeout(timer);
-  }, [inputValue]);
-
-  const { data, isFetching } = useQuery({
-    queryKey: queryKeys.communes(query),
-    queryFn: () =>
-      apiFetch<Commune[]>(`/communes?q=${encodeURIComponent(query)}`),
-    enabled: searchEnabled,
-    placeholderData: keepPreviousData,
-    // The referential is near-static; without this every window refocus and
-    // every retype of a cached prefix refires the request.
-    staleTime: Infinity,
-  });
-
-  const items = searchEnabled ? (data ?? NO_ITEMS) : NO_ITEMS;
-  // Until the debounce catches up and the answer for the current query
-  // arrives, the popup shows the previous query's results (placeholderData) —
-  // a list that does not correspond to what is typed. `data` may also be
-  // undefined with fetching over: a failed request, which must not read as
-  // « aucune commune trouvée » either.
-  const searchSettled =
-    searchEnabled &&
-    !isFetching &&
-    data !== undefined &&
-    query === inputValue.trim();
-
+  const { inputValue, onInputValueChange, items, searchSettled } =
+    useCommuneSearch();
   const ceilingReached = value.length >= VEILLE_MAX_COMMUNES;
   // The popup anchors to the whole field, not to the input: the input starts
   // after the chips, and the list would hang off to the right of them.
@@ -119,7 +74,7 @@ export function CommuneMultiSelect({
         value={value}
         onValueChange={handleValueChange}
         inputValue={inputValue}
-        onInputValueChange={setInputValue}
+        onInputValueChange={onInputValueChange}
         itemToStringLabel={communeLabel}
         isItemEqualToValue={isSameCommune}
       >

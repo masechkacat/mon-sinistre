@@ -38,6 +38,7 @@ CNIL, bcrypt, JWT-сессии с ротацией, глобальный guard, 
 | отправка письма                            | `MailService.send()` (`src/mail/`)                               |
 | экранирование LIKE                         | `escapeLikePattern` (`src/prisma/`)                              |
 | нормализация названия (коммуна, phénomène) | `normalizeCommuneName` (`src/communes/`)                         |
+| выборка коммуны в ответ                    | `communeFields` (`src/communes/`)                                |
 | одноразовый токен ссылки                   | `generateSecureToken`/`hashSecureToken` (`src/common/security/`) |
 | HMAC-хеш адреса для счётчика               | `hashEmail` (`src/common/security/`)                             |
 | атомарный счётчик по адресу                | `withAddressLock` (`src/common/address-lock.ts`)                 |

@@ -2,7 +2,13 @@ import { expect, test, type Page } from '@playwright/test';
 import { VEILLE_MAX_COMMUNES, type Commune } from '@mon-sinistre/contracts';
 import { fr } from '../../src/i18n/fr';
 import { expectNoAxeViolations } from '../support/a11y';
-import { CHATEAU, NIMES, mockCommuneSearch, selectNimes } from '../support/communes';
+import {
+  CHATEAU,
+  NIMES,
+  holdCommuneSearch,
+  mockCommuneSearch,
+  selectNimes,
+} from '../support/communes';
 import { testApiBaseUrl } from '../support/env';
 
 // A chip holds the name next to its remove button, so no element's text is
@@ -96,17 +102,7 @@ test('a 21st commune cannot be added once the ceiling is reached', async ({
 test('a search still in flight neither claims « aucune commune » nor lets Enter select the previous results', async ({
   page,
 }) => {
-  // The « Chateau » answer is held until the test releases it, making the
-  // pending-search window deterministic instead of timing-dependent.
-  let releaseSearch = () => {};
-  const searchHeld = new Promise<void>((resolve) => {
-    releaseSearch = resolve;
-  });
-  await page.route(`${testApiBaseUrl}/communes**`, async (route) => {
-    const q = new URL(route.request().url()).searchParams.get('q') ?? '';
-    if (q === 'Chateau') await searchHeld;
-    await mockCommuneSearch(route);
-  });
+  const { release } = await holdCommuneSearch(page, 'Chateau');
   await page.goto('/test-communes');
 
   const input = page.getByLabel(fr.veille.form.communesLabel);
@@ -125,7 +121,7 @@ test('a search still in flight neither claims « aucune commune » nor lets Ente
   await page.keyboard.press('Enter');
   await expect(page.getByTestId('selected-count')).toHaveText('0');
 
-  releaseSearch();
+  release();
   await expect(
     page.getByRole('option', { name: /Château-Thierry/ }),
   ).toBeVisible();

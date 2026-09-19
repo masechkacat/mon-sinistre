@@ -2,10 +2,12 @@ import { ApiProperty } from '@nestjs/swagger';
 import {
   RisqueCatnat,
   SinistreStatus,
+  type Commune,
   type IsoDate,
   type IsoDateTime,
   type SinistreSummary,
 } from '@mon-sinistre/contracts';
+import { CommuneResponseDto } from 'src/communes/dto/commune-response.dto';
 
 /**
  * Swagger-only mirror of {@link SinistreSummary} — `implements` makes the
@@ -16,8 +18,8 @@ export class SinistreSummaryResponseDto implements SinistreSummary {
   @ApiProperty()
   id: string;
 
-  @ApiProperty({ example: '30189' })
-  communeCode: string;
+  @ApiProperty({ type: CommuneResponseDto })
+  commune: Commune;
 
   @ApiProperty({ enum: RisqueCatnat })
   risque: RisqueCatnat;

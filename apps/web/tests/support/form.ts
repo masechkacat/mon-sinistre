@@ -10,6 +10,14 @@ export const VALID_PASSWORD = 'Abc12345!';
  * error (inscription, reinitialisation). */
 export const WEAK_PASSWORD = 'abcdefgh';
 
+/** The ids a field points at with `aria-describedby`. A field may point at
+ * several (a hint and an error at once), so callers say for themselves
+ * whether they mean "among them" or "these and nothing else". */
+export async function describedByIds(field: Locator): Promise<string[]> {
+  const value = await field.getAttribute('aria-describedby');
+  return value?.split(/\s+/).filter(Boolean) ?? [];
+}
+
 /** Shared by every spec asserting a field-level error (inscription, veille,
  * connexion): the error must be announced (`role="alert"`) and wired to its
  * field via `aria-describedby`, not just visible next to it. */
@@ -18,7 +26,7 @@ export async function expectErrorTiedTo(field: Locator, error: Locator) {
   await expect(error).toHaveAttribute('role', 'alert');
   const errorId = await error.getAttribute('id');
   expect(errorId).not.toBeNull();
-  await expect(field).toHaveAttribute('aria-describedby', String(errorId));
+  expect(await describedByIds(field)).toContain(String(errorId));
 }
 
 /** Shared by every confirm-by-token spec whose status endpoint answers with

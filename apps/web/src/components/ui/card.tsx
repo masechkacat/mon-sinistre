@@ -33,9 +33,17 @@ function CardHeader({ className, ...props }: React.ComponentProps<'div'>) {
   );
 }
 
-function CardTitle({ className, ...props }: React.ComponentProps<'div'>) {
+// `as` because a card standing for one item of a list is that item's heading:
+// a screen reader jumps between dossiers by heading, and a div gives it
+// nothing to jump to. Default stays `div` — a card that is not a list item
+// would only add noise to the heading outline.
+function CardTitle({
+  className,
+  as: Component = 'div',
+  ...props
+}: React.ComponentProps<'div'> & { as?: 'div' | 'h2' | 'h3' | 'h4' }) {
   return (
-    <div
+    <Component
       data-slot="card-title"
       className={cn(
         'font-heading text-base leading-snug font-medium group-data-[size=sm]/card:text-sm',
