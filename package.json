@@ -24,10 +24,13 @@
     "test:web": "npm run test --workspace @mon-sinistre/web",
     "test:tooling": "node --test \".claude/**/*.test.js\"",
     "lint": "npm run lint --workspaces --if-present",
+    "dup": "jscpd --baseline .jscpd-baseline.json packages/contracts/src apps/api/src apps/web/src .claude --fail-on-new-clones",
+    "dup:baseline": "jscpd --baseline .jscpd-baseline.json packages/contracts/src apps/api/src apps/web/src .claude --update-baseline",
     "db:up": "docker compose --env-file ./apps/api/.env up -d db",
     "db:down": "docker compose --env-file ./apps/api/.env down"
   },
   "devDependencies": {
+    "jscpd": "^5.4.0",
     "prettier": "^3.9.6"
   }
 }
