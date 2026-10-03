@@ -9,6 +9,7 @@
     "build": "next build",
     "start": "next start",
     "test": "playwright test",
+    "test:e2e": "playwright test --config playwright.e2e.config.ts",
     "lint": "eslint .",
     "predeploy": "node scripts/check-placeholders.mjs"
   },
