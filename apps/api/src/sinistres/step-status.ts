@@ -14,7 +14,7 @@ export interface StepStatusInput {
 }
 
 /** Whole calendar days from `from` to `to`, both `IsoDate`. */
-function daysBetween(from: IsoDate, to: IsoDate): number {
+export function daysBetween(from: IsoDate, to: IsoDate): number {
   return Math.round(
     (isoDateToDate(to).getTime() - isoDateToDate(from).getTime()) / DAY_MS,
   );

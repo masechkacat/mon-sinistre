@@ -44,6 +44,15 @@ import {
   toStepResponse,
 } from './to-sinistre-detail';
 
+/** Everything a `SinistreDetail` read needs, including each step's rule code. */
+const detailInclude = {
+  commune: { select: communeFields },
+  steps: {
+    orderBy: { order: 'asc' },
+    include: { deadlineRule: { select: { code: true } } },
+  },
+} as const;
+
 @Injectable()
 export class SinistresService {
   private readonly logger = new Logger(SinistresService.name);
@@ -124,10 +133,7 @@ export class SinistresService {
         }),
         steps: { create: steps },
       },
-      include: {
-        commune: { select: communeFields },
-        steps: { orderBy: { order: 'asc' } },
-      },
+      include: detailInclude,
     });
 
     return toSinistreDetail(sinistre, sinistre.steps, today);
@@ -232,10 +238,7 @@ export class SinistresService {
   async findOne(userId: string, id: string): Promise<SinistreDetail> {
     const sinistre = await this.prisma.sinistre.findFirst({
       where: { id, userId },
-      include: {
-        commune: { select: communeFields },
-        steps: { orderBy: { order: 'asc' } },
-      },
+      include: detailInclude,
     });
     if (!sinistre) {
       throw new NotFoundException();
@@ -312,10 +315,7 @@ export class SinistresService {
 
       const updated = await tx.sinistre.findUniqueOrThrow({
         where: { id },
-        include: {
-          commune: { select: communeFields },
-          steps: { orderBy: { order: 'asc' } },
-        },
+        include: detailInclude,
       });
       return toSinistreDetail(updated, updated.steps, todayInParis());
     });

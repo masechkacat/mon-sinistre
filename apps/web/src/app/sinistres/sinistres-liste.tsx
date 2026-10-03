@@ -10,7 +10,7 @@ import { buttonVariants } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatDateFr } from '@/i18n/date';
 import { fr } from '@/i18n/fr';
-import { communeLabel } from '@/lib/commune-label';
+import { dossierTitle } from '@/lib/dossier-title';
 import { fetchSinistres } from '@/lib/api/sinistres';
 import { queryKeys } from '@/lib/api/keys';
 import { useSessionGuard } from '@/lib/api/use-session-guard';
@@ -63,10 +63,7 @@ export function SinistresListe() {
           {query.data && query.data.length > 0 ? (
             <ul className="space-y-4">
               {query.data.map((sinistre) => {
-                const dossier = fr.sinistres.liste.dossierLabel(
-                  fr.sinistres.risque.options[sinistre.risque].label,
-                  communeLabel(sinistre.commune),
-                );
+                const dossier = dossierTitle(sinistre);
                 return (
                   <li
                     key={sinistre.id}

@@ -3,15 +3,18 @@ import {
   SinistreStatus,
   StepAnchor,
   type Commune,
+  type DeclarationDeadline,
   type IsoDate,
   type SinistreDetail,
   type SinistreSummary,
+  type SourceReference,
   type Step,
 } from '@mon-sinistre/contracts';
 import type { StepPersistedStatus } from 'src/generated/prisma/enums';
 import { toSourceReference } from 'src/common/source-reference';
+import { DECLARATION_ASSUREUR_CODE } from 'src/deadline-rules/deadline-rule.seed';
 import { dateToIsoDate } from 'src/deadline-rules/resolve-deadline';
-import { stepStatus } from './step-status';
+import { daysBetween, stepStatus } from './step-status';
 
 /** The `Sinistre` fields `toSinistreDetail` needs off a Prisma row. */
 export interface SinistreRow {
@@ -38,9 +41,14 @@ export interface StepRow {
   fromTemplate: boolean;
   sourceUrl: string | null;
   sourceVerifiedAt: Date | null;
+  deadlineRule: { code: string } | null;
 }
 
-export function toStepResponse(step: StepRow, today: IsoDate): Step {
+/** The rule code is read only by `declarationDeadlineOf`; a bare `Step` row
+ * (as `SinistresService.updateStep` reads it) maps without it. */
+export type StepResponseRow = Omit<StepRow, 'deadlineRule'>;
+
+export function toStepResponse(step: StepResponseRow, today: IsoDate): Step {
   const plannedDate = step.plannedDate ? dateToIsoDate(step.plannedDate) : null;
   return {
     id: step.id,
@@ -55,15 +63,18 @@ export function toStepResponse(step: StepRow, today: IsoDate): Step {
     completedAt: step.completedAt ? dateToIsoDate(step.completedAt) : null,
     fromTemplate: step.fromTemplate,
     anchor: step.anchor as StepAnchor | null,
-    source:
-      step.sourceUrl && step.sourceVerifiedAt
-        ? toSourceReference(
-            step.sourceUrl,
-            dateToIsoDate(step.sourceVerifiedAt),
-            today,
-          )
-        : null,
+    source: sourceOf(step, today),
   };
+}
+
+function sourceOf(step: StepResponseRow, today: IsoDate): SourceReference | null {
+  return step.sourceUrl && step.sourceVerifiedAt
+    ? toSourceReference(
+        step.sourceUrl,
+        dateToIsoDate(step.sourceVerifiedAt),
+        today,
+      )
+    : null;
 }
 
 /** Maps a `Sinistre` row to the wire `SinistreSummary` — the response body of
@@ -83,6 +94,22 @@ export function toSinistreSummary(sinistre: SinistreRow): SinistreSummary {
   };
 }
 
+/** The critical deadline is the step with the déclaration rule (ТЗ § 3.3). */
+export function declarationDeadlineOf(
+  steps: StepRow[],
+  today: IsoDate,
+): DeclarationDeadline | null {
+  const step = steps.find(
+    (candidate) => candidate.deadlineRule?.code === DECLARATION_ASSUREUR_CODE,
+  );
+  const source = step ? sourceOf(step, today) : null;
+  if (!step?.plannedDate || !source || step.persistedStatus !== null) {
+    return null;
+  }
+  const date = dateToIsoDate(step.plannedDate);
+  return { date, daysLeft: daysBetween(today, date), source };
+}
+
 /** Maps a `Sinistre` row and its `Step` rows to the wire `SinistreDetail` — the
  * response body of `POST/GET/PATCH /sinistres/:id`. */
 export function toSinistreDetail(
@@ -93,5 +120,6 @@ export function toSinistreDetail(
   return {
     ...toSinistreSummary(sinistre),
     steps: steps.map((step) => toStepResponse(step, today)),
+    declarationDeadline: declarationDeadlineOf(steps, today),
   };
 }

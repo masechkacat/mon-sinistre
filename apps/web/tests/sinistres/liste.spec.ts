@@ -1,27 +1,17 @@
 import { expect, test } from '@playwright/test';
+import { RisqueCatnat, SinistreStatus } from '@mon-sinistre/contracts';
 import { communeLabel } from '../../src/lib/commune-label';
+import { dossierTitle } from '../../src/lib/dossier-title';
 import { fr } from '../../src/i18n/fr';
 import { expectNoAxeViolations } from '../support/a11y';
 import { NIMES } from '../support/communes';
 import { testApiBaseUrl } from '../support/env';
 import { mockSession } from '../support/session-mock';
-
-const SINISTRE_ID_1 = '11111111-1111-1111-1111-111111111111';
-const SINISTRE_ID_2 = '22222222-2222-2222-2222-222222222222';
-
-function sinistreSummary(overrides: Partial<Record<string, unknown>> = {}) {
-  return {
-    id: SINISTRE_ID_1,
-    commune: NIMES,
-    risque: 'INONDATION',
-    eventDate: '2026-06-15',
-    arreteEntryId: null,
-    declarationDate: null,
-    status: 'AVANT_ARRETE',
-    createdAt: '2026-06-16T08:00:00.000Z',
-    ...overrides,
-  };
-}
+import {
+  SINISTRE_ID_1,
+  SINISTRE_ID_2,
+  sinistreFixture as sinistreSummary,
+} from '../support/sinistres';
 
 test('the empty state explains what to do when the caller has no sinistre yet', async ({
   page,
@@ -54,11 +44,11 @@ test('lists two of the caller’s sinistres, each with its status in words and i
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify([
-        sinistreSummary({ id: SINISTRE_ID_1, status: 'AVANT_ARRETE' }),
+        sinistreSummary({ id: SINISTRE_ID_1, status: SinistreStatus.AVANT_ARRETE }),
         sinistreSummary({
           id: SINISTRE_ID_2,
-          risque: 'SECHERESSE',
-          status: 'ARRETE_PUBLIE',
+          risque: RisqueCatnat.SECHERESSE,
+          status: SinistreStatus.ARRETE_PUBLIE,
         }),
       ]),
     }),
@@ -75,10 +65,7 @@ test('lists two of the caller’s sinistres, each with its status in words and i
   // Each dossier is a heading, and the heading names the commune too: the
   // risque alone repeats across dossiers, so heading navigation would land on
   // two identical « Inondation » and tell them apart by nothing.
-  const dossier1 = fr.sinistres.liste.dossierLabel(
-    fr.sinistres.risque.options.INONDATION.label,
-    communeLabel(NIMES),
-  );
+  const dossier1 = dossierTitle(sinistreSummary());
   await expect(
     card1.getByRole('heading', { level: 2, name: dossier1 }),
   ).toBeVisible();

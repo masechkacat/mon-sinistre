@@ -4,10 +4,15 @@ import {
   PASSWORD_MIN_LENGTH,
   RisqueCatnat,
   SinistreStatus,
+  StepAnchor,
+  StepStatus,
 } from '@mon-sinistre/contracts';
 
 // The space before ":" and "?" is a literal U+00A0, not a typo — same
 // convention as apps/api/src/i18n/fr.ts.
+
+const A_VERIFIER_AVEC_CONTRAT =
+  'à vérifier avec votre contrat et votre assurance';
 
 // Shared across veille.confirmation and veille.change below: same fact
 // (link being checked, link no longer usable, alert reaches the watched
@@ -23,6 +28,7 @@ const LIEN_INVALIDE = 'Lien invalide';
 const LIEN_CONFIRMATION_INVALIDE_DESCRIPTION =
   'Ce lien de confirmation n’est plus valable : il a peut-être déjà été utilisé, ou son délai de validité est dépassé.';
 const CONFIRMER = 'Confirmer';
+const ANNULER = 'Annuler';
 const CONFIRMATION_EN_COURS = 'Confirmation en cours…';
 const VERIFIEZ_BOITE_EMAIL = 'Vérifiez votre boîte e-mail';
 
@@ -69,6 +75,8 @@ const PASSWORD_REQUIRED_ERROR = 'Choisissez un mot de passe.';
 // The dossier link is written once and read twice below (sinistres.liste):
 // as the text on screen, and inside the longer name a screen reader gets.
 const VOIR_MON_DOSSIER = 'Voir mon dossier';
+// The button and the status label share one text (sinistres.detail.stepStatus).
+const NON_APPLICABLE = 'Non applicable';
 
 export const fr = {
   serviceName: 'Mon Sinistre',
@@ -102,7 +110,7 @@ export const fr = {
     doesNot: {
       heading: 'Ce que Mon Sinistre ne fait pas',
       items: [
-        'Ne donne pas de conseils juridiques : les dates calculées sont indicatives, à vérifier avec votre contrat et votre assurance.',
+        `Ne donne pas de conseils juridiques : les dates calculées sont indicatives, ${A_VERIFIER_AVEC_CONTRAT}.`,
         'N’écrit jamais à votre assurance à votre place : vous gardez la main sur toutes vos démarches.',
       ],
     },
@@ -302,7 +310,7 @@ export const fr = {
           description:
             'Cette action est immédiate et irréversible : votre compte et toutes les données associées seront supprimés. Vous pourrez créer un nouveau compte avec la même adresse e-mail si vous le souhaitez.',
         },
-        cancel: 'Annuler',
+        cancel: ANNULER,
         confirm: 'Supprimer définitivement mon compte',
         deleting: 'Suppression en cours…',
       },
@@ -386,6 +394,90 @@ export const fr = {
         `${risque} — ${commune}`,
       viewLink: VOIR_MON_DOSSIER,
       viewLinkFor: (dossier: string) => `${VOIR_MON_DOSSIER} : ${dossier}`,
+    },
+    detail: {
+      page: { title: 'Mon dossier' },
+      timelineLabel: 'Étapes de votre dossier',
+      prochaineEtape: 'Prochaine étape',
+      datePrevue: (date: string) => `Prévue le ${date}`,
+      sansDateNiAncre: 'Cette étape n’a pas encore de date prévue.',
+      marquer: {
+        fait: 'Marquer comme fait',
+        nonApplicable: NON_APPLICABLE,
+        annuler: 'Annuler ce choix',
+        sujet: (etape: string) => `, pour « ${etape} »`,
+      },
+      annonce: {
+        fait: (etape: string) => `« ${etape} » est marqué comme fait.`,
+        nonApplicable: (etape: string) =>
+          `« ${etape} » est marqué comme non applicable.`,
+        annule: (etape: string) => `Le choix pour « ${etape} » est annulé.`,
+      },
+      marquageEchec:
+        'L’étape n’a pas pu être mise à jour. Elle garde son état précédent : réessayez dans un instant.',
+      declaration: {
+        heading: 'Déclaration à votre assureur',
+        label: 'Date de votre déclaration à l’assureur',
+        hint: 'Le jour où vous avez prévenu votre assureur du sinistre. Les dates du plan qui en dépendent se calculent à partir de ce jour.',
+        requis: 'Indiquez la date de votre déclaration.',
+        echec:
+          'La date n’a pas pu être enregistrée. Vérifiez-la et réessayez dans un instant.',
+        enregistrer: 'Enregistrer la date',
+        enregistree: 'La date de déclaration est enregistrée.',
+        effacer: 'Effacer la date',
+        effacee: 'La date de déclaration est effacée.',
+        effacementEchec:
+          'La date n’a pas pu être effacée. Elle est toujours enregistrée : réessayez dans un instant.',
+      },
+      suppression: {
+        ouvrir: 'Supprimer ce dossier',
+        titre: 'Supprimer ce dossier ?',
+        texte:
+          'Le dossier, son plan et ses dates seront effacés définitivement. Cette action ne peut pas être annulée.',
+        confirmer: 'Supprimer définitivement',
+        annuler: ANNULER,
+        echec:
+          'Le dossier n’a pas pu être supprimé. Il est toujours là : réessayez dans un instant.',
+      },
+      stepStatus: {
+        [StepStatus.A_VENIR]: 'À venir',
+        [StepStatus.A_FAIRE]: 'À faire bientôt',
+        [StepStatus.EN_RETARD]: 'En retard',
+        [StepStatus.FAIT]: 'Fait',
+        [StepStatus.NON_APPLICABLE]: NON_APPLICABLE,
+      },
+      attentePar: {
+        [StepAnchor.DATE_SINISTRE]:
+          'La date de cette étape n’a pas pu être calculée. Vérifiez le délai avec votre assureur.',
+        [StepAnchor.DATE_PUBLICATION_ARRETE]:
+          'Elle sera connue quand l’arrêté de catastrophe naturelle de votre commune sera publié au Journal officiel.',
+        [StepAnchor.DATE_DECLARATION]:
+          'Elle sera connue quand vous indiquerez la date de votre déclaration à l’assureur.',
+        [StepAnchor.DATE_ETAT_ESTIMATIF]:
+          'Elle dépend de l’état estimatif de l’assureur, qui n’est pas encore établi.',
+        [StepAnchor.DATE_ETAT_ESTIMATIF_OU_EXPERTISE]:
+          'Elle dépend de l’état estimatif ou de l’expertise de l’assureur, qui ne sont pas encore intervenus.',
+        [StepAnchor.DATE_ACCORD_INDEMNISATION]:
+          'Elle dépend de la date de l’accord de l’assureur sur l’indemnisation, qui n’est pas encore connue.',
+      },
+      deadline: {
+        heading: 'Délai de déclaration à votre assureur',
+        dateLimite: (date: string) => `Date limite le ${date}`,
+        remaining: (days: number) =>
+          days === 1 ? 'Il reste 1 jour' : `Il reste ${days} jours`,
+        today: 'C’est le dernier jour pour déclarer.',
+        overdue: (days: number) =>
+          days === 1
+            ? 'Délai dépassé d’un jour'
+            : `Délai dépassé de ${days} jours`,
+      },
+      source: {
+        lien: (sujet: string) => `Voir le texte de référence : ${sujet}`,
+        verifiee: (date: string) => `Source vérifiée le ${date}.`,
+        outdated: (months: number) =>
+          `Source non revérifiée depuis plus de ${months} mois : la date peut avoir changé.`,
+        indicative: `Date indicative, ${A_VERIFIER_AVEC_CONTRAT}.`,
+      },
     },
   },
   session: {

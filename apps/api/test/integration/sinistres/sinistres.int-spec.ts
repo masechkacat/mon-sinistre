@@ -29,6 +29,7 @@ interface SinistreWithDetail extends SinistreWithSteps {
   status: string;
   arreteEntryId: string | null;
   declarationDate: string | null;
+  declarationDeadline: { date: string; daysLeft: number } | null;
   steps: {
     id: string;
     anchor: string | null;
@@ -120,6 +121,7 @@ describe('SinistresController (integration)', () => {
     expect(res.statusCode).toBe(201);
     const body = JSON.parse(res.payload) as {
       status: string;
+      declarationDeadline: { date: string; daysLeft: number } | null;
       steps: {
         anchor: string | null;
         plannedDate: string | null;
@@ -148,6 +150,7 @@ describe('SinistresController (integration)', () => {
     );
     expect(informStep?.plannedDate).toBeNull();
     expect(informStep?.source).not.toBeNull();
+    expect(body.declarationDeadline).toBeNull();
   });
 
   it('rejects an eventDate in the future with a French message', async () => {
@@ -434,6 +437,7 @@ describe('SinistresController (integration)', () => {
       expect(legalStepOf(body, 'DATE_PUBLICATION_ARRETE').status).toBe(
         'EN_RETARD',
       );
+      expect(body.declarationDeadline?.daysLeft).toBeLessThan(0);
     });
 
     it('links to a REFUSE entry into ARRETE_REFUSE without a déclaration deadline (critère PRD № 6)', async () => {

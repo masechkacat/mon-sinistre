@@ -1,0 +1,634 @@
+import { expect, test, type Page } from '@playwright/test';
+import {
+  REFERENCE_DATA_STALE_AFTER_MONTHS,
+  SinistreStatus,
+  StepAnchor,
+  StepStatus,
+  toIsoDate,
+  type IsoDate,
+} from '@mon-sinistre/contracts';
+import type { StepMark } from '../../src/lib/api/sinistres';
+import { dossierTitle } from '../../src/lib/dossier-title';
+import { formatDateFr } from '../../src/i18n/date';
+import { fr } from '../../src/i18n/fr';
+import { expectNoAxeViolations } from '../support/a11y';
+import { testApiBaseUrl } from '../support/env';
+import { mockSession } from '../support/session-mock';
+import {
+  SINISTRE_ID_1,
+  sinistreFixture,
+  stepFixture as step,
+} from '../support/sinistres';
+
+const SOURCE = {
+  url: 'https://www.legifrance.gouv.fr/codes/id/LEGIARTI000006792617',
+  verifiedAt: toIsoDate('2026-08-18'),
+  possiblyOutdated: false,
+};
+
+// Five steps in template order: one overdue, one due soon (the nearest
+// upcoming), one with no date yet, one later, one already done.
+const STEPS = [
+  step({
+    id: 'step-retard',
+    name: 'Déposer la déclaration',
+    plannedDate: toIsoDate('2026-09-01'),
+    status: StepStatus.EN_RETARD,
+  }),
+  step({
+    id: 'step-proche',
+    name: 'Envoyer les photos',
+    plannedDate: toIsoDate('2026-10-20'),
+    status: StepStatus.A_FAIRE,
+  }),
+  step({
+    id: 'step-sans-date',
+    name: 'Demander l’état estimatif',
+    plannedDate: null,
+    status: StepStatus.A_VENIR,
+    anchor: StepAnchor.DATE_ETAT_ESTIMATIF,
+  }),
+  step({
+    id: 'step-plus-tard',
+    name: 'Relire le contrat',
+    plannedDate: toIsoDate('2027-01-15'),
+    status: StepStatus.A_VENIR,
+  }),
+  step({
+    id: 'step-fait',
+    name: 'Prévenir le voisin',
+    plannedDate: toIsoDate('2026-06-20'),
+    status: StepStatus.FAIT,
+    completedAt: toIsoDate('2026-06-20'),
+  }),
+];
+
+function sinistreDetail(overrides: Partial<Record<string, unknown>> = {}) {
+  return {
+    ...sinistreFixture({ status: SinistreStatus.DECLARE }),
+    steps: STEPS,
+    declarationDeadline: {
+      date: '2026-09-15',
+      daysLeft: 14,
+      source: SOURCE,
+    },
+    ...overrides,
+  };
+}
+
+const DECLARATION_STEP = step({
+  id: 'step-declaration',
+  name: 'Déclarer le sinistre à l’assureur',
+  plannedDate: null,
+  status: StepStatus.A_VENIR,
+  anchor: StepAnchor.DATE_DECLARATION,
+});
+
+// What the API answers once a declaration date is set or cleared: the step
+// anchored on it takes a date only while the date is there.
+function detailDeclaredOn(declarationDate: IsoDate | null) {
+  return sinistreDetail({
+    declarationDate,
+    steps: [
+      ...STEPS,
+      {
+        ...DECLARATION_STEP,
+        plannedDate: declarationDate ? toIsoDate('2026-10-01') : null,
+      },
+    ],
+  });
+}
+
+// A PATCH on a step answers from the same state the GET reads, so the refetch
+// after a successful mark shows what the API would show.
+async function openDetail(
+  page: Page,
+  body: ReturnType<typeof sinistreDetail>,
+  {
+    failing = false,
+    afterPatch = (declarationDate) => ({
+      ...sinistreDetail(),
+      declarationDate,
+    }),
+  }: {
+    failing?: boolean;
+    afterPatch?: (
+      declarationDate: IsoDate | null,
+    ) => ReturnType<typeof sinistreDetail>;
+  } = {},
+) {
+  const state = { detail: body };
+  await mockSession(page).install();
+  await page.route(`${testApiBaseUrl}/sinistres/${SINISTRE_ID_1}`, (route) => {
+    const method = route.request().method();
+    if (failing && method !== 'GET') {
+      return route.fulfill({ status: 500 });
+    }
+    if (method === 'DELETE') {
+      return route.fulfill({ status: 204 });
+    }
+    if (method === 'PATCH') {
+      const { declarationDate } = route.request().postDataJSON() as {
+        declarationDate: IsoDate | null;
+      };
+      state.detail = afterPatch(declarationDate);
+    }
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(state.detail),
+    });
+  });
+  await page.route(/\/etapes\/[^/?]+$/, (route) => {
+    if (failing) {
+      return route.fulfill({
+        status: 500,
+        contentType: 'application/json',
+        body: JSON.stringify({ message: 'Erreur interne' }),
+      });
+    }
+    const stepId = route.request().url().split('/').at(-1) ?? '';
+    const { status } = route.request().postDataJSON() as {
+      status: StepMark;
+    };
+    state.detail = {
+      ...state.detail,
+      steps: state.detail.steps.map((item) =>
+        item.id === stepId
+          ? { ...item, status: status ?? StepStatus.A_FAIRE }
+          : item,
+      ),
+    };
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(state.detail.steps.find((s) => s.id === stepId)),
+    });
+  });
+  await page.goto(`/sinistres/${SINISTRE_ID_1}`);
+}
+
+test('the plan is an ordered list with one item per step, each status named in words', async ({
+  page,
+}) => {
+  await openDetail(page, sinistreDetail());
+
+  const timeline = page.getByRole('list', {
+    name: fr.sinistres.detail.timelineLabel,
+  });
+  await expect(timeline.getByRole('listitem')).toHaveCount(STEPS.length);
+  await expect(
+    timeline.getByRole('listitem').filter({ hasText: 'Envoyer les photos' }),
+  ).toContainText(fr.sinistres.detail.stepStatus.A_FAIRE);
+  await expect(
+    timeline
+      .getByRole('listitem')
+      .filter({ hasText: 'Déposer la déclaration' }),
+  ).toContainText(fr.sinistres.detail.stepStatus.EN_RETARD);
+  await expect(
+    timeline.getByRole('listitem').filter({ hasText: 'Prévenir le voisin' }),
+  ).toContainText(fr.sinistres.detail.stepStatus.FAIT);
+});
+
+test('exactly one step carries aria-current, and it is the nearest upcoming one', async ({
+  page,
+}) => {
+  await openDetail(page, sinistreDetail());
+
+  const current = page.locator('[aria-current="step"]');
+  await expect(current).toHaveCount(1);
+  await expect(page.locator('li[aria-current="step"]')).toContainText(
+    'Envoyer les photos',
+  );
+});
+
+test('a step without a planned date is neither overdue nor the next one', async ({
+  page,
+}) => {
+  await openDetail(page, sinistreDetail());
+
+  const waiting = page
+    .getByRole('listitem')
+    .filter({ hasText: 'Demander l’état estimatif' });
+  await expect(waiting).not.toHaveAttribute('aria-current', 'step');
+  await expect(waiting).not.toContainText(
+    fr.sinistres.detail.stepStatus.EN_RETARD,
+  );
+  await expect(waiting).toContainText(
+    fr.sinistres.detail.attentePar.DATE_ETAT_ESTIMATIF,
+  );
+});
+
+test('an overdue declaration deadline is said in words, with the days past it', async ({
+  page,
+}) => {
+  await openDetail(
+    page,
+    sinistreDetail({
+      declarationDeadline: {
+        date: '2026-09-15',
+        daysLeft: -3,
+        source: SOURCE,
+      },
+    }),
+  );
+
+  await expect(
+    page.getByText(fr.sinistres.detail.deadline.overdue(3)),
+  ).toBeVisible();
+  await expect(page.getByText(/Il reste/)).toHaveCount(0);
+});
+
+test('the days left before the declaration deadline are shown as a number', async ({
+  page,
+}) => {
+  await openDetail(page, sinistreDetail());
+
+  await expect(
+    page.getByText(fr.sinistres.detail.deadline.remaining(14)),
+  ).toBeVisible();
+});
+
+test('one day left is written in the singular', async ({ page }) => {
+  await openDetail(
+    page,
+    sinistreDetail({
+      declarationDeadline: {
+        date: '2026-10-04',
+        daysLeft: 1,
+        source: SOURCE,
+      },
+    }),
+  );
+
+  await expect(
+    page.getByText(fr.sinistres.detail.deadline.remaining(1), { exact: true }),
+  ).toBeVisible();
+});
+
+test('each calculated date links to the text it comes from and is called indicative', async ({
+  page,
+}) => {
+  await openDetail(
+    page,
+    sinistreDetail({
+      steps: [
+        step({
+          id: 'step-declaration',
+          name: 'Déclarer le sinistre',
+          plannedDate: toIsoDate('2026-09-15'),
+          status: StepStatus.A_FAIRE,
+          source: SOURCE,
+        }),
+      ],
+    }),
+  );
+
+  const links = page.getByRole('link', { name: /Voir le texte de référence/ });
+  await expect(links).toHaveCount(2);
+  await expect(
+    page.getByRole('link', {
+      name: fr.sinistres.detail.source.lien('Déclarer le sinistre'),
+    }),
+  ).toHaveAttribute('href', SOURCE.url);
+  for (const link of await links.all()) {
+    await expect(link).toHaveAttribute('href', SOURCE.url);
+  }
+  await expect(
+    page.getByText(fr.sinistres.detail.source.indicative),
+  ).toHaveCount(2);
+});
+
+test('a date whose source was not checked for six months says so in words', async ({
+  page,
+}) => {
+  await openDetail(
+    page,
+    sinistreDetail({
+      declarationDeadline: {
+        date: '2026-09-15',
+        daysLeft: 14,
+        source: { ...SOURCE, possiblyOutdated: true },
+      },
+    }),
+  );
+
+  await expect(
+    page.getByText(
+      fr.sinistres.detail.source.outdated(REFERENCE_DATA_STALE_AFTER_MONTHS),
+    ),
+  ).toBeVisible();
+});
+
+test('the page is named after the dossier it shows', async ({ page }) => {
+  await openDetail(page, sinistreDetail());
+
+  await expect(
+    page.getByRole('heading', {
+      level: 1,
+      name: dossierTitle(sinistreFixture()),
+    }),
+  ).toBeVisible();
+});
+
+for (const colorScheme of ['light', 'dark'] as const) {
+  test(`axe: the sinistre screen is clean — theme ${colorScheme}`, async ({
+    page,
+  }) => {
+    await page.emulateMedia({ colorScheme });
+    await openDetail(page, sinistreDetail());
+    await expect(
+      page.getByRole('list', { name: fr.sinistres.detail.timelineLabel }),
+    ).toBeVisible();
+
+    await expectNoAxeViolations(page);
+  });
+}
+
+function timelineItem(page: Page, stepName: string) {
+  return page.getByRole('listitem').filter({ hasText: stepName });
+}
+
+test('a mark is announced in a live region already on the page, and the other steps stay as they are', async ({
+  page,
+}) => {
+  await openDetail(page, sinistreDetail());
+
+  const announcements = page.getByRole('status');
+  await expect(announcements).toBeEmpty();
+  const sibling = timelineItem(page, 'Relire le contrat');
+  await sibling.evaluate((el) => {
+    el.dataset.intact = 'oui';
+  });
+
+  await timelineItem(page, 'Envoyer les photos')
+    .getByRole('button', { name: fr.sinistres.detail.marquer.fait })
+    .click();
+
+  await expect(announcements).toHaveText(
+    fr.sinistres.detail.annonce.fait('Envoyer les photos'),
+  );
+  await expect(timelineItem(page, 'Envoyer les photos')).toContainText(
+    fr.sinistres.detail.stepStatus.FAIT,
+  );
+  await expect(timelineItem(page, 'Envoyer les photos')).toBeFocused();
+  await expect(sibling).toHaveAttribute('data-intact', 'oui');
+});
+
+test('a step can be marked not applicable, and the request says so', async ({
+  page,
+}) => {
+  await openDetail(page, sinistreDetail());
+
+  const sent = page.waitForRequest(
+    (request) =>
+      request.method() === 'PATCH' && request.url().endsWith('/step-proche'),
+  );
+  await timelineItem(page, 'Envoyer les photos')
+    .getByRole('button', { name: fr.sinistres.detail.marquer.nonApplicable })
+    .click();
+
+  expect((await sent).postDataJSON()).toEqual({
+    status: StepStatus.NON_APPLICABLE,
+  });
+  await expect(page.getByRole('status')).toHaveText(
+    fr.sinistres.detail.annonce.nonApplicable('Envoyer les photos'),
+  );
+});
+
+test('un-marking a done step sends null, and the step falls back to its computed status', async ({
+  page,
+}) => {
+  await openDetail(page, sinistreDetail());
+
+  const sent = page.waitForRequest(
+    (request) =>
+      request.method() === 'PATCH' && request.url().endsWith('/step-fait'),
+  );
+  await timelineItem(page, 'Prévenir le voisin')
+    .getByRole('button', { name: fr.sinistres.detail.marquer.annuler })
+    .click();
+
+  expect((await sent).postDataJSON()).toEqual({ status: null });
+  await expect(page.getByRole('status')).toHaveText(
+    fr.sinistres.detail.annonce.annule('Prévenir le voisin'),
+  );
+  await expect(timelineItem(page, 'Prévenir le voisin')).toContainText(
+    fr.sinistres.detail.stepStatus.A_FAIRE,
+  );
+});
+
+test('a mark that fails leaves the step as it was and says so in French', async ({
+  page,
+}) => {
+  await openDetail(page, sinistreDetail(), { failing: true });
+
+  const step = timelineItem(page, 'Envoyer les photos');
+  await step
+    .getByRole('button', { name: fr.sinistres.detail.marquer.fait })
+    .click();
+
+  await expect(page.getByRole('status')).toHaveText(
+    fr.sinistres.detail.marquageEchec,
+  );
+  await expect(step).toContainText(fr.sinistres.detail.stepStatus.A_FAIRE);
+});
+
+test('a declaration date counts the steps anchored on it, and clearing it takes the dates back', async ({
+  page,
+}) => {
+  await openDetail(page, detailDeclaredOn(null), {
+    afterPatch: detailDeclaredOn,
+  });
+
+  const declarationStep = timelineItem(page, DECLARATION_STEP.name);
+  await expect(declarationStep).toContainText(
+    fr.sinistres.detail.attentePar.DATE_DECLARATION,
+  );
+
+  const sent = page.waitForRequest(
+    (request) =>
+      request.method() === 'PATCH' && request.url().endsWith(SINISTRE_ID_1),
+  );
+  await page
+    .getByLabel(fr.sinistres.detail.declaration.label)
+    .fill('2026-09-01');
+  await page
+    .getByRole('button', { name: fr.sinistres.detail.declaration.enregistrer })
+    .click();
+
+  expect((await sent).postDataJSON()).toEqual({
+    declarationDate: '2026-09-01',
+  });
+  await expect(page.getByRole('status')).toHaveText(
+    fr.sinistres.detail.declaration.enregistree,
+  );
+  await expect(declarationStep).toContainText(
+    fr.sinistres.detail.datePrevue(formatDateFr(toIsoDate('2026-10-01'))),
+  );
+
+  await page
+    .getByRole('button', { name: fr.sinistres.detail.declaration.effacer })
+    .click();
+
+  await expect(declarationStep).toContainText(
+    fr.sinistres.detail.attentePar.DATE_DECLARATION,
+  );
+  await expect(declarationStep).not.toContainText(
+    fr.sinistres.detail.datePrevue(formatDateFr(toIsoDate('2026-10-01'))),
+  );
+  await expect(page.getByRole('status')).toHaveText(
+    fr.sinistres.detail.declaration.effacee,
+  );
+  const field = page.getByLabel(fr.sinistres.detail.declaration.label);
+  await expect(field).toHaveValue('');
+  await expect(field).toBeFocused();
+});
+
+test('a clear that fails is announced, and the typed date is not blamed for it', async ({
+  page,
+}) => {
+  const declared = toIsoDate('2026-09-01');
+  await openDetail(page, detailDeclaredOn(declared), { failing: true });
+
+  await page
+    .getByRole('button', { name: fr.sinistres.detail.declaration.effacer })
+    .click();
+
+  await expect(page.getByRole('status')).toHaveText(
+    fr.sinistres.detail.declaration.effacementEchec,
+  );
+  const field = page.getByLabel(fr.sinistres.detail.declaration.label);
+  await expect(field).toHaveValue(declared);
+  await expect(field).not.toHaveAttribute('aria-invalid', 'true');
+  await expect(
+    page.getByText(fr.sinistres.detail.declaration.echec),
+  ).toHaveCount(0);
+});
+
+test('the date field follows a date recorded elsewhere once the dossier is refetched', async ({
+  page,
+}) => {
+  await openDetail(page, detailDeclaredOn(null));
+  const field = page.getByLabel(fr.sinistres.detail.declaration.label);
+  await field.fill('2026-09-01');
+
+  // Another device set the date meanwhile; the next refetch brings it here.
+  const elsewhere = toIsoDate('2026-09-15');
+  await page.route(`${testApiBaseUrl}/sinistres/${SINISTRE_ID_1}`, (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(detailDeclaredOn(elsewhere)),
+    }),
+  );
+  await timelineItem(page, 'Envoyer les photos')
+    .getByRole('button', { name: fr.sinistres.detail.marquer.fait })
+    .click();
+
+  await expect(field).toHaveValue(elsewhere);
+});
+
+test('deleting the dossier asks first, and cancelling gives focus back to the delete button', async ({
+  page,
+}) => {
+  await openDetail(page, sinistreDetail());
+
+  const deleteButton = page.getByRole('button', {
+    name: fr.sinistres.detail.suppression.ouvrir,
+  });
+  await deleteButton.click();
+
+  const dialog = page.getByRole('alertdialog');
+  await expect(dialog).toContainText(fr.sinistres.detail.suppression.titre);
+  await dialog
+    .getByRole('button', { name: fr.sinistres.detail.suppression.annuler })
+    .click();
+
+  await expect(dialog).toBeHidden();
+  await expect(deleteButton).toBeFocused();
+});
+
+test('Escape closes the deletion dialog without deleting anything', async ({
+  page,
+}) => {
+  let deleteSent = false;
+  await openDetail(page, sinistreDetail());
+  page.on('request', (request) => {
+    if (request.method() === 'DELETE') deleteSent = true;
+  });
+
+  const deleteButton = page.getByRole('button', {
+    name: fr.sinistres.detail.suppression.ouvrir,
+  });
+  await deleteButton.click();
+  await expect(page.getByRole('alertdialog')).toBeVisible();
+  await page.keyboard.press('Escape');
+
+  await expect(page.getByRole('alertdialog')).toBeHidden();
+  await expect(deleteButton).toBeFocused();
+  expect(deleteSent).toBe(false);
+});
+
+test('confirming the deletion sends DELETE and returns to the list', async ({
+  page,
+}) => {
+  await openDetail(page, sinistreDetail());
+  await page.route(`${testApiBaseUrl}/sinistres`, (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: '[]',
+    }),
+  );
+
+  const sent = page.waitForRequest(
+    (request) =>
+      request.method() === 'DELETE' && request.url().endsWith(SINISTRE_ID_1),
+  );
+  await page
+    .getByRole('button', { name: fr.sinistres.detail.suppression.ouvrir })
+    .click();
+  await page
+    .getByRole('alertdialog')
+    .getByRole('button', { name: fr.sinistres.detail.suppression.confirmer })
+    .click();
+
+  await sent;
+  await expect(page).toHaveURL(/\/sinistres$/);
+});
+
+test('a deletion that fails says so in a live region that was in the dialog all along', async ({
+  page,
+}) => {
+  await openDetail(page, sinistreDetail(), { failing: true });
+  await page
+    .getByRole('button', { name: fr.sinistres.detail.suppression.ouvrir })
+    .click();
+
+  const dialog = page.getByRole('alertdialog');
+  const alert = dialog.getByRole('alert');
+  await expect(alert).toBeAttached();
+  await expect(alert).toBeEmpty();
+
+  await dialog
+    .getByRole('button', { name: fr.sinistres.detail.suppression.confirmer })
+    .click();
+
+  await expect(alert).toHaveText(fr.sinistres.detail.suppression.echec);
+  await expect(dialog).toBeVisible();
+  await expect(page).toHaveURL(new RegExp(`/sinistres/${SINISTRE_ID_1}$`));
+});
+
+test('axe: the deletion dialog is clean in the light theme', async ({
+  page,
+}) => {
+  await page.emulateMedia({ colorScheme: 'light' });
+  await openDetail(page, sinistreDetail());
+  await page
+    .getByRole('button', { name: fr.sinistres.detail.suppression.ouvrir })
+    .click();
+  await expect(page.getByRole('alertdialog')).toBeVisible();
+
+  await expectNoAxeViolations(page);
+});

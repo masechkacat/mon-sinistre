@@ -3,6 +3,7 @@ export const queryKeys = {
   currentUser: () => ['auth', 'me'] as const,
   communes: (q: string) => ['communes', q] as const,
   sinistres: () => ['sinistres'] as const,
+  sinistre: (id: string) => ['sinistres', id] as const,
   veilleConfirmation: (token: string) =>
     ['veille', 'confirmation', token] as const,
   veilleChange: (token: string) => ['veille', 'changement', token] as const,
