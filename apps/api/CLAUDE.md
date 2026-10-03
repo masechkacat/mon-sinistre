@@ -122,6 +122,7 @@ Prisma CLI, seed, скрипты `scripts/` и обвязка тестов.
 - База — `${DB_NAME}_test` на том же Postgres; `test/setup/jest.int.global-setup.js`
   создаёт её и прогоняет миграции, `test/setup/jest.int.env.js` направляет туда
   `PrismaService`. Имя обе стороны берут из `test/setup/test-db-name.js`.
+- База сквозного теста — `${DB_NAME}_e2e`, сев — `scripts/e2e-seed.ts` (`test/setup/e2e-db-name.js`).
 - Между тестами — `TRUNCATE` затронутых таблиц в `beforeEach`, не пересоздание
   схемы.
 - **Планировщик в тестовом приложении не взводится вовсе** — почему, чем это
