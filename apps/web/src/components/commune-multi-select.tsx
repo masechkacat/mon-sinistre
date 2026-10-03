@@ -2,9 +2,10 @@
 
 import { Combobox } from '@base-ui/react/combobox';
 import { Field } from '@base-ui/react/field';
-import { CheckIcon, XIcon } from 'lucide-react';
+import { XIcon } from 'lucide-react';
 import { useRef } from 'react';
 import { VEILLE_MAX_COMMUNES, type Commune } from '@mon-sinistre/contracts';
+import { CommunePopup, isSameCommune } from '@/components/commune-popup';
 import { FieldError } from '@/components/field-error';
 import {
   inputFrameClassName,
@@ -14,8 +15,6 @@ import { useCommuneSearch } from '@/lib/api/use-commune-search';
 import { communeLabel } from '@/lib/commune-label';
 import { cn } from '@/lib/utils';
 import { fr } from '@/i18n/fr';
-
-const isSameCommune = (a: Commune, b: Commune) => a.codeInsee === b.codeInsee;
 
 export interface CommuneMultiSelectProps {
   value: Commune[];
@@ -131,54 +130,11 @@ export function CommuneMultiSelect({
             ? fr.veille.form.maxCommunesReached(VEILLE_MAX_COMMUNES)
             : null}
         </p>
-        <Combobox.Portal>
-          <Combobox.Positioner
-            anchor={fieldRef}
-            className="z-50"
-            sideOffset={4}
-          >
-            {/* The chrome goes with the content: while the popup has nothing
-                to show (search pending, nothing settled) an empty bordered
-                strip would hang under the field. */}
-            <Combobox.Popup
-              className={cn(
-                'max-h-64 w-(--anchor-width) overflow-auto rounded-lg bg-popover text-popover-foreground',
-                (items.length > 0 || searchSettled) &&
-                  'border border-border py-1 shadow-md',
-              )}
-            >
-              {/* Only a settled search may claim there is nothing: below the
-                  minimum query length, during the debounce and while a fetch
-                  is in flight, the message would describe a search that never
-                  ran. Pre-mounted live region (Base UI docs: toggle the
-                  children, not the node). */}
-              <Combobox.Empty
-                className={cn(
-                  'text-sm text-muted-foreground',
-                  searchSettled && 'px-3 py-2',
-                )}
-              >
-                {searchSettled ? fr.veille.form.noCommuneFound : null}
-              </Combobox.Empty>
-              <Combobox.List>
-                {(commune: Commune) => (
-                  <Combobox.Item
-                    key={commune.codeInsee}
-                    value={commune}
-                    className="flex cursor-default items-center justify-between gap-2 px-3 py-1.5 text-sm data-[highlighted]:bg-primary data-[highlighted]:text-primary-foreground"
-                  >
-                    {communeLabel(commune)}
-                    {/* An already selected commune stays in the list, where
-                        Enter would remove it again — the mark says so. */}
-                    <Combobox.ItemIndicator>
-                      <CheckIcon className="size-4" aria-hidden />
-                    </Combobox.ItemIndicator>
-                  </Combobox.Item>
-                )}
-              </Combobox.List>
-            </Combobox.Popup>
-          </Combobox.Positioner>
-        </Combobox.Portal>
+        <CommunePopup
+          anchor={fieldRef}
+          items={items}
+          searchSettled={searchSettled}
+        />
       </Combobox.Root>
     </Field.Root>
   );
