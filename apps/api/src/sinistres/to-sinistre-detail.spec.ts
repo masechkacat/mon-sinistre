@@ -4,6 +4,12 @@ import { declarationDeadlineOf, type StepRow } from './to-sinistre-detail';
 
 const TODAY = toIsoDate('2026-08-23');
 
+const SOURCE = {
+  url: 'https://www.legifrance.gouv.fr/codes/id/LEGIARTI000006792617',
+  verifiedAt: toIsoDate('2026-08-18'),
+  possiblyOutdated: false,
+};
+
 function step(overrides: Partial<StepRow> = {}): StepRow {
   return {
     id: 'step',
@@ -15,8 +21,8 @@ function step(overrides: Partial<StepRow> = {}): StepRow {
     persistedStatus: null,
     completedAt: null,
     fromTemplate: true,
-    sourceUrl: null,
-    sourceVerifiedAt: null,
+    sourceUrl: SOURCE.url,
+    sourceVerifiedAt: new Date('2026-08-18'),
     deadlineRule: { code: DECLARATION_ASSUREUR_CODE },
     ...overrides,
   };
@@ -33,6 +39,7 @@ describe('declarationDeadlineOf', () => {
     expect(declarationDeadlineOf([step()], TODAY)).toEqual({
       date: toIsoDate('2026-09-01'),
       daysLeft: 9,
+      source: SOURCE,
     });
   });
 
@@ -42,7 +49,7 @@ describe('declarationDeadlineOf', () => {
         [step({ plannedDate: new Date('2026-08-23') })],
         TODAY,
       ),
-    ).toEqual({ date: TODAY, daysLeft: 0 });
+    ).toEqual({ date: TODAY, daysLeft: 0, source: SOURCE });
   });
 
   it('is negative once the deadline has passed', () => {
@@ -51,7 +58,7 @@ describe('declarationDeadlineOf', () => {
         [step({ plannedDate: new Date('2026-08-20') })],
         TODAY,
       ),
-    ).toEqual({ date: toIsoDate('2026-08-20'), daysLeft: -3 });
+    ).toEqual({ date: toIsoDate('2026-08-20'), daysLeft: -3, source: SOURCE });
   });
 
   it('is null once the declaration step is FAIT', () => {
@@ -79,6 +86,28 @@ describe('declarationDeadlineOf', () => {
     expect(declarationDeadlineOf([insurerStep, step()], TODAY)).toEqual({
       date: toIsoDate('2026-09-01'),
       daysLeft: 9,
+      source: SOURCE,
     });
+  });
+
+  it('marks the source as possibly outdated once it was not checked for six months', () => {
+    expect(
+      declarationDeadlineOf(
+        [step({ sourceVerifiedAt: new Date('2026-02-22') })],
+        TODAY,
+      )?.source.possiblyOutdated,
+    ).toBe(true);
+  });
+
+  it('is null when the declaration step cites no source, so the date is not shown unsourced', () => {
+    expect(
+      declarationDeadlineOf(
+        [step({ sourceUrl: null, sourceVerifiedAt: null })],
+        TODAY,
+      ),
+    ).toBeNull();
+    expect(
+      declarationDeadlineOf([step({ sourceVerifiedAt: null })], TODAY),
+    ).toBeNull();
   });
 });

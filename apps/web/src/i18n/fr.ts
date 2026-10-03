@@ -11,6 +11,9 @@ import {
 // The space before ":" and "?" is a literal U+00A0, not a typo — same
 // convention as apps/api/src/i18n/fr.ts.
 
+const A_VERIFIER_AVEC_CONTRAT =
+  'à vérifier avec votre contrat et votre assurance';
+
 // Shared across veille.confirmation and veille.change below: same fact
 // (link being checked, link no longer usable, alert reaches the watched
 // communes), same wording — one string, not a fact stated twice.
@@ -104,7 +107,7 @@ export const fr = {
     doesNot: {
       heading: 'Ce que Mon Sinistre ne fait pas',
       items: [
-        'Ne donne pas de conseils juridiques : les dates calculées sont indicatives, à vérifier avec votre contrat et votre assurance.',
+        `Ne donne pas de conseils juridiques : les dates calculées sont indicatives, ${A_VERIFIER_AVEC_CONTRAT}.`,
         'N’écrit jamais à votre assurance à votre place : vous gardez la main sur toutes vos démarches.',
       ],
     },
@@ -426,6 +429,13 @@ export const fr = {
           days === 1
             ? 'Délai dépassé d’un jour'
             : `Délai dépassé de ${days} jours`,
+      },
+      source: {
+        lien: (sujet: string) => `Voir le texte de référence : ${sujet}`,
+        verifiee: (date: string) => `Source vérifiée le ${date}.`,
+        outdated: (months: number) =>
+          `Source non revérifiée depuis plus de ${months} mois : la date peut avoir changé.`,
+        indicative: `Date indicative, ${A_VERIFIER_AVEC_CONTRAT}.`,
       },
     },
   },

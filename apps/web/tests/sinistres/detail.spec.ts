@@ -1,5 +1,9 @@
 import { expect, test, type Page } from '@playwright/test';
-import { StepAnchor, StepStatus } from '@mon-sinistre/contracts';
+import {
+  REFERENCE_DATA_STALE_AFTER_MONTHS,
+  StepAnchor,
+  StepStatus,
+} from '@mon-sinistre/contracts';
 import { dossierTitle } from '../../src/lib/dossier-title';
 import { fr } from '../../src/i18n/fr';
 import { expectNoAxeViolations } from '../support/a11y';
@@ -10,6 +14,12 @@ import {
   sinistreFixture,
   stepFixture as step,
 } from '../support/sinistres';
+
+const SOURCE = {
+  url: 'https://www.legifrance.gouv.fr/codes/id/LEGIARTI000006792617',
+  verifiedAt: '2026-08-18',
+  possiblyOutdated: false,
+};
 
 // Five steps in template order: one overdue, one due soon (the nearest
 // upcoming), one with no date yet, one later, one already done.
@@ -52,7 +62,11 @@ function sinistreDetail(overrides: Partial<Record<string, unknown>> = {}) {
   return {
     ...sinistreFixture({ status: 'DECLARE' }),
     steps: STEPS,
-    declarationDeadline: { date: '2026-09-15', daysLeft: 14 },
+    declarationDeadline: {
+      date: '2026-09-15',
+      daysLeft: 14,
+      source: SOURCE,
+    },
     ...overrides,
   };
 }
@@ -156,6 +170,60 @@ test('one day left is written in the singular', async ({ page }) => {
 
   await expect(
     page.getByText(fr.sinistres.detail.deadline.remaining(1), { exact: true }),
+  ).toBeVisible();
+});
+
+test('each calculated date links to the text it comes from and is called indicative', async ({
+  page,
+}) => {
+  await openDetail(
+    page,
+    sinistreDetail({
+      steps: [
+        step({
+          id: 'step-declaration',
+          name: 'Déclarer le sinistre',
+          plannedDate: '2026-09-15',
+          status: StepStatus.A_FAIRE,
+          source: SOURCE,
+        }),
+      ],
+    }),
+  );
+
+  const links = page.getByRole('link', { name: /Voir le texte de référence/ });
+  await expect(links).toHaveCount(2);
+  await expect(
+    page.getByRole('link', {
+      name: fr.sinistres.detail.source.lien('Déclarer le sinistre'),
+    }),
+  ).toHaveAttribute('href', SOURCE.url);
+  for (const link of await links.all()) {
+    await expect(link).toHaveAttribute('href', SOURCE.url);
+  }
+  await expect(
+    page.getByText(fr.sinistres.detail.source.indicative),
+  ).toHaveCount(2);
+});
+
+test('a date whose source was not checked for six months says so in words', async ({
+  page,
+}) => {
+  await openDetail(
+    page,
+    sinistreDetail({
+      declarationDeadline: {
+        date: '2026-09-15',
+        daysLeft: 14,
+        source: { ...SOURCE, possiblyOutdated: true },
+      },
+    }),
+  );
+
+  await expect(
+    page.getByText(
+      fr.sinistres.detail.source.outdated(REFERENCE_DATA_STALE_AFTER_MONTHS),
+    ),
   ).toBeVisible();
 });
 

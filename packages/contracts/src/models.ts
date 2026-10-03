@@ -187,10 +187,13 @@ export interface Step {
   source: SourceReference | null;
 }
 
-/** Остаток критического срока — дедлайн декларации страховщику. `daysLeft` < 0 — просрочка. */
+/**
+ * Остаток критического срока — дедлайн декларации страховщику. `daysLeft` < 0 — просрочка.
+ */
 export interface DeclarationDeadline {
   date: IsoDate;
   daysLeft: number;
+  source: SourceReference;
 }
 
 /**

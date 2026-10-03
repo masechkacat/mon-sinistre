@@ -16,6 +16,7 @@ import { queryKeys } from '@/lib/api/keys';
 import { useSessionGuard } from '@/lib/api/use-session-guard';
 import { dossierTitle } from '@/lib/dossier-title';
 import { nextUpcomingStep } from '@/lib/sinistre-timeline';
+import { SourceNote } from './source-note';
 
 export function SinistreDetailView({ id }: { id: string }) {
   const status = useSessionGuard();
@@ -93,6 +94,10 @@ function DeclarationDeadlineBlock({
         {copy.dateLimite(formatDateFr(deadline.date))}
       </p>
       <p className="text-lg font-medium">{remaining}</p>
+      <SourceNote
+        source={deadline.source}
+        sujet={fr.sinistres.detail.deadline.heading}
+      />
     </section>
   );
 }
@@ -117,6 +122,9 @@ function StepItem({ step, isNext }: { step: Step; isNext: boolean }) {
         <p className="text-sm text-muted-foreground">
           {copy.datePrevue(formatDateFr(step.plannedDate))}
         </p>
+      ) : null}
+      {step.plannedDate && step.source && !isClosed ? (
+        <SourceNote source={step.source} sujet={step.name} />
       ) : null}
       {!step.plannedDate && !isClosed ? (
         <p className="text-sm text-muted-foreground">
