@@ -1,6 +1,7 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useRef, useState } from 'react';
 import {
   StepStatus,
   type DeclarationDeadline,
@@ -9,21 +10,51 @@ import {
 import { PageContainer } from '@/components/page-container';
 import { PageTitle } from '@/components/page-title';
 import { RequestError } from '@/components/request-error';
+import { Button } from '@/components/ui/button';
 import { formatDateFr } from '@/i18n/date';
 import { fr } from '@/i18n/fr';
-import { fetchSinistre } from '@/lib/api/sinistres';
+import {
+  fetchSinistre,
+  setSinistreStepStatus,
+  type StepMark,
+} from '@/lib/api/sinistres';
 import { queryKeys } from '@/lib/api/keys';
 import { useSessionGuard } from '@/lib/api/use-session-guard';
 import { dossierTitle } from '@/lib/dossier-title';
 import { nextUpcomingStep } from '@/lib/sinistre-timeline';
 import { SourceNote } from './source-note';
 
+interface StepMarkRequest {
+  stepId: string;
+  etape: string;
+  status: StepMark;
+}
+
 export function SinistreDetailView({ id }: { id: string }) {
   const status = useSessionGuard();
+  const queryClient = useQueryClient();
   const query = useQuery({
     queryKey: queryKeys.sinistre(id),
     queryFn: () => fetchSinistre(id),
     enabled: status === 'authenticated',
+  });
+  // Written by the mutation callbacks, not read off the latest `mutate` call:
+  // a failure of one mark must not be overwritten by a later mark's result.
+  const [announcement, setAnnouncement] = useState<string | null>(null);
+  const stepItems = useRef(new Map<string, HTMLLIElement>());
+  const markMutation = useMutation({
+    mutationFn: ({ stepId, status: mark }: StepMarkRequest) =>
+      setSinistreStepStatus(id, stepId, mark),
+    onSuccess: (_step, mark) => {
+      setAnnouncement(markAnnouncement(mark));
+      // The step's `li` stays mounted across the refetch, so focus survives
+      // it; the buttons that held focus are replaced by the refetch.
+      stepItems.current.get(mark.stepId)?.focus();
+      return queryClient.invalidateQueries({
+        queryKey: queryKeys.sinistre(id),
+      });
+    },
+    onError: () => setAnnouncement(fr.sinistres.detail.marquageEchec),
   });
   const sinistre = query.data;
   const next = sinistre ? nextUpcomingStep(sinistre.steps) : null;
@@ -40,6 +71,10 @@ export function SinistreDetailView({ id }: { id: string }) {
       ) : null}
 
       {query.isError ? <RequestError /> : null}
+
+      <p role="status" className="min-h-7 text-lg font-medium">
+        {announcement}
+      </p>
 
       {sinistre ? (
         <>
@@ -63,6 +98,17 @@ export function SinistreDetailView({ id }: { id: string }) {
                 key={step.id}
                 step={step}
                 isNext={step.id === next?.id}
+                itemRef={(node) => {
+                  if (node) stepItems.current.set(step.id, node);
+                  else stepItems.current.delete(step.id);
+                }}
+                onMark={(mark) =>
+                  markMutation.mutate({
+                    stepId: step.id,
+                    etape: step.name,
+                    status: mark,
+                  })
+                }
               />
             ))}
           </ol>
@@ -102,14 +148,38 @@ function DeclarationDeadlineBlock({
   );
 }
 
-function StepItem({ step, isNext }: { step: Step; isNext: boolean }) {
+function markAnnouncement({ etape, status }: StepMarkRequest) {
+  const copy = fr.sinistres.detail.annonce;
+  if (status === StepStatus.FAIT) return copy.fait(etape);
+  if (status === StepStatus.NON_APPLICABLE) return copy.nonApplicable(etape);
+  return copy.annule(etape);
+}
+
+function StepItem({
+  step,
+  isNext,
+  itemRef,
+  onMark,
+}: {
+  step: Step;
+  isNext: boolean;
+  itemRef: (node: HTMLLIElement | null) => void;
+  onMark: (mark: StepMark) => void;
+}) {
   const copy = fr.sinistres.detail;
   const isClosed =
     step.status === StepStatus.FAIT ||
     step.status === StepStatus.NON_APPLICABLE;
+  // Names the step inside each button, so a reader listing the buttons can
+  // tell the steps apart — the three labels repeat across the timeline.
+  const sujet = (
+    <span className="sr-only">{copy.marquer.sujet(step.name)}</span>
+  );
 
   return (
     <li
+      ref={itemRef}
+      tabIndex={-1}
       aria-current={isNext ? 'step' : undefined}
       className="space-y-1 rounded-lg border p-4"
     >
@@ -131,6 +201,29 @@ function StepItem({ step, isNext }: { step: Step; isNext: boolean }) {
           {step.anchor ? copy.attentePar[step.anchor] : copy.sansDateNiAncre}
         </p>
       ) : null}
+      <div className="flex flex-wrap gap-2 pt-2">
+        {isClosed ? (
+          <Button variant="outline" size="touch" onClick={() => onMark(null)}>
+            {copy.marquer.annuler}
+            {sujet}
+          </Button>
+        ) : (
+          <>
+            <Button size="touch" onClick={() => onMark(StepStatus.FAIT)}>
+              {copy.marquer.fait}
+              {sujet}
+            </Button>
+            <Button
+              variant="outline"
+              size="touch"
+              onClick={() => onMark(StepStatus.NON_APPLICABLE)}
+            >
+              {copy.marquer.nonApplicable}
+              {sujet}
+            </Button>
+          </>
+        )}
+      </div>
     </li>
   );
 }

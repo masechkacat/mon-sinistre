@@ -74,6 +74,8 @@ const PASSWORD_REQUIRED_ERROR = 'Choisissez un mot de passe.';
 // The dossier link is written once and read twice below (sinistres.liste):
 // as the text on screen, and inside the longer name a screen reader gets.
 const VOIR_MON_DOSSIER = 'Voir mon dossier';
+// The button and the status label share one text (sinistres.detail.stepStatus).
+const NON_APPLICABLE = 'Non applicable';
 
 export const fr = {
   serviceName: 'Mon Sinistre',
@@ -398,12 +400,26 @@ export const fr = {
       prochaineEtape: 'Prochaine étape',
       datePrevue: (date: string) => `Prévue le ${date}`,
       sansDateNiAncre: 'Cette étape n’a pas encore de date prévue.',
+      marquer: {
+        fait: 'Marquer comme fait',
+        nonApplicable: NON_APPLICABLE,
+        annuler: 'Annuler ce choix',
+        sujet: (etape: string) => `, pour « ${etape} »`,
+      },
+      annonce: {
+        fait: (etape: string) => `« ${etape} » est marqué comme fait.`,
+        nonApplicable: (etape: string) =>
+          `« ${etape} » est marqué comme non applicable.`,
+        annule: (etape: string) => `Le choix pour « ${etape} » est annulé.`,
+      },
+      marquageEchec:
+        'L’étape n’a pas pu être mise à jour. Elle garde son état précédent : réessayez dans un instant.',
       stepStatus: {
         [StepStatus.A_VENIR]: 'À venir',
         [StepStatus.A_FAIRE]: 'À faire bientôt',
         [StepStatus.EN_RETARD]: 'En retard',
         [StepStatus.FAIT]: 'Fait',
-        [StepStatus.NON_APPLICABLE]: 'Non applicable',
+        [StepStatus.NON_APPLICABLE]: NON_APPLICABLE,
       },
       attentePar: {
         [StepAnchor.DATE_SINISTRE]:

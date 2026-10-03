@@ -4,6 +4,7 @@ import {
   StepAnchor,
   StepStatus,
 } from '@mon-sinistre/contracts';
+import type { StepMark } from '../../src/lib/api/sinistres';
 import { dossierTitle } from '../../src/lib/dossier-title';
 import { fr } from '../../src/i18n/fr';
 import { expectNoAxeViolations } from '../support/a11y';
@@ -71,15 +72,48 @@ function sinistreDetail(overrides: Partial<Record<string, unknown>> = {}) {
   };
 }
 
-async function openDetail(page: Page, body: unknown) {
+// A PATCH on a step answers from the same state the GET reads, so the refetch
+// after a successful mark shows what the API would show.
+async function openDetail(
+  page: Page,
+  body: ReturnType<typeof sinistreDetail>,
+  { failing = false }: { failing?: boolean } = {},
+) {
+  const state = { detail: body };
   await mockSession(page).install();
   await page.route(`${testApiBaseUrl}/sinistres/${SINISTRE_ID_1}`, (route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify(body),
+      body: JSON.stringify(state.detail),
     }),
   );
+  await page.route(/\/etapes\/[^/?]+$/, (route) => {
+    if (failing) {
+      return route.fulfill({
+        status: 500,
+        contentType: 'application/json',
+        body: JSON.stringify({ message: 'Erreur interne' }),
+      });
+    }
+    const stepId = route.request().url().split('/').at(-1) ?? '';
+    const { status } = route.request().postDataJSON() as {
+      status: StepMark;
+    };
+    state.detail = {
+      ...state.detail,
+      steps: state.detail.steps.map((item) =>
+        item.id === stepId
+          ? { ...item, status: status ?? StepStatus.A_FAIRE }
+          : item,
+      ),
+    };
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(state.detail.steps.find((s) => s.id === stepId)),
+    });
+  });
   await page.goto(`/sinistres/${SINISTRE_ID_1}`);
 }
 
@@ -140,7 +174,11 @@ test('an overdue declaration deadline is said in words, with the days past it', 
   await openDetail(
     page,
     sinistreDetail({
-      declarationDeadline: { date: '2026-09-15', daysLeft: -3 },
+      declarationDeadline: {
+        date: '2026-09-15',
+        daysLeft: -3,
+        source: SOURCE,
+      },
     }),
   );
 
@@ -164,7 +202,11 @@ test('one day left is written in the singular', async ({ page }) => {
   await openDetail(
     page,
     sinistreDetail({
-      declarationDeadline: { date: '2026-10-04', daysLeft: 1 },
+      declarationDeadline: {
+        date: '2026-10-04',
+        daysLeft: 1,
+        source: SOURCE,
+      },
     }),
   );
 
@@ -251,3 +293,92 @@ for (const colorScheme of ['light', 'dark'] as const) {
     await expectNoAxeViolations(page);
   });
 }
+
+function timelineItem(page: Page, stepName: string) {
+  return page.getByRole('listitem').filter({ hasText: stepName });
+}
+
+test('a mark is announced in a live region already on the page, and the other steps stay as they are', async ({
+  page,
+}) => {
+  await openDetail(page, sinistreDetail());
+
+  const announcements = page.getByRole('status');
+  await expect(announcements).toBeEmpty();
+  const sibling = timelineItem(page, 'Relire le contrat');
+  await sibling.evaluate((el) => {
+    el.dataset.intact = 'oui';
+  });
+
+  await timelineItem(page, 'Envoyer les photos')
+    .getByRole('button', { name: fr.sinistres.detail.marquer.fait })
+    .click();
+
+  await expect(announcements).toHaveText(
+    fr.sinistres.detail.annonce.fait('Envoyer les photos'),
+  );
+  await expect(timelineItem(page, 'Envoyer les photos')).toContainText(
+    fr.sinistres.detail.stepStatus.FAIT,
+  );
+  await expect(timelineItem(page, 'Envoyer les photos')).toBeFocused();
+  await expect(sibling).toHaveAttribute('data-intact', 'oui');
+});
+
+test('a step can be marked not applicable, and the request says so', async ({
+  page,
+}) => {
+  await openDetail(page, sinistreDetail());
+
+  const sent = page.waitForRequest(
+    (request) =>
+      request.method() === 'PATCH' && request.url().endsWith('/step-proche'),
+  );
+  await timelineItem(page, 'Envoyer les photos')
+    .getByRole('button', { name: fr.sinistres.detail.marquer.nonApplicable })
+    .click();
+
+  expect((await sent).postDataJSON()).toEqual({
+    status: StepStatus.NON_APPLICABLE,
+  });
+  await expect(page.getByRole('status')).toHaveText(
+    fr.sinistres.detail.annonce.nonApplicable('Envoyer les photos'),
+  );
+});
+
+test('un-marking a done step sends null, and the step falls back to its computed status', async ({
+  page,
+}) => {
+  await openDetail(page, sinistreDetail());
+
+  const sent = page.waitForRequest(
+    (request) =>
+      request.method() === 'PATCH' && request.url().endsWith('/step-fait'),
+  );
+  await timelineItem(page, 'Prévenir le voisin')
+    .getByRole('button', { name: fr.sinistres.detail.marquer.annuler })
+    .click();
+
+  expect((await sent).postDataJSON()).toEqual({ status: null });
+  await expect(page.getByRole('status')).toHaveText(
+    fr.sinistres.detail.annonce.annule('Prévenir le voisin'),
+  );
+  await expect(timelineItem(page, 'Prévenir le voisin')).toContainText(
+    fr.sinistres.detail.stepStatus.A_FAIRE,
+  );
+});
+
+test('a mark that fails leaves the step as it was and says so in French', async ({
+  page,
+}) => {
+  await openDetail(page, sinistreDetail(), { failing: true });
+
+  const step = timelineItem(page, 'Envoyer les photos');
+  await step
+    .getByRole('button', { name: fr.sinistres.detail.marquer.fait })
+    .click();
+
+  await expect(page.getByRole('status')).toHaveText(
+    fr.sinistres.detail.marquageEchec,
+  );
+  await expect(step).toContainText(fr.sinistres.detail.stepStatus.A_FAIRE);
+});

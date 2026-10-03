@@ -64,7 +64,7 @@ test('lists two of the caller’s sinistres, each with its status in words and i
   // Each dossier is a heading, and the heading names the commune too: the
   // risque alone repeats across dossiers, so heading navigation would land on
   // two identical « Inondation » and tell them apart by nothing.
-  const dossier1 = dossierTitle(sinistreFixture());
+  const dossier1 = dossierTitle(sinistreSummary());
   await expect(
     card1.getByRole('heading', { level: 2, name: dossier1 }),
   ).toBeVisible();
