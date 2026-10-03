@@ -1,21 +1,15 @@
 'use client';
 
-import { Field } from '@base-ui/react/field';
 import { useMutation } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
 import { AnnouncedResult } from '@/components/announced-result';
-import { FieldError } from '@/components/field-error';
 import { PageContainer } from '@/components/page-container';
 import { PageTitle } from '@/components/page-title';
 import { RequestError } from '@/components/request-error';
+import { EmailField } from '@/components/text-field';
 import { Button } from '@/components/ui/button';
-import {
-  inputFrameClassName,
-  inputFrameInvalidClassName,
-} from '@/components/ui/input';
 import { apiFetch } from '@/lib/api/client';
 import { validateEmail } from '@/lib/email-pattern';
-import { cn } from '@/lib/utils';
 import { fr } from '@/i18n/fr';
 
 interface RequestResetInput {
@@ -73,27 +67,16 @@ export function MotDePasseOublieForm() {
           noValidate
           aria-busy={mutation.isPending}
         >
-          <Field.Root invalid={Boolean(emailError)} className="space-y-1.5">
-            <Field.Label className="block text-sm font-medium">
-              {fr.compte.motDePasseOublie.emailLabel}
-            </Field.Label>
-            <Field.Control
-              type="email"
-              autoComplete="email"
-              value={email}
-              onChange={(event) => {
-                setEmail(event.target.value);
-                setEmailError(undefined);
-              }}
-              placeholder={fr.compte.motDePasseOublie.emailPlaceholder}
-              className={cn(
-                inputFrameClassName,
-                'w-full px-3 py-1.5 text-sm outline-none focus:border-ring focus:ring-3 focus:ring-ring/50',
-                emailError && inputFrameInvalidClassName,
-              )}
-            />
-            <FieldError error={emailError} />
-          </Field.Root>
+          <EmailField
+            label={fr.compte.motDePasseOublie.emailLabel}
+            placeholder={fr.compte.motDePasseOublie.emailPlaceholder}
+            value={email}
+            onValueChange={(next) => {
+              setEmail(next);
+              setEmailError(undefined);
+            }}
+            error={emailError}
+          />
 
           <Button type="submit" disabled={mutation.isPending}>
             {mutation.isPending
