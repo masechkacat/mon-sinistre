@@ -2,7 +2,12 @@ import { expect, test } from '@playwright/test';
 import { fr } from '../../src/i18n/fr';
 import { expectNoAxeViolations } from '../support/a11y';
 import { testApiBaseUrl } from '../support/env';
-import { expectErrorTiedTo, VALID_PASSWORD, WEAK_PASSWORD } from '../support/form';
+import {
+  describedByIds,
+  expectErrorTiedTo,
+  VALID_PASSWORD,
+  WEAK_PASSWORD,
+} from '../support/form';
 
 test('submitting with a password that does not meet the CNIL rules reports an error tied to the field, and does not send the request', async ({
   page,
@@ -54,6 +59,25 @@ test('submitting with an invalid email reports an error tied to the field, and d
     page.getByText(fr.compte.inscription.emailInvalidError),
   );
   expect(registerCalled).toBe(false);
+});
+
+test('typing in a field clears its error and the aria-describedby link to it', async ({
+  page,
+}) => {
+  await page.goto('/inscription');
+  const emailInput = page.getByLabel(fr.compte.inscription.emailLabel);
+  await emailInput.fill('pas-une-adresse');
+  await page
+    .getByRole('button', { name: fr.compte.inscription.submit })
+    .click();
+  const error = page.getByText(fr.compte.inscription.emailInvalidError);
+  await expectErrorTiedTo(emailInput, error);
+
+  await emailInput.press('End');
+  await emailInput.press('x');
+
+  await expect(error).toBeHidden();
+  expect(await describedByIds(emailInput)).toEqual([]);
 });
 
 test('a successful registration shows the "check your email" screen, announced to screen readers', async ({

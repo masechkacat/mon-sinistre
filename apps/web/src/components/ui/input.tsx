@@ -1,5 +1,5 @@
-// Shared by Field.Control (veille form) and Combobox.Chips
-// (commune-multi-select), so a frame or contrast fix reaches both fields.
+// Shared by TextField and the commune comboboxes' input groups, so a frame
+// or contrast fix reaches every field.
 // The focus ring is not shared on purpose: it needs `focus:` on the input
 // itself but `focus-within:` on the chips container, and Tailwind only picks
 // up variants written out literally.

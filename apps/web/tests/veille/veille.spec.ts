@@ -49,6 +49,18 @@ test('submitting with an invalid email reports an error tied to the field, and d
   expect(subscribeCalled).toBe(false);
 });
 
+// WCAG 1.3.5: a field collecting the person's own address says so to the
+// browser, so autofill offers it.
+test('the email field identifies its purpose for autofill', async ({
+  page,
+}) => {
+  await page.goto('/veille');
+  await expect(page.getByLabel(fr.veille.form.emailLabel)).toHaveAttribute(
+    'autocomplete',
+    'email',
+  );
+});
+
 test('a successful submission shows the confirmation screen, announced to screen readers', async ({
   page,
 }) => {
