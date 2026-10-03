@@ -13,3 +13,7 @@ npm test
 # Outillage hors workspaces (.claude/) : ni lint ni jest ne le couvrent.
 echo "pre-commit: npm run test:tooling"
 npm run test:tooling
+
+# Copier-coller : nouveau clone absent de .jscpd-baseline.json => refus.
+echo "pre-commit: npm run dup"
+npm run dup
