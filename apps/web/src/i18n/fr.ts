@@ -130,7 +130,6 @@ export const fr = {
       communesLabel: 'Communes à surveiller',
       communesPlaceholder: COMMUNE_SEARCH_PLACEHOLDER,
       removeCommune: (name: string) => `Retirer ${name}`,
-      noCommuneFound: COMMUNE_NONE_FOUND,
       communesFound: (count: number) =>
         count === 1 ? '1 commune trouvée' : `${count} communes trouvées`,
       maxCommunesReached: (max: number) =>

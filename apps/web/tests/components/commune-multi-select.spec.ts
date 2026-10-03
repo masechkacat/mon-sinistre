@@ -80,7 +80,7 @@ test('the number of results and the empty state are announced to screen readers'
 
   await page.keyboard.press('Control+a');
   await page.keyboard.type('Vaucanson');
-  await expect(page.getByText(fr.veille.form.noCommuneFound)).toBeVisible();
+  await expect(page.getByText(fr.commune.noneFound)).toBeVisible();
 });
 
 test('a 21st commune cannot be added once the ceiling is reached', async ({
@@ -116,7 +116,7 @@ test('a search still in flight neither claims « aucune commune » nor lets Ente
   // is pending: Nîmes is still shown, but it must be inert — Enter committing
   // it would subscribe the user to a commune unrelated to what they typed.
   await expect(page.getByRole('option', { name: /Nîmes/ })).toBeVisible();
-  await expect(page.getByText(fr.veille.form.noCommuneFound)).toBeHidden();
+  await expect(page.getByText(fr.commune.noneFound)).toBeHidden();
   await page.keyboard.press('ArrowDown');
   await page.keyboard.press('Enter');
   await expect(page.getByTestId('selected-count')).toHaveText('0');
