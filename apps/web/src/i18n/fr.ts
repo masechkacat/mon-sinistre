@@ -4,6 +4,8 @@ import {
   PASSWORD_MIN_LENGTH,
   RisqueCatnat,
   SinistreStatus,
+  StepAnchor,
+  StepStatus,
 } from '@mon-sinistre/contracts';
 
 // The space before ":" and "?" is a literal U+00A0, not a typo — same
@@ -386,6 +388,45 @@ export const fr = {
         `${risque} — ${commune}`,
       viewLink: VOIR_MON_DOSSIER,
       viewLinkFor: (dossier: string) => `${VOIR_MON_DOSSIER} : ${dossier}`,
+    },
+    detail: {
+      page: { title: 'Mon dossier' },
+      timelineLabel: 'Étapes de votre dossier',
+      prochaineEtape: 'Prochaine étape',
+      datePrevue: (date: string) => `Prévue le ${date}`,
+      sansDateNiAncre: 'Cette étape n’a pas encore de date prévue.',
+      stepStatus: {
+        [StepStatus.A_VENIR]: 'À venir',
+        [StepStatus.A_FAIRE]: 'À faire bientôt',
+        [StepStatus.EN_RETARD]: 'En retard',
+        [StepStatus.FAIT]: 'Fait',
+        [StepStatus.NON_APPLICABLE]: 'Non applicable',
+      },
+      attentePar: {
+        [StepAnchor.DATE_SINISTRE]:
+          'Cette date se calcule à partir de la date de l’événement.',
+        [StepAnchor.DATE_PUBLICATION_ARRETE]:
+          'Elle sera connue quand l’arrêté de catastrophe naturelle de votre commune sera publié au Journal officiel.',
+        [StepAnchor.DATE_DECLARATION]:
+          'Elle sera connue quand vous indiquerez la date de votre déclaration à l’assureur.',
+        [StepAnchor.DATE_ETAT_ESTIMATIF]:
+          'Elle dépend de l’état estimatif de l’assureur, qui n’est pas encore établi.',
+        [StepAnchor.DATE_ETAT_ESTIMATIF_OU_EXPERTISE]:
+          'Elle dépend de l’état estimatif ou de l’expertise de l’assureur, qui ne sont pas encore intervenus.',
+        [StepAnchor.DATE_ACCORD_INDEMNISATION]:
+          'Elle dépend de la date de l’accord de l’assureur sur l’indemnisation, qui n’est pas encore connue.',
+      },
+      deadline: {
+        heading: 'Délai de déclaration à votre assureur',
+        dateLimite: (date: string) => `Date limite le ${date}`,
+        remaining: (days: number) =>
+          days === 1 ? 'Il reste 1 jour' : `Il reste ${days} jours`,
+        today: 'C’est le dernier jour pour déclarer.',
+        overdue: (days: number) =>
+          days === 1
+            ? 'Délai dépassé d’un jour'
+            : `Délai dépassé de ${days} jours`,
+      },
     },
   },
   session: {

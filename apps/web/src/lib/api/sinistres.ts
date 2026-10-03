@@ -10,6 +10,10 @@ export function fetchSinistres() {
   return authApiFetch<SinistreSummary[]>('/sinistres');
 }
 
+export function fetchSinistre(id: string) {
+  return authApiFetch<SinistreDetail>(`/sinistres/${id}`);
+}
+
 export interface CreateSinistreInput {
   codeInsee: string;
   risque: RisqueCatnat;
