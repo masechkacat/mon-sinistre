@@ -3,6 +3,7 @@ import {
   SinistreStatus,
   StepAnchor,
   type Commune,
+  type DeclarationDeadline,
   type IsoDate,
   type SinistreDetail,
   type SinistreSummary,
@@ -10,8 +11,9 @@ import {
 } from '@mon-sinistre/contracts';
 import type { StepPersistedStatus } from 'src/generated/prisma/enums';
 import { toSourceReference } from 'src/common/source-reference';
+import { DECLARATION_ASSUREUR_CODE } from 'src/deadline-rules/deadline-rule.seed';
 import { dateToIsoDate } from 'src/deadline-rules/resolve-deadline';
-import { stepStatus } from './step-status';
+import { daysBetween, stepStatus } from './step-status';
 
 /** The `Sinistre` fields `toSinistreDetail` needs off a Prisma row. */
 export interface SinistreRow {
@@ -38,6 +40,7 @@ export interface StepRow {
   fromTemplate: boolean;
   sourceUrl: string | null;
   sourceVerifiedAt: Date | null;
+  deadlineRule: { code: string } | null;
 }
 
 export function toStepResponse(step: StepRow, today: IsoDate): Step {
@@ -83,6 +86,21 @@ export function toSinistreSummary(sinistre: SinistreRow): SinistreSummary {
   };
 }
 
+/** The critical deadline is the step with the déclaration rule (ТЗ § 3.3). */
+export function declarationDeadlineOf(
+  steps: StepRow[],
+  today: IsoDate,
+): DeclarationDeadline | null {
+  const step = steps.find(
+    (candidate) => candidate.deadlineRule?.code === DECLARATION_ASSUREUR_CODE,
+  );
+  if (!step?.plannedDate || step.persistedStatus !== null) {
+    return null;
+  }
+  const date = dateToIsoDate(step.plannedDate);
+  return { date, daysLeft: daysBetween(today, date) };
+}
+
 /** Maps a `Sinistre` row and its `Step` rows to the wire `SinistreDetail` — the
  * response body of `POST/GET/PATCH /sinistres/:id`. */
 export function toSinistreDetail(
@@ -93,5 +111,6 @@ export function toSinistreDetail(
   return {
     ...toSinistreSummary(sinistre),
     steps: steps.map((step) => toStepResponse(step, today)),
+    declarationDeadline: declarationDeadlineOf(steps, today),
   };
 }

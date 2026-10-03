@@ -187,12 +187,19 @@ export interface Step {
   source: SourceReference | null;
 }
 
+/** Остаток критического срока — дедлайн декларации страховщику. `daysLeft` < 0 — просрочка. */
+export interface DeclarationDeadline {
+  date: IsoDate;
+  daysLeft: number;
+}
+
 /**
  * A sinistre with its plan — response body of `POST /sinistres`,
  * `GET /sinistres/:id` and `PATCH /sinistres/:id`.
  */
 export interface SinistreDetail extends Sinistre {
   steps: Step[];
+  declarationDeadline: DeclarationDeadline | null;
 }
 
 /** Response body of `GET /sinistres` — one row per sinistre, no steps. */

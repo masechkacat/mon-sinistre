@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import type { SinistreDetail } from '@mon-sinistre/contracts';
+import { DeclarationDeadlineResponseDto } from './declaration-deadline-response.dto';
 import { SinistreSummaryResponseDto } from './sinistre-summary-response.dto';
 import { StepResponseDto } from './step-response.dto';
 
@@ -14,4 +15,7 @@ export class SinistreDetailResponseDto
 {
   @ApiProperty({ type: StepResponseDto, isArray: true })
   steps: StepResponseDto[];
+
+  @ApiProperty({ type: DeclarationDeadlineResponseDto, nullable: true })
+  declarationDeadline: DeclarationDeadlineResponseDto | null;
 }
