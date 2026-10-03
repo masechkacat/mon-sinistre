@@ -16,6 +16,7 @@ import { PageTitle } from '@/components/page-title';
 import { RequestError } from '@/components/request-error';
 import { Button } from '@/components/ui/button';
 import {
+  inputControlClassName,
   inputFrameClassName,
   inputFrameInvalidClassName,
 } from '@/components/ui/input';
@@ -267,7 +268,7 @@ export function SinistreNouveauForm() {
             }}
             className={cn(
               inputFrameClassName,
-              'px-3 py-1.5 text-sm outline-none focus:border-ring focus:ring-3 focus:ring-ring/50',
+              inputControlClassName,
               eventDateFieldError && inputFrameInvalidClassName,
             )}
           />

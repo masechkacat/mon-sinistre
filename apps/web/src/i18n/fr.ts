@@ -28,6 +28,7 @@ const LIEN_INVALIDE = 'Lien invalide';
 const LIEN_CONFIRMATION_INVALIDE_DESCRIPTION =
   'Ce lien de confirmation n’est plus valable : il a peut-être déjà été utilisé, ou son délai de validité est dépassé.';
 const CONFIRMER = 'Confirmer';
+const ANNULER = 'Annuler';
 const CONFIRMATION_EN_COURS = 'Confirmation en cours…';
 const VERIFIEZ_BOITE_EMAIL = 'Vérifiez votre boîte e-mail';
 
@@ -309,7 +310,7 @@ export const fr = {
           description:
             'Cette action est immédiate et irréversible : votre compte et toutes les données associées seront supprimés. Vous pourrez créer un nouveau compte avec la même adresse e-mail si vous le souhaitez.',
         },
-        cancel: 'Annuler',
+        cancel: ANNULER,
         confirm: 'Supprimer définitivement mon compte',
         deleting: 'Suppression en cours…',
       },
@@ -414,6 +415,28 @@ export const fr = {
       },
       marquageEchec:
         'L’étape n’a pas pu être mise à jour. Elle garde son état précédent : réessayez dans un instant.',
+      declaration: {
+        heading: 'Déclaration à votre assureur',
+        label: 'Date de votre déclaration à l’assureur',
+        hint: 'Le jour où vous avez prévenu votre assureur du sinistre. Les dates du plan qui en dépendent se calculent à partir de ce jour.',
+        requis: 'Indiquez la date de votre déclaration.',
+        echec:
+          'La date n’a pas pu être enregistrée. Vérifiez-la et réessayez dans un instant.',
+        enregistrer: 'Enregistrer la date',
+        enregistree: 'La date de déclaration est enregistrée.',
+        effacer: 'Effacer la date',
+        effacee: 'La date de déclaration est effacée.',
+      },
+      suppression: {
+        ouvrir: 'Supprimer ce dossier',
+        titre: 'Supprimer ce dossier ?',
+        texte:
+          'Le dossier, son plan et ses dates seront effacés définitivement. Cette action ne peut pas être annulée.',
+        confirmer: 'Supprimer définitivement',
+        annuler: ANNULER,
+        echec:
+          'Le dossier n’a pas pu être supprimé. Il est toujours là : réessayez dans un instant.',
+      },
       stepStatus: {
         [StepStatus.A_VENIR]: 'À venir',
         [StepStatus.A_FAIRE]: 'À faire bientôt',

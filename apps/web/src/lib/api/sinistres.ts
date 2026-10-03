@@ -31,6 +31,21 @@ export function setSinistreStepStatus(
   });
 }
 
+export function setSinistreDeclarationDate(
+  sinistreId: string,
+  declarationDate: IsoDate | null,
+) {
+  return authApiFetch<SinistreDetail>(`/sinistres/${sinistreId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ declarationDate }),
+  });
+}
+
+export function deleteSinistre(sinistreId: string) {
+  return authApiFetch<void>(`/sinistres/${sinistreId}`, { method: 'DELETE' });
+}
+
 export interface CreateSinistreInput {
   codeInsee: string;
   risque: RisqueCatnat;

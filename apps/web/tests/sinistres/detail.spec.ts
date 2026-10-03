@@ -6,6 +6,7 @@ import {
 } from '@mon-sinistre/contracts';
 import type { StepMark } from '../../src/lib/api/sinistres';
 import { dossierTitle } from '../../src/lib/dossier-title';
+import { formatDateFr } from '../../src/i18n/date';
 import { fr } from '../../src/i18n/fr';
 import { expectNoAxeViolations } from '../support/a11y';
 import { testApiBaseUrl } from '../support/env';
@@ -72,22 +73,66 @@ function sinistreDetail(overrides: Partial<Record<string, unknown>> = {}) {
   };
 }
 
+const DECLARATION_STEP = step({
+  id: 'step-declaration',
+  name: 'Déclarer le sinistre à l’assureur',
+  plannedDate: null,
+  status: StepStatus.A_VENIR,
+  anchor: StepAnchor.DATE_DECLARATION,
+});
+
+// What the API answers once a declaration date is set or cleared: the step
+// anchored on it takes a date only while the date is there.
+function detailDeclaredOn(declarationDate: string | null) {
+  return sinistreDetail({
+    declarationDate,
+    steps: [
+      ...STEPS,
+      {
+        ...DECLARATION_STEP,
+        plannedDate: declarationDate ? '2026-10-01' : null,
+      },
+    ],
+  });
+}
+
 // A PATCH on a step answers from the same state the GET reads, so the refetch
 // after a successful mark shows what the API would show.
 async function openDetail(
   page: Page,
   body: ReturnType<typeof sinistreDetail>,
-  { failing = false }: { failing?: boolean } = {},
+  {
+    failing = false,
+    afterPatch = (declarationDate) => ({
+      ...sinistreDetail(),
+      declarationDate,
+    }),
+  }: {
+    failing?: boolean;
+    afterPatch?: (
+      declarationDate: string | null,
+    ) => ReturnType<typeof sinistreDetail>;
+  } = {},
 ) {
   const state = { detail: body };
   await mockSession(page).install();
-  await page.route(`${testApiBaseUrl}/sinistres/${SINISTRE_ID_1}`, (route) =>
-    route.fulfill({
+  await page.route(`${testApiBaseUrl}/sinistres/${SINISTRE_ID_1}`, (route) => {
+    const method = route.request().method();
+    if (method === 'DELETE') {
+      return route.fulfill({ status: 204 });
+    }
+    if (method === 'PATCH') {
+      const { declarationDate } = route.request().postDataJSON() as {
+        declarationDate: string | null;
+      };
+      state.detail = afterPatch(declarationDate);
+    }
+    return route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify(state.detail),
-    }),
-  );
+    });
+  });
   await page.route(/\/etapes\/[^/?]+$/, (route) => {
     if (failing) {
       return route.fulfill({
@@ -381,4 +426,137 @@ test('a mark that fails leaves the step as it was and says so in French', async 
     fr.sinistres.detail.marquageEchec,
   );
   await expect(step).toContainText(fr.sinistres.detail.stepStatus.A_FAIRE);
+});
+
+test('a declaration date counts the steps anchored on it, and clearing it takes the dates back', async ({
+  page,
+}) => {
+  await openDetail(page, detailDeclaredOn(null), {
+    afterPatch: detailDeclaredOn,
+  });
+
+  const declarationStep = timelineItem(page, DECLARATION_STEP.name);
+  await expect(declarationStep).toContainText(
+    fr.sinistres.detail.attentePar.DATE_DECLARATION,
+  );
+
+  const sent = page.waitForRequest(
+    (request) =>
+      request.method() === 'PATCH' && request.url().endsWith(SINISTRE_ID_1),
+  );
+  await page
+    .getByLabel(fr.sinistres.detail.declaration.label)
+    .fill('2026-09-01');
+  await page
+    .getByRole('button', { name: fr.sinistres.detail.declaration.enregistrer })
+    .click();
+
+  expect((await sent).postDataJSON()).toEqual({
+    declarationDate: '2026-09-01',
+  });
+  await expect(page.getByRole('status')).toHaveText(
+    fr.sinistres.detail.declaration.enregistree,
+  );
+  await expect(declarationStep).toContainText(
+    fr.sinistres.detail.datePrevue(formatDateFr('2026-10-01')),
+  );
+
+  await page
+    .getByRole('button', { name: fr.sinistres.detail.declaration.effacer })
+    .click();
+
+  await expect(declarationStep).toContainText(
+    fr.sinistres.detail.attentePar.DATE_DECLARATION,
+  );
+  await expect(declarationStep).not.toContainText(
+    fr.sinistres.detail.datePrevue(formatDateFr('2026-10-01')),
+  );
+  await expect(page.getByRole('status')).toHaveText(
+    fr.sinistres.detail.declaration.effacee,
+  );
+  const field = page.getByLabel(fr.sinistres.detail.declaration.label);
+  await expect(field).toHaveValue('');
+  await expect(field).toBeFocused();
+});
+
+test('deleting the dossier asks first, and cancelling gives focus back to the delete button', async ({
+  page,
+}) => {
+  await openDetail(page, sinistreDetail());
+
+  const deleteButton = page.getByRole('button', {
+    name: fr.sinistres.detail.suppression.ouvrir,
+  });
+  await deleteButton.click();
+
+  const dialog = page.getByRole('alertdialog');
+  await expect(dialog).toContainText(fr.sinistres.detail.suppression.titre);
+  await dialog
+    .getByRole('button', { name: fr.sinistres.detail.suppression.annuler })
+    .click();
+
+  await expect(dialog).toBeHidden();
+  await expect(deleteButton).toBeFocused();
+});
+
+test('Escape closes the deletion dialog without deleting anything', async ({
+  page,
+}) => {
+  let deleteSent = false;
+  await openDetail(page, sinistreDetail());
+  page.on('request', (request) => {
+    if (request.method() === 'DELETE') deleteSent = true;
+  });
+
+  const deleteButton = page.getByRole('button', {
+    name: fr.sinistres.detail.suppression.ouvrir,
+  });
+  await deleteButton.click();
+  await expect(page.getByRole('alertdialog')).toBeVisible();
+  await page.keyboard.press('Escape');
+
+  await expect(page.getByRole('alertdialog')).toBeHidden();
+  await expect(deleteButton).toBeFocused();
+  expect(deleteSent).toBe(false);
+});
+
+test('confirming the deletion sends DELETE and returns to the list', async ({
+  page,
+}) => {
+  await openDetail(page, sinistreDetail());
+  await page.route(`${testApiBaseUrl}/sinistres`, (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: '[]',
+    }),
+  );
+
+  const sent = page.waitForRequest(
+    (request) =>
+      request.method() === 'DELETE' && request.url().endsWith(SINISTRE_ID_1),
+  );
+  await page
+    .getByRole('button', { name: fr.sinistres.detail.suppression.ouvrir })
+    .click();
+  await page
+    .getByRole('alertdialog')
+    .getByRole('button', { name: fr.sinistres.detail.suppression.confirmer })
+    .click();
+
+  await sent;
+  await expect(page).toHaveURL(/\/sinistres$/);
+});
+
+test('axe: the deletion dialog is clean in the light theme', async ({
+  page,
+}) => {
+  await page.emulateMedia({ colorScheme: 'light' });
+  await openDetail(page, sinistreDetail());
+  await page
+    .getByRole('button', { name: fr.sinistres.detail.suppression.ouvrir })
+    .click();
+  await expect(page.getByRole('alertdialog')).toBeVisible();
+
+  await expectNoAxeViolations(page);
 });
