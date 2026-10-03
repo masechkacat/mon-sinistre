@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { RisqueCatnat, SinistreStatus } from '@mon-sinistre/contracts';
 import { communeLabel } from '../../src/lib/commune-label';
 import { dossierTitle } from '../../src/lib/dossier-title';
 import { fr } from '../../src/i18n/fr';
@@ -43,11 +44,11 @@ test('lists two of the caller’s sinistres, each with its status in words and i
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify([
-        sinistreSummary({ id: SINISTRE_ID_1, status: 'AVANT_ARRETE' }),
+        sinistreSummary({ id: SINISTRE_ID_1, status: SinistreStatus.AVANT_ARRETE }),
         sinistreSummary({
           id: SINISTRE_ID_2,
-          risque: 'SECHERESSE',
-          status: 'ARRETE_PUBLIE',
+          risque: RisqueCatnat.SECHERESSE,
+          status: SinistreStatus.ARRETE_PUBLIE,
         }),
       ]),
     }),

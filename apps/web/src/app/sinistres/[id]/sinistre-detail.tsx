@@ -155,6 +155,13 @@ function DeclarationSection({
   const inputRef = useRef<HTMLInputElement>(null);
   const [draft, setDraft] = useState(declarationDate ?? '');
   const [draftError, setDraftError] = useState<string>();
+  // The field follows the server value: a date set or cleared elsewhere
+  // arrives with the next refetch and must replace what was typed here.
+  const [syncedDate, setSyncedDate] = useState(declarationDate);
+  if (syncedDate !== declarationDate) {
+    setSyncedDate(declarationDate);
+    setDraft(declarationDate ?? '');
+  }
   const mutation = useMutation({
     mutationFn: (next: IsoDate | null) =>
       setSinistreDeclarationDate(sinistreId, next),
@@ -165,20 +172,23 @@ function DeclarationSection({
         exact: true,
       });
       onAnnounce(detail.declarationDate ? copy.enregistree : copy.effacee);
-      if (!detail.declarationDate) {
-        setDraft('');
-        inputRef.current?.focus();
-      }
+      if (!detail.declarationDate) inputRef.current?.focus();
+    },
+    onError: (_error, next) => {
+      if (next === null) onAnnounce(copy.effacementEchec);
     },
   });
 
+  // A failed save belongs to the field; a failed clear is announced above,
+  // since the typed value is not what went wrong.
+  const saveFailed = mutation.isError && mutation.variables !== null;
   // The API's own French sentence for a rejected date, shown as is.
   const apiError =
     mutation.error instanceof ApiError && mutation.error.status === 400
       ? mutation.error.detail
       : undefined;
   const error =
-    draftError ?? (mutation.isError ? (apiError ?? copy.echec) : undefined);
+    draftError ?? (saveFailed ? (apiError ?? copy.echec) : undefined);
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -267,11 +277,9 @@ function SuppressionSection({ sinistreId }: { sinistreId: string }) {
           <AlertDialog.Description className="text-base">
             {copy.texte}
           </AlertDialog.Description>
-          {mutation.isError ? (
-            <p role="alert" className="text-sm text-destructive">
-              {copy.echec}
-            </p>
-          ) : null}
+          <p role="alert" className="min-h-5 text-sm text-destructive">
+            {mutation.isError ? copy.echec : null}
+          </p>
           <div className="flex flex-wrap justify-end gap-2">
             <AlertDialog.Close
               render={<Button variant="outline" size="touch" />}

@@ -1,8 +1,11 @@
 import { expect, test, type Page } from '@playwright/test';
 import {
   REFERENCE_DATA_STALE_AFTER_MONTHS,
+  SinistreStatus,
   StepAnchor,
   StepStatus,
+  toIsoDate,
+  type IsoDate,
 } from '@mon-sinistre/contracts';
 import type { StepMark } from '../../src/lib/api/sinistres';
 import { dossierTitle } from '../../src/lib/dossier-title';
@@ -19,7 +22,7 @@ import {
 
 const SOURCE = {
   url: 'https://www.legifrance.gouv.fr/codes/id/LEGIARTI000006792617',
-  verifiedAt: '2026-08-18',
+  verifiedAt: toIsoDate('2026-08-18'),
   possiblyOutdated: false,
 };
 
@@ -29,13 +32,13 @@ const STEPS = [
   step({
     id: 'step-retard',
     name: 'Déposer la déclaration',
-    plannedDate: '2026-09-01',
+    plannedDate: toIsoDate('2026-09-01'),
     status: StepStatus.EN_RETARD,
   }),
   step({
     id: 'step-proche',
     name: 'Envoyer les photos',
-    plannedDate: '2026-10-20',
+    plannedDate: toIsoDate('2026-10-20'),
     status: StepStatus.A_FAIRE,
   }),
   step({
@@ -48,21 +51,21 @@ const STEPS = [
   step({
     id: 'step-plus-tard',
     name: 'Relire le contrat',
-    plannedDate: '2027-01-15',
+    plannedDate: toIsoDate('2027-01-15'),
     status: StepStatus.A_VENIR,
   }),
   step({
     id: 'step-fait',
     name: 'Prévenir le voisin',
-    plannedDate: '2026-06-20',
+    plannedDate: toIsoDate('2026-06-20'),
     status: StepStatus.FAIT,
-    completedAt: '2026-06-20',
+    completedAt: toIsoDate('2026-06-20'),
   }),
 ];
 
 function sinistreDetail(overrides: Partial<Record<string, unknown>> = {}) {
   return {
-    ...sinistreFixture({ status: 'DECLARE' }),
+    ...sinistreFixture({ status: SinistreStatus.DECLARE }),
     steps: STEPS,
     declarationDeadline: {
       date: '2026-09-15',
@@ -83,14 +86,14 @@ const DECLARATION_STEP = step({
 
 // What the API answers once a declaration date is set or cleared: the step
 // anchored on it takes a date only while the date is there.
-function detailDeclaredOn(declarationDate: string | null) {
+function detailDeclaredOn(declarationDate: IsoDate | null) {
   return sinistreDetail({
     declarationDate,
     steps: [
       ...STEPS,
       {
         ...DECLARATION_STEP,
-        plannedDate: declarationDate ? '2026-10-01' : null,
+        plannedDate: declarationDate ? toIsoDate('2026-10-01') : null,
       },
     ],
   });
@@ -110,7 +113,7 @@ async function openDetail(
   }: {
     failing?: boolean;
     afterPatch?: (
-      declarationDate: string | null,
+      declarationDate: IsoDate | null,
     ) => ReturnType<typeof sinistreDetail>;
   } = {},
 ) {
@@ -118,12 +121,15 @@ async function openDetail(
   await mockSession(page).install();
   await page.route(`${testApiBaseUrl}/sinistres/${SINISTRE_ID_1}`, (route) => {
     const method = route.request().method();
+    if (failing && method !== 'GET') {
+      return route.fulfill({ status: 500 });
+    }
     if (method === 'DELETE') {
       return route.fulfill({ status: 204 });
     }
     if (method === 'PATCH') {
       const { declarationDate } = route.request().postDataJSON() as {
-        declarationDate: string | null;
+        declarationDate: IsoDate | null;
       };
       state.detail = afterPatch(declarationDate);
     }
@@ -270,7 +276,7 @@ test('each calculated date links to the text it comes from and is called indicat
         step({
           id: 'step-declaration',
           name: 'Déclarer le sinistre',
-          plannedDate: '2026-09-15',
+          plannedDate: toIsoDate('2026-09-15'),
           status: StepStatus.A_FAIRE,
           source: SOURCE,
         }),
@@ -458,7 +464,7 @@ test('a declaration date counts the steps anchored on it, and clearing it takes 
     fr.sinistres.detail.declaration.enregistree,
   );
   await expect(declarationStep).toContainText(
-    fr.sinistres.detail.datePrevue(formatDateFr('2026-10-01')),
+    fr.sinistres.detail.datePrevue(formatDateFr(toIsoDate('2026-10-01'))),
   );
 
   await page
@@ -469,7 +475,7 @@ test('a declaration date counts the steps anchored on it, and clearing it takes 
     fr.sinistres.detail.attentePar.DATE_DECLARATION,
   );
   await expect(declarationStep).not.toContainText(
-    fr.sinistres.detail.datePrevue(formatDateFr('2026-10-01')),
+    fr.sinistres.detail.datePrevue(formatDateFr(toIsoDate('2026-10-01'))),
   );
   await expect(page.getByRole('status')).toHaveText(
     fr.sinistres.detail.declaration.effacee,
@@ -477,6 +483,50 @@ test('a declaration date counts the steps anchored on it, and clearing it takes 
   const field = page.getByLabel(fr.sinistres.detail.declaration.label);
   await expect(field).toHaveValue('');
   await expect(field).toBeFocused();
+});
+
+test('a clear that fails is announced, and the typed date is not blamed for it', async ({
+  page,
+}) => {
+  const declared = toIsoDate('2026-09-01');
+  await openDetail(page, detailDeclaredOn(declared), { failing: true });
+
+  await page
+    .getByRole('button', { name: fr.sinistres.detail.declaration.effacer })
+    .click();
+
+  await expect(page.getByRole('status')).toHaveText(
+    fr.sinistres.detail.declaration.effacementEchec,
+  );
+  const field = page.getByLabel(fr.sinistres.detail.declaration.label);
+  await expect(field).toHaveValue(declared);
+  await expect(field).not.toHaveAttribute('aria-invalid', 'true');
+  await expect(
+    page.getByText(fr.sinistres.detail.declaration.echec),
+  ).toHaveCount(0);
+});
+
+test('the date field follows a date recorded elsewhere once the dossier is refetched', async ({
+  page,
+}) => {
+  await openDetail(page, detailDeclaredOn(null));
+  const field = page.getByLabel(fr.sinistres.detail.declaration.label);
+  await field.fill('2026-09-01');
+
+  // Another device set the date meanwhile; the next refetch brings it here.
+  const elsewhere = toIsoDate('2026-09-15');
+  await page.route(`${testApiBaseUrl}/sinistres/${SINISTRE_ID_1}`, (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(detailDeclaredOn(elsewhere)),
+    }),
+  );
+  await timelineItem(page, 'Envoyer les photos')
+    .getByRole('button', { name: fr.sinistres.detail.marquer.fait })
+    .click();
+
+  await expect(field).toHaveValue(elsewhere);
 });
 
 test('deleting the dossier asks first, and cancelling gives focus back to the delete button', async ({
@@ -546,6 +596,28 @@ test('confirming the deletion sends DELETE and returns to the list', async ({
 
   await sent;
   await expect(page).toHaveURL(/\/sinistres$/);
+});
+
+test('a deletion that fails says so in a live region that was in the dialog all along', async ({
+  page,
+}) => {
+  await openDetail(page, sinistreDetail(), { failing: true });
+  await page
+    .getByRole('button', { name: fr.sinistres.detail.suppression.ouvrir })
+    .click();
+
+  const dialog = page.getByRole('alertdialog');
+  const alert = dialog.getByRole('alert');
+  await expect(alert).toBeAttached();
+  await expect(alert).toBeEmpty();
+
+  await dialog
+    .getByRole('button', { name: fr.sinistres.detail.suppression.confirmer })
+    .click();
+
+  await expect(alert).toHaveText(fr.sinistres.detail.suppression.echec);
+  await expect(dialog).toBeVisible();
+  await expect(page).toHaveURL(new RegExp(`/sinistres/${SINISTRE_ID_1}$`));
 });
 
 test('axe: the deletion dialog is clean in the light theme', async ({

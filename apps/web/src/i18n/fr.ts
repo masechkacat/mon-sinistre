@@ -426,6 +426,8 @@ export const fr = {
         enregistree: 'La date de déclaration est enregistrée.',
         effacer: 'Effacer la date',
         effacee: 'La date de déclaration est effacée.',
+        effacementEchec:
+          'La date n’a pas pu être effacée. Elle est toujours enregistrée : réessayez dans un instant.',
       },
       suppression: {
         ouvrir: 'Supprimer ce dossier',
@@ -446,7 +448,7 @@ export const fr = {
       },
       attentePar: {
         [StepAnchor.DATE_SINISTRE]:
-          'Cette date se calcule à partir de la date de l’événement.',
+          'La date de cette étape n’a pas pu être calculée. Vérifiez le délai avec votre assureur.',
         [StepAnchor.DATE_PUBLICATION_ARRETE]:
           'Elle sera connue quand l’arrêté de catastrophe naturelle de votre commune sera publié au Journal officiel.',
         [StepAnchor.DATE_DECLARATION]:

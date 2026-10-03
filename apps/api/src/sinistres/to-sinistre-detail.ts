@@ -44,7 +44,11 @@ export interface StepRow {
   deadlineRule: { code: string } | null;
 }
 
-export function toStepResponse(step: StepRow, today: IsoDate): Step {
+/** The rule code is read only by `declarationDeadlineOf`; a bare `Step` row
+ * (as `SinistresService.updateStep` reads it) maps without it. */
+export type StepResponseRow = Omit<StepRow, 'deadlineRule'>;
+
+export function toStepResponse(step: StepResponseRow, today: IsoDate): Step {
   const plannedDate = step.plannedDate ? dateToIsoDate(step.plannedDate) : null;
   return {
     id: step.id,
@@ -63,7 +67,7 @@ export function toStepResponse(step: StepRow, today: IsoDate): Step {
   };
 }
 
-function sourceOf(step: StepRow, today: IsoDate): SourceReference | null {
+function sourceOf(step: StepResponseRow, today: IsoDate): SourceReference | null {
   return step.sourceUrl && step.sourceVerifiedAt
     ? toSourceReference(
         step.sourceUrl,

@@ -1,5 +1,5 @@
 import type { Sinistre } from '@mon-sinistre/contracts';
-import { fr } from '../i18n/fr';
+import { fr } from '@/i18n/fr';
 import { communeLabel } from './commune-label';
 
 export function dossierTitle(sinistre: Sinistre): string {
