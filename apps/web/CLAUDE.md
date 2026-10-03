@@ -23,7 +23,7 @@ Next.js 16 (App Router, `src/app/`), React 19, Tailwind CSS 4 (через PostCS
 
 ## Команды
 
-Запуск, сборка, линт и тесты — из корня (`npm run dev:web`, `npm run build`, `npm run lint`, `npm run test:web` — Playwright). API ожидается на http://localhost:3001. Доменная логика тестируется в API. Линтер — eslint c `eslint-config-next` (flat config в `eslint.config.mjs`), запускается pre-commit хуком.
+Запуск, сборка, линт и тесты — из корня (`npm run dev:web`, `npm run build`, `npm run lint`, `npm run test:web` — Playwright; `npm run test:e2e` — сквозной против реального API и базы, `playwright.e2e.config.ts`). API ожидается на http://localhost:3001. Доменная логика тестируется в API. Линтер — eslint c `eslint-config-next` (flat config в `eslint.config.mjs`), запускается pre-commit хуком.
 
 ## Тесты
 
