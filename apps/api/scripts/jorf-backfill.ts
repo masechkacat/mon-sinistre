@@ -4,7 +4,8 @@ import {
   validateEnv,
   type EnvironmentVariables,
 } from '../src/config/env.validation';
-import { DilaClient } from '../src/jorf/dila.client';
+import { DeadlineRuleService } from '../src/deadline-rules/deadline-rule.service';
+import { DilaClient } from '../src/jorf/dila/dila.client';
 import {
   JorfMonitorService,
   MAX_DELTAS_PER_RUN,
@@ -12,23 +13,17 @@ import {
 import {
   BACKFILL_MIN_PUBLISHED_AT,
   selectBackfillDeltas,
-} from '../src/jorf/select-backfill-deltas';
+} from '../src/jorf/dila/select-backfill-deltas';
 import { composerOptionsFrom, transportFor } from '../src/mail/mail.module';
-import { MailComposer } from '../src/mail/mail-composer';
+import { MailComposer } from '../src/mail/compose/mail-composer';
 import { MailService } from '../src/mail/mail.service';
 import { PrismaService } from '../src/prisma/prisma.service';
 
 // No Nest application context on purpose — same reasoning as prisma/seed.ts:
 // this one-off script needs the monitor's plain classes with notify: false
 // (docs/research/jorf-monitor.md, "Бэкфилл с 01.01.2026"), not a bootstrap of
-// AppModule.
-//
-// Run from apps/api/: npx ts-node -r tsconfig-paths/register scripts/jorf-backfill.ts
-// (tsconfig-paths/register is required — the modules imported below resolve
-// each other through the `src/...` path alias, same as prisma.config.ts's
-// seed command). No npm script wires this in: package.json is off-limits to
-// this codebase's automated iteration (`.claude/ralph.md`), so adding one is
-// left for a human.
+// AppModule. Run: npm run backfill:jorf — the same ts-node recipe as the seed
+// command in prisma.config.ts, for the same reason.
 
 try {
   process.loadEnvFile();
@@ -46,7 +41,13 @@ async function main(): Promise<void> {
     new MailComposer(composerOptionsFrom(config)),
     transportFor(config),
   );
-  const monitor = new JorfMonitorService(prisma, dila, mail, config);
+  const monitor = new JorfMonitorService(
+    prisma,
+    dila,
+    mail,
+    config,
+    new DeadlineRuleService(prisma),
+  );
 
   await prisma.$connect();
   try {

@@ -106,11 +106,13 @@ const INGEST_LOCK_TTL_MS = 60 * 60 * 1000;
  */
 export type RunOptions = {
   /**
-   * `false` suppresses the outbox write entirely — no `VeilleNotification`
-   * row is created for anything the run ingests, so nothing is ever mailed
-   * for it ({@link JorfMonitorService.queueNotifications}, the one place
-   * this knob is honored). The backfill's «не отправляет ни одного письма»
-   * holds by this construction, not by a date check.
+   * `false` suppresses both outbox writes entirely — no `VeilleNotification`
+   * ({@link JorfMonitorService.queueNotifications}) and no
+   * `SinistreNotification` ({@link JorfMonitorService.applyLink}) row is
+   * created for anything the run ingests or links, so nothing is ever mailed
+   * for it; those two writes are the only places this knob is honored. The
+   * backfill's «не отправляет ни одного письма» holds by this construction,
+   * not by a date check.
    */
   notify?: boolean;
   /** Restricts which deltas this run may pick up, already filtered to the backfill's date boundary — `this.dila.listDeltas()` is not called at all when this is set. */
@@ -648,7 +650,11 @@ export class JorfMonitorService {
     // fresh from the database (docs/plan/sinistre-plan.md, Фаза 3, issue
     // #157), so one pass at the end of the batch sees everything this run
     // wrote, exactly like a pass per delta would.
-    await this.linkSinistresGuarded(pass.successorOf, rectifiedEntryIds);
+    await this.linkSinistresGuarded(
+      pass.successorOf,
+      rectifiedEntryIds,
+      options,
+    );
 
     await this.drainOutbox(pass);
   }
@@ -706,9 +712,10 @@ export class JorfMonitorService {
   private async linkSinistresGuarded(
     successorOf: ReadonlyMap<string, string>,
     rectifiedEntryIds: ReadonlySet<string>,
+    options: RunOptions,
   ): Promise<void> {
     try {
-      await this.linkSinistres(successorOf, rectifiedEntryIds);
+      await this.linkSinistres(successorOf, rectifiedEntryIds, options);
     } catch (error) {
       this.logger.error(
         `jorf monitor: linking sinistres failed: ${errorSummary(error)}`,
@@ -741,6 +748,7 @@ export class JorfMonitorService {
   private async linkSinistres(
     successorOf: ReadonlyMap<string, string>,
     rectifiedEntryIds: ReadonlySet<string>,
+    options: RunOptions,
   ): Promise<void> {
     // Candidates are the dossiers whose déclaration deadline is still
     // undated, not a list of statuses (docs/research/sinistre-plan.md,
@@ -828,6 +836,7 @@ export class JorfMonitorService {
         rectifiedEntryIds.has(entry.id)
           ? 'RECTIFICATIF_RECONNU'
           : 'PUBLICATION',
+        options,
       );
     }
   }
@@ -996,7 +1005,11 @@ export class JorfMonitorService {
    * only path to a `SinistreNotification`: a sinistre linked at creation
    * time (`SinistresService.create`) never reaches this method, so it never
    * gets one either (research, "Как применять" — "Синистр, привязанный при
-   * создании ... письма не получает").
+   * создании ... письма не получает"). {@link RunOptions.notify} is honored
+   * here for the same reason it is honored inside `queueNotifications`
+   * rather than at the call sites: the link itself still happens — a
+   * backfill dates the déclaration step of a dossier opened before its
+   * arrêté — but the letter about a months-old arrêté is never queued.
    *
    * One transaction per link, not one for the whole batch: a `DELETE
    * /sinistres/:id` landing mid-loop costs that one dossier, not every link
@@ -1012,6 +1025,7 @@ export class JorfMonitorService {
     },
     rule: ResolvedDeadlineRule | null,
     kind: SinistreNotificationKind,
+    options: RunOptions,
   ): Promise<void> {
     await this.prisma.$transaction(async (tx) => {
       // `findUnique`, not `findUniqueOrThrow`, inside {@link
@@ -1033,6 +1047,9 @@ export class JorfMonitorService {
           null,
         );
         await this.updateDeclarationStep(tx, sinistreId, plannedDate, rule);
+        if (options.notify === false) {
+          return;
+        }
         // One row, but `createMany` for its `skipDuplicates`, the same guard
         // and the same reason as {@link queueNotifications}: a row this
         // dossier already carries would abort not just its own link but every

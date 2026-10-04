@@ -2762,6 +2762,52 @@ describe('sinistre notification outbox (issue #161)', () => {
     ).toBe(0);
   });
 
+  it('a backfill run (notify: false) links the sinistre and dates its déclaration deadline but queues no letter, and the next normal run queues none either (issue #107)', async () => {
+    await prisma.commune.create({
+      data: communeFixture('02005', 'Amigny-Rouy', '02', 'Aisne'),
+    });
+    const { sinistre } = await createSinistre(
+      'proprietaire-8@example.fr',
+      '02005',
+    );
+    expect(sinistre.arreteEntryId).toBeNull();
+
+    const BACKFILL = 'JORFSIMPLE_20260701-060000.tar.gz';
+    const tarball = await buildDelta('JORFTEXT000000005501', 'INTJ2600055A', {
+      reconnues: [AMIGNY],
+    });
+    currentFetch = stubFetch([BACKFILL], { [BACKFILL]: tarball });
+    await monitor.run({ notify: false });
+
+    const linked = await prisma.sinistre.findUniqueOrThrow({
+      where: { id: sinistre.id },
+      select: {
+        arreteEntryId: true,
+        steps: {
+          where: { anchor: 'DATE_PUBLICATION_ARRETE' },
+          select: { plannedDate: true },
+        },
+      },
+    });
+    expect(linked.arreteEntryId).not.toBeNull();
+    expect(linked.steps[0]?.plannedDate).not.toBeNull();
+    expect(await prisma.sinistreNotification.count()).toBe(0);
+    expect(transport.sent).toHaveLength(0);
+
+    // Same short-circuit as the veille half of issue #107: once linked to a
+    // RECONNU entry the dossier is no candidate any more, so the evening
+    // delta re-delivering the NOR has nothing to link and nothing to queue.
+    const NEXT = 'JORFSIMPLE_20260701-230000.tar.gz';
+    currentFetch = stubFetch([BACKFILL, NEXT], {
+      [BACKFILL]: tarball,
+      [NEXT]: tarball,
+    });
+    await monitor.run();
+
+    expect(await prisma.sinistreNotification.count()).toBe(0);
+    expect(transport.sent).toHaveLength(0);
+  });
+
   it('still tells the owner about a second entry of the same commune through veille (critère PRD № 14)', async () => {
     await prisma.commune.create({
       data: communeFixture('02005', 'Amigny-Rouy', '02', 'Aisne'),
