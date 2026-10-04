@@ -16,7 +16,7 @@ export function AlertDialogContent(
   const { className, ...rest } = props;
   return (
     <AlertDialogPrimitive.Portal>
-      <AlertDialogPrimitive.Backdrop className="fixed inset-0 bg-black/40" />
+      <AlertDialogPrimitive.Backdrop className="fixed inset-0 bg-(--encre)/40" />
       <AlertDialogPrimitive.Popup
         className={cn(
           'fixed top-1/2 left-1/2 w-[min(90vw,28rem)] -translate-x-1/2 -translate-y-1/2 space-y-4 rounded-xl border bg-background p-6 shadow-lg outline-none',

@@ -46,19 +46,9 @@
 @theme inline {
   --font-heading: var(--font-heading);
   --font-sans: var(--font-sans);
-  --color-sidebar-ring: var(--sidebar-ring);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar: var(--sidebar);
-  --color-chart-5: var(--chart-5);
-  --color-chart-4: var(--chart-4);
-  --color-chart-3: var(--chart-3);
-  --color-chart-2: var(--chart-2);
-  --color-chart-1: var(--chart-1);
+  /* Roles the badge and the states speak in, next to the shadcn names. */
+  --color-vermillon: var(--vermillon);
+  --color-petrole: var(--petrole);
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-border: var(--border);
@@ -95,45 +85,42 @@
      tokens: without it they stay light-rendered in the dark theme and the
      date field's calendar icon all but disappears. */
   color-scheme: light;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  /* Darker than the shadcn default (L 0.577): the destructive controls put
-     this colour as text on its own tint, and the tints stack — the confirm
-     button (`bg-destructive/10`) sits inside the confirmation panel
-     (`bg-destructive/5`), the darkest ground the colour is read on. There
-     0.577 measures 3.6:1 and 0.52 still only 4.3:1, both under the 4.5:1
-     the project owes WCAG 2.1 AA; 0.48 measures 4.8:1. Raising it again
-     means re-checking that stacked case, not just text on white. */
-  --destructive: oklch(0.48 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+
+  /* The seven roles of the design system — the only colour literals in the
+     client. Values are the hex of the design sheet v1 (04.10.2026), carried
+     over without conversion so they can still be compared to it. */
+  --fond: #e6e4e0;
+  --papier: #f5f3ef;
+  --encre: #4a3426;
+  --secondaire: #7a5f50;
+  --filet: #d2c8bf;
+  --vermillon: #a8321f;
+  --petrole: #1f4e5f;
+
+  --background: var(--fond);
+  --foreground: var(--encre);
+  --card: var(--papier);
+  --card-foreground: var(--encre);
+  --popover: var(--papier);
+  --popover-foreground: var(--card-foreground);
+  --primary: var(--petrole);
+  --primary-foreground: var(--papier);
+  /* Hover and chip grounds: the sheet names no eighth value for them, so they
+     are derived — the ground tinted with its own ink — not a new literal. */
+  --surface-tint: color-mix(in oklab, var(--fond) 92%, var(--encre));
+  --secondary: var(--surface-tint);
+  --secondary-foreground: var(--foreground);
+  --muted: var(--surface-tint);
+  --muted-foreground: var(--secondaire);
+  --accent: var(--surface-tint);
+  --accent-foreground: var(--foreground);
+  --destructive: var(--vermillon);
+  --border: var(--filet);
+  --input: var(--filet);
+  --ring: var(--petrole);
+  /* Perforated paper is barely rounded; the shadcn default 0.625rem belongs
+     to another material. */
+  --radius: 0.25rem;
 }
 
 /*
@@ -143,38 +130,52 @@
 @media (prefers-color-scheme: dark) {
   :root {
     color-scheme: dark;
-    --background: oklch(0.145 0 0);
-    --foreground: oklch(0.985 0 0);
-    --card: oklch(0.205 0 0);
-    --card-foreground: oklch(0.985 0 0);
-    --popover: oklch(0.205 0 0);
-    --popover-foreground: oklch(0.985 0 0);
-    --primary: oklch(0.922 0 0);
-    --primary-foreground: oklch(0.205 0 0);
-    --secondary: oklch(0.269 0 0);
-    --secondary-foreground: oklch(0.985 0 0);
-    --muted: oklch(0.269 0 0);
-    --muted-foreground: oklch(0.708 0 0);
-    --accent: oklch(0.269 0 0);
-    --accent-foreground: oklch(0.985 0 0);
-    --destructive: oklch(0.704 0.191 22.216);
-    --border: oklch(1 0 0 / 10%);
-    --input: oklch(1 0 0 / 15%);
-    --ring: oklch(0.556 0 0);
-    --chart-1: oklch(0.87 0 0);
-    --chart-2: oklch(0.556 0 0);
-    --chart-3: oklch(0.439 0 0);
-    --chart-4: oklch(0.371 0 0);
-    --chart-5: oklch(0.269 0 0);
-    --sidebar: oklch(0.205 0 0);
-    --sidebar-foreground: oklch(0.985 0 0);
-    --sidebar-primary: oklch(0.488 0.243 264.376);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.269 0 0);
-    --sidebar-accent-foreground: oklch(0.985 0 0);
-    --sidebar-border: oklch(1 0 0 / 10%);
-    --sidebar-ring: oklch(0.556 0 0);
+
+    /* Paper in a dark room: only the ground goes dark, and what lies directly
+       on it gets its own three roles. The sheet keeps the light values, so the
+       contrasts of anything on `papier` are not recomputed. */
+    --fond: #1e1917;
+    --texte-sur-fond: #efe6d9;
+    --secondaire-sur-fond: #c4b4a3;
+    --filet-sur-fond: #55483f;
+    /* The sheet's vermillon measures 2.6:1 on the dark ground, and field
+       errors sit on it; the lightest tone that still reads as vermillon
+       rather than salmon is 4.8:1. */
+    --vermillon-sur-fond: #d9634b;
+
+    --foreground: var(--texte-sur-fond);
+    --muted-foreground: var(--secondaire-sur-fond);
+    --surface-tint: color-mix(in oklab, var(--fond) 90%, var(--texte-sur-fond));
+    /* Dividers may be quiet (1.98:1); the boundary of a field or a paper
+       button must not — WCAG 1.4.11 asks 3:1, and `filet` gives 10.6:1. */
+    --border: var(--filet-sur-fond);
+    --input: var(--filet);
+    --destructive: var(--vermillon-sur-fond);
+    /* Pétrole never sits on the dark ground (1.9:1): interactive elements
+       outside the sheet are paper or underlined text. */
+    --primary: var(--texte-sur-fond);
+    --primary-foreground: var(--encre);
+    --ring: var(--texte-sur-fond);
   }
+}
+
+/*
+ ---break---
+ */
+
+/* Everything on a sheet of paper keeps the sheet's values in both themes:
+   inside this surface the "sur fond" roles step back. Identical to the light
+   theme, which is the point — only the dark ground differs. */
+[data-surface='papier'] {
+  --foreground: var(--encre);
+  --muted-foreground: var(--secondaire);
+  --surface-tint: color-mix(in oklab, var(--papier) 93%, var(--encre));
+  --border: var(--filet);
+  --input: var(--filet);
+  --destructive: var(--vermillon);
+  --primary: var(--petrole);
+  --primary-foreground: var(--papier);
+  --ring: var(--petrole);
 }
 
 /*
