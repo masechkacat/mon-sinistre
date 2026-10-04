@@ -22,6 +22,7 @@
     "test": "npm run test --workspace @mon-sinistre/api",
     "test:watch": "npm run test:watch --workspace @mon-sinistre/api",
     "test:web": "npm run test --workspace @mon-sinistre/web",
+    "test:e2e": "npm run test:e2e --workspace @mon-sinistre/web",
     "test:tooling": "node --test \".claude/**/*.test.js\"",
     "lint": "npm run lint --workspaces --if-present",
     "dup": "jscpd --baseline .jscpd-baseline.json packages/contracts/src apps/api/src apps/web/src .claude --fail-on-new-clones",
