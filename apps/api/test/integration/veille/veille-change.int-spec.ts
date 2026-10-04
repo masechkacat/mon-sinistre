@@ -1,9 +1,5 @@
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
 import {
-  ThrottlerStorage,
-  type ThrottlerStorageService,
-} from '@nestjs/throttler';
-import {
   VEILLE_CHANGE_PATH,
   VEILLE_CONFIRM_PATH,
 } from '@mon-sinistre/contracts';
@@ -20,7 +16,6 @@ describe('/veille/changement (integration)', () => {
   let app: NestFastifyApplication;
   let prisma: PrismaService;
   let transport: RecordingTransport;
-  let throttler: ThrottlerStorageService;
 
   const get = (token: string) =>
     app.inject({
@@ -59,7 +54,6 @@ describe('/veille/changement (integration)', () => {
         builder.overrideProvider(MAIL_TRANSPORT).useValue(transport),
     });
     prisma = app.get(PrismaService);
-    throttler = app.get<ThrottlerStorageService>(ThrottlerStorage);
   });
 
   afterAll(async () => {
@@ -68,7 +62,7 @@ describe('/veille/changement (integration)', () => {
 
   beforeEach(async () => {
     transport.sent.length = 0;
-    resetThrottler(throttler);
+    resetThrottler(app);
     await prisma.$executeRaw`TRUNCATE TABLE "Veille", "Commune", "VeilleFormEmail" CASCADE`;
   });
 

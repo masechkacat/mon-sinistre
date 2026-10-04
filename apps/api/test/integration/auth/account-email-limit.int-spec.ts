@@ -1,9 +1,5 @@
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
 import {
-  ThrottlerStorage,
-  type ThrottlerStorageService,
-} from '@nestjs/throttler';
-import {
   ACCOUNT_CONFIRM_PATH,
   ACCOUNT_EMAIL_LIMIT,
   ACCOUNT_REGISTRATION_MAIL_LIMIT,
@@ -21,13 +17,12 @@ describe('account mail rate limit (ACCOUNT_EMAIL_LIMIT)', () => {
   let app: NestFastifyApplication;
   let prisma: PrismaService;
   let transport: RecordingTransport;
-  let throttler: ThrottlerStorageService;
 
   // Both helpers clear the per-IP throttler first: `AUTH_MAIL_RATE_LIMIT`
   // would otherwise answer 429 before the per-address counter under test ever
   // ran, and it has its own spec (`register.int-spec.ts`).
   const register = (email: string) => {
-    resetThrottler(throttler);
+    resetThrottler(app);
     return app.inject({
       method: 'POST',
       url: '/auth/register',
@@ -36,7 +31,7 @@ describe('account mail rate limit (ACCOUNT_EMAIL_LIMIT)', () => {
   };
 
   const requestPasswordReset = (email: string) => {
-    resetThrottler(throttler);
+    resetThrottler(app);
     return app.inject({
       method: 'POST',
       url: '/auth/password-reset',
@@ -59,7 +54,7 @@ describe('account mail rate limit (ACCOUNT_EMAIL_LIMIT)', () => {
   };
 
   const subscribe = (email: string) => {
-    resetThrottler(throttler);
+    resetThrottler(app);
     return app.inject({
       method: 'POST',
       url: '/veille',
@@ -75,7 +70,6 @@ describe('account mail rate limit (ACCOUNT_EMAIL_LIMIT)', () => {
     });
 
     prisma = app.get(PrismaService);
-    throttler = app.get<ThrottlerStorageService>(ThrottlerStorage);
   });
 
   afterAll(async () => {
@@ -84,7 +78,7 @@ describe('account mail rate limit (ACCOUNT_EMAIL_LIMIT)', () => {
 
   beforeEach(async () => {
     transport.sent.length = 0;
-    resetThrottler(throttler);
+    resetThrottler(app);
     await prisma.$executeRaw`TRUNCATE TABLE "User", "PasswordReset", "AccountFormEmail", "Veille", "Commune", "VeilleFormEmail" CASCADE`;
     await prisma.commune.create({ data: communeFixture('30189', 'Nîmes') });
   });

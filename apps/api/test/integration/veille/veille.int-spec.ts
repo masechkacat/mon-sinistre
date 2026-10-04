@@ -2,10 +2,6 @@ import { createHash } from 'node:crypto';
 
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
 import {
-  ThrottlerStorage,
-  type ThrottlerStorageService,
-} from '@nestjs/throttler';
-import {
   VEILLE_CHANGE_PATH,
   VEILLE_CONFIRM_PATH,
   VEILLE_FORM_EMAIL_DAILY_LIMIT,
@@ -46,7 +42,6 @@ describe('POST /veille (integration)', () => {
   let app: NestFastifyApplication;
   let prisma: PrismaService;
   let transport: RecordingTransport;
-  let throttler: ThrottlerStorageService;
   const logs = captureLogs();
 
   const post = (body: object) =>
@@ -60,7 +55,6 @@ describe('POST /veille (integration)', () => {
     });
 
     prisma = app.get(PrismaService);
-    throttler = app.get<ThrottlerStorageService>(ThrottlerStorage);
   });
 
   afterAll(async () => {
@@ -72,7 +66,7 @@ describe('POST /veille (integration)', () => {
     transport.failNext = false;
     // Every test shares one client address, so without this the rate limit of
     // the route would count the whole file as a single caller.
-    resetThrottler(throttler);
+    resetThrottler(app);
     await prisma.$executeRaw`TRUNCATE TABLE "Veille", "Commune", "VeilleFormEmail" CASCADE`;
   });
 
@@ -588,7 +582,7 @@ describe('POST /veille (integration)', () => {
       });
       const email = 'riverain@example.fr';
       const submit = (i: number) => {
-        resetThrottler(throttler);
+        resetThrottler(app);
         return post({
           email,
           communeCodes: [i % 2 === 0 ? '30189' : '34172'],
@@ -627,7 +621,7 @@ describe('POST /veille (integration)', () => {
 
       // One creation mail plus resends up to the limit, all delivered.
       for (let i = 0; i < VEILLE_FORM_EMAIL_DAILY_LIMIT; i++) {
-        resetThrottler(throttler);
+        resetThrottler(app);
         expect(
           (await post({ email, communeCodes: ['30189'] })).statusCode,
         ).toBe(204);
@@ -637,7 +631,7 @@ describe('POST /veille (integration)', () => {
 
       // Sixth form: mail suppressed — a rotation here would strand the
       // address with no working link at all until the row expires.
-      resetThrottler(throttler);
+      resetThrottler(app);
       expect((await post({ email, communeCodes: ['30189'] })).statusCode).toBe(
         204,
       );
@@ -662,7 +656,7 @@ describe('POST /veille (integration)', () => {
       await post({ email, communeCodes: ['30189'] });
       const [creationMail] = transport.sent;
       if (!creationMail) throw new Error('expected a creation mail');
-      resetThrottler(throttler);
+      resetThrottler(app);
       await app.inject({
         method: 'POST',
         url: '/veille/confirmation',
@@ -672,7 +666,7 @@ describe('POST /veille (integration)', () => {
       // Change mails up to the limit; the last delivered one carries the
       // tokens whose hashes are stored.
       for (let i = 1; i < VEILLE_FORM_EMAIL_DAILY_LIMIT; i++) {
-        resetThrottler(throttler);
+        resetThrottler(app);
         await post({ email, communeCodes: ['34172'] });
       }
       expect(transport.sent).toHaveLength(VEILLE_FORM_EMAIL_DAILY_LIMIT);
@@ -682,7 +676,7 @@ describe('POST /veille (integration)', () => {
       // Sixth form: suppressed — anonymous form submissions must not be able
       // to invalidate every delivered unsubscribe or change link (ТЗ § 7,
       // one-click), yet the request itself still reflects the latest form.
-      resetThrottler(throttler);
+      resetThrottler(app);
       expect((await post({ email, communeCodes: ['30189'] })).statusCode).toBe(
         204,
       );
@@ -721,7 +715,7 @@ describe('POST /veille (integration)', () => {
       const [creationMail] = transport.sent;
       if (!creationMail) throw new Error('expected a creation mail');
       const confirmToken = tokenFrom(creationMail, VEILLE_CONFIRM_PATH);
-      resetThrottler(throttler);
+      resetThrottler(app);
       expect(
         (
           await app.inject({
@@ -734,7 +728,7 @@ describe('POST /veille (integration)', () => {
 
       // Four more change mails bring the count to the limit.
       for (let i = 1; i < VEILLE_FORM_EMAIL_DAILY_LIMIT; i++) {
-        resetThrottler(throttler);
+        resetThrottler(app);
         const res = await post({ email, communeCodes: ['30189'] });
         expect(res.statusCode).toBe(204);
       }
@@ -743,7 +737,7 @@ describe('POST /veille (integration)', () => {
       const lastReminder = transport.sent[transport.sent.length - 1];
       if (!lastReminder) throw new Error('expected a change mail');
       const unsubscribeToken = tokenFrom(lastReminder, VEILLE_UNSUBSCRIBE_PATH);
-      resetThrottler(throttler);
+      resetThrottler(app);
       const unsub = await app.inject({
         method: 'POST',
         url: '/veille/desinscription',
@@ -754,7 +748,7 @@ describe('POST /veille (integration)', () => {
 
       // A brand new subscription for the same address is still the sixth
       // form mail of the window — blocked, though the row is created again.
-      resetThrottler(throttler);
+      resetThrottler(app);
       const sixth = await post({ email, communeCodes: ['30189'] });
       expect(sixth.statusCode).toBe(204);
       expect(await prisma.veille.findMany({ where: { email } })).toHaveLength(
