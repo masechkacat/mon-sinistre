@@ -30,7 +30,8 @@ handler и экран подтверждения по токену, перекл
 ## Тесты
 
 `tests/` разложен по предмету: `support/` — общие хелперы (`a11y`, `pages`,
-`form`, `communes`, `session-mock`, `env`, `strings`, `unsubscribe-api`), остальные каталоги —
+`form`, `communes`, `session-mock`, `env`, `strings`, `unsubscribe-api`,
+`deferred`), остальные каталоги —
 спеки по фичам (`auth/`, `veille/`, `compte/`, `components/`) и по сквозным
 свойствам (`a11y/` — axe, reflow, reduced-motion, i18n; `pages/` — публичные
 страницы; `app/` — слой запросов). Новый спек кладётся в существующую группу,
