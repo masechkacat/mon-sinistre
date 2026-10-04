@@ -21,7 +21,11 @@ Next.js 16 (App Router, `src/app/`), React 19, Tailwind CSS 4 (через PostCS
 одиночный combobox коммуны, хронология, сквозной тест против реального API) —
 `../../docs/research/sinistre-plan.md`; напоминания (общие с veille route
 handler и экран подтверждения по токену, переключатель в кабинете) —
-`../../docs/research/sinistre-reminders.md`.
+`../../docs/research/sinistre-reminders.md`; дизайн-система (роли цветов и
+их маппинг на токены shadcn, поверхность `data-surface="papier"` в тёмной
+теме, локальные шрифты Luciole/Newsreader, бейдж дедлайна и его состояния,
+тесты контраста и снимков, déclaration d'accessibilité) —
+`../../docs/research/design-system.md`.
 
 ## Команды
 
