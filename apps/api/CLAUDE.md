@@ -9,9 +9,14 @@ NestJS 12 на **Fastify**, не Express: плагины через `app.registe
 
 ## Команды
 
-Скрипты — `package.json` пакета. Из них не выводится одно: тестам собранный
-contracts не нужен — jest подставляет его исходники через `moduleNameMapper`
-(рантайму — нужен).
+Скрипты — `package.json` пакета. Из них не выводится два:
+
+- тестам собранный contracts не нужен — jest подставляет его исходники через
+  `moduleNameMapper` (рантайму — нужен);
+- `lint` начинается с `tsc --noEmit` (по `include` из `tsconfig.json`), и это
+  единственная проверка типов спеков: под `isolatedModules` (требование
+  ts-jest для nodenext) jest только транспилирует, а `nest build` спеки и
+  `test/` исключает.
 
 ## Модули
 
