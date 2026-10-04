@@ -5,7 +5,10 @@ import {
   toIsoDate,
   type IsoDate,
 } from '@mon-sinistre/contracts';
-import { DECLARATION_ASSUREUR_CODE } from 'src/deadline-rules/deadline-rule.seed';
+import {
+  DECLARATION_ASSUREUR_CODE,
+  VERSEMENT_INDEMNITE_CODE,
+} from 'src/deadline-rules/deadline-rule.seed';
 import { resolveDeadline } from 'src/deadline-rules/resolve-deadline';
 import { fr } from 'src/i18n/fr';
 import { MailComposer } from 'src/mail/compose/mail-composer';
@@ -45,6 +48,26 @@ const declarationStep: ReminderStepForMail = {
   source: { url: ARTICLE_URL, verifiedAt: toIsoDate('2026-08-18') },
 };
 
+const lateStep: ReminderStepForMail = {
+  ...photoStep,
+  plannedDate: inDays(-2),
+  remainingDays: -2,
+};
+
+const lateInsurerStep: ReminderStepForMail = {
+  ...photoStep,
+  name: 'Versement de l’indemnité',
+  plannedDate: inDays(-5),
+  remainingDays: -5,
+  deadlineRuleCode: VERSEMENT_INDEMNITE_CODE,
+};
+
+const lateDeclarationStep: ReminderStepForMail = {
+  ...declarationStep,
+  plannedDate: inDays(-2),
+  remainingDays: -2,
+};
+
 const nimes: ReminderSinistreForMail = {
   id: 'sinistre-nimes',
   commune: { name: 'Nîmes', departementName: 'Gard' },
@@ -67,6 +90,18 @@ const mailFor = (
 ) =>
   new MailComposer({ baseUrl: FRONTEND_URL, senderEmail: MAIL_FROM }).compose(
     reminderMailFor(RECIPIENT, TOKEN, today, sinistres),
+  );
+
+const arlesWith = (step: ReminderStepForMail): ReminderSinistreForMail => ({
+  ...arles,
+  steps: [step],
+});
+
+const paragraphsOf = (
+  sinistres: readonly ReminderSinistreForMail[],
+): string[] =>
+  reminderMailFor(RECIPIENT, TOKEN, TODAY, sinistres).blocks.flatMap((block) =>
+    block.kind === 'paragraph' ? [block.text] : [],
   );
 
 describe('reminder mail (fr.mail.reminders)', () => {
@@ -102,15 +137,53 @@ describe('reminder mail (fr.mail.reminders)', () => {
 
   it('says "dernier jour" for a step due today', () => {
     const message = mailFor([
-      {
-        ...arles,
-        steps: [{ ...photoStep, plannedDate: TODAY, remainingDays: 0 }],
-      },
+      arlesWith({ ...photoStep, plannedDate: TODAY, remainingDays: 0 }),
     ]);
 
     expect(message.text).toContain(
       strings.stepLine(photoStep.name, '04/10/2026', strings.lastDay),
     );
+  });
+
+  it('says how late an overdue step is', () => {
+    const message = mailFor([arlesWith(lateStep)]);
+
+    expect(message.text).toContain(
+      strings.stepLine(lateStep.name, '02/10/2026', strings.overdue('2')),
+    );
+  });
+
+  it('suggests a relance when the late deadline binds the insurer', () => {
+    const message = mailFor([arlesWith(lateInsurerStep)]);
+
+    expect(message.text).toContain(
+      strings.stepLine(
+        lateInsurerStep.name,
+        '29/09/2026',
+        strings.overdueInsurer('5'),
+      ),
+    );
+  });
+
+  it('calls the déclaration délai over and says nothing of what it costs', () => {
+    // Equality, not toContain: a sentence judging the consequences would fail.
+    expect(paragraphsOf([{ ...nimes, steps: [lateDeclarationStep] }])).toEqual([
+      strings.sinistreIntro('Nîmes (Gard)', nimes.risque, '12/09/2026'),
+      strings.declaration.overdue('02/10/2026'),
+      strings.declaration.verifiedAt('18/08/2026'),
+    ]);
+  });
+
+  it('names the expired déclaration délai in the subject', () => {
+    expect(
+      mailFor([{ ...nimes, steps: [photoStep, lateDeclarationStep] }]).subject,
+    ).toBe(strings.subject.declarationOverdue);
+  });
+
+  it('counts the déclaration deadline that can still be met, expired or not', () => {
+    expect(
+      mailFor([{ ...nimes, steps: [lateDeclarationStep] }, nimes]).subject,
+    ).toBe(strings.subject.declaration('7'));
   });
 
   it('links to the screen of each sinistre', () => {
