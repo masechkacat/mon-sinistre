@@ -12,7 +12,7 @@ import {
 } from '@mon-sinistre/contracts';
 import type { StepPersistedStatus } from 'src/generated/prisma/enums';
 import { toSourceReference } from 'src/common/source-reference';
-import { DECLARATION_ASSUREUR_CODE } from 'src/deadline-rules/deadline-rule.seed';
+import { isDeclarationRule } from 'src/deadline-rules/deadline-rule.seed';
 import { dateToIsoDate } from 'src/deadline-rules/resolve-deadline';
 import { daysBetween, stepStatus } from './step-status';
 
@@ -67,7 +67,10 @@ export function toStepResponse(step: StepResponseRow, today: IsoDate): Step {
   };
 }
 
-function sourceOf(step: StepResponseRow, today: IsoDate): SourceReference | null {
+function sourceOf(
+  step: StepResponseRow,
+  today: IsoDate,
+): SourceReference | null {
   return step.sourceUrl && step.sourceVerifiedAt
     ? toSourceReference(
         step.sourceUrl,
@@ -99,8 +102,8 @@ export function declarationDeadlineOf(
   steps: StepRow[],
   today: IsoDate,
 ): DeclarationDeadline | null {
-  const step = steps.find(
-    (candidate) => candidate.deadlineRule?.code === DECLARATION_ASSUREUR_CODE,
+  const step = steps.find((candidate) =>
+    isDeclarationRule(candidate.deadlineRule?.code),
   );
   const source = step ? sourceOf(step, today) : null;
   if (!step?.plannedDate || !source || step.persistedStatus !== null) {

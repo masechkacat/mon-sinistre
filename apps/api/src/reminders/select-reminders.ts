@@ -3,7 +3,7 @@ import {
   REMINDER_OFFSETS_DAYS,
   type IsoDate,
 } from '@mon-sinistre/contracts';
-import { DECLARATION_ASSUREUR_CODE } from 'src/deadline-rules/deadline-rule.seed';
+import { isDeclarationRule } from 'src/deadline-rules/deadline-rule.seed';
 import type {
   ReminderKind,
   StepPersistedStatus,
@@ -36,7 +36,7 @@ export interface ReminderReason {
 }
 
 const scaleOf = (deadlineRuleCode: string | null): readonly number[] =>
-  deadlineRuleCode === DECLARATION_ASSUREUR_CODE
+  isDeclarationRule(deadlineRuleCode)
     ? DECLARATION_REMINDER_OFFSETS_DAYS
     : REMINDER_OFFSETS_DAYS;
 

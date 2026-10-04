@@ -5,6 +5,12 @@ import { PrismaClient } from 'src/generated/prisma/client';
  * constant, not a repeated string literal. */
 export const DECLARATION_ASSUREUR_CODE = 'DECLARATION_ASSUREUR';
 
+/** Whether a step's rule code is the déclaration délai — the one rule the
+ * sinistre screen, the reminder scale and the reminder mail each branch on,
+ * asked the same way by all three. */
+export const isDeclarationRule = (code: string | null | undefined): boolean =>
+  code === DECLARATION_ASSUREUR_CODE;
+
 /**
  * The five post-declaration insurer-deadline codes — docs/research/
  * sinistre-plan.md, «Сроки страховщика после декларации». `src/step-templates/

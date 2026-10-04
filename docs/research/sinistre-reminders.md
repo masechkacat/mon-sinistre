@@ -216,6 +216,13 @@ déclarer votre sinistre», иначе «Vos prochaines étapes». `reason` по
 `reminderUnsubscribePathFor(token)`. Все строки — ветка `fr.mail.reminders` в
 `src/i18n/fr.ts`.
 
+**Исправлено при реализации (фаза 1, issue #206):** фразы «à vérifier» и
+предложения сверить с договором в `fr.mail.jorf.notification` нет — там только
+`deadline` и `legifranceLink`; переиспользовать было нечего, обе фразы
+заведены в `fr.mail.reminders.declaration`. Там же шаг `DECLARATION_ASSUREUR`
+не попадает в `list`: его абзац называет действие словами и несёт ту же дату,
+а строка списка сказала бы единственный срок письма второй раз.
+
 **Почему:** каркас рендерит блоки в text и HTML сам, равенство ссылок двух
 версий — по построению (`src/mail/mail-message.ts`), отдельно его доказывать
 не надо. Должник срока — свойство нормы, а не шаблона: правило
