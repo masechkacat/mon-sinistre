@@ -3,7 +3,7 @@
   "phases": [1],
   "maxIterations": 8,
   "stallLimit": 2,
-  "model": "claude-opus-5.5",
+  "model": "claude-opus-5",
   "maxBudgetUsd": 15,
   "maxTurns": 150,
   "permissionMode": "acceptEdits",
