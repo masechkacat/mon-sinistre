@@ -1,8 +1,4 @@
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
-import {
-  ThrottlerStorage,
-  type ThrottlerStorageService,
-} from '@nestjs/throttler';
 import { LOGIN_ATTEMPT_LIMIT } from '@mon-sinistre/contracts';
 import { createIntTestApp } from 'test/helpers/app';
 import { hashSecureToken } from 'src/common/security/secure-token';
@@ -14,7 +10,6 @@ import { resetThrottler } from 'test/helpers/throttler';
 describe('login attempt rate limit (LOGIN_ATTEMPT_LIMIT)', () => {
   let app: NestFastifyApplication;
   let prisma: PrismaService;
-  let throttler: ThrottlerStorageService;
 
   const login = (email: string, password: string) =>
     app.inject({
@@ -29,7 +24,6 @@ describe('login attempt rate limit (LOGIN_ATTEMPT_LIMIT)', () => {
   beforeAll(async () => {
     app = await createIntTestApp();
     prisma = app.get(PrismaService);
-    throttler = app.get<ThrottlerStorageService>(ThrottlerStorage);
   });
 
   afterAll(async () => {
@@ -37,7 +31,7 @@ describe('login attempt rate limit (LOGIN_ATTEMPT_LIMIT)', () => {
   });
 
   beforeEach(async () => {
-    resetThrottler(throttler);
+    resetThrottler(app);
     await prisma.$executeRaw`TRUNCATE TABLE "User", "LoginAttempt", "PasswordReset" CASCADE`;
   });
 

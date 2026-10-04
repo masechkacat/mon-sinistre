@@ -6,10 +6,12 @@ import {
 } from '@nestjs/platform-fastify';
 import { SchedulerRegistry } from '@nestjs/schedule';
 import { Test, TestingModuleBuilder } from '@nestjs/testing';
+import { ThrottlerStorage } from '@nestjs/throttler';
 import { AppModule } from 'src/app.module';
 import type { EnvironmentVariables } from 'src/config/env.validation';
 import { registerCookiePlugin } from 'src/config/fastify-cookie';
 import { createGlobalValidationPipe } from 'src/config/validation-pipe';
+import { ResettableThrottlerStorage } from 'test/helpers/throttler';
 
 /**
  * The token `ScheduleModule.forRoot()` files its options under, written out
@@ -43,7 +45,9 @@ export async function createIntTestApp({
   const moduleRef = await customize(
     Test.createTestingModule({ imports: [AppModule], ...metadata })
       .overrideProvider(SCHEDULE_MODULE_OPTIONS)
-      .useValue({ cronJobs: false, intervals: false, timeouts: false }),
+      .useValue({ cronJobs: false, intervals: false, timeouts: false })
+      .overrideProvider(ThrottlerStorage)
+      .useValue(new ResettableThrottlerStorage()),
   ).compile();
 
   const app = moduleRef.createNestApplication<NestFastifyApplication>(

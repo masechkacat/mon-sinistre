@@ -1,15 +1,14 @@
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
-import {
-  ThrottlerStorage,
-  type ThrottlerStorageService,
-} from '@nestjs/throttler';
 import { createIntTestApp } from 'test/helpers/app';
 import type { EnvironmentVariables } from 'src/config/env.validation';
 import type { Prisma } from 'src/generated/prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { REFRESH_COOKIE_NAME, SESSION_RATE_LIMIT } from 'src/auth/auth.controller';
+import {
+  REFRESH_COOKIE_NAME,
+  SESSION_RATE_LIMIT,
+} from 'src/auth/auth.controller';
 import {
   REFRESH_ROTATION_GRACE_MS,
   TOKEN_TYPE,
@@ -27,7 +26,6 @@ import { resetThrottler } from 'test/helpers/throttler';
 describe('POST /auth/refresh (integration)', () => {
   let app: NestFastifyApplication;
   let prisma: PrismaService;
-  let throttler: ThrottlerStorageService;
 
   const refresh = (cookie: string) => refreshWith(app, cookie);
 
@@ -42,7 +40,6 @@ describe('POST /auth/refresh (integration)', () => {
   beforeAll(async () => {
     app = await createIntTestApp();
     prisma = app.get(PrismaService);
-    throttler = app.get<ThrottlerStorageService>(ThrottlerStorage);
   });
 
   afterAll(async () => {
@@ -52,7 +49,7 @@ describe('POST /auth/refresh (integration)', () => {
   beforeEach(async () => {
     // Every test shares one client address, so without this the rate limit of
     // the route would count the whole file as a single caller.
-    resetThrottler(throttler);
+    resetThrottler(app);
     await prisma.$executeRaw`TRUNCATE TABLE "User" CASCADE`;
   });
 

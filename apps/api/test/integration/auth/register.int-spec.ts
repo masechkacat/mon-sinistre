@@ -1,10 +1,6 @@
 import { createHash } from 'node:crypto';
 
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
-import {
-  ThrottlerStorage,
-  type ThrottlerStorageService,
-} from '@nestjs/throttler';
 import * as bcrypt from 'bcrypt';
 import {
   ACCOUNT_CONFIRM_PATH,
@@ -25,7 +21,6 @@ describe('POST /auth/register (integration)', () => {
   let app: NestFastifyApplication;
   let prisma: PrismaService;
   let transport: RecordingTransport;
-  let throttler: ThrottlerStorageService;
   const logs = captureLogs();
 
   const post = (body: object) =>
@@ -39,7 +34,6 @@ describe('POST /auth/register (integration)', () => {
     });
 
     prisma = app.get(PrismaService);
-    throttler = app.get<ThrottlerStorageService>(ThrottlerStorage);
   });
 
   afterAll(async () => {
@@ -51,7 +45,7 @@ describe('POST /auth/register (integration)', () => {
     // Every spec below but the rate-limit one submits the form more often
     // than a person would: `AUTH_MAIL_RATE_LIMIT` counts per IP, and the
     // whole file shares one.
-    resetThrottler(throttler);
+    resetThrottler(app);
     await prisma.$executeRaw`TRUNCATE TABLE "User", "AccountFormEmail" CASCADE`;
   });
 

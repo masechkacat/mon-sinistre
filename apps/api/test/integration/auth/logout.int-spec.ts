@@ -1,11 +1,10 @@
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
-import {
-  ThrottlerStorage,
-  type ThrottlerStorageService,
-} from '@nestjs/throttler';
 import { createIntTestApp } from 'test/helpers/app';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { REFRESH_COOKIE_NAME, SESSION_RATE_LIMIT } from 'src/auth/auth.controller';
+import {
+  REFRESH_COOKIE_NAME,
+  SESSION_RATE_LIMIT,
+} from 'src/auth/auth.controller';
 import { REFRESH_ROTATION_GRACE_MS } from 'src/auth/auth.service';
 import {
   createUser,
@@ -20,7 +19,6 @@ import { resetThrottler } from 'test/helpers/throttler';
 describe('POST /auth/logout (integration)', () => {
   let app: NestFastifyApplication;
   let prisma: PrismaService;
-  let throttler: ThrottlerStorageService;
 
   const refresh = (cookie: string) => refreshWith(app, cookie);
   const logout = (cookie: string) => logoutWith(app, cookie);
@@ -28,7 +26,6 @@ describe('POST /auth/logout (integration)', () => {
   beforeAll(async () => {
     app = await createIntTestApp();
     prisma = app.get(PrismaService);
-    throttler = app.get<ThrottlerStorageService>(ThrottlerStorage);
   });
 
   afterAll(async () => {
@@ -36,7 +33,7 @@ describe('POST /auth/logout (integration)', () => {
   });
 
   beforeEach(async () => {
-    resetThrottler(throttler);
+    resetThrottler(app);
     await prisma.$executeRaw`TRUNCATE TABLE "User" CASCADE`;
   });
 
