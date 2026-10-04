@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { CurrentUserResponse } from '@mon-sinistre/contracts';
 import Link from 'next/link';
 import { fr } from '@/i18n/fr';
 import { PageContainer } from '@/components/page-container';
@@ -10,6 +11,7 @@ import { RequestError } from '@/components/request-error';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { deleteAccount, fetchCurrentUser } from '@/lib/api/account';
 import { queryKeys } from '@/lib/api/keys';
+import { updateReminders } from '@/lib/api/reminders';
 import { clearSessionAndNavigate, endSession } from '@/lib/api/session';
 import { useSessionGuard } from '@/lib/api/use-session-guard';
 import { useFocusOnSuccess } from '@/lib/use-focus-on-success';
@@ -93,6 +95,10 @@ export function EspacePersonnel() {
               {fr.session.logout}
             </Button>
 
+            {userQuery.data ? (
+              <RemindersSection enabled={userQuery.data.remindersEnabled} />
+            ) : null}
+
             <div className="space-y-3 border-t pt-6">
               {!confirmingDelete ? (
                 // A plain button, not <Button>: it needs a real DOM ref to
@@ -171,5 +177,50 @@ export function EspacePersonnel() {
         )}
       </div>
     </PageContainer>
+  );
+}
+
+function RemindersSection({ enabled }: { enabled: boolean }) {
+  const copy = fr.compte.espacePersonnel.rappels;
+  const queryClient = useQueryClient();
+  const mutation = useMutation({
+    mutationFn: updateReminders,
+    onSuccess: ({ enabled }) =>
+      queryClient.setQueryData<CurrentUserResponse>(
+        queryKeys.currentUser(),
+        (user) => user && { ...user, remindersEnabled: enabled },
+      ),
+  });
+
+  return (
+    <section className="space-y-3 border-t pt-6">
+      <h2 className="text-xl font-semibold">{copy.heading}</h2>
+      {/* The sentence on screen is also the live region: it is mounted with
+          its text, which is the case screen readers skip (apps/web/CLAUDE.md)
+          — exactly right here, since arriving on the page announces nothing
+          and only a change the person made is read out. */}
+      <p role="status" data-testid="rappels-etat">
+        {enabled ? copy.enabled : copy.disabled}
+      </p>
+      {/* `touch` like the button behind the link in the mail: the same action
+          reached the other way. `focusableWhenDisabled` because the control
+          disables itself mid-action — a plain `disabled` drops the keyboard
+          user to <body> and never lets them hear the pending label. */}
+      <Button
+        type="button"
+        variant="outline"
+        size="touch"
+        onClick={() => mutation.mutate(!enabled)}
+        disabled={mutation.isPending}
+        focusableWhenDisabled
+      >
+        {mutation.isPending
+          ? copy.updating
+          : enabled
+            ? copy.disable
+            : copy.enable}
+      </Button>
+      {mutation.isError ? <RequestError /> : null}
+    </section>
   );
 }

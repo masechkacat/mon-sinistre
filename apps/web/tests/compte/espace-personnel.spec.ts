@@ -6,32 +6,86 @@ import {
 } from '@playwright/test';
 import { fr } from '../../src/i18n/fr';
 import { expectNoAxeViolations } from '../support/a11y';
+import { deferred } from '../support/deferred';
 import { testApiBaseUrl } from '../support/env';
 import { mockSession } from '../support/session-mock';
 
 const EMAIL = 'sinistre@example.fr';
 
-/** GET answers the signed-in account's email; DELETE answers success and
- * counts calls — shared by every test below so only the confirm-flow test
- * needs to read `deleteCalls`. */
-function mockCurrentUser(page: Page) {
-  const state = { deleteCalls: 0 };
+interface AccountMockOptions {
+  /** State the first `GET /auth/me` reports; `PATCH /rappels` then moves it. */
+  remindersEnabled?: boolean;
+  /** Holds every `PATCH /rappels` until the returned promise resolves — the
+   * only way to read the pending label, which lives between click and answer. */
+  holdRappels?: Promise<void>;
+  /** Makes `PATCH /rappels` unreachable: the branch the French error message
+   * belongs to. */
+  rappelsUnreachable?: boolean;
+  /** Makes every `GET /auth/me` after the first unreachable: the section must
+   * then hold the state the PATCH answered, not wait for a refetch. */
+  meUnreachableAfterFirst?: boolean;
+}
+
+/** GET answers the signed-in account's email and reminders state; DELETE
+ * answers success and counts calls; `PATCH /rappels` records what was asked
+ * and moves the state the next GET reports, as the real API does — shared by every test below, each reading
+ * only the part of `state` it is about. */
+function mockCurrentUser(page: Page, options: AccountMockOptions = {}) {
+  const state = {
+    deleteCalls: 0,
+    meGets: 0,
+    remindersEnabled: options.remindersEnabled ?? true,
+    rappelsCalls: [] as { method: string; enabled: boolean }[],
+  };
   return {
     state,
-    install: () =>
-      page.route(`${testApiBaseUrl}/auth/me`, (route: PlaywrightRoute) => {
-        if (route.request().method() === 'DELETE') {
-          state.deleteCalls += 1;
-          return route.fulfill({ status: 204 });
-        }
-        return route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify({ email: EMAIL }),
-        });
-      }),
+    install: async () => {
+      await page.route(
+        `${testApiBaseUrl}/auth/me`,
+        (route: PlaywrightRoute) => {
+          if (route.request().method() === 'DELETE') {
+            state.deleteCalls += 1;
+            return route.fulfill({ status: 204 });
+          }
+          state.meGets += 1;
+          if (options.meUnreachableAfterFirst && state.meGets > 1) {
+            return route.abort();
+          }
+          return route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              email: EMAIL,
+              remindersEnabled: state.remindersEnabled,
+            }),
+          });
+        },
+      );
+      await page.route(
+        `${testApiBaseUrl}/rappels`,
+        async (route: PlaywrightRoute) => {
+          if (options.rappelsUnreachable) return route.abort();
+          const body = JSON.parse(route.request().postData() ?? '{}') as {
+            enabled: boolean;
+          };
+          state.rappelsCalls.push({
+            method: route.request().method(),
+            enabled: body.enabled,
+          });
+          state.remindersEnabled = body.enabled;
+          await options.holdRappels;
+          return route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify(body),
+          });
+        },
+      );
+    },
   };
 }
+
+const rappels = fr.compte.espacePersonnel.rappels;
 
 test('shows the account holder’s email', async ({ page }) => {
   await mockSession(page).install();
@@ -40,6 +94,114 @@ test('shows the account holder’s email', async ({ page }) => {
   await page.goto('/espace-personnel');
 
   await expect(page.getByTestId('espace-personnel-email')).toContainText(EMAIL);
+});
+
+test('reminders left on are shown as on, and the button offers to turn them off', async ({
+  page,
+}) => {
+  await mockSession(page).install();
+  await mockCurrentUser(page).install();
+
+  await page.goto('/espace-personnel');
+
+  await expect(
+    page.getByRole('heading', { name: rappels.heading }),
+  ).toBeVisible();
+  const etat = page.getByTestId('rappels-etat');
+  await expect(etat).toHaveText(rappels.enabled);
+  // The sentence is the live region itself, so the changes below are read out
+  // while arriving on the page stays silent.
+  await expect(etat).toHaveAttribute('role', 'status');
+  await expect(
+    page.getByRole('button', { name: rappels.disable }),
+  ).toBeVisible();
+});
+
+test('turning reminders off sends the opposite value and flips the section', async ({
+  page,
+}) => {
+  await mockSession(page).install();
+  const held = deferred();
+  const account = mockCurrentUser(page, { holdRappels: held.promise });
+  await account.install();
+
+  await page.goto('/espace-personnel');
+  await page.getByRole('button', { name: rappels.disable }).click();
+
+  await expect(
+    page.getByRole('button', { name: rappels.updating }),
+  ).toBeVisible();
+  held.release();
+
+  await expect(page.getByTestId('rappels-etat')).toHaveText(rappels.disabled);
+  await expect(
+    page.getByRole('button', { name: rappels.enable }),
+  ).toBeVisible();
+  expect(account.state.rappelsCalls).toEqual([
+    { method: 'PATCH', enabled: false },
+  ]);
+});
+
+test('reminders turned off by the mail link are shown as off and come back with one keypress', async ({
+  page,
+}) => {
+  await mockSession(page).install();
+  const account = mockCurrentUser(page, { remindersEnabled: false });
+  await account.install();
+
+  await page.goto('/espace-personnel');
+  await expect(page.getByTestId('rappels-etat')).toHaveText(rappels.disabled);
+
+  const button = page.getByRole('button', { name: rappels.enable });
+  // Reached by tabbing rather than clicked: the control has to be on the
+  // keyboard path of the page, not merely focusable once addressed.
+  for (let i = 0; i < 25 && !(await button.evaluate(isFocused)); i++) {
+    await page.keyboard.press('Tab');
+  }
+  await expect(button).toBeFocused();
+  await page.keyboard.press('Enter');
+
+  await expect(page.getByTestId('rappels-etat')).toHaveText(rappels.enabled);
+  expect(account.state.rappelsCalls).toEqual([
+    { method: 'PATCH', enabled: true },
+  ]);
+  // The button disables itself while the request is in flight; focus has to
+  // stay on it, or the keyboard user is dropped to <body> mid-action.
+  await expect(
+    page.getByRole('button', { name: rappels.disable }),
+  ).toBeFocused();
+});
+
+const isFocused = (node: Element) => node === document.activeElement;
+
+test('an unreachable API leaves the reminders state alone and shows the French error message', async ({
+  page,
+}) => {
+  await mockSession(page).install();
+  await mockCurrentUser(page, { rappelsUnreachable: true }).install();
+
+  await page.goto('/espace-personnel');
+  await page.getByRole('button', { name: rappels.disable }).click();
+
+  const alert = page.getByTestId('request-error');
+  await expect(alert).toHaveAttribute('role', 'alert');
+  await expect(alert).toContainText(fr.requestError.title);
+  await expect(page.getByTestId('rappels-etat')).toHaveText(rappels.enabled);
+});
+
+test('the PATCH answer alone flips the section, even when the account can no longer be read', async ({
+  page,
+}) => {
+  await mockSession(page).install();
+  await mockCurrentUser(page, { meUnreachableAfterFirst: true }).install();
+
+  await page.goto('/espace-personnel');
+  await page.getByRole('button', { name: rappels.disable }).click();
+
+  await expect(page.getByTestId('rappels-etat')).toHaveText(rappels.disabled);
+  await expect(
+    page.getByRole('button', { name: rappels.enable }),
+  ).toBeVisible();
 });
 
 test('deleting the account requires an explicit confirmation before the request is sent', async ({
@@ -104,7 +266,7 @@ test('confirming deletion sends the request and lands on a public page', async (
 });
 
 for (const colorScheme of ['light', 'dark'] as const) {
-  test(`axe: the delete-account confirmation panel is clean — theme ${colorScheme}`, async ({
+  test(`axe: the page with the reminders section and the delete-account confirmation panel is clean — theme ${colorScheme}`, async ({
     page,
   }) => {
     await page.emulateMedia({ colorScheme });
@@ -120,6 +282,9 @@ for (const colorScheme of ['light', 'dark'] as const) {
     await expect(
       page.getByText(fr.compte.espacePersonnel.deleteAccount.warning.title),
     ).toBeVisible();
+    // Both sections at once rather than a pass each: the reminders section is
+    // on screen here too, and axe reads the whole document anyway.
+    await expect(page.getByTestId('rappels-etat')).toBeVisible();
 
     await expectNoAxeViolations(page);
   });

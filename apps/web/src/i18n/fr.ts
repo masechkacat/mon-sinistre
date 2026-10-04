@@ -72,6 +72,14 @@ const PASSWORD_REQUIREMENTS =
 // feature.
 const PASSWORD_REQUIRED_ERROR = 'Choisissez un mot de passe.';
 
+// Said by every screen waiting on a change it has just sent (veille.change,
+// compte.reinitialisation, compte.espacePersonnel.rappels below).
+const MODIFICATION_EN_COURS = 'Modification en cours…';
+// The reminders switch is reached two ways — the link in the mail and the
+// espace personnel (compte.rappels, compte.espacePersonnel below) — and names
+// the same action on both.
+const RAPPELS_DESACTIVER = 'Désactiver les rappels';
+
 // The dossier link is written once and read twice below (sinistres.liste):
 // as the text on screen, and inside the longer name a screen reader gets.
 const VOIR_MON_DOSSIER = 'Voir mon dossier';
@@ -184,7 +192,7 @@ export const fr = {
           'Voici la nouvelle liste des communes surveillées. Pour l’appliquer, confirmez la modification.',
       },
       confirmButton: 'Confirmer la modification',
-      confirming: 'Modification en cours…',
+      confirming: MODIFICATION_EN_COURS,
       applied: {
         title: 'Modification appliquée',
         description: `La liste des communes surveillées a été mise à jour. ${VEILLE_ALERTE_ARRETE}`,
@@ -291,7 +299,7 @@ export const fr = {
       passwordRequiredError: PASSWORD_REQUIRED_ERROR,
       passwordRequirementsError: PASSWORD_REQUIREMENTS,
       submit: 'Changer mon mot de passe',
-      submitting: 'Modification en cours…',
+      submitting: MODIFICATION_EN_COURS,
       invalid: {
         title: LIEN_INVALIDE,
         description:
@@ -314,13 +322,23 @@ export const fr = {
         confirm: 'Supprimer définitivement mon compte',
         deleting: 'Suppression en cours…',
       },
+      rappels: {
+        heading: 'Rappels par e-mail',
+        enabled:
+          'Vous recevez un e-mail quand une date de vos dossiers approche ou vient de passer.',
+        disabled:
+          'Vous ne recevez pas de rappels par e-mail. Les dates restent visibles dans vos dossiers.',
+        disable: RAPPELS_DESACTIVER,
+        enable: 'Réactiver les rappels',
+        updating: MODIFICATION_EN_COURS,
+      },
     },
     rappels: {
       desinscription: {
         page: { title: 'Ne plus recevoir de rappels' },
         description:
           'Vous ne recevrez plus de message vous rappelant les dates à ne pas laisser passer pour vos sinistres. Ces dates restent visibles dans votre espace personnel.',
-        unsubscribeButton: 'Désactiver les rappels',
+        unsubscribeButton: RAPPELS_DESACTIVER,
         unsubscribing: 'Désactivation en cours…',
         done: {
           title: 'Rappels désactivés',

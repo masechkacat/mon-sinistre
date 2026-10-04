@@ -1,6 +1,7 @@
 import { expect, test, type Locator } from '@playwright/test';
 import { fr } from '../../src/i18n/fr';
 import { expectNoAxeViolations } from './a11y';
+import { deferred } from './deferred';
 import { testApiBaseUrl } from './env';
 import { stringLeaves } from './strings';
 
@@ -110,12 +111,9 @@ export function tokenConfirmScreenSuite({
   }) => {
     // The pending label lives between the click and the answer, so the answer
     // is held back until it has been read.
-    let answer!: () => void;
-    const held = new Promise<void>((resolve) => {
-      answer = resolve;
-    });
+    const held = deferred();
     await page.route(route, async (routed) => {
-      await held;
+      await held.promise;
       return routed.fulfill({ status: 204 });
     });
 
@@ -146,7 +144,7 @@ export function tokenConfirmScreenSuite({
 
     await button(strings.unsubscribeButton).click();
     await expectVisible(strings.unsubscribing, button(strings.unsubscribing));
-    answer();
+    held.release();
 
     await expectVisible(strings.done.title, heading(strings.done.title));
     await expectVisible(

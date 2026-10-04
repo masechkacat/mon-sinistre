@@ -1,6 +1,7 @@
 import { expect, type Page, type Route } from '@playwright/test';
 import type { Commune } from '@mon-sinistre/contracts';
 import { fr } from '../../src/i18n/fr';
+import { deferred } from './deferred';
 import { testApiBaseUrl } from './env';
 
 export const CHATEAU: Commune = {
@@ -51,16 +52,13 @@ export async function mockCommuneSearch(route: Route) {
  * cannot be committed.
  */
 export async function holdCommuneSearch(page: Page, heldQuery: string) {
-  let release = () => {};
-  const held = new Promise<void>((resolve) => {
-    release = resolve;
-  });
+  const held = deferred();
   await page.route(`${testApiBaseUrl}/communes**`, async (route) => {
     const q = new URL(route.request().url()).searchParams.get('q') ?? '';
-    if (q === heldQuery) await held;
+    if (q === heldQuery) await held.promise;
     await mockCommuneSearch(route);
   });
-  return { release: () => release() };
+  return held;
 }
 
 export async function selectNimes(
