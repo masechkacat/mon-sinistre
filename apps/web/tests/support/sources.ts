@@ -17,3 +17,18 @@ export function sourceFiles(): SourceFile[] {
       text: readFileSync(path.join(srcRoot, name), 'utf8'),
     }));
 }
+
+/** The lines a rule rejects, each as `path:line: text`, ready to be asserted empty. */
+export function offendingLines(
+  rejects: (line: string, file: SourceFile) => boolean,
+): string[] {
+  return sourceFiles().flatMap((file) =>
+    file.text
+      .split('\n')
+      .flatMap((line, index) =>
+        rejects(line, file)
+          ? [`${file.path}:${index + 1}: ${line.trim()}`]
+          : [],
+      ),
+  );
+}

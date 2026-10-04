@@ -287,7 +287,7 @@ function SuppressionSection({ sinistreId }: { sinistreId: string }) {
               {copy.annuler}
             </AlertDialog.Close>
             <Button
-              variant="destructive"
+              variant="outline"
               size="touch"
               disabled={mutation.isPending}
               onClick={() => mutation.mutate()}

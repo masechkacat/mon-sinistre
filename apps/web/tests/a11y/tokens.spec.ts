@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { contrastRatio, roles } from '../support/contrast';
-import { sourceFiles } from '../support/sources';
+import { offendingLines } from '../support/sources';
 
 const sheetRoles = [
   'papier',
@@ -68,12 +68,18 @@ test('no source file outside the roles carries a colour literal', () => {
     'i',
   );
   const literal = /#[0-9a-f]{3,8}\b|\bblack\b|\bwhite\b/i;
-  const offenders = sourceFiles().flatMap(({ path, text }) =>
-    text
-      .split('\n')
-      .map((line, index) => ({ line, number: index + 1 }))
-      .filter(({ line }) => literal.test(line) && !roleDeclaration.test(line))
-      .map(({ line, number }) => `${path}:${number}: ${line.trim()}`),
-  );
-  expect(offenders).toEqual([]);
+  expect(
+    offendingLines((line) => literal.test(line) && !roleDeclaration.test(line)),
+  ).toEqual([]);
+});
+
+test('no button or link style is painted in vermillon', () => {
+  const vermillon = /vermillon|destructive/i;
+  expect(
+    offendingLines(
+      (line, { path }) =>
+        vermillon.test(line) &&
+        (path.endsWith('ui/button.tsx') || /underline/.test(line)),
+    ),
+  ).toEqual([]);
 });

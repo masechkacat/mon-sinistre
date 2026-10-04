@@ -109,7 +109,7 @@ export function EspacePersonnel() {
                 <button
                   ref={deleteTriggerRef}
                   type="button"
-                  className={buttonVariants({ variant: 'destructive' })}
+                  className={buttonVariants({ variant: 'outline' })}
                   onClick={() => setConfirmingDelete(true)}
                 >
                   {fr.compte.espacePersonnel.deleteAccount.button}
@@ -127,7 +127,7 @@ export function EspacePersonnel() {
                   aria-labelledby="delete-account-warning-title"
                   aria-describedby="delete-account-warning-description"
                   data-testid="delete-account-confirm"
-                  className="space-y-3 rounded-lg border border-destructive/30 bg-destructive/5 p-4 outline-none"
+                  className="space-y-3 rounded-lg border p-4 outline-none"
                 >
                   <p
                     id="delete-account-warning-title"
@@ -135,11 +135,6 @@ export function EspacePersonnel() {
                   >
                     {fr.compte.espacePersonnel.deleteAccount.warning.title}
                   </p>
-                  {/* Full-strength text, not `text-muted-foreground`: on the
-                      tinted panel behind it that grey measures 4.3:1, under
-                      the 4.5:1 owed (WCAG 2.1 AA) — and the one paragraph
-                      saying the deletion is irreversible is the last thing to
-                      render pale. */}
                   <p
                     id="delete-account-warning-description"
                     className="text-sm"
@@ -160,7 +155,7 @@ export function EspacePersonnel() {
                     </Button>
                     <Button
                       type="button"
-                      variant="destructive"
+                      variant="outline"
                       onClick={() => deleteMutation.mutate()}
                       disabled={deleteMutation.isPending}
                     >
