@@ -80,9 +80,7 @@ test('GET does not call the API and redirects to the button page', async ({
 
     expect(response.status()).toBeGreaterThanOrEqual(300);
     expect(response.status()).toBeLessThan(400);
-    // Rooted, not absolute: an absolute Location would carry the origin the
-    // server thinks it has, and behind a proxy that is its own socket address
-    // — the reader of the email would land on localhost.
+    // Rooted, not absolute — why: src/lib/one-click-unsubscribe.ts, GET.
     expect(response.headers()['location']).toBe(
       '/veille/desinscription/confirmer?token=jeton-lien',
     );
