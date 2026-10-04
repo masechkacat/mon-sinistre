@@ -388,6 +388,29 @@ describe('JorfMonitorService.run (integration)', () => {
       expect(await prisma.jorfDelta.count()).toBe(1);
       expect(await monitor.acquireIngestLock(randomUUID())).toBe(true);
     });
+
+    it('loses, without throwing, when another process creates the lock between the read and the create (issue 196)', async () => {
+      const rival = randomUUID();
+      const findUnique = prisma.monitorLock.findUnique.bind(prisma.monitorLock);
+      const read = jest
+        .spyOn(prisma.monitorLock, 'findUnique')
+        .mockImplementationOnce(((args) =>
+          findUnique(args).then(async (held) => {
+            expect(await monitor.acquireIngestLock(rival)).toBe(true);
+            return held;
+          })) as typeof findUnique);
+
+      try {
+        await expect(monitor.acquireIngestLock(randomUUID())).resolves.toBe(
+          false,
+        );
+      } finally {
+        read.mockRestore();
+      }
+      expect(await prisma.monitorLock.findMany()).toEqual([
+        expect.objectContaining({ owner: rival }),
+      ]);
+    });
   });
 
   it('logs a text listed in the table of contents but absent from the delta', async () => {
