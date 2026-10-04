@@ -4,7 +4,7 @@ import { oneClickUnsubscribeHandlers } from '../../src/lib/one-click-unsubscribe
 
 // The injected `unsubscribe` is the factory's only tie to the outside world,
 // so a fake one needs neither a browser nor a listener on testApiBaseUrl —
-// unlike the route specs that mount these handlers (tests/veille).
+// unlike the route specs that mount these handlers (tests/support/unsubscribe-api.ts).
 const CONFIRM_PATH = '/essai/desinscription/confirmer';
 
 function linkRequest(method: 'GET' | 'POST', token: string) {
