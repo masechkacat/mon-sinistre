@@ -15,6 +15,7 @@ import {
   refreshCookieOf,
   refreshSetCookieOf,
 } from 'test/helpers/session';
+import { resetThrottler } from 'test/helpers/throttler';
 
 describe('POST /auth/logout (integration)', () => {
   let app: NestFastifyApplication;
@@ -35,7 +36,7 @@ describe('POST /auth/logout (integration)', () => {
   });
 
   beforeEach(async () => {
-    throttler.storage.clear();
+    resetThrottler(throttler);
     await prisma.$executeRaw`TRUNCATE TABLE "User" CASCADE`;
   });
 

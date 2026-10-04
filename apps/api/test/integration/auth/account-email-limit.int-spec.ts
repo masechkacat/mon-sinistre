@@ -15,6 +15,7 @@ import { MAIL_TRANSPORT } from 'src/mail/mail-transport';
 import { RecordingTransport } from 'test/helpers/mail-transport';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { communeFixture } from 'test/helpers/veille';
+import { resetThrottler } from 'test/helpers/throttler';
 
 describe('account mail rate limit (ACCOUNT_EMAIL_LIMIT)', () => {
   let app: NestFastifyApplication;
@@ -26,7 +27,7 @@ describe('account mail rate limit (ACCOUNT_EMAIL_LIMIT)', () => {
   // would otherwise answer 429 before the per-address counter under test ever
   // ran, and it has its own spec (`register.int-spec.ts`).
   const register = (email: string) => {
-    throttler.storage.clear();
+    resetThrottler(throttler);
     return app.inject({
       method: 'POST',
       url: '/auth/register',
@@ -35,7 +36,7 @@ describe('account mail rate limit (ACCOUNT_EMAIL_LIMIT)', () => {
   };
 
   const requestPasswordReset = (email: string) => {
-    throttler.storage.clear();
+    resetThrottler(throttler);
     return app.inject({
       method: 'POST',
       url: '/auth/password-reset',
@@ -58,7 +59,7 @@ describe('account mail rate limit (ACCOUNT_EMAIL_LIMIT)', () => {
   };
 
   const subscribe = (email: string) => {
-    throttler.storage.clear();
+    resetThrottler(throttler);
     return app.inject({
       method: 'POST',
       url: '/veille',
@@ -83,7 +84,7 @@ describe('account mail rate limit (ACCOUNT_EMAIL_LIMIT)', () => {
 
   beforeEach(async () => {
     transport.sent.length = 0;
-    throttler.storage.clear();
+    resetThrottler(throttler);
     await prisma.$executeRaw`TRUNCATE TABLE "User", "PasswordReset", "AccountFormEmail", "Veille", "Commune", "VeilleFormEmail" CASCADE`;
     await prisma.commune.create({ data: communeFixture('30189', 'Nîmes') });
   });

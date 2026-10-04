@@ -14,6 +14,7 @@ import { RecordingTransport } from 'test/helpers/mail-transport';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { DAY_MS } from 'src/veille/veille.service';
 import { communeFixture, createChangeRequest } from 'test/helpers/veille';
+import { resetThrottler } from 'test/helpers/throttler';
 
 describe('/veille/changement (integration)', () => {
   let app: NestFastifyApplication;
@@ -67,7 +68,7 @@ describe('/veille/changement (integration)', () => {
 
   beforeEach(async () => {
     transport.sent.length = 0;
-    throttler.storage.clear();
+    resetThrottler(throttler);
     await prisma.$executeRaw`TRUNCATE TABLE "Veille", "Commune", "VeilleFormEmail" CASCADE`;
   });
 

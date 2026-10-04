@@ -22,6 +22,7 @@ import {
   refresh as refreshWith,
   refreshCookieOf,
 } from 'test/helpers/session';
+import { resetThrottler } from 'test/helpers/throttler';
 
 describe('POST /auth/refresh (integration)', () => {
   let app: NestFastifyApplication;
@@ -51,7 +52,7 @@ describe('POST /auth/refresh (integration)', () => {
   beforeEach(async () => {
     // Every test shares one client address, so without this the rate limit of
     // the route would count the whole file as a single caller.
-    throttler.storage.clear();
+    resetThrottler(throttler);
     await prisma.$executeRaw`TRUNCATE TABLE "User" CASCADE`;
   });
 

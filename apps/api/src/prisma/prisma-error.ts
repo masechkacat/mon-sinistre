@@ -31,10 +31,12 @@ const asRecord = (value: unknown): Record<string, unknown> | undefined =>
  * (`../../CLAUDE.md`, «Правила проекта»).
  *
  * `meta.target`, which every Prisma 5/6 answer to this question reads, does not
- * exist behind a driver adapter: v7 passes the driver's own error through, and
- * the violated columns arrive as
- * `meta.driverAdapterError.cause.constraint.fields`. Reading `target` here
- * would silently return false for every duplicate.
+ * exist behind a driver adapter: v7 passes the driver's own error through under
+ * `meta.driverAdapterError.cause`. Reading `target` here would silently return
+ * false for every duplicate. Since 7.10 the Postgres adapter reports the
+ * constraint by name (`constraint.index`, `<Table>_<column>_key` for a
+ * single-column unique index) and only falls back to the parsed columns
+ * (`constraint.fields`) when the name is unavailable.
  */
 export const isUniqueViolationOn = (
   exception: unknown,
@@ -49,8 +51,15 @@ export const isUniqueViolationOn = (
   const cause = asRecord(
     asRecord(asRecord(exception.meta)?.driverAdapterError)?.cause,
   );
-  const fields = asRecord(cause?.constraint)?.fields;
-  return Array.isArray(fields) && fields.includes(field);
+  const constraint = asRecord(cause?.constraint);
+  const fields = constraint?.fields;
+  if (Array.isArray(fields)) {
+    return fields.includes(field);
+  }
+  return (
+    typeof cause?.table === 'string' &&
+    constraint?.index === `${cause.table}_${field}_key`
+  );
 };
 
 /**

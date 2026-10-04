@@ -27,7 +27,7 @@ docs            ТЗ, PRD/планы/research фич
 
 ## Запуск
 
-Требуется Node.js 24+ и Docker.
+Требуется Node.js 24.9+ и Docker.
 
 ```bash
 npm install
