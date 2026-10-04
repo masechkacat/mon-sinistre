@@ -37,13 +37,18 @@ export function roles(): { light: Roles; dark: Roles } {
   return { light, dark: { ...light, ...declarations(dark[1]) } };
 }
 
+const channels = (hex: string) =>
+  [1, 3, 5].map((start) => parseInt(hex.slice(start, start + 2), 16));
+
+/** A role hex as `getComputedStyle` reports a colour painted with it. */
+export const toRgb = (hex: string) => `rgb(${channels(hex).join(', ')})`;
+
 /** Относительная яркость sRGB — WCAG 2.x, определение relative luminance. */
 function luminance(hex: string): number {
-  const channels = [1, 3, 5].map((start) => {
-    const value = parseInt(hex.slice(start, start + 2), 16) / 255;
+  const [r, g, b] = channels(hex).map((channel) => {
+    const value = channel / 255;
     return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
   });
-  const [r, g, b] = channels;
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
 
