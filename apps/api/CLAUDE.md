@@ -31,7 +31,9 @@ CNIL, bcrypt, JWT-сессии с ротацией, глобальный guard, 
 писем) — `../../docs/research/user-account.md`; синистр и план действий
 (схема `Sinistre`/`Step`/`StepTemplate`, классификация риска, привязка
 `ArreteEntry`, сроки страховщика в справочнике, outbox письма владельцу) —
-`../../docs/research/sinistre-plan.md`.
+`../../docs/research/sinistre-plan.md`; напоминания по шагам (`ReminderLog`,
+отбор поводов по шкалам, прогон 07:00, токен выключения, эндпоинты
+`/rappels`) — `../../docs/research/sinistre-reminders.md`.
 
 ## Единственные точки входа
 

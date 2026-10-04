@@ -19,7 +19,9 @@ Next.js 16 (App Router, `src/app/`), React 19, Tailwind CSS 4 (через PostCS
 (access-токен в памяти слоя API, тихий refresh, клиентский guard) —
 `../../docs/research/user-account.md`; синистр и план действий (страницы,
 одиночный combobox коммуны, хронология, сквозной тест против реального API) —
-`../../docs/research/sinistre-plan.md`.
+`../../docs/research/sinistre-plan.md`; напоминания (общие с veille route
+handler и экран подтверждения по токену, переключатель в кабинете) —
+`../../docs/research/sinistre-reminders.md`.
 
 ## Команды
 
