@@ -90,6 +90,9 @@ export const DECLARATION_REMINDER_OFFSETS_DAYS = [21, 14, 7, 3, 1] as const;
 /** Minimum interval, in days, between two reminders about the same overdue step. */
 export const OVERDUE_REMINDER_INTERVAL_DAYS = 7;
 
+/** Cap on reminders about one overdue step — a product decision, not a legal figure. */
+export const OVERDUE_REMINDER_MAX_COUNT = 4;
+
 export const REFERENCE_DATA_STALE_AFTER_MONTHS = 6;
 
 export const COMMUNE_SEARCH_LIMIT = 10;
@@ -220,6 +223,14 @@ export const ACCOUNT_FORGOT_PASSWORD_PATH = '/mot-de-passe-oublie';
  * actually cancelled by it.
  */
 export const ACCOUNT_MAIL_UNSUBSCRIBE_PATH = '/compte/desabonnement';
+
+/**
+ * Path carried by every reminder mail as its `unsubscribePath`, relative to
+ * `FRONTEND_URL` — same convention as the `VEILLE_*_PATH` constants. Why a
+ * reminder cannot reuse `ACCOUNT_MAIL_UNSUBSCRIBE_PATH` above:
+ * docs/research/sinistre-reminders.md.
+ */
+export const REMINDER_UNSUBSCRIBE_PATH = '/compte/rappels/desinscription';
 
 /**
  * Path of the sinistre screen, relative to `FRONTEND_URL` — the link carried

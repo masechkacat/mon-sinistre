@@ -2,6 +2,7 @@
  * The only file of user-facing strings in the API. Features add their strings to
  * branches of this same object; a second such file must not appear.
  */
+import { RisqueCatnat } from '@mon-sinistre/contracts';
 
 /**
  * The only place "arrêté" is written: elsewhere the term must appear as part of
@@ -9,6 +10,10 @@
  */
 const ARRETE_CATNAT =
   'l’arrêté de catastrophe naturelle (la décision de l’État qui permet à votre assurance d’indemniser les dégâts)';
+
+// Shared by the reminder subject line and its déclaration paragraph below.
+const ilVousReste = (days: string): string =>
+  days === '1' ? 'Il vous reste 1 jour' : `Il vous reste ${days} jours`;
 
 /** French elides "que" before a vowel or a mute h: "parce qu’il", not "parce que il". */
 const because = (reason: string): string =>
@@ -60,6 +65,15 @@ export const fr = {
     },
   },
   sinistres: {
+    /** `Sinistre.risque` — enum: письму нужна подпись, и у web она своя. */
+    risques: {
+      [RisqueCatnat.INONDATION]: 'Inondation',
+      [RisqueCatnat.SECHERESSE]: 'Sécheresse',
+      [RisqueCatnat.MOUVEMENT_TERRAIN]: 'Mouvement de terrain',
+      [RisqueCatnat.SEISME]: 'Séisme',
+      [RisqueCatnat.AVALANCHE]: 'Avalanche',
+      [RisqueCatnat.VENTS_CYCLONIQUES]: 'Vents cycloniques',
+    },
     eventDateRequired: 'La date de l’événement est obligatoire.',
     eventDateInvalid:
       'La date de l’événement doit être une date réelle, au format AAAA-MM-JJ (par exemple 2026-06-15).',
@@ -207,6 +221,35 @@ export const fr = {
         reason:
           'vous suivez un dossier de sinistre concernant cette commune sur Mon Sinistre',
       },
+    },
+    reminders: {
+      subject: {
+        nextSteps: 'Vos prochaines étapes',
+        declaration: (days: string) =>
+          days === '0'
+            ? 'Dernier jour pour déclarer votre sinistre'
+            : `${ilVousReste(days)} pour déclarer votre sinistre`,
+      },
+      sinistreIntro: (commune: string, risque: string, eventDate: string) =>
+        `Dossier de ${commune} — ${risque}, événement du ${eventDate}.`,
+      stepLine: (name: string, date: string, delay: string) =>
+        `${name} — ${date} — ${delay}.`,
+      inDays: (days: string) =>
+        days === '1' ? 'dans 1 jour' : `dans ${days} jours`,
+      lastDay: 'dernier jour',
+      sinistreLink: 'Voir ce dossier',
+      declaration: {
+        remaining: (days: string, date: string) =>
+          days === '0'
+            ? `C’est aujourd’hui, ${date}, le dernier jour pour déclarer ce sinistre à votre assurance.`
+            : `${ilVousReste(days)} pour déclarer ce sinistre à votre assurance, au plus tard le ${date}.`,
+        verifiedAt: (date: string) =>
+          `Délai vérifié le ${date}. Date indicative, à vérifier avec votre contrat et votre assurance.`,
+        outdated: (months: string) =>
+          `Ce délai n’a pas été revérifié depuis plus de ${months} mois et a pu changer.`,
+        sourceLink: 'Voir le texte de référence de ce délai',
+      },
+      reason: 'vous suivez un dossier de sinistre sur Mon Sinistre',
     },
   },
 } as const;

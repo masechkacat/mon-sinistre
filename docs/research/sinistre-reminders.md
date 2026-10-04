@@ -104,6 +104,11 @@ plannedDate)`; `next` = наибольший порог шкалы, строго
 утром после создания синистра и перечисляет их — это не «сводка в день
 создания» из «Не в скоупе», а штатный повод шкалы.
 
+**Исправлено при реализации (фаза 1, issue #207):** `sourceUrl` и
+`sourceVerifiedAt` читаются с самого `Step`, не с `deadlineRule` — письмо
+цитирует ту версию правила, по которой шаг датирован. Подпись риска —
+`fr.sinistres.risques` по `Sinistre.risque`.
+
 ### Прогон: `RemindersService` в `src/reminders/`, 07:00 Europe/Paris, запись после отправки
 
 **Решение:** новый модуль `src/reminders/` (`RemindersModule`,
@@ -215,6 +220,13 @@ déclarer votre sinistre», иначе «Vos prochaines étapes». `reason` по
 «vous suivez un dossier de sinistre sur Mon Sinistre»; `unsubscribePath` —
 `reminderUnsubscribePathFor(token)`. Все строки — ветка `fr.mail.reminders` в
 `src/i18n/fr.ts`.
+
+**Исправлено при реализации (фаза 1, issue #206):** фразы «à vérifier» и
+предложения сверить с договором в `fr.mail.jorf.notification` нет — там только
+`deadline` и `legifranceLink`; переиспользовать было нечего, обе фразы
+заведены в `fr.mail.reminders.declaration`. Там же шаг `DECLARATION_ASSUREUR`
+не попадает в `list`: его абзац называет действие словами и несёт ту же дату,
+а строка списка сказала бы единственный срок письма второй раз.
 
 **Почему:** каркас рендерит блоки в text и HTML сам, равенство ссылок двух
 версий — по построению (`src/mail/mail-message.ts`), отдельно его доказывать

@@ -211,7 +211,11 @@ Auth уже решён (api/CLAUDE.md): Passport local + JWT, refresh с рот�
 
 - `User`: id, email `unique`, passwordHash, `confirmedAt` (null = не
   подтверждён, вход невозможен), `confirmTokenHash` `unique`,
-  `confirmExpiresAt`, createdAt. Email в логи не попадает.
+  `confirmExpiresAt`, createdAt. Email в логи не попадает. Напоминания по шагам
+  (миграция `add_reminder_log`): `remindersDisabledAt` timestamptz null (null =
+  включены), `reminderUnsubscribeTokenHash` text null `unique`,
+  `reminderFailures` int default 0 — обоснование и семантика каждой колонки в
+  `docs/research/sinistre-reminders.md`, «Схема».
 - `RefreshToken`: id, userId → User (cascade), tokenHash `unique`, expiresAt,
   revokedAt null. Ротация = вставка нового + revoke старого; чистка истёкших —
   фоновая задача.
@@ -265,7 +269,7 @@ Auth уже решён (api/CLAUDE.md): Passport local + JWT, refresh с рот�
 | sourceUrl, sourceVerifiedAt | text/date, null                     | копия из шаблона или правила                               |
 
 Индекс `(plannedDate) where persistedStatus is null` — ежедневный отбор
-напоминаний; заводится вместе с этим запросом, той же фазой.
+напоминаний; создан миграцией `add_reminder_log`.
 
 Семантика редактирования (вместо отдельной колонки `systemManaged` — внешнее
 ревью, решение 30.07.2026): у шаблонного шага (`fromTemplate = true`) дата
