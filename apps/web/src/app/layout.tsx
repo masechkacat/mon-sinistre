@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { fr } from '@/i18n/fr';
 import { legalPages } from '@/lib/legal-pages';
 import { cn } from '@/lib/utils';
-import { geist } from './fonts';
+import { luciole, newsreader } from './fonts';
 import { Providers } from './providers';
 
 const chromeContainer = 'mx-auto w-full max-w-2xl px-6 py-4';
@@ -20,7 +20,10 @@ export default function RootLayout({
   // lang is required for screen readers to pick the right pronunciation and
   // for automatic translation to behave. The interface language is French.
   return (
-    <html lang="fr" className={cn('font-sans', geist.variable)}>
+    <html
+      lang="fr"
+      className={cn('font-sans', luciole.variable, newsreader.variable)}
+    >
       <body className="flex min-h-dvh flex-col">
         {/* Providers renders no element of its own, so the flex children of
             <body> are unchanged; it wraps the whole chrome and not just
