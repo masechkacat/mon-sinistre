@@ -677,9 +677,12 @@ export class AuthService {
   async currentUser(userId: string): Promise<CurrentUserResponse> {
     const user = await this.prisma.user.findUniqueOrThrow({
       where: { id: userId },
-      select: { email: true },
+      select: { email: true, remindersDisabledAt: true },
     });
-    return { email: user.email };
+    return {
+      email: user.email,
+      remindersEnabled: user.remindersDisabledAt === null,
+    };
   }
 
   /** Why this is the whole operation — `src/auth/CLAUDE.md`. */
