@@ -1,6 +1,6 @@
 {
   "feature": "sinistre-reminders",
-  "phases": [4],
+  "phases": [5],
   "maxIterations": 8,
   "stallLimit": 2,
   "model": "claude-opus-5",
