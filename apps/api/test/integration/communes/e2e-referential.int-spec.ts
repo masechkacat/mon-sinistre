@@ -2,8 +2,8 @@ import { PrismaClient } from 'src/generated/prisma/client';
 import { E2E_COMMUNES, seedE2eReferential } from 'test/helpers/e2e-referential';
 import { createIntTestPrismaClient } from 'test/helpers/prisma-client';
 
-// Сев базы сквозного теста (issue #174): идемпотентен и не ходит в сеть.
-// Правила дедлайнов и шаги сев заливает теми же функциями, что покрыты своими спеками.
+// Здесь, а не в своём каталоге: собственная логика сева — только коммуны,
+// правила дедлайнов и шаги он заливает функциями, покрытыми спеками их модулей.
 describe('seedE2eReferential (integration)', () => {
   let prisma: PrismaClient;
 
