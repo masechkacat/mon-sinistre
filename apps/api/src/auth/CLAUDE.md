@@ -218,7 +218,9 @@
   `ACCOUNT_CONFIRM_PATH` или главной (`route.ts` не уживается с `page.tsx` в
   одном сегменте Next.js — обработчика там никогда не будет). Обработчик —
   `apps/web/src/app/compte/desabonnement/route.ts`: `POST` отвечает пустым
-  `200`, `GET` уводит человека на главную.
+  `200`, `GET` уводит человека на главную. Регулярной рассылке он не годится:
+  у письма-напоминания своя ссылка с токеном — `REMINDER_UNSUBSCRIBE_PATH` →
+  `POST /rappels/desinscription` (`src/reminders/`).
 
 ## Anti-enumeration: временная асимметрия по времени ответа
 

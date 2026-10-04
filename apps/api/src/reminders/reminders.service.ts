@@ -2,7 +2,10 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import type { IsoDate, RisqueCatnat } from '@mon-sinistre/contracts';
 import { errorSummary, stackOf } from 'src/common/error-report';
-import { generateSecureToken } from 'src/common/security/secure-token';
+import {
+  generateSecureToken,
+  hashSecureToken,
+} from 'src/common/security/secure-token';
 import { todayInParis } from 'src/common/time/today-in-paris';
 import {
   dateToIsoDate,
@@ -336,5 +339,16 @@ export class RemindersService {
       data: { reminderUnsubscribeTokenHash: unsubscribe.hash },
     });
     return rotated.count === 0 ? null : unsubscribe.token;
+  }
+
+  /**
+   * `updateMany`, not `update`: a token matching no account must not throw,
+   * or the endpoint's answer would tell whose token it was.
+   */
+  async disableByToken(token: string): Promise<void> {
+    await this.prisma.user.updateMany({
+      where: { reminderUnsubscribeTokenHash: hashSecureToken(token) },
+      data: { remindersDisabledAt: new Date() },
+    });
   }
 }
