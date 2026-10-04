@@ -21,16 +21,19 @@ interface AccountMockOptions {
   /** Makes `PATCH /rappels` unreachable: the branch the French error message
    * belongs to. */
   rappelsUnreachable?: boolean;
+  /** Makes every `GET /auth/me` after the first unreachable: the section must
+   * then hold the state the PATCH answered, not wait for a refetch. */
+  meUnreachableAfterFirst?: boolean;
 }
 
 /** GET answers the signed-in account's email and reminders state; DELETE
  * answers success and counts calls; `PATCH /rappels` records what was asked
- * and moves the state the next GET reports, so the section refetched after
- * the mutation sees the new value — shared by every test below, each reading
+ * and moves the state the next GET reports, as the real API does — shared by every test below, each reading
  * only the part of `state` it is about. */
 function mockCurrentUser(page: Page, options: AccountMockOptions = {}) {
   const state = {
     deleteCalls: 0,
+    meGets: 0,
     remindersEnabled: options.remindersEnabled ?? true,
     rappelsCalls: [] as { method: string; enabled: boolean }[],
   };
@@ -43,6 +46,10 @@ function mockCurrentUser(page: Page, options: AccountMockOptions = {}) {
           if (route.request().method() === 'DELETE') {
             state.deleteCalls += 1;
             return route.fulfill({ status: 204 });
+          }
+          state.meGets += 1;
+          if (options.meUnreachableAfterFirst && state.meGets > 1) {
+            return route.abort();
           }
           return route.fulfill({
             status: 200,
@@ -180,6 +187,21 @@ test('an unreachable API leaves the reminders state alone and shows the French e
   await expect(alert).toHaveAttribute('role', 'alert');
   await expect(alert).toContainText(fr.requestError.title);
   await expect(page.getByTestId('rappels-etat')).toHaveText(rappels.enabled);
+});
+
+test('the PATCH answer alone flips the section, even when the account can no longer be read', async ({
+  page,
+}) => {
+  await mockSession(page).install();
+  await mockCurrentUser(page, { meUnreachableAfterFirst: true }).install();
+
+  await page.goto('/espace-personnel');
+  await page.getByRole('button', { name: rappels.disable }).click();
+
+  await expect(page.getByTestId('rappels-etat')).toHaveText(rappels.disabled);
+  await expect(
+    page.getByRole('button', { name: rappels.enable }),
+  ).toBeVisible();
 });
 
 test('deleting the account requires an explicit confirmation before the request is sent', async ({

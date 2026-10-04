@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { CurrentUserResponse } from '@mon-sinistre/contracts';
 import Link from 'next/link';
 import { fr } from '@/i18n/fr';
 import { PageContainer } from '@/components/page-container';
@@ -184,8 +185,11 @@ function RemindersSection({ enabled }: { enabled: boolean }) {
   const queryClient = useQueryClient();
   const mutation = useMutation({
     mutationFn: updateReminders,
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: queryKeys.currentUser() }),
+    onSuccess: ({ enabled }) =>
+      queryClient.setQueryData<CurrentUserResponse>(
+        queryKeys.currentUser(),
+        (user) => user && { ...user, remindersEnabled: enabled },
+      ),
   });
 
   return (
