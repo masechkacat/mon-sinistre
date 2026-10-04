@@ -213,9 +213,11 @@ Auth уже решён (api/CLAUDE.md): Passport local + JWT, refresh с рот�
   подтверждён, вход невозможен), `confirmTokenHash` `unique`,
   `confirmExpiresAt`, createdAt. Email в логи не попадает. Напоминания по шагам
   (миграция `add_reminder_log`): `remindersDisabledAt` timestamptz null (null =
-  включены), `reminderUnsubscribeTokenHash` text null `unique`,
-  `reminderFailures` int default 0 — обоснование и семантика каждой колонки в
-  `docs/research/sinistre-reminders.md`, «Схема».
+  включены), `reminderFailures` int default 0 — обоснование и семантика
+  в `docs/research/sinistre-reminders.md`, «Схема».
+- `ReminderUnsubscribeToken`: tokenHash PK, userId → User (cascade). Строка на
+  каждое письмо-напоминание, действуют все: человек жмёт ссылку в том письме,
+  которое открыл, а не в последнем (миграция `reminder_unsubscribe_tokens`).
 - `RefreshToken`: id, userId → User (cascade), tokenHash `unique`, expiresAt,
   revokedAt null. Ротация = вставка нового + revoke старого; чистка истёкших —
   фоновая задача.
