@@ -1,8 +1,7 @@
 import { PrismaClient } from 'src/generated/prisma/client';
 import { arreteData } from 'test/helpers/arrete';
-import { commune } from 'test/helpers/commune';
 import { createIntTestPrismaClient } from 'test/helpers/prisma-client';
-import { userData } from 'test/helpers/user-data';
+import { createSinistre } from 'test/helpers/sinistre';
 
 // Schema-level guarantees of the SinistreNotification outbox migration:
 // docs/research/data-model.md § 5, docs/research/sinistre-plan.md, «Схема:
@@ -22,26 +21,8 @@ describe('SinistreNotification schema (integration)', () => {
     await prisma.$executeRaw`TRUNCATE TABLE "User", "Commune", "Arrete" CASCADE`;
   });
 
-  async function createSinistre() {
-    const user = await prisma.user.create({ data: userData() });
-    const codeInsee = '30189';
-    await prisma.commune.create({
-      data: commune(codeInsee, 'Nîmes', '30', 'Gard'),
-    });
-    return prisma.sinistre.create({
-      data: {
-        userId: user.id,
-        codeInsee,
-        risque: 'INONDATION',
-        eventDate: new Date('2026-06-15'),
-        declarationDate: null,
-        status: 'AVANT_ARRETE',
-      },
-    });
-  }
-
   it('creates a pending outbox row with sentAt null', async () => {
-    const sinistre = await createSinistre();
+    const { sinistre } = await createSinistre(prisma);
     const arrete = await prisma.arrete.create({ data: arreteData() });
 
     const notification = await prisma.sinistreNotification.create({
@@ -56,7 +37,7 @@ describe('SinistreNotification schema (integration)', () => {
   });
 
   it('allows two rows for the same (sinistre, arrêté) with different kind', async () => {
-    const sinistre = await createSinistre();
+    const { sinistre } = await createSinistre(prisma);
     const arrete = await prisma.arrete.create({ data: arreteData() });
     await prisma.sinistreNotification.create({
       data: {
@@ -78,7 +59,7 @@ describe('SinistreNotification schema (integration)', () => {
   });
 
   it('rejects a second row for the same (sinistre, arrêté, kind) via the unique index', async () => {
-    const sinistre = await createSinistre();
+    const { sinistre } = await createSinistre(prisma);
     const arrete = await prisma.arrete.create({ data: arreteData() });
     await prisma.sinistreNotification.create({
       data: {
@@ -100,7 +81,7 @@ describe('SinistreNotification schema (integration)', () => {
   });
 
   it('cascades: deleting a Sinistre removes its SinistreNotification rows', async () => {
-    const sinistre = await createSinistre();
+    const { sinistre } = await createSinistre(prisma);
     const arrete = await prisma.arrete.create({ data: arreteData() });
     await prisma.sinistreNotification.create({
       data: {
@@ -119,7 +100,7 @@ describe('SinistreNotification schema (integration)', () => {
   });
 
   it('restricts deletion of an Arrete referenced by a pending notification', async () => {
-    const sinistre = await createSinistre();
+    const { sinistre } = await createSinistre(prisma);
     const arrete = await prisma.arrete.create({ data: arreteData() });
     await prisma.sinistreNotification.create({
       data: {

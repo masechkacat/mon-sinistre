@@ -55,17 +55,24 @@ model Commune {
 // add_account_cleanup_counters, дрейфом это не считается — как у
 // Veille.confirmExpiresAt выше.
 model User {
-  id               String          @id @default(dbgenerated("uuidv7()")) @db.Uuid
-  email            String          @unique
-  passwordHash     String
+  id                           String          @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  email                        String          @unique
+  passwordHash                 String
   // null = аккаунт не подтверждён, вход невозможен
-  confirmedAt      DateTime?       @db.Timestamptz(6)
-  confirmTokenHash String          @unique
-  confirmExpiresAt DateTime        @db.Timestamptz(6)
-  createdAt        DateTime        @default(now()) @db.Timestamptz(6)
-  refreshTokens    RefreshToken[]
-  passwordResets   PasswordReset[]
-  sinistres        Sinistre[]
+  confirmedAt                  DateTime?       @db.Timestamptz(6)
+  confirmTokenHash             String          @unique
+  confirmExpiresAt             DateTime        @db.Timestamptz(6)
+  createdAt                    DateTime        @default(now()) @db.Timestamptz(6)
+  // null = напоминания по шагам включены (умолчание продукта)
+  remindersDisabledAt          DateTime?       @db.Timestamptz(6)
+  // null, пока ни одно письмо-напоминание не ушло: токен чеканится отправкой
+  // и ротируется на каждой — docs/research/sinistre-reminders.md, «Токен выключения».
+  reminderUnsubscribeTokenHash String?         @unique
+  // Сбоев подряд: успешная отправка возвращает счётчик в 0.
+  reminderFailures             Int             @default(0)
+  refreshTokens                RefreshToken[]
+  passwordResets               PasswordReset[]
+  sinistres                    Sinistre[]
 }
 
 // docs/research/user-account.md, data-model.md § 5.
@@ -446,9 +453,11 @@ model Step {
   order            Int
   sourceUrl        String?
   sourceVerifiedAt DateTime?            @db.Date
+  reminderLogs     ReminderLog[]
 
-  // Частичный индекс (plannedDate) where persistedStatus is null не создаётся
-  // здесь — заводит фаза напоминаний вместе со своим запросом.
+  // Индекс (plannedDate) where persistedStatus is null — частичный, Prisma
+  // такие не выражает: CREATE INDEX живёт в миграции add_reminder_log, как у
+  // чистки Veille выше.
 }
 
 enum SinistreNotificationKind {
@@ -473,4 +482,26 @@ model SinistreNotification {
   attempts   Int                      @default(0)
 
   @@unique([sinistreId, arreteId, kind])
+}
+
+enum ReminderKind {
+  SCALE
+  OVERDUE
+}
+
+// Факт отправки напоминания по шагу — docs/research/data-model.md § 6. В
+// отличие от соседних рассылок строка пишется после отправки, не до: outbox'а
+// здесь нет (docs/research/sinistre-reminders.md, «Схема: ReminderLog»).
+model ReminderLog {
+  id          String       @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  stepId      String       @db.Uuid
+  step        Step         @relation(fields: [stepId], references: [id], onDelete: Cascade)
+  kind        ReminderKind
+  // null у OVERDUE: порога «за N дней» у просрочки нет.
+  offsetDays  Int?
+  plannedDate DateTime     @db.Date
+  sentOn      DateTime     @db.Date
+
+  // Уникальности условные (по kind), Prisma такие не выражает: два CREATE
+  // UNIQUE INDEX … WHERE живут в миграции add_reminder_log.
 }

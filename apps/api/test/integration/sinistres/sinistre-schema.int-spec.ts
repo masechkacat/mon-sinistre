@@ -3,6 +3,7 @@ import { arreteData, arreteEntryData } from 'test/helpers/arrete';
 import { commune } from 'test/helpers/commune';
 import { deadlineRuleData } from 'test/helpers/deadline-rule';
 import { createIntTestPrismaClient } from 'test/helpers/prisma-client';
+import { createSinistre, sinistreData } from 'test/helpers/sinistre';
 import { userData } from 'test/helpers/user-data';
 
 // Schema-level guarantees of the Sinistre / Step / StepTemplate migration:
@@ -29,30 +30,8 @@ describe('Sinistre / Step / StepTemplate schema (integration)', () => {
     });
   }
 
-  function sinistreData(
-    overrides: Partial<{
-      userId: string;
-      codeInsee: string;
-      arreteEntryId: string | null;
-    }>,
-  ) {
-    return {
-      userId: overrides.userId as string,
-      codeInsee: overrides.codeInsee as string,
-      risque: 'INONDATION' as const,
-      eventDate: new Date('2026-06-15'),
-      arreteEntryId: overrides.arreteEntryId ?? null,
-      declarationDate: null,
-      status: 'AVANT_ARRETE' as const,
-    };
-  }
-
   it('cascades: deleting a User removes its Sinistre and Step rows', async () => {
-    const user = await prisma.user.create({ data: userData() });
-    const commune = await createCommune('30189');
-    const sinistre = await prisma.sinistre.create({
-      data: sinistreData({ userId: user.id, codeInsee: commune.codeInsee }),
-    });
+    const { user, sinistre } = await createSinistre(prisma);
     await prisma.step.create({
       data: {
         sinistreId: sinistre.id,
@@ -78,11 +57,7 @@ describe('Sinistre / Step / StepTemplate schema (integration)', () => {
   });
 
   it('restricts deletion of a DeadlineRule referenced by a Step', async () => {
-    const user = await prisma.user.create({ data: userData() });
-    const commune = await createCommune('30189');
-    const sinistre = await prisma.sinistre.create({
-      data: sinistreData({ userId: user.id, codeInsee: commune.codeInsee }),
-    });
+    const { sinistre } = await createSinistre(prisma);
     const rule = await prisma.deadlineRule.create({
       data: deadlineRuleData(),
     });
