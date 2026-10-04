@@ -30,7 +30,10 @@ import {
 } from 'src/common/time/confirmation-window';
 import { hashEmail } from 'src/common/security/email-hash';
 import { runGuarded } from 'src/common/scheduled-cleanup';
-import { generateSecureToken, hashSecureToken } from 'src/common/security/secure-token';
+import {
+  generateSecureToken,
+  hashSecureToken,
+} from 'src/common/security/secure-token';
 import { addDays, addHours, DAY_MS, HOUR_MS } from 'src/common/time/time';
 import type { EnvironmentVariables } from 'src/config/env.validation';
 import { fr } from 'src/i18n/fr';
@@ -43,6 +46,7 @@ import {
   isUniqueViolationOn,
 } from 'src/prisma/prisma-error';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { remindersEnabled } from 'src/reminders/reminders-preference';
 import { alreadyRegisteredMailFor } from './mails/account-already-registered-mail';
 import { confirmationMailFor } from './mails/account-confirmation-mail';
 import type { RegisterDto } from './dto/register.dto';
@@ -677,9 +681,12 @@ export class AuthService {
   async currentUser(userId: string): Promise<CurrentUserResponse> {
     const user = await this.prisma.user.findUniqueOrThrow({
       where: { id: userId },
-      select: { email: true },
+      select: { email: true, remindersDisabledAt: true },
     });
-    return { email: user.email };
+    return {
+      email: user.email,
+      remindersEnabled: remindersEnabled(user.remindersDisabledAt),
+    };
   }
 
   /** Why this is the whole operation — `src/auth/CLAUDE.md`. */

@@ -124,6 +124,12 @@ export interface LoginResponse {
 /** Response body of the current-user endpoint (`GET /auth/me`). */
 export interface CurrentUserResponse {
   email: string;
+  remindersEnabled: boolean;
+}
+
+/** Body and response of the reminders switch (`PATCH /rappels`). */
+export interface RemindersPreference {
+  enabled: boolean;
 }
 
 /** One insurance claim being accompanied. */

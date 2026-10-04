@@ -175,7 +175,9 @@
   публичном методе отдельно, чтобы новый хендлер модуля наследовал замок, а
   не исключение.
 - `GET /auth/me` → `AuthController.me` → `AuthService.currentUser`;
-  возвращает email владельца access-токена (espace personnel). Без
+  возвращает email владельца access-токена (espace personnel) и
+  `remindersEnabled` — флаг, который пишет `src/reminders`
+  (`docs/research/sinistre-reminders.md`). Без
   `@Public()` — проходит через глобальный `JwtAuthGuard`, как любой новый
   эндпоинт по умолчанию. `req.user.id` берётся из `JwtUser`
   (`passport/jwt.strategy.ts`, тот же тип, что кладёт guard на запрос); стратегия уже
@@ -216,7 +218,9 @@
   `ACCOUNT_CONFIRM_PATH` или главной (`route.ts` не уживается с `page.tsx` в
   одном сегменте Next.js — обработчика там никогда не будет). Обработчик —
   `apps/web/src/app/compte/desabonnement/route.ts`: `POST` отвечает пустым
-  `200`, `GET` уводит человека на главную.
+  `200`, `GET` уводит человека на главную. Регулярной рассылке он не годится:
+  у письма-напоминания своя ссылка с токеном — `REMINDER_UNSUBSCRIBE_PATH` →
+  `POST /rappels/desinscription` (`src/reminders/`).
 
 ## Anti-enumeration: временная асимметрия по времени ответа
 

@@ -6,4 +6,5 @@ import type { CurrentUserResponse } from '@mon-sinistre/contracts';
  */
 export class CurrentUserResponseDto implements CurrentUserResponse {
   email: string;
+  remindersEnabled: boolean;
 }

@@ -32,14 +32,28 @@ describe('GET /auth/me (integration)', () => {
     await prisma.$executeRaw`TRUNCATE TABLE "User" CASCADE`;
   });
 
-  it('returns the email of the account owning the access token', async () => {
+  it('returns the email of the account owning the access token, reminders on', async () => {
     const email = await createUser(prisma);
     const accessToken = accessTokenOf(await login(app, email));
 
     const res = await me(accessToken);
 
     expect(res.statusCode).toBe(200);
-    expect(JSON.parse(res.payload)).toEqual({ email });
+    expect(JSON.parse(res.payload)).toEqual({ email, remindersEnabled: true });
+  });
+
+  it('answers remindersEnabled false once the account turned reminders off', async () => {
+    const email = await createUser(prisma);
+    await prisma.user.update({
+      where: { email },
+      data: { remindersDisabledAt: new Date() },
+    });
+    const accessToken = accessTokenOf(await login(app, email));
+
+    const res = await me(accessToken);
+
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(res.payload)).toEqual({ email, remindersEnabled: false });
   });
 
   it('answers 401, not 404, once the account behind a still-valid token is gone', async () => {

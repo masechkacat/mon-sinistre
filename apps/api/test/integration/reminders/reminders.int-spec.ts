@@ -11,6 +11,7 @@ import { seedDeadlineRules } from 'src/deadline-rules/deadline-rule.seed';
 import { dateToIsoDate } from 'src/deadline-rules/resolve-deadline';
 import { fr } from 'src/i18n/fr';
 import { AdminAlertService } from 'src/jorf/alerts/admin-alert.service';
+import { JorfMonitorService } from 'src/jorf/jorf-monitor.service';
 import { NOTIFICATION_ATTEMPTS_BEFORE_ALERT } from 'src/jorf/mail/drain-outbox';
 import { MAIL_TRANSPORT } from 'src/mail/mail-transport';
 import { PrismaService } from 'src/prisma/prisma.service';
@@ -22,11 +23,12 @@ import {
 } from 'src/step-templates/step-template.seed';
 import { withAdminEmail } from 'test/helpers/admin-email';
 import { createIntTestApp } from 'test/helpers/app';
+import { arreteData, arreteEntryData } from 'test/helpers/arrete';
 import { commune } from 'test/helpers/commune';
 import { captureLogs } from 'test/helpers/mail-log';
 import { mailLinksOf, tokenFrom } from 'test/helpers/mail-links';
 import { RecordingTransport } from 'test/helpers/mail-transport';
-import { createUser, headersForEmail } from 'test/helpers/session';
+import { createUser, headersForEmail, withBearer } from 'test/helpers/session';
 
 /** 07:00 in Paris on the day the dossiers below are opened: the first pass
  * after their creation, the one the phase's «Когда готова» describes. */
@@ -49,6 +51,11 @@ const sinistreLinksOf = (contents: string): string[] =>
   [...mailLinksOf(contents)]
     .filter((link) => link.includes(SINISTRE_PATH))
     .sort();
+
+/** The unsubscribe token a reminder mail carried — the only place its
+ * plaintext ever exists. */
+const unsubscribeTokenOf = (message?: { text: string }): string =>
+  tokenFrom(message ?? { text: '' }, REMINDER_UNSUBSCRIBE_PATH);
 
 // docs/plan/sinistre-reminders.md, Фаза 1 (issue #207) — the daily pass:
 // one mail per person, idempotent within the day, every fact recorded.
@@ -126,6 +133,13 @@ describe('RemindersService.run (integration)', () => {
     return email;
   }
 
+  const sentTo = (to: string) =>
+    transport.sent.filter((message) => message.to === to);
+
+  const disabledAtOf = async (email: string): Promise<Date | null> =>
+    (await prisma.user.findUniqueOrThrow({ where: { email } }))
+      .remindersDisabledAt;
+
   it('sends one mail naming both dossiers of the same person', async () => {
     const { email } = await createTwoSinistres();
 
@@ -196,10 +210,10 @@ describe('RemindersService.run (integration)', () => {
 
     await reminders.run({ now: NOW });
 
-    const [message] = transport.sent;
-    const token = tokenFrom(message ?? { text: '' }, REMINDER_UNSUBSCRIBE_PATH);
     const user = await prisma.user.findUniqueOrThrow({ where: { email } });
-    expect(user.reminderUnsubscribeTokenHash).toBe(hashSecureToken(token));
+    expect(user.reminderUnsubscribeTokenHash).toBe(
+      hashSecureToken(unsubscribeTokenOf(transport.sent[0])),
+    );
   });
 
   it('logs the pass without the address and without a step name (ТЗ § 7)', async () => {
@@ -213,9 +227,6 @@ describe('RemindersService.run (integration)', () => {
 
   // docs/plan/sinistre-reminders.md, Фаза 2 (issue #211) — ТЗ § 6.
   describe('a transport failing on one address', () => {
-    const sentTo = (to: string) =>
-      transport.sent.filter((message) => message.to === to);
-
     const stuckAlerts = () =>
       prisma.monitorAlert.findMany({ where: { kind: 'NOTIFICATION_STUCK' } });
 
@@ -326,6 +337,207 @@ describe('RemindersService.run (integration)', () => {
 
       expect(logs.levels()).toContain('error');
       logs.expectNoTraceOf(refused);
+    });
+  });
+
+  // docs/plan/sinistre-reminders.md, Фаза 3 (issue #213) — выключатель по
+  // токену из письма.
+  describe('POST /rappels/desinscription', () => {
+    const unsubscribe = (token: string) =>
+      app.inject({
+        method: 'POST',
+        url: '/rappels/desinscription',
+        payload: { token },
+      });
+
+    /** One person mailed by a first pass, and the token that mail carried. */
+    async function mailedOwner(): Promise<{ email: string; token: string }> {
+      const email = await createSinistreOwner('30189');
+      await reminders.run({ now: NOW });
+      return { email, token: unsubscribeTokenOf(transport.sent[0]) };
+    }
+
+    it('switches the reminders off for the account the token belongs to', async () => {
+      const { email, token } = await mailedOwner();
+
+      const res = await unsubscribe(token);
+
+      expect(res.statusCode).toBe(204);
+      expect(res.payload).toBe('');
+      expect(await disabledAtOf(email)).not.toBeNull();
+    });
+
+    it('answers 204 and changes nothing on an unknown token', async () => {
+      const { email } = await mailedOwner();
+
+      const res = await unsubscribe('jeton-inconnu');
+
+      expect(res.statusCode).toBe(204);
+      expect(res.payload).toBe('');
+      expect(await disabledAtOf(email)).toBeNull();
+    });
+
+    it('answers 204 and changes nothing on a token the next mail rotated away', async () => {
+      const { email, token } = await mailedOwner();
+      await reminders.run({ now: passAt(1) });
+
+      const res = await unsubscribe(token);
+
+      expect(res.statusCode).toBe(204);
+      expect(await disabledAtOf(email)).toBeNull();
+    });
+
+    it('is no session: the same token as a Bearer answers 401 without the address', async () => {
+      const { email, token } = await mailedOwner();
+
+      const res = await app.inject({
+        method: 'GET',
+        url: '/auth/me',
+        headers: withBearer(token),
+      });
+
+      expect(res.statusCode).toBe(401);
+      expect(res.payload).not.toContain(email);
+    });
+
+    it('leaves the next pass with nothing to send to that person', async () => {
+      const { token } = await mailedOwner();
+      await unsubscribe(token);
+      transport.sent.length = 0;
+
+      await reminders.run({ now: passAt(1) });
+
+      expect(transport.sent).toHaveLength(0);
+    });
+
+    it('does not silence the arrêté letter of the same person (ТЗ § 6)', async () => {
+      const email = await createSinistreOwner('30189');
+      const sinistre = await prisma.sinistre.findFirstOrThrow();
+      const arrete = await prisma.arrete.create({
+        data: {
+          ...arreteData(),
+          entries: { create: arreteEntryData('30189') },
+        },
+        include: { entries: { select: { id: true } } },
+      });
+      await prisma.sinistre.update({
+        where: { id: sinistre.id },
+        data: { arreteEntryId: arrete.entries[0]?.id },
+      });
+      await prisma.sinistreNotification.create({
+        data: {
+          sinistreId: sinistre.id,
+          arreteId: arrete.id,
+          kind: 'PUBLICATION',
+        },
+      });
+      await prisma.user.updateMany({
+        where: { email },
+        data: { remindersDisabledAt: new Date() },
+      });
+
+      // No delta to ingest: the pass is there for the pending outbox row only.
+      await app.get(JorfMonitorService).run({ deltaNames: [] });
+
+      expect(
+        transport.sent.filter((message) => message.to === email),
+      ).toHaveLength(1);
+    });
+
+    it('cancels the mail of a pass the unsubscribe lands in the middle of', async () => {
+      const email = await createSinistreOwner('30189');
+      // The window the rotation guards: the candidate query has read the step,
+      // the mail is not out yet, and the person switches the reminders off.
+      const original = prisma.step.findMany.bind(prisma.step);
+      (
+        jest.spyOn(prisma.step, 'findMany') as jest.SpyInstance
+      ).mockImplementation(async (...args: unknown[]) => {
+        const rows: unknown = await original(
+          ...(args as Parameters<typeof original>),
+        );
+        await prisma.user.updateMany({
+          where: { email },
+          data: { remindersDisabledAt: new Date() },
+        });
+        return rows;
+      });
+
+      await reminders.run({ now: NOW });
+
+      expect(transport.sent).toHaveLength(0);
+      expect(await prisma.reminderLog.count()).toBe(0);
+    });
+  });
+
+  // docs/plan/sinistre-reminders.md, Фаза 3 (issue #214).
+  describe('PATCH /rappels', () => {
+    const setPreference = (
+      headers: ReturnType<typeof withBearer>,
+      enabled: boolean,
+    ) =>
+      app.inject({
+        method: 'PATCH',
+        url: '/rappels',
+        headers,
+        payload: { enabled },
+      });
+
+    const ownerSession = async (
+      codeInsee: string,
+    ): Promise<{ email: string; headers: ReturnType<typeof withBearer> }> => {
+      const email = await createSinistreOwner(codeInsee);
+      return { email, headers: await headersForEmail(app, prisma, email) };
+    };
+
+    it('switches the reminders off, and the next pass has nothing to send', async () => {
+      const { email, headers } = await ownerSession('30189');
+
+      const res = await setPreference(headers, false);
+
+      expect(res.statusCode).toBe(200);
+      expect(JSON.parse(res.payload)).toEqual({ enabled: false });
+      expect(await disabledAtOf(email)).not.toBeNull();
+
+      await reminders.run({ now: NOW });
+
+      expect(sentTo(email)).toHaveLength(0);
+    });
+
+    it('switches them back on, and the next pass mails again', async () => {
+      const { email, headers } = await ownerSession('30189');
+      await setPreference(headers, false);
+
+      const res = await setPreference(headers, true);
+
+      expect(res.statusCode).toBe(200);
+      expect(JSON.parse(res.payload)).toEqual({ enabled: true });
+      expect(await disabledAtOf(email)).toBeNull();
+
+      await reminders.run({ now: NOW });
+
+      expect(sentTo(email)).toHaveLength(1);
+    });
+
+    it('answers 401 without a Bearer, and changes nothing', async () => {
+      const { email } = await ownerSession('30189');
+
+      const res = await setPreference(withBearer(), false);
+
+      expect(res.statusCode).toBe(401);
+      expect(await disabledAtOf(email)).toBeNull();
+    });
+
+    it('leaves the other accounts subscribed', async () => {
+      const { headers } = await ownerSession('30189');
+      const other = await createSinistreOwner('13004');
+
+      await setPreference(headers, false);
+
+      expect(await disabledAtOf(other)).toBeNull();
+
+      await reminders.run({ now: NOW });
+
+      expect(sentTo(other)).toHaveLength(1);
     });
   });
 });
