@@ -1,6 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
-import type { IsoDate, RisqueCatnat } from '@mon-sinistre/contracts';
+import type {
+  IsoDate,
+  RemindersPreference,
+  RisqueCatnat,
+} from '@mon-sinistre/contracts';
 import { errorSummary, stackOf } from 'src/common/error-report';
 import {
   generateSecureToken,
@@ -23,6 +27,7 @@ import {
   type ReminderSinistreForMail,
   type ReminderStepForMail,
 } from './reminder-mail';
+import { remindersEnabled } from './reminders-preference';
 import {
   REMINDER_HORIZON_DAYS,
   selectReminders,
@@ -350,5 +355,22 @@ export class RemindersService {
       where: { reminderUnsubscribeTokenHash: hashSecureToken(token) },
       data: { remindersDisabledAt: new Date() },
     });
+  }
+
+  /**
+   * `update`, unlike `disableByToken` above, because a session names its own
+   * account: a missing row is a race with its deletion, and `P2025` → `404`
+   * is then the honest answer.
+   */
+  async setPreference(
+    userId: string,
+    enabled: boolean,
+  ): Promise<RemindersPreference> {
+    const user = await this.prisma.user.update({
+      where: { id: userId },
+      data: { remindersDisabledAt: enabled ? null : new Date() },
+      select: { remindersDisabledAt: true },
+    });
+    return { enabled: remindersEnabled(user.remindersDisabledAt) };
   }
 }

@@ -133,6 +133,13 @@ describe('RemindersService.run (integration)', () => {
     return email;
   }
 
+  const sentTo = (to: string) =>
+    transport.sent.filter((message) => message.to === to);
+
+  const disabledAtOf = async (email: string): Promise<Date | null> =>
+    (await prisma.user.findUniqueOrThrow({ where: { email } }))
+      .remindersDisabledAt;
+
   it('sends one mail naming both dossiers of the same person', async () => {
     const { email } = await createTwoSinistres();
 
@@ -220,9 +227,6 @@ describe('RemindersService.run (integration)', () => {
 
   // docs/plan/sinistre-reminders.md, Фаза 2 (issue #211) — ТЗ § 6.
   describe('a transport failing on one address', () => {
-    const sentTo = (to: string) =>
-      transport.sent.filter((message) => message.to === to);
-
     const stuckAlerts = () =>
       prisma.monitorAlert.findMany({ where: { kind: 'NOTIFICATION_STUCK' } });
 
@@ -346,10 +350,6 @@ describe('RemindersService.run (integration)', () => {
         payload: { token },
       });
 
-    const disabledAtOf = async (email: string): Promise<Date | null> =>
-      (await prisma.user.findUniqueOrThrow({ where: { email } }))
-        .remindersDisabledAt;
-
     /** One person mailed by a first pass, and the token that mail carried. */
     async function mailedOwner(): Promise<{ email: string; token: string }> {
       const email = await createSinistreOwner('30189');
@@ -466,6 +466,78 @@ describe('RemindersService.run (integration)', () => {
 
       expect(transport.sent).toHaveLength(0);
       expect(await prisma.reminderLog.count()).toBe(0);
+    });
+  });
+
+  // docs/plan/sinistre-reminders.md, Фаза 3 (issue #214).
+  describe('PATCH /rappels', () => {
+    const setPreference = (
+      headers: ReturnType<typeof withBearer>,
+      enabled: boolean,
+    ) =>
+      app.inject({
+        method: 'PATCH',
+        url: '/rappels',
+        headers,
+        payload: { enabled },
+      });
+
+    const ownerSession = async (
+      codeInsee: string,
+    ): Promise<{ email: string; headers: ReturnType<typeof withBearer> }> => {
+      const email = await createSinistreOwner(codeInsee);
+      return { email, headers: await headersForEmail(app, prisma, email) };
+    };
+
+    it('switches the reminders off, and the next pass has nothing to send', async () => {
+      const { email, headers } = await ownerSession('30189');
+
+      const res = await setPreference(headers, false);
+
+      expect(res.statusCode).toBe(200);
+      expect(JSON.parse(res.payload)).toEqual({ enabled: false });
+      expect(await disabledAtOf(email)).not.toBeNull();
+
+      await reminders.run({ now: NOW });
+
+      expect(sentTo(email)).toHaveLength(0);
+    });
+
+    it('switches them back on, and the next pass mails again', async () => {
+      const { email, headers } = await ownerSession('30189');
+      await setPreference(headers, false);
+
+      const res = await setPreference(headers, true);
+
+      expect(res.statusCode).toBe(200);
+      expect(JSON.parse(res.payload)).toEqual({ enabled: true });
+      expect(await disabledAtOf(email)).toBeNull();
+
+      await reminders.run({ now: NOW });
+
+      expect(sentTo(email)).toHaveLength(1);
+    });
+
+    it('answers 401 without a Bearer, and changes nothing', async () => {
+      const { email } = await ownerSession('30189');
+
+      const res = await setPreference(withBearer(), false);
+
+      expect(res.statusCode).toBe(401);
+      expect(await disabledAtOf(email)).toBeNull();
+    });
+
+    it('leaves the other accounts subscribed', async () => {
+      const { headers } = await ownerSession('30189');
+      const other = await createSinistreOwner('13004');
+
+      await setPreference(headers, false);
+
+      expect(await disabledAtOf(other)).toBeNull();
+
+      await reminders.run({ now: NOW });
+
+      expect(sentTo(other)).toHaveLength(1);
     });
   });
 });
