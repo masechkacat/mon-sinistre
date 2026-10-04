@@ -1,6 +1,6 @@
 {
-  "feature": "sinistre-plan",
-  "phases": [8],
+  "feature": "sinistre-reminders",
+  "phases": [1],
   "maxIterations": 8,
   "stallLimit": 2,
   "model": "claude-sonnet-5",
