@@ -34,9 +34,11 @@ const asRecord = (value: unknown): Record<string, unknown> | undefined =>
  * exist behind a driver adapter: v7 passes the driver's own error through under
  * `meta.driverAdapterError.cause`. Reading `target` here would silently return
  * false for every duplicate. Since 7.10 the Postgres adapter reports the
- * constraint by name (`constraint.index`, `<Table>_<column>_key` for a
- * single-column unique index) and only falls back to the parsed columns
- * (`constraint.fields`) when the name is unavailable.
+ * constraint by name (`constraint.index`) and only falls back to the parsed
+ * columns (`constraint.fields`) when Postgres sent no name. Two names are
+ * understood: `<Table>_<column>_key`, a single-column `@unique`, and
+ * `<Table>_pkey`, the primary key — which names no column, so it is taken as
+ * the asked-for one: a caller asks about the column it has just written.
  */
 export const isUniqueViolationOn = (
   exception: unknown,
@@ -52,14 +54,15 @@ export const isUniqueViolationOn = (
     asRecord(asRecord(exception.meta)?.driverAdapterError)?.cause,
   );
   const constraint = asRecord(cause?.constraint);
-  const fields = constraint?.fields;
-  if (Array.isArray(fields)) {
-    return fields.includes(field);
+  if (typeof constraint?.index === 'string') {
+    const table = typeof cause?.table === 'string' ? cause.table : undefined;
+    return (
+      table !== undefined &&
+      [`${table}_${field}_key`, `${table}_pkey`].includes(constraint.index)
+    );
   }
-  return (
-    typeof cause?.table === 'string' &&
-    constraint?.index === `${cause.table}_${field}_key`
-  );
+  const fields = constraint?.fields;
+  return Array.isArray(fields) && fields.includes(field);
 };
 
 /**
