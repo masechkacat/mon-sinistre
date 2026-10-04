@@ -243,7 +243,8 @@ export class RemindersService {
       data: recipient.reasons.map((reason) => ({
         stepId: reason.stepId,
         kind: reason.kind,
-        offsetDays: reason.offsetDays,
+        // An `OVERDUE` row keeps no count (data-model.md § 6).
+        offsetDays: reason.kind === 'OVERDUE' ? null : reason.offsetDays,
         plannedDate: isoDateToDate(reason.plannedDate),
         sentOn: isoDateToDate(today),
       })),
