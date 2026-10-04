@@ -5,10 +5,6 @@ import { PrismaClient } from '../src/generated/prisma/client';
 import { databaseUrlFromEnv } from '../src/prisma/database-url-from-env';
 import { seedE2eReferential } from '../test/helpers/e2e-referential';
 
-// Запуск из apps/api/, с базовым DB_NAME (CREATE DATABASE идёт через него):
-//   npx ts-node -r tsconfig-paths/register scripts/e2e-seed.ts
-// Npm-скрипта нет: package.json вне досягаемости автономного цикла.
-
 try {
   process.loadEnvFile();
 } catch {

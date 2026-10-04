@@ -7,7 +7,9 @@
  */
 module.exports = function suffixedDbName(baseName, suffix) {
   if (!baseName) {
-    throw new Error('DB_NAME is not set');
+    throw new Error(
+      'DB_NAME is not set — create apps/api/.env (cp .env.example .env) or provide the DB_* variables in the environment.',
+    );
   }
   return baseName.endsWith(suffix) ? baseName : `${baseName}${suffix}`;
 };
