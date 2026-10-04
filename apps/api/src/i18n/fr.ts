@@ -2,6 +2,7 @@
  * The only file of user-facing strings in the API. Features add their strings to
  * branches of this same object; a second such file must not appear.
  */
+import { RisqueCatnat } from '@mon-sinistre/contracts';
 
 /**
  * The only place "arrêté" is written: elsewhere the term must appear as part of
@@ -64,6 +65,15 @@ export const fr = {
     },
   },
   sinistres: {
+    /** `Sinistre.risque` — enum: письму нужна подпись, и у web она своя. */
+    risques: {
+      [RisqueCatnat.INONDATION]: 'Inondation',
+      [RisqueCatnat.SECHERESSE]: 'Sécheresse',
+      [RisqueCatnat.MOUVEMENT_TERRAIN]: 'Mouvement de terrain',
+      [RisqueCatnat.SEISME]: 'Séisme',
+      [RisqueCatnat.AVALANCHE]: 'Avalanche',
+      [RisqueCatnat.VENTS_CYCLONIQUES]: 'Vents cycloniques',
+    },
     eventDateRequired: 'La date de l’événement est obligatoire.',
     eventDateInvalid:
       'La date de l’événement doit être une date réelle, au format AAAA-MM-JJ (par exemple 2026-06-15).',

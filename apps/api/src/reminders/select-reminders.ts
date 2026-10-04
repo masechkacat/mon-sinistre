@@ -35,6 +35,17 @@ export interface ReminderReason {
   plannedDate: IsoDate;
 }
 
+/**
+ * How far ahead the daily pass must read candidate steps — the widest
+ * threshold of either scale, since a step further away than that can be no
+ * reason today. Derived from the scales rather than written out: a threshold
+ * added to contracts must widen the query by itself.
+ */
+export const REMINDER_HORIZON_DAYS = Math.max(
+  ...REMINDER_OFFSETS_DAYS,
+  ...DECLARATION_REMINDER_OFFSETS_DAYS,
+);
+
 const scaleOf = (deadlineRuleCode: string | null): readonly number[] =>
   isDeclarationRule(deadlineRuleCode)
     ? DECLARATION_REMINDER_OFFSETS_DAYS
