@@ -10,6 +10,7 @@ import { todayInParis } from 'src/common/time/today-in-paris';
 import { seedDeadlineRules } from 'src/deadline-rules/deadline-rule.seed';
 import { dateToIsoDate } from 'src/deadline-rules/resolve-deadline';
 import { fr } from 'src/i18n/fr';
+import { AdminAlertService } from 'src/jorf/alerts/admin-alert.service';
 import { NOTIFICATION_ATTEMPTS_BEFORE_ALERT } from 'src/jorf/mail/drain-outbox';
 import { MAIL_TRANSPORT } from 'src/mail/mail-transport';
 import { PrismaService } from 'src/prisma/prisma.service';
@@ -285,6 +286,37 @@ describe('RemindersService.run (integration)', () => {
 
       expect(await stuckAlerts()).toHaveLength(1);
       expect(sentTo(ADMIN_EMAIL)).toHaveLength(1);
+    });
+
+    it('does not count a delivered mail as failed when its record cannot be written', async () => {
+      const email = await createSinistreOwner('30189');
+      jest
+        .spyOn(prisma, '$transaction')
+        .mockRejectedValueOnce(new Error('database timeout'));
+
+      await reminders.run({ now: NOW });
+
+      expect(sentTo(email)).toHaveLength(1);
+      expect(
+        (await prisma.user.findUniqueOrThrow({ where: { email } }))
+          .reminderFailures,
+      ).toBe(0);
+    });
+
+    it('finishes the pass when the stuck alert itself cannot be raised', async () => {
+      const { refused, served } = await twoOwnersOneRefused();
+      await prisma.user.update({
+        where: { email: refused },
+        data: { reminderFailures: NOTIFICATION_ATTEMPTS_BEFORE_ALERT - 1 },
+      });
+      jest
+        .spyOn(app.get(AdminAlertService), 'raise')
+        .mockRejectedValueOnce(new Error('database timeout'));
+
+      await reminders.run({ now: NOW });
+
+      expect(sentTo(served)).toHaveLength(1);
+      expect(logs.text()).toContain('run done');
     });
 
     it('logs the failure without the address (ТЗ § 7)', async () => {

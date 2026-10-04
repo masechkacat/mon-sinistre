@@ -250,23 +250,42 @@ export class RemindersService {
       ]),
     );
 
-    await this.prisma.$transaction([
-      this.prisma.reminderLog.createMany({
-        data: recipient.reasons.map((reason) => ({
-          stepId: reason.stepId,
-          kind: reason.kind,
-          // An `OVERDUE` row keeps no count (data-model.md § 6).
-          offsetDays: reason.kind === 'OVERDUE' ? null : reason.offsetDays,
-          plannedDate: isoDateToDate(reason.plannedDate),
-          sentOn: isoDateToDate(today),
-        })),
-      }),
-      this.prisma.user.updateMany({
-        where: { id: recipient.userId },
-        data: { reminderFailures: 0 },
-      }),
-    ]);
+    await this.recordSent(recipient, today);
     return true;
+  }
+
+  /**
+   * Swallows its own failure: the mail is already out, so it is no failure of
+   * the recipient's. The price is that the next pass, finding no record, sends
+   * the same reasons again.
+   */
+  private async recordSent(
+    recipient: Recipient,
+    today: IsoDate,
+  ): Promise<void> {
+    try {
+      await this.prisma.$transaction([
+        this.prisma.reminderLog.createMany({
+          data: recipient.reasons.map((reason) => ({
+            stepId: reason.stepId,
+            kind: reason.kind,
+            // An `OVERDUE` row keeps no count (data-model.md § 6).
+            offsetDays: reason.kind === 'OVERDUE' ? null : reason.offsetDays,
+            plannedDate: isoDateToDate(reason.plannedDate),
+            sentOn: isoDateToDate(today),
+          })),
+        }),
+        this.prisma.user.updateMany({
+          where: { id: recipient.userId },
+          data: { reminderFailures: 0 },
+        }),
+      ]);
+    } catch (error) {
+      this.logger.error(
+        `reminders: mail to user ${recipient.userId} sent but not recorded: ${errorSummary(error)}`,
+        stackOf(error),
+      );
+    }
   }
 
   /**
@@ -284,17 +303,24 @@ export class RemindersService {
       `reminders: mail to user ${recipient.userId} failed ${failures} times: ${errorSummary(error)}`,
       stackOf(error),
     );
-    await this.prisma.user.updateMany({
-      where: { id: recipient.userId },
-      data: { reminderFailures: failures },
-    });
-    if (failures !== NOTIFICATION_ATTEMPTS_BEFORE_ALERT) {
-      return;
+    try {
+      await this.prisma.user.updateMany({
+        where: { id: recipient.userId },
+        data: { reminderFailures: failures },
+      });
+      if (failures !== NOTIFICATION_ATTEMPTS_BEFORE_ALERT) {
+        return;
+      }
+      await this.adminAlerts.raise({
+        kind: 'NOTIFICATION_STUCK',
+        detail: `rappels: utilisateur ${recipient.userId} не отправлено после ${failures} попыток`,
+      });
+    } catch (countError) {
+      this.logger.error(
+        `reminders: failure of user ${recipient.userId} not counted: ${errorSummary(countError)}`,
+        stackOf(countError),
+      );
     }
-    await this.adminAlerts.raise({
-      kind: 'NOTIFICATION_STUCK',
-      detail: `rappels: utilisateur ${recipient.userId} не отправлено после ${failures} попыток`,
-    });
   }
 
   /**
