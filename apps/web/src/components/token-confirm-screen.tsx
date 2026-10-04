@@ -41,6 +41,7 @@ export function TokenConfirmScreen({
       <MessageScreen title={title} description={description}>
         <Button
           type="button"
+          size="touch"
           onClick={() => mutation.mutate()}
           disabled={mutation.isPending}
         >
