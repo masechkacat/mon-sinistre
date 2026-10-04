@@ -6,12 +6,10 @@ import type {
   RisqueCatnat,
   SinistreStatus,
 } from '@mon-sinistre/contracts';
-import { ConfigService } from '@nestjs/config';
 import { Cron } from '@nestjs/schedule';
 import { errorSummary, stackOf } from 'src/common/error-report';
 import { loadSuccessorMap } from 'src/communes/load-successor-map';
 import { normalizeCommuneName } from 'src/communes/normalize-commune-name';
-import type { EnvironmentVariables } from 'src/config/env.validation';
 import { DeadlineRuleService } from 'src/deadline-rules/deadline-rule.service';
 import { DECLARATION_ASSUREUR_CODE } from 'src/deadline-rules/deadline-rule.seed';
 import {
@@ -42,6 +40,7 @@ import { anchorDatesOf } from 'src/sinistres/anchor-dates';
 import { recomputeDeclarationSteps } from 'src/sinistres/recompute-declaration-steps';
 import { sinistreStatus } from 'src/sinistres/sinistre-status';
 import { generateVeilleToken } from 'src/veille/veille-token';
+import { AdminAlertService } from './alerts/admin-alert.service';
 import { DilaClient } from './dila/dila.client';
 import { classifyRisques } from './parse/classify-risques';
 import {
@@ -53,10 +52,7 @@ import {
   type OutboxAdapter,
   type PendingOutboxRow,
 } from './mail/drain-outbox';
-import {
-  type MonitorAlertForMail,
-  monitorAlertMailFor,
-} from './mail/monitor-alert-mail';
+import type { MonitorAlertForMail } from './mail/monitor-alert-mail';
 import {
   type ParsedArrete,
   type ParsedArreteEntry,
@@ -433,7 +429,7 @@ function isUnchangedEntry(
  * (docs/research/jorf-monitor.md, "Расписание прогонов"). An annexe that
  * fails to parse, a commune the referential can't match and a rectificatif
  * that flips an outcome all alert the administrator (`MonitorAlert` row plus
- * a best-effort email to `ADMIN_EMAIL`, {@link notifyAdmin}), never just a
+ * a best-effort email through {@link AdminAlertService}), never just a
  * log line.
  */
 @Injectable()
@@ -445,7 +441,7 @@ export class JorfMonitorService {
     private readonly prisma: PrismaService,
     private readonly dila: DilaClient,
     private readonly mail: MailService,
-    private readonly config: ConfigService<EnvironmentVariables, true>,
+    private readonly adminAlerts: AdminAlertService,
     private readonly deadlineRules: DeadlineRuleService,
   ) {}
 
@@ -1145,7 +1141,7 @@ export class JorfMonitorService {
           const alert = await this.prisma.monitorAlert.create({
             data: { kind: 'UNPARSEABLE_ANNEXE', detail },
           });
-          await this.notifyAdmin([alert]);
+          await this.adminAlerts.notifyAdmin([alert]);
         }
         continue;
       }
@@ -1278,7 +1274,7 @@ export class JorfMonitorService {
         },
         { timeout: INGEST_TX_TIMEOUT_MS },
       );
-      await this.notifyAdmin(alerts);
+      await this.adminAlerts.notifyAdmin(alerts);
       return;
     }
 
@@ -1429,33 +1425,6 @@ export class JorfMonitorService {
       arreteId,
       unclassifiedRisqueDetail(nor, entry.risque),
     );
-  }
-
-  /**
-   * The push channel on top of `MonitorAlert` (research, "Алерты
-   * администратору"): every row here is already committed by the caller, so
-   * a failed send costs only the notification, never the record — pending
-   * alerts stay visible in the table, and no retry is built for the mail
-   * itself. One message for all of them ({@link monitorAlertMailFor}), never
-   * one per row: an arrêté lists hundreds of communes, and a referential that
-   * resolves none of them would otherwise be hundreds of messages in a row.
-   * Unset `ADMIN_EMAIL` means a fresh clone with no admin inbox configured yet.
-   */
-  private async notifyAdmin(
-    alerts: readonly MonitorAlertForMail[],
-  ): Promise<void> {
-    const adminEmail = this.config.get('ADMIN_EMAIL', { infer: true });
-    if (!adminEmail || alerts.length === 0) {
-      return;
-    }
-    try {
-      await this.mail.send(monitorAlertMailFor(adminEmail, alerts));
-    } catch (error) {
-      this.logger.error(
-        `jorf monitor: alert email to admin failed: ${errorSummary(error)}`,
-        stackOf(error),
-      );
-    }
   }
 
   /**
@@ -1617,7 +1586,7 @@ export class JorfMonitorService {
       },
       { timeout: INGEST_TX_TIMEOUT_MS },
     );
-    await this.notifyAdmin(alerts);
+    await this.adminAlerts.notifyAdmin(alerts);
   }
 
   /** Every `Sinistre` linked to one of `entryIds`, grouped by the entry it
@@ -1905,7 +1874,7 @@ export class JorfMonitorService {
         detail: `NOR ${nor}: ${label} ${rowId} не отправлено после ${attempts} попыток`,
       },
     });
-    await this.notifyAdmin([alert]);
+    await this.adminAlerts.notifyAdmin([alert]);
   }
 
   /**
