@@ -4,7 +4,8 @@ import {
   validateEnv,
   type EnvironmentVariables,
 } from '../src/config/env.validation';
-import { DilaClient } from '../src/jorf/dila.client';
+import { DeadlineRuleService } from '../src/deadline-rules/deadline-rule.service';
+import { DilaClient } from '../src/jorf/dila/dila.client';
 import {
   JorfMonitorService,
   MAX_DELTAS_PER_RUN,
@@ -12,9 +13,9 @@ import {
 import {
   BACKFILL_MIN_PUBLISHED_AT,
   selectBackfillDeltas,
-} from '../src/jorf/select-backfill-deltas';
+} from '../src/jorf/dila/select-backfill-deltas';
 import { composerOptionsFrom, transportFor } from '../src/mail/mail.module';
-import { MailComposer } from '../src/mail/mail-composer';
+import { MailComposer } from '../src/mail/compose/mail-composer';
 import { MailService } from '../src/mail/mail.service';
 import { PrismaService } from '../src/prisma/prisma.service';
 
@@ -46,7 +47,13 @@ async function main(): Promise<void> {
     new MailComposer(composerOptionsFrom(config)),
     transportFor(config),
   );
-  const monitor = new JorfMonitorService(prisma, dila, mail, config);
+  const monitor = new JorfMonitorService(
+    prisma,
+    dila,
+    mail,
+    config,
+    new DeadlineRuleService(prisma),
+  );
 
   await prisma.$connect();
   try {

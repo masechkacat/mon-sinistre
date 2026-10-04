@@ -1,7 +1,7 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    // Покрывает и test/, который в сборку не идёт.
+    // Покрывает и test/, scripts/, prisma/seed.ts, которые в сборку не идут.
     "rootDir": "./",
     "outDir": "./dist",
     "types": ["node", "jest"],
@@ -17,6 +17,11 @@
       "test/*": ["./test/*"]
     }
   },
-  "include": ["src/**/*.ts", "test/**/*.ts"],
+  "include": [
+    "src/**/*.ts",
+    "test/**/*.ts",
+    "scripts/**/*.ts",
+    "prisma/seed.ts"
+  ],
   "exclude": ["node_modules", "dist"]
 }
