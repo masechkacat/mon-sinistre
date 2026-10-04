@@ -5,7 +5,9 @@ import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
   {
-    ignores: ['eslint.config.mjs', 'dist/**', 'src/generated/**'],
+    // Only jest/eslint plumbing is plain JS; the project itself is TS, and
+    // projectService rejects any file outside tsconfig's include.
+    ignores: ['**/*.js', '**/*.mjs', 'dist/**', 'src/generated/**'],
   },
   eslint.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,

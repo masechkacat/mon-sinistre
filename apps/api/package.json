@@ -9,8 +9,8 @@
     "start": "nest start",
     "start:dev": "nest start --watch --env-file .env",
     "start:prod": "NODE_ENV=production node dist/main",
-    "lint": "tsc --noEmit && eslint \"src/**/*.ts\" \"test/**/*.ts\" \"scripts/**/*.ts\" \"prisma/seed.ts\"",
-    "lint:fix": "eslint \"src/**/*.ts\" \"test/**/*.ts\" \"scripts/**/*.ts\" \"prisma/seed.ts\" --fix",
+    "lint": "tsc --noEmit && eslint .",
+    "lint:fix": "eslint . --fix",
     "test": "NODE_OPTIONS=--experimental-vm-modules jest --passWithNoTests",
     "test:int": "NODE_OPTIONS=--experimental-vm-modules jest --config jest.int.config.js --passWithNoTests",
     "test:watch": "npm test -- --watch",
@@ -18,7 +18,8 @@
     "prisma:generate": "prisma generate",
     "migration:dev": "prisma migrate dev",
     "migration:deploy": "prisma migrate deploy",
-    "seed": "prisma db seed"
+    "seed": "prisma db seed",
+    "backfill:jorf": "ts-node -r tsconfig-paths/register scripts/jorf-backfill.ts"
   },
   "dependencies": {
     "@fastify/cookie": "^11.1.2",

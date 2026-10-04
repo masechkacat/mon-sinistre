@@ -9,6 +9,7 @@
     "test",
     "scripts",
     "prisma",
+    "prisma.config.ts",
     "**/*.spec.ts"
   ]
 }
