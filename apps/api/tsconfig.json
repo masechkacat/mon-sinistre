@@ -1,10 +1,10 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    // rootDir лежит в tsconfig.build.json: этот конфиг покрывает и test/,
-    // который в сборку не идёт.
+    // Покрывает и test/, который в сборку не идёт.
+    "rootDir": "./",
     "outDir": "./dist",
-    "baseUrl": "./",
+    "types": ["node", "jest"],
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
     "strictPropertyInitialization": false,
@@ -13,8 +13,8 @@
     // The workspace symlink resolves it to packages/contracts/dist instead,
     // which is why build:contracts has to run first.
     "paths": {
-      "src/*": ["src/*"],
-      "test/*": ["test/*"]
+      "src/*": ["./src/*"],
+      "test/*": ["./test/*"]
     }
   },
   "include": ["src/**/*.ts", "test/**/*.ts"],

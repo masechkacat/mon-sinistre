@@ -67,10 +67,8 @@ describe('VeilleNotification schema (integration)', () => {
       data: { veilleId: veille.id, arreteId: arrete.id },
     });
 
-    // Driver adapter renumbers the RESTRICT violation to P2039, not the
-    // classic P2003 — apps/api/src/veille/veille-schema.int-spec.ts.
     await expect(
       prisma.arrete.delete({ where: { id: arrete.id } }),
-    ).rejects.toMatchObject({ code: 'P2039' });
+    ).rejects.toMatchObject({ code: 'P2003' });
   });
 });

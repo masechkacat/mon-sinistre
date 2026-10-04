@@ -6,8 +6,12 @@ datasource db {
 // Генератор Prisma 7 "prisma-client" эмитит TypeScript в src/generated/prisma
 // (вне node_modules); папка в .gitignore, перегенерация — npm run prisma:generate.
 generator client {
-  provider = "prisma-client"
-  output   = "../src/generated/prisma"
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  // Bare relative imports: with moduleResolution nodenext the generator would
+  // infer `.js` extensions, which tsc resolves to the .ts sources but jest's
+  // resolver does not.
+  importFileExtension = ""
 }
 
 // Справочник коммун на основе COG (docs/research/data-model.md § 3):

@@ -74,11 +74,9 @@ describe('Veille / VeilleCommune schema (integration)', () => {
       },
     });
 
-    // Prisma 7's driver adapter wraps the raw Postgres error (SQLSTATE 23001,
-    // RESTRICT violation) as P2039 rather than the classic P2003.
     await expect(
       prisma.commune.delete({ where: { codeInsee: commune.codeInsee } }),
-    ).rejects.toMatchObject({ code: 'P2039' });
+    ).rejects.toMatchObject({ code: 'P2003' });
   });
 
   it('rejects a second VeilleChange for the same subscription via the unique index', async () => {

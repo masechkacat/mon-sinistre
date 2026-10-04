@@ -19,6 +19,7 @@ import { RecordingTransport } from 'test/helpers/mail-transport';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { AUTH_MAIL_RATE_LIMIT } from 'src/auth/auth.controller';
 import { createUser } from 'test/helpers/session';
+import { resetThrottler } from 'test/helpers/throttler';
 
 describe('POST /auth/register (integration)', () => {
   let app: NestFastifyApplication;
@@ -50,7 +51,7 @@ describe('POST /auth/register (integration)', () => {
     // Every spec below but the rate-limit one submits the form more often
     // than a person would: `AUTH_MAIL_RATE_LIMIT` counts per IP, and the
     // whole file shares one.
-    throttler.storage.clear();
+    resetThrottler(throttler);
     await prisma.$executeRaw`TRUNCATE TABLE "User", "AccountFormEmail" CASCADE`;
   });
 

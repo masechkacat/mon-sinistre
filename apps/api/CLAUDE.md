@@ -5,7 +5,7 @@
 
 ## Стек
 
-NestJS 11 на **Fastify**, не Express: плагины через `app.register` (`src/main.ts`).
+NestJS 12 на **Fastify**, не Express: плагины через `app.register` (`src/main.ts`).
 
 ## Команды
 

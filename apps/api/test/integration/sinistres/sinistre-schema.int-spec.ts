@@ -97,11 +97,9 @@ describe('Sinistre / Step / StepTemplate schema (integration)', () => {
       },
     });
 
-    // Driver adapter renumbers the RESTRICT violation to P2039, not the
-    // classic P2003 — apps/api/src/veille/veille-schema.int-spec.ts.
     await expect(
       prisma.deadlineRule.delete({ where: { id: rule.id } }),
-    ).rejects.toMatchObject({ code: 'P2039' });
+    ).rejects.toMatchObject({ code: 'P2003' });
   });
 
   it('restricts deletion of an ArreteEntry referenced by a Sinistre', async () => {
@@ -127,7 +125,7 @@ describe('Sinistre / Step / StepTemplate schema (integration)', () => {
 
     await expect(
       prisma.arreteEntry.delete({ where: { id: entry.id } }),
-    ).rejects.toMatchObject({ code: 'P2039' });
+    ).rejects.toMatchObject({ code: 'P2003' });
   });
 
   it('rejects a duplicate (planKey, order) via the unique index', async () => {

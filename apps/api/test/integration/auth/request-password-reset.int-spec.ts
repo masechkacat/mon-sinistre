@@ -13,6 +13,7 @@ import { MAIL_TRANSPORT } from 'src/mail/mail-transport';
 import { RecordingTransport } from 'test/helpers/mail-transport';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { createUser as createUserIn } from 'test/helpers/session';
+import { resetThrottler } from 'test/helpers/throttler';
 
 describe('POST /auth/password-reset (integration)', () => {
   let app: NestFastifyApplication;
@@ -46,7 +47,7 @@ describe('POST /auth/password-reset (integration)', () => {
     transport.sent.length = 0;
     // The file shares one IP across more submissions than a person would
     // make — why: `register.int-spec.ts`, same reason.
-    throttler.storage.clear();
+    resetThrottler(throttler);
     await prisma.$executeRaw`TRUNCATE TABLE "User", "PasswordReset", "AccountFormEmail" CASCADE`;
   });
 
