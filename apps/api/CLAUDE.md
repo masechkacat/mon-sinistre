@@ -43,7 +43,7 @@ CNIL, bcrypt, JWT-сессии с ротацией, глобальный guard, 
 | Задача                                     | Только через                                                     |
 | ------------------------------------------ | ---------------------------------------------------------------- |
 | отправка письма                            | `MailService.send()` (`src/mail/`)                               |
-| письмо администратору о `MonitorAlert`     | `AdminAlertService.notifyAdmin` (`src/jorf/alerts/`)             |
+| алерт `MonitorAlert` и письмо о нём        | `AdminAlertService` (`src/jorf/alerts/`)                         |
 | экранирование LIKE                         | `escapeLikePattern` (`src/prisma/`)                              |
 | нормализация названия (коммуна, phénomène) | `normalizeCommuneName` (`src/communes/`)                         |
 | выборка коммуны в ответ                    | `communeFields` (`src/communes/`)                                |

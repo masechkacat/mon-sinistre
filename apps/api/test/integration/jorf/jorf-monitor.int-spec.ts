@@ -19,6 +19,7 @@ import {
   DILA_JORFSIMPLE_BASE_URL,
   DilaClient,
 } from 'src/jorf/dila/dila.client';
+import { withAdminEmail } from 'test/helpers/admin-email';
 import { buildTarball } from 'test/helpers/build-tarball';
 import { jorfFixture } from 'test/fixtures/jorf';
 import {
@@ -1060,8 +1061,7 @@ describe('JorfMonitorService.run (integration)', () => {
 });
 
 describe('admin alert email (issue #102)', () => {
-  const ADMIN_EMAIL = 'admin@mon-sinistre.test';
-  const originalAdminEmail = process.env.ADMIN_EMAIL;
+  const ADMIN_EMAIL = withAdminEmail();
 
   let app: NestFastifyApplication;
   let prisma: PrismaService;
@@ -1070,9 +1070,6 @@ describe('admin alert email (issue #102)', () => {
   let currentFetch: FetchFn;
 
   beforeAll(async () => {
-    // Read by ConfigModule when the app below compiles — this describe's own
-    // app, never the one of the outer suite, which boots without it.
-    process.env.ADMIN_EMAIL = ADMIN_EMAIL;
     transport = new RecordingTransport();
     app = await createIntTestApp({
       customize: (builder) =>
@@ -1088,11 +1085,6 @@ describe('admin alert email (issue #102)', () => {
 
   afterAll(async () => {
     await app.close();
-    if (originalAdminEmail === undefined) {
-      delete process.env.ADMIN_EMAIL;
-    } else {
-      process.env.ADMIN_EMAIL = originalAdminEmail;
-    }
   });
 
   beforeEach(async () => {
@@ -2504,7 +2496,9 @@ describe('a rectificatif links newly-matching sinistres (issue #164)', () => {
     ).toBe(resolveDeadline(toIsoDate('2026-06-25'), rule.duration, rule.unit));
     const stored = await prisma.sinistre.findUniqueOrThrow({
       where: { id: sinistre.id },
-      select: { arreteEntry: { select: { arrete: { select: { nor: true } } } } },
+      select: {
+        arreteEntry: { select: { arrete: { select: { nor: true } } } },
+      },
     });
     expect(stored.arreteEntry?.arrete.nor).toBe(EARLIER_NOR);
     // The winning line is not one the rectificatif touched, so the letter is

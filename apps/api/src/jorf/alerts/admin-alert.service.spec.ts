@@ -3,13 +3,11 @@ import type { MonitorAlertForMail } from 'src/jorf/mail/monitor-alert-mail';
 import { MailComposer } from 'src/mail/compose/mail-composer';
 import { composerOptionsFrom } from 'src/mail/mail.module';
 import { MailService } from 'src/mail/mail.service';
+import { PrismaService } from 'src/prisma/prisma.service';
+import { ADMIN_EMAIL } from 'test/helpers/admin-email';
 import { configFor } from 'test/helpers/config';
 import { captureLogs } from 'test/helpers/mail-log';
 import { RecordingTransport } from 'test/helpers/mail-transport';
-
-// Deliberately not `admin@…`: `expectNoTraceOf` also looks for the local part
-// alone, and "admin" occurs in this file's own path and in the log line below.
-const ADMIN_EMAIL = 'supervision@mon-sinistre.test';
 
 const ALERTS: readonly MonitorAlertForMail[] = [
   {
@@ -22,14 +20,17 @@ const logs = captureLogs();
 
 describe('AdminAlertService', () => {
   let transport: RecordingTransport;
+  let create: jest.Mock;
 
   beforeEach(() => {
     transport = new RecordingTransport();
+    create = jest.fn().mockResolvedValue(ALERTS[0]);
   });
 
   const serviceWith = (adminEmail: string | undefined): AdminAlertService => {
     const config = configFor({ ADMIN_EMAIL: adminEmail });
     return new AdminAlertService(
+      { monitorAlert: { create } } as unknown as PrismaService,
       new MailService(new MailComposer(composerOptionsFrom(config)), transport),
       config,
     );
@@ -46,6 +47,16 @@ describe('AdminAlertService', () => {
     await serviceWith(ADMIN_EMAIL).notifyAdmin([]);
 
     expect(transport.sent).toHaveLength(0);
+  });
+
+  it('commits a single alert and mails it in one call', async () => {
+    await serviceWith(ADMIN_EMAIL).raise({
+      kind: 'NOTIFICATION_STUCK',
+      detail: 'rappels: utilisateur 42 не отправлено после 4 попыток',
+    });
+
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(transport.sent).toHaveLength(1);
   });
 
   it('logs a failed send instead of letting it reach the caller', async () => {

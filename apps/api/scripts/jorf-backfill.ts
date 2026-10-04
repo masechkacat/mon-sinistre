@@ -46,7 +46,7 @@ async function main(): Promise<void> {
     prisma,
     dila,
     mail,
-    new AdminAlertService(mail, config),
+    new AdminAlertService(prisma, mail, config),
     new DeadlineRuleService(prisma),
   );
 

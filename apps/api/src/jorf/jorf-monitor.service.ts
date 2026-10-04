@@ -1867,14 +1867,11 @@ export class JorfMonitorService {
     attempts: number,
   ): Promise<void> {
     const nor = norByArrete.get(arreteId) ?? arreteId;
-    const alert = await this.prisma.monitorAlert.create({
-      data: {
-        kind: 'NOTIFICATION_STUCK',
-        arreteId,
-        detail: `NOR ${nor}: ${label} ${rowId} не отправлено после ${attempts} попыток`,
-      },
+    await this.adminAlerts.raise({
+      kind: 'NOTIFICATION_STUCK',
+      arreteId,
+      detail: `NOR ${nor}: ${label} ${rowId} не отправлено после ${attempts} попыток`,
     });
-    await this.adminAlerts.notifyAdmin([alert]);
   }
 
   /**
