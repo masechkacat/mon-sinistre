@@ -5,7 +5,10 @@ import {
   type IsoDate,
 } from '@mon-sinistre/contracts';
 import { toSourceReference } from 'src/common/source-reference';
-import { isDeclarationRule } from 'src/deadline-rules/deadline-rule.seed';
+import {
+  isDeclarationRule,
+  isInsurerRule,
+} from 'src/deadline-rules/deadline-rule.seed';
 import { fr } from 'src/i18n/fr';
 import { formatFrenchDate } from 'src/jorf/parse/french-date';
 import type { ComposeMailInput, MailBlock } from 'src/mail/mail-message';
@@ -59,10 +62,7 @@ export const reminderMailFor = (
 
   return {
     to,
-    subject:
-      declarationDays.length > 0
-        ? strings.subject.declaration(String(Math.min(...declarationDays)))
-        : strings.subject.nextSteps,
+    subject: subjectFor(declarationDays),
     reason: strings.reason,
     unsubscribePath: reminderUnsubscribePathFor(unsubscribeToken),
     blocks: sinistres.flatMap((sinistre) => sinistreBlocks(sinistre, today)),
@@ -71,6 +71,20 @@ export const reminderMailFor = (
 
 const isDeclaration = (step: ReminderStepForMail): boolean =>
   isDeclarationRule(step.deadlineRuleCode);
+
+/** The subject counts the nearest déclaration deadline the person can still
+ * meet, and falls back to the expired one only when none is left: a lost
+ * deadline in one dossier must not hide the days left in another. */
+const subjectFor = (declarationDays: readonly number[]): string => {
+  const strings = fr.mail.reminders.subject;
+  const open = declarationDays.filter((days) => days >= 0);
+  if (open.length > 0) {
+    return strings.declaration(String(Math.min(...open)));
+  }
+  return declarationDays.length > 0
+    ? strings.declarationOverdue
+    : strings.nextSteps;
+};
 
 const sinistreBlocks = (
   sinistre: ReminderSinistreForMail,
@@ -108,15 +122,24 @@ const sinistreBlocks = (
   return blocks;
 };
 
-const stepLine = (step: ReminderStepForMail): string => {
-  const strings = fr.mail.reminders;
-  return strings.stepLine(
+const stepLine = (step: ReminderStepForMail): string =>
+  fr.mail.reminders.stepLine(
     step.name,
     formatFrenchDate(step.plannedDate),
-    step.remainingDays === 0
-      ? strings.lastDay
-      : strings.inDays(String(step.remainingDays)),
+    delayOf(step),
   );
+
+const delayOf = (step: ReminderStepForMail): string => {
+  const strings = fr.mail.reminders;
+  if (step.remainingDays < 0) {
+    const late = String(-step.remainingDays);
+    return isInsurerRule(step.deadlineRuleCode)
+      ? strings.overdueInsurer(late)
+      : strings.overdue(late);
+  }
+  return step.remainingDays === 0
+    ? strings.lastDay
+    : strings.inDays(String(step.remainingDays));
 };
 
 const declarationBlocks = (
@@ -124,13 +147,14 @@ const declarationBlocks = (
   today: IsoDate,
 ): MailBlock[] => {
   const strings = fr.mail.reminders.declaration;
+  const date = formatFrenchDate(step.plannedDate);
   const blocks: MailBlock[] = [
     {
       kind: 'paragraph',
-      text: strings.remaining(
-        String(step.remainingDays),
-        formatFrenchDate(step.plannedDate),
-      ),
+      text:
+        step.remainingDays < 0
+          ? strings.overdue(date)
+          : strings.remaining(String(step.remainingDays), date),
     },
   ];
 

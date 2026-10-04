@@ -1,5 +1,6 @@
 import { ScheduleModule, SchedulerRegistry } from '@nestjs/schedule';
 import { Test, type TestingModule } from '@nestjs/testing';
+import { AdminAlertService } from 'src/jorf/alerts/admin-alert.service';
 import { MailService } from 'src/mail/mail.service';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { REMINDERS_CRON, RemindersService } from './reminders.service';
@@ -20,6 +21,7 @@ describe('RemindersService schedule', () => {
         RemindersService,
         { provide: PrismaService, useValue: { step: { findMany } } },
         { provide: MailService, useValue: {} },
+        { provide: AdminAlertService, useValue: {} },
       ],
     }).compile();
     await moduleRef.init();

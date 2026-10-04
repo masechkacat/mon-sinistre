@@ -11,9 +11,14 @@ import { RisqueCatnat } from '@mon-sinistre/contracts';
 const ARRETE_CATNAT =
   'l’arrêté de catastrophe naturelle (la décision de l’État qui permet à votre assurance d’indemniser les dégâts)';
 
-// Shared by the reminder subject line and its déclaration paragraph below.
-const ilVousReste = (days: string): string =>
-  days === '1' ? 'Il vous reste 1 jour' : `Il vous reste ${days} jours`;
+// The one place the plural of "jour" is decided; the reminder phrases below
+// are built from it.
+const jours = (days: string): string =>
+  days === '1' ? '1 jour' : `${days} jours`;
+
+const ilVousReste = (days: string): string => `Il vous reste ${jours(days)}`;
+
+const enRetardDe = (days: string): string => `en retard de ${jours(days)}`;
 
 /** French elides "que" before a vowel or a mute h: "parce qu’il", not "parce que il". */
 const because = (reason: string): string =>
@@ -229,20 +234,25 @@ export const fr = {
           days === '0'
             ? 'Dernier jour pour déclarer votre sinistre'
             : `${ilVousReste(days)} pour déclarer votre sinistre`,
+        declarationOverdue: 'Déclaration de sinistre — le délai est dépassé',
       },
       sinistreIntro: (commune: string, risque: string, eventDate: string) =>
         `Dossier de ${commune} — ${risque}, événement du ${eventDate}.`,
       stepLine: (name: string, date: string, delay: string) =>
         `${name} — ${date} — ${delay}.`,
-      inDays: (days: string) =>
-        days === '1' ? 'dans 1 jour' : `dans ${days} jours`,
+      inDays: (days: string) => `dans ${jours(days)}`,
       lastDay: 'dernier jour',
+      overdue: enRetardDe,
+      overdueInsurer: (days: string) =>
+        `${enRetardDe(days)} — il est utile de relancer votre assureur`,
       sinistreLink: 'Voir ce dossier',
       declaration: {
         remaining: (days: string, date: string) =>
           days === '0'
             ? `C’est aujourd’hui, ${date}, le dernier jour pour déclarer ce sinistre à votre assurance.`
             : `${ilVousReste(days)} pour déclarer ce sinistre à votre assurance, au plus tard le ${date}.`,
+        overdue: (date: string) =>
+          `Le délai pour déclarer ce sinistre à votre assurance est dépassé — il expirait le ${date}. Contactez votre assureur sans attendre.`,
         verifiedAt: (date: string) =>
           `Délai vérifié le ${date}. Date indicative, à vérifier avec votre contrat et votre assurance.`,
         outdated: (months: string) =>

@@ -1,4 +1,9 @@
-import { toIsoDate, type IsoDate } from '@mon-sinistre/contracts';
+import {
+  OVERDUE_REMINDER_INTERVAL_DAYS,
+  OVERDUE_REMINDER_MAX_COUNT,
+  toIsoDate,
+  type IsoDate,
+} from '@mon-sinistre/contracts';
 import { DECLARATION_ASSUREUR_CODE } from 'src/deadline-rules/deadline-rule.seed';
 import { resolveDeadline } from 'src/deadline-rules/resolve-deadline';
 import {
@@ -33,6 +38,16 @@ const scaleLog = (
   sentOn: resolveDeadline(plannedDate, -offsetDays, 'DAYS'),
 });
 
+const overdueLog = (
+  plannedDate: IsoDate,
+  sentOn: IsoDate,
+): ReminderCandidateLog => ({
+  kind: 'OVERDUE',
+  offsetDays: null,
+  plannedDate,
+  sentOn,
+});
+
 /**
  * Replays one step through daily runs, each at the given remaining days, and
  * returns the remaining days a mail went out at — appending the `ReminderLog`
@@ -53,7 +68,11 @@ function sentOffsetsOver(
       today,
     )) {
       sent.push(reason.offsetDays);
-      logs.push(scaleLog(reason.offsetDays, plannedDate));
+      logs.push(
+        reason.kind === 'SCALE'
+          ? scaleLog(reason.offsetDays, plannedDate)
+          : overdueLog(plannedDate, today),
+      );
     }
   }
 
@@ -126,8 +145,83 @@ describe('selectReminders — SCALE', () => {
       { stepId: 'step-1', kind: 'SCALE', offsetDays: 0, plannedDate: TODAY },
     ]);
   });
+});
 
-  it('gives no scale reason once the planned date has passed', () => {
-    expect(selectReminders([stepOn(inDays(-1))], TODAY)).toEqual([]);
+describe('selectReminders — OVERDUE', () => {
+  it('reminds on the first pass after the date, however long it has passed', () => {
+    const reasons = selectReminders(
+      [
+        stepOn(inDays(-1), { id: 'yesterday' }),
+        stepOn(inDays(-10), { id: 'overdue-before-the-dossier' }),
+      ],
+      TODAY,
+    );
+
+    expect(reasons).toEqual([
+      {
+        stepId: 'yesterday',
+        kind: 'OVERDUE',
+        offsetDays: -1,
+        plannedDate: inDays(-1),
+      },
+      {
+        stepId: 'overdue-before-the-dossier',
+        kind: 'OVERDUE',
+        offsetDays: -10,
+        plannedDate: inDays(-10),
+      },
+    ]);
+  });
+
+  it('waits out the interval between two mails about the same step', () => {
+    expect(
+      sentOffsetsOver([-1, -4, -1 - OVERDUE_REMINDER_INTERVAL_DAYS]),
+    ).toEqual([-1, -8]);
+  });
+
+  it('sends no more than the limit, whatever the number of passes', () => {
+    const weekly = Array.from(
+      { length: OVERDUE_REMINDER_MAX_COUNT + 1 },
+      (_, pass) => -1 - pass * OVERDUE_REMINDER_INTERVAL_DAYS,
+    );
+
+    expect(sentOffsetsOver(weekly)).toEqual(
+      weekly.slice(0, OVERDUE_REMINDER_MAX_COUNT),
+    );
+  });
+
+  /** The limit of mails, all spent on a date the step no longer carries, the
+   * last of them a week ago. */
+  const spentOnAnotherDate = (): ReminderCandidateLog[] =>
+    Array.from({ length: OVERDUE_REMINDER_MAX_COUNT }, (_, pass) =>
+      overdueLog(
+        inDays(-40),
+        resolveDeadline(
+          TODAY,
+          -(pass + 1) * OVERDUE_REMINDER_INTERVAL_DAYS,
+          'DAYS',
+        ),
+      ),
+    );
+
+  it('opens a new series when the planned date moves — the spent logs are another date’s', () => {
+    const movedTo = inDays(-2);
+
+    expect(
+      selectReminders([stepOn(movedTo, { logs: spentOnAnotherDate() })], TODAY),
+    ).toEqual([
+      {
+        stepId: 'step-1',
+        kind: 'OVERDUE',
+        offsetDays: -2,
+        plannedDate: movedTo,
+      },
+    ]);
+  });
+
+  it('gives no second overdue reason the same day, even once the date has moved', () => {
+    const logs = [...spentOnAnotherDate(), overdueLog(inDays(-9), TODAY)];
+
+    expect(selectReminders([stepOn(inDays(-2), { logs })], TODAY)).toEqual([]);
   });
 });

@@ -11,6 +11,8 @@ import {
 } from 'src/deadline-rules/resolve-deadline';
 import type { Prisma } from 'src/generated/prisma/client';
 import { fr } from 'src/i18n/fr';
+import { AdminAlertService } from 'src/jorf/alerts/admin-alert.service';
+import { NOTIFICATION_ATTEMPTS_BEFORE_ALERT } from 'src/jorf/mail/drain-outbox';
 import { MailService } from 'src/mail/mail.service';
 import { PrismaService } from 'src/prisma/prisma.service';
 import {
@@ -54,7 +56,7 @@ const CANDIDATE_SELECT = {
       eventDate: true,
       risque: true,
       commune: { select: { name: true, departementName: true } },
-      user: { select: { id: true, email: true } },
+      user: { select: { id: true, email: true, reminderFailures: true } },
     },
   },
 } satisfies Prisma.StepSelect;
@@ -72,6 +74,7 @@ type MailDossier = Omit<ReminderSinistreForMail, 'steps'> & {
 type Recipient = {
   userId: string;
   email: string;
+  failures: number;
   reasons: ReminderReason[];
   sinistres: Map<string, MailDossier>;
 };
@@ -120,6 +123,7 @@ export class RemindersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly mail: MailService,
+    private readonly adminAlerts: AdminAlertService,
   ) {}
 
   /**
@@ -169,13 +173,19 @@ export class RemindersService {
     );
 
     let mails = 0;
+    let failed = 0;
     for (const recipient of recipients.values()) {
-      if (await this.mailOne(recipient, today)) {
-        mails += 1;
+      try {
+        if (await this.mailOne(recipient, today)) {
+          mails += 1;
+        }
+      } catch (error) {
+        failed += 1;
+        await this.countFailure(recipient, error);
       }
     }
     this.logger.log(
-      `reminders: run done — users=${recipients.size} mails=${mails}`,
+      `reminders: run done — users=${recipients.size} mails=${mails} failed=${failed}`,
     );
   }
 
@@ -196,6 +206,7 @@ export class RemindersService {
       const recipient: Recipient = recipients.get(user.id) ?? {
         userId: user.id,
         email: user.email,
+        failures: user.reminderFailures,
         reasons: [],
         sinistres: new Map(),
       };
@@ -239,16 +250,77 @@ export class RemindersService {
       ]),
     );
 
-    await this.prisma.reminderLog.createMany({
-      data: recipient.reasons.map((reason) => ({
-        stepId: reason.stepId,
-        kind: reason.kind,
-        offsetDays: reason.offsetDays,
-        plannedDate: isoDateToDate(reason.plannedDate),
-        sentOn: isoDateToDate(today),
-      })),
-    });
+    await this.recordSent(recipient, today);
     return true;
+  }
+
+  /**
+   * Swallows its own failure: the mail is already out, so it is no failure of
+   * the recipient's. The price is that the next pass, finding no record, sends
+   * the same reasons again.
+   */
+  private async recordSent(
+    recipient: Recipient,
+    today: IsoDate,
+  ): Promise<void> {
+    try {
+      await this.prisma.$transaction([
+        this.prisma.reminderLog.createMany({
+          data: recipient.reasons.map((reason) => ({
+            stepId: reason.stepId,
+            kind: reason.kind,
+            // An `OVERDUE` row keeps no count (data-model.md § 6).
+            offsetDays: reason.kind === 'OVERDUE' ? null : reason.offsetDays,
+            plannedDate: isoDateToDate(reason.plannedDate),
+            sentOn: isoDateToDate(today),
+          })),
+        }),
+        this.prisma.user.updateMany({
+          where: { id: recipient.userId },
+          data: { reminderFailures: 0 },
+        }),
+      ]);
+    } catch (error) {
+      this.logger.error(
+        `reminders: mail to user ${recipient.userId} sent but not recorded: ${errorSummary(error)}`,
+        stackOf(error),
+      );
+    }
+  }
+
+  /**
+   * One recipient's failure, kept to that recipient (ТЗ § 6) — why a pass that
+   * records nothing is already the retry: research, «Прогон». Equality and not
+   * `>=`: the alert belongs to the pass that crosses the threshold, and every
+   * later failure of the same person stays silent.
+   */
+  private async countFailure(
+    recipient: Recipient,
+    error: unknown,
+  ): Promise<void> {
+    const failures = recipient.failures + 1;
+    this.logger.error(
+      `reminders: mail to user ${recipient.userId} failed ${failures} times: ${errorSummary(error)}`,
+      stackOf(error),
+    );
+    try {
+      await this.prisma.user.updateMany({
+        where: { id: recipient.userId },
+        data: { reminderFailures: failures },
+      });
+      if (failures !== NOTIFICATION_ATTEMPTS_BEFORE_ALERT) {
+        return;
+      }
+      await this.adminAlerts.raise({
+        kind: 'NOTIFICATION_STUCK',
+        detail: `rappels: utilisateur ${recipient.userId} не отправлено после ${failures} попыток`,
+      });
+    } catch (countError) {
+      this.logger.error(
+        `reminders: failure of user ${recipient.userId} not counted: ${errorSummary(countError)}`,
+        stackOf(countError),
+      );
+    }
   }
 
   /**

@@ -1,5 +1,7 @@
 import {
   DECLARATION_REMINDER_OFFSETS_DAYS,
+  OVERDUE_REMINDER_INTERVAL_DAYS,
+  OVERDUE_REMINDER_MAX_COUNT,
   REMINDER_OFFSETS_DAYS,
   type IsoDate,
 } from '@mon-sinistre/contracts';
@@ -27,7 +29,8 @@ export interface ReminderCandidateStep {
   logs: readonly ReminderCandidateLog[];
 }
 
-/** One step worth a line in today's mail; `offsetDays` is the remaining days. */
+/** One step worth a line in today's mail; `offsetDays` is the remaining days,
+ * negative once the date has passed (`OVERDUE`). */
 export interface ReminderReason {
   stepId: string;
   kind: ReminderKind;
@@ -78,6 +81,42 @@ function scaleReason(
     : null;
 }
 
+function overdueReason(
+  step: ReminderCandidateStep,
+  plannedDate: IsoDate,
+  today: IsoDate,
+): ReminderReason | null {
+  const overdue = step.logs.filter((log) => log.kind === 'OVERDUE');
+  // Without this, a step whose `plannedDate` moved today would open a new
+  // series the same day, and `unique(stepId, sentOn)` of the log would reject
+  // the write once the mail had already gone out.
+  if (overdue.some((log) => log.sentOn === today)) {
+    return null;
+  }
+
+  const sentOn = overdue.flatMap((log) =>
+    log.plannedDate === plannedDate ? [log.sentOn] : [],
+  );
+  if (sentOn.length >= OVERDUE_REMINDER_MAX_COUNT) {
+    return null;
+  }
+
+  const lastSentOn = sentOn.sort().at(-1);
+  if (
+    lastSentOn !== undefined &&
+    daysBetween(lastSentOn, today) < OVERDUE_REMINDER_INTERVAL_DAYS
+  ) {
+    return null;
+  }
+
+  return {
+    stepId: step.id,
+    kind: 'OVERDUE',
+    offsetDays: daysBetween(today, plannedDate),
+    plannedDate,
+  };
+}
+
 /**
  * Picks the steps worth a reminder today — pure, over the thresholds of
  * docs/research/sinistre-reminders.md, "Отбор поводов".
@@ -90,14 +129,13 @@ export function selectReminders(
 
   for (const step of candidates) {
     const plannedDate = step.plannedDate;
-    if (
-      plannedDate === null ||
-      step.persistedStatus !== null ||
-      plannedDate < today
-    ) {
+    if (plannedDate === null || step.persistedStatus !== null) {
       continue;
     }
-    const reason = scaleReason(step, plannedDate, today);
+    const reason =
+      plannedDate < today
+        ? overdueReason(step, plannedDate, today)
+        : scaleReason(step, plannedDate, today);
     if (reason !== null) {
       reasons.push(reason);
     }

@@ -5,6 +5,7 @@ import {
   type EnvironmentVariables,
 } from '../src/config/env.validation';
 import { DeadlineRuleService } from '../src/deadline-rules/deadline-rule.service';
+import { AdminAlertService } from '../src/jorf/alerts/admin-alert.service';
 import { DilaClient } from '../src/jorf/dila/dila.client';
 import {
   JorfMonitorService,
@@ -45,7 +46,7 @@ async function main(): Promise<void> {
     prisma,
     dila,
     mail,
-    config,
+    new AdminAlertService(prisma, mail, config),
     new DeadlineRuleService(prisma),
   );
 

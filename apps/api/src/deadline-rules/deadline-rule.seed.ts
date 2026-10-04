@@ -22,6 +22,20 @@ export const PROPOSITION_INDEMNISATION_CODE = 'PROPOSITION_INDEMNISATION';
 export const REPARATION_MISSIONNEE_CODE = 'REPARATION_MISSIONNEE';
 export const VERSEMENT_INDEMNITE_CODE = 'VERSEMENT_INDEMNITE';
 
+/** Those same five as a set: the délai they carry binds the insurer, not the
+ * person — a property of the rule, which the reminder mail asks before it
+ * suggests a relance instead of an action. */
+export const INSURER_RULE_CODES: readonly string[] = [
+  INFORMATION_ASSUREUR_CODE,
+  PROVISION_INDEMNITE_CODE,
+  PROPOSITION_INDEMNISATION_CODE,
+  REPARATION_MISSIONNEE_CODE,
+  VERSEMENT_INDEMNITE_CODE,
+];
+
+export const isInsurerRule = (code: string | null | undefined): boolean =>
+  code != null && INSURER_RULE_CODES.includes(code);
+
 const ARTICLE_L125_2_URL =
   'https://www.legifrance.gouv.fr/codes/article_lc/LEGIARTI000006792617/';
 
