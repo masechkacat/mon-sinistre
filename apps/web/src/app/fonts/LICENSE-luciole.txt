@@ -1,0 +1,10 @@
+Luciole — police de caractères conçue pour les personnes malvoyantes.
+Version 2.001. © Laurent Bourcellier & Jonathan Perez, 2019.
+Source : https://www.luciole-vision.com/ (archive Luciole_webfonts.zip,
+téléchargée le 04.10.2026).
+
+Licence : Creative Commons Attribution 4.0 International (CC BY 4.0)
+https://creativecommons.org/licenses/by/4.0/legalcode
+
+L'attribution exigée par la licence est publiée dans les mentions légales
+du site (section « Crédits »).
