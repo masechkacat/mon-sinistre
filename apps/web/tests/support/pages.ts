@@ -1,5 +1,6 @@
 import type { Route } from 'next';
 import { expect, type Page } from '@playwright/test';
+import { REMINDER_UNSUBSCRIBE_PATH } from '@mon-sinistre/contracts';
 import { legalPages } from '../../src/lib/legal-pages';
 import { fr } from '../../src/i18n/fr';
 import { testApiBaseUrl } from './env';
@@ -48,6 +49,11 @@ export const veilleConfirmation = {
 // the button click, never on load — nothing to intercept for a plain visit.
 export const veilleDesinscriptionConfirmer = {
   path: '/veille/desinscription/confirmer?token=invalide' as Route,
+  status: 200,
+} as const;
+// The other screen of the same component — no mockApi for the reason above.
+export const rappelsDesinscriptionConfirmer = {
+  path: `${REMINDER_UNSUBSCRIBE_PATH}/confirmer?token=invalide` as Route,
   status: 200,
 } as const;
 // Same rationale as veilleConfirmation above: the status GET fires on load,
@@ -112,6 +118,7 @@ export const pages = [
   veille,
   veilleConfirmation,
   veilleDesinscriptionConfirmer,
+  rappelsDesinscriptionConfirmer,
   veilleChange,
   inscription,
   confirmation,

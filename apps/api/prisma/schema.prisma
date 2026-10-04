@@ -65,14 +65,22 @@ model User {
   createdAt                    DateTime        @default(now()) @db.Timestamptz(6)
   // null = напоминания по шагам включены (умолчание продукта)
   remindersDisabledAt          DateTime?       @db.Timestamptz(6)
-  // null, пока ни одно письмо-напоминание не ушло: токен чеканится отправкой
-  // и ротируется на каждой — docs/research/sinistre-reminders.md, «Токен выключения».
-  reminderUnsubscribeTokenHash String?         @unique
   // Сбоев подряд: успешная отправка возвращает счётчик в 0.
   reminderFailures             Int             @default(0)
+  reminderUnsubscribeTokens    ReminderUnsubscribeToken[]
   refreshTokens                RefreshToken[]
   passwordResets               PasswordReset[]
   sinistres                    Sinistre[]
+}
+
+// Токен ссылки выключения из письма-напоминания: свой у каждого письма, и
+// действуют все, а не только последний — data-model.md § 5.
+model ReminderUnsubscribeToken {
+  tokenHash String @id
+  userId    String @db.Uuid
+  user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 // docs/research/user-account.md, data-model.md § 5.

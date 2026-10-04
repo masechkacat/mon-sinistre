@@ -245,7 +245,7 @@ export class RemindersService {
     recipient: Recipient,
     today: IsoDate,
   ): Promise<boolean> {
-    const unsubscribeToken = await this.rotateUnsubscribeToken(
+    const unsubscribeToken = await this.mintUnsubscribeToken(
       recipient.userId,
     );
     if (unsubscribeToken === null) {
@@ -332,18 +332,24 @@ export class RemindersService {
   }
 
   /**
-   * Rotates the unsubscribe token for the mail about to go out, same pattern
-   * as `JorfMonitorService.rotateUnsubscribeToken`. `null` means the person
-   * switched the reminders off between the query above and this write, or
-   * deleted the account: there is then nothing to send.
+   * A fresh unsubscribe token for the mail about to go out. The tokens of
+   * earlier mails stay valid: people click the link of whichever mail they
+   * open, not of the latest one. `null` means the person switched the
+   * reminders off between the query above and now, or deleted the account:
+   * there is then nothing to send.
    */
-  private async rotateUnsubscribeToken(userId: string): Promise<string | null> {
-    const unsubscribe = generateSecureToken();
-    const rotated = await this.prisma.user.updateMany({
+  private async mintUnsubscribeToken(userId: string): Promise<string | null> {
+    const enabled = await this.prisma.user.count({
       where: { id: userId, remindersDisabledAt: null },
-      data: { reminderUnsubscribeTokenHash: unsubscribe.hash },
     });
-    return rotated.count === 0 ? null : unsubscribe.token;
+    if (enabled === 0) {
+      return null;
+    }
+    const unsubscribe = generateSecureToken();
+    await this.prisma.reminderUnsubscribeToken.create({
+      data: { tokenHash: unsubscribe.hash, userId },
+    });
+    return unsubscribe.token;
   }
 
   /**
@@ -352,7 +358,11 @@ export class RemindersService {
    */
   async disableByToken(token: string): Promise<void> {
     await this.prisma.user.updateMany({
-      where: { reminderUnsubscribeTokenHash: hashSecureToken(token) },
+      where: {
+        reminderUnsubscribeTokens: {
+          some: { tokenHash: hashSecureToken(token) },
+        },
+      },
       data: { remindersDisabledAt: new Date() },
     });
   }

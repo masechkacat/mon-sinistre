@@ -210,10 +210,12 @@ describe('RemindersService.run (integration)', () => {
 
     await reminders.run({ now: NOW });
 
-    const user = await prisma.user.findUniqueOrThrow({ where: { email } });
-    expect(user.reminderUnsubscribeTokenHash).toBe(
+    const tokens = await prisma.reminderUnsubscribeToken.findMany({
+      where: { user: { email } },
+    });
+    expect(tokens.map((row) => row.tokenHash)).toEqual([
       hashSecureToken(unsubscribeTokenOf(transport.sent[0])),
-    );
+    ]);
   });
 
   it('logs the pass without the address and without a step name (ТЗ § 7)', async () => {
@@ -377,14 +379,15 @@ describe('RemindersService.run (integration)', () => {
       expect(await disabledAtOf(email)).toBeNull();
     });
 
-    it('answers 204 and changes nothing on a token the next mail rotated away', async () => {
+    it('switches the reminders off with the link of an earlier mail', async () => {
       const { email, token } = await mailedOwner();
       await reminders.run({ now: passAt(1) });
+      expect(transport.sent).toHaveLength(2);
 
       const res = await unsubscribe(token);
 
       expect(res.statusCode).toBe(204);
-      expect(await disabledAtOf(email)).toBeNull();
+      expect(await disabledAtOf(email)).not.toBeNull();
     });
 
     it('is no session: the same token as a Bearer answers 401 without the address', async () => {

@@ -315,6 +315,20 @@ export const fr = {
         deleting: 'Suppression en cours…',
       },
     },
+    rappels: {
+      desinscription: {
+        page: { title: 'Ne plus recevoir de rappels' },
+        description:
+          'Vous ne recevrez plus de message vous rappelant les dates à ne pas laisser passer pour vos sinistres. Ces dates restent visibles dans votre espace personnel.',
+        unsubscribeButton: 'Désactiver les rappels',
+        unsubscribing: 'Désactivation en cours…',
+        done: {
+          title: 'Rappels désactivés',
+          description:
+            'Vous ne recevrez plus de rappels par e-mail. Vous pouvez les réactiver à tout moment depuis votre espace personnel.',
+        },
+      },
+    },
     compteSupprime: {
       page: { title: 'Compte supprimé' },
       description:

@@ -127,17 +127,30 @@ describe('ReminderLog schema (integration)', () => {
     ).resolves.toMatchObject({ kind: 'OVERDUE' });
   });
 
-  it('rejects a second account with the same reminderUnsubscribeTokenHash', async () => {
+  it('rejects the same unsubscribe token hash for a second account', async () => {
     const tokenHash = 'reminder-unsubscribe-hash';
-    await prisma.user.create({
-      data: { ...userData(), reminderUnsubscribeTokenHash: tokenHash },
+    const first = await prisma.user.create({ data: userData() });
+    const second = await prisma.user.create({ data: userData() });
+    await prisma.reminderUnsubscribeToken.create({
+      data: { tokenHash, userId: first.id },
     });
 
     await expect(
-      prisma.user.create({
-        data: { ...userData(), reminderUnsubscribeTokenHash: tokenHash },
+      prisma.reminderUnsubscribeToken.create({
+        data: { tokenHash, userId: second.id },
       }),
     ).rejects.toMatchObject({ code: 'P2002' });
+  });
+
+  it('cascades: deleting a User removes its unsubscribe tokens', async () => {
+    const user = await prisma.user.create({ data: userData() });
+    await prisma.reminderUnsubscribeToken.create({
+      data: { tokenHash: 'reminder-unsubscribe-hash', userId: user.id },
+    });
+
+    await prisma.user.delete({ where: { id: user.id } });
+
+    expect(await prisma.reminderUnsubscribeToken.count()).toBe(0);
   });
 
   it('leaves reminders on for a fresh account', async () => {
@@ -145,7 +158,6 @@ describe('ReminderLog schema (integration)', () => {
 
     expect(user).toMatchObject({
       remindersDisabledAt: null,
-      reminderUnsubscribeTokenHash: null,
       reminderFailures: 0,
     });
   });
