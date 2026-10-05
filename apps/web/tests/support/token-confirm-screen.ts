@@ -65,7 +65,7 @@ export function tokenConfirmScreenSuite({
     // what the rule in apps/web/CLAUDE.md is about is the target, not the
     // attribute.
     const box = await button.boundingBox();
-    expect(box?.height).toBeGreaterThanOrEqual(44);
+    expect(box?.height).toBeGreaterThanOrEqual(48);
     await expect(button).toHaveCSS('font-size', '16px');
   });
 

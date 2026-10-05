@@ -30,6 +30,7 @@ function Alert({
   return (
     <div
       data-slot="alert"
+      data-surface="papier"
       role="alert"
       className={cn(alertVariants({ variant }), className)}
       {...props}

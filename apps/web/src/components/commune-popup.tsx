@@ -33,6 +33,7 @@ export function CommunePopup({
             show (search pending, nothing settled) an empty bordered strip
             would hang under the field. */}
         <Combobox.Popup
+          data-surface="papier"
           className={cn(
             'max-h-64 w-(--anchor-width) overflow-auto rounded-lg bg-popover text-popover-foreground',
             (items.length > 0 || searchSettled) &&
