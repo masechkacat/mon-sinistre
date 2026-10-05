@@ -1,16 +1,9 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test } from '@playwright/test';
+import { firstFamily } from '../support/fonts';
 import { gotoPage, home } from '../support/pages';
 import { sourceFiles } from '../support/sources';
 
 const googleFontHosts = ['fonts.googleapis.com', 'fonts.gstatic.com'];
-
-// next/font mangles the family into `__luciole_<hash>`, so the face is looked
-// for inside the first family of the stack, not compared to it.
-async function firstFamily(page: Page, selector: string) {
-  return page
-    .locator(selector)
-    .evaluate((el) => getComputedStyle(el).fontFamily.split(',')[0]);
-}
 
 test('the home page loads no font from a Google host', async ({ page }) => {
   const thirdParty: string[] = [];

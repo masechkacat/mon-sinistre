@@ -1,4 +1,5 @@
 import {
+  DurationUnit,
   PASSWORD_MAX_BYTES,
   PASSWORD_MIN_CHAR_CLASSES,
   PASSWORD_MIN_LENGTH,
@@ -85,6 +86,8 @@ const RAPPELS_DESACTIVER = 'Désactiver les rappels';
 const VOIR_MON_DOSSIER = 'Voir mon dossier';
 // The button and the status label share one text (sinistres.detail.stepStatus).
 const NON_APPLICABLE = 'Non applicable';
+// The status label of a done step and the stamp of its badge share one word.
+const FAIT = 'Fait';
 
 export const fr = {
   serviceName: 'Mon Sinistre',
@@ -136,6 +139,28 @@ export const fr = {
     noneFound: COMMUNE_NONE_FOUND,
     clearSelection: 'Effacer la commune sélectionnée',
     selected: (label: string) => `Commune sélectionnée : ${label}`,
+  },
+  deadlineBadge: {
+    // No word for the norme state: a badge far from its deadline says the
+    // date and the days left, and « dans les délais » would only add noise.
+    derniereSemaine: 'Dernière semaine',
+    demain: 'Demain',
+    aujourdhui: 'Aujourd’hui, dernier délai',
+    enRetard: 'En retard',
+    fait: (date: string | null) => (date ? `${FAIT} le ${date}` : FAIT),
+    sansObjet: 'Sans objet',
+    dateAVenir: 'Date à venir',
+    delai: ({ value, unit }: { value: number; unit: DurationUnit }) =>
+      unit === DurationUnit.MONTHS
+        ? `${value} mois après l’arrêté`
+        : `${value} jour${value === 1 ? '' : 's'} après l’arrêté`,
+    compteARebours: (daysLeft: number) => {
+      if (daysLeft === 0) return 'Jour J';
+      return daysLeft > 0 ? `J-${daysLeft}` : `J+${-daysLeft}`;
+    },
+    sansDate: '—',
+    // The h1 the layout asks of /test-bejdz, test route included.
+    testPage: 'Badge de délai',
   },
   veille: {
     page: {
@@ -475,7 +500,7 @@ export const fr = {
         [StepStatus.A_VENIR]: 'À venir',
         [StepStatus.A_FAIRE]: 'À faire bientôt',
         [StepStatus.EN_RETARD]: 'En retard',
-        [StepStatus.FAIT]: 'Fait',
+        [StepStatus.FAIT]: FAIT,
         [StepStatus.NON_APPLICABLE]: NON_APPLICABLE,
       },
       attentePar: {
