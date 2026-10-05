@@ -2,7 +2,11 @@ import path from 'node:path';
 import { expect, test } from '@playwright/test';
 import { ESLint } from 'eslint';
 import { toIsoDate } from '@mon-sinistre/contracts';
-import { formatDateFr } from '../../src/i18n/date';
+import {
+  dateParts,
+  formatDateFr,
+  formatDateShortFr,
+} from '../../src/i18n/date';
 import { fr } from '../../src/i18n/fr';
 
 test('the rendered page shows strings from the localization file', async ({
@@ -21,6 +25,30 @@ test('formatDateFr renders an IsoDate in French without a day shift', () => {
   // Midnight boundaries are where a timezone bug would shift the day.
   expect(formatDateFr(toIsoDate('2026-01-01'))).toBe('1 janvier 2026');
   expect(formatDateFr(toIsoDate('2026-12-31'))).toBe('31 décembre 2026');
+});
+
+test('formatDateShortFr renders the badge line date without a day shift', () => {
+  expect(formatDateShortFr(toIsoDate('2026-10-15'))).toBe('jeu. 15 oct.');
+  expect(formatDateShortFr(toIsoDate('2026-01-01'))).toBe('jeu. 1 janv.');
+  expect(formatDateShortFr(toIsoDate('2026-12-31'))).toBe('jeu. 31 déc.');
+});
+
+test('dateParts splits the badge header without a day shift', () => {
+  expect(dateParts(toIsoDate('2026-10-15'))).toEqual({
+    month: 'OCT.',
+    day: '15',
+    weekday: 'JEUDI',
+  });
+  expect(dateParts(toIsoDate('2026-01-01'))).toEqual({
+    month: 'JANV.',
+    day: '1',
+    weekday: 'JEUDI',
+  });
+  expect(dateParts(toIsoDate('2026-12-31'))).toEqual({
+    month: 'DÉC.',
+    day: '31',
+    weekday: 'JEUDI',
+  });
 });
 
 const webRoot = path.resolve(__dirname, '..', '..');
