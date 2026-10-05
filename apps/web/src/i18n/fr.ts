@@ -6,7 +6,6 @@ import {
   RisqueCatnat,
   SinistreStatus,
   StepAnchor,
-  StepStatus,
 } from '@mon-sinistre/contracts';
 
 // The space before ":" and "?" is a literal U+00A0, not a typo — same
@@ -84,9 +83,6 @@ const RAPPELS_DESACTIVER = 'Désactiver les rappels';
 // The dossier link is written once and read twice below (sinistres.liste):
 // as the text on screen, and inside the longer name a screen reader gets.
 const VOIR_MON_DOSSIER = 'Voir mon dossier';
-// The button and the status label share one text (sinistres.detail.stepStatus).
-const NON_APPLICABLE = 'Non applicable';
-// The status label of a done step and the stamp of its badge share one word.
 const FAIT = 'Fait';
 
 export const fr = {
@@ -456,11 +452,10 @@ export const fr = {
       page: { title: 'Mon dossier' },
       timelineLabel: 'Étapes de votre dossier',
       prochaineEtape: 'Prochaine étape',
-      datePrevue: (date: string) => `Prévue le ${date}`,
       sansDateNiAncre: 'Cette étape n’a pas encore de date prévue.',
       marquer: {
         fait: 'Marquer comme fait',
-        nonApplicable: NON_APPLICABLE,
+        nonApplicable: 'Non applicable',
         annuler: 'Annuler ce choix',
         sujet: (etape: string) => `, pour « ${etape} »`,
       },
@@ -496,13 +491,6 @@ export const fr = {
         echec:
           'Le dossier n’a pas pu être supprimé. Il est toujours là : réessayez dans un instant.',
       },
-      stepStatus: {
-        [StepStatus.A_VENIR]: 'À venir',
-        [StepStatus.A_FAIRE]: 'À faire bientôt',
-        [StepStatus.EN_RETARD]: 'En retard',
-        [StepStatus.FAIT]: FAIT,
-        [StepStatus.NON_APPLICABLE]: NON_APPLICABLE,
-      },
       attentePar: {
         [StepAnchor.DATE_SINISTRE]:
           'La date de cette étape n’a pas pu être calculée. Vérifiez le délai avec votre assureur.',
@@ -519,14 +507,6 @@ export const fr = {
       },
       deadline: {
         heading: 'Délai de déclaration à votre assureur',
-        dateLimite: (date: string) => `Date limite le ${date}`,
-        remaining: (days: number) =>
-          days === 1 ? 'Il reste 1 jour' : `Il reste ${days} jours`,
-        today: 'C’est le dernier jour pour déclarer.',
-        overdue: (days: number) =>
-          days === 1
-            ? 'Délai dépassé d’un jour'
-            : `Délai dépassé de ${days} jours`,
       },
       source: {
         lien: (sujet: string) => `Voir le texte de référence : ${sujet}`,

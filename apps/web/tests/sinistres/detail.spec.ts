@@ -9,9 +9,14 @@ import {
 } from '@mon-sinistre/contracts';
 import type { StepMark } from '../../src/lib/api/sinistres';
 import { dossierTitle } from '../../src/lib/dossier-title';
-import { formatDateFr } from '../../src/i18n/date';
+import {
+  dateParts,
+  formatDateFr,
+  formatDateShortFr,
+} from '../../src/i18n/date';
 import { fr } from '../../src/i18n/fr';
 import { expectNoAxeViolations } from '../support/a11y';
+import { greenColours } from '../support/contrast';
 import { testApiBaseUrl } from '../support/env';
 import { mockSession } from '../support/session-mock';
 import {
@@ -26,20 +31,23 @@ const SOURCE = {
   possiblyOutdated: false,
 };
 
-// Five steps in template order: one overdue, one due soon (the nearest
-// upcoming), one with no date yet, one later, one already done.
+// Five steps in template order, with the `daysLeft` the API counts as if today
+// were 2026-10-13: one overdue, one due this week (the nearest upcoming), one
+// with no date yet, one far off, one already done.
 const STEPS = [
   step({
     id: 'step-retard',
     name: 'Déposer la déclaration',
-    plannedDate: toIsoDate('2026-09-01'),
+    plannedDate: toIsoDate('2026-10-10'),
     status: StepStatus.EN_RETARD,
+    daysLeft: -3,
   }),
   step({
     id: 'step-proche',
     name: 'Envoyer les photos',
     plannedDate: toIsoDate('2026-10-20'),
     status: StepStatus.A_FAIRE,
+    daysLeft: 7,
   }),
   step({
     id: 'step-sans-date',
@@ -51,30 +59,58 @@ const STEPS = [
   step({
     id: 'step-plus-tard',
     name: 'Relire le contrat',
-    plannedDate: toIsoDate('2027-01-15'),
+    plannedDate: toIsoDate('2026-11-12'),
     status: StepStatus.A_VENIR,
+    daysLeft: 30,
   }),
   step({
     id: 'step-fait',
     name: 'Prévenir le voisin',
-    plannedDate: toIsoDate('2026-06-20'),
+    plannedDate: toIsoDate('2026-10-10'),
     status: StepStatus.FAIT,
-    completedAt: toIsoDate('2026-06-20'),
+    completedAt: toIsoDate('2026-10-08'),
+    daysLeft: -3,
   }),
 ];
+
+const badgeCopy = fr.deadlineBadge;
+const shortDate = (date: string) => formatDateShortFr(toIsoDate(date));
+
+// What the fields of each step above must reach the badge as.
+const BADGE_TEXTS: Record<string, string[]> = {
+  'step-retard': [
+    badgeCopy.enRetard,
+    badgeCopy.compteARebours(-3),
+    shortDate('2026-10-10'),
+  ],
+  'step-proche': [
+    badgeCopy.derniereSemaine,
+    badgeCopy.compteARebours(7),
+    shortDate('2026-10-20'),
+  ],
+  'step-sans-date': [badgeCopy.dateAVenir],
+  'step-plus-tard': [badgeCopy.compteARebours(30), shortDate('2026-11-12')],
+  'step-fait': [
+    badgeCopy.fait(formatDateFr(toIsoDate('2026-10-08'))),
+    shortDate('2026-10-10'),
+  ],
+};
 
 function sinistreDetail(overrides: Partial<Record<string, unknown>> = {}) {
   return {
     ...sinistreFixture({ status: SinistreStatus.DECLARE }),
     steps: STEPS,
     declarationDeadline: {
-      date: '2026-09-15',
+      date: '2026-10-27',
       daysLeft: 14,
       source: SOURCE,
     },
     ...overrides,
   };
 }
+
+const heroBadge = (page: Page) =>
+  page.locator('[data-slot="deadline-badge"][data-form="hero"]');
 
 const DECLARATION_STEP = step({
   id: 'step-declaration',
@@ -93,7 +129,8 @@ function detailDeclaredOn(declarationDate: IsoDate | null) {
       ...STEPS,
       {
         ...DECLARATION_STEP,
-        plannedDate: declarationDate ? toIsoDate('2026-10-01') : null,
+        plannedDate: declarationDate ? toIsoDate('2026-10-31') : null,
+        daysLeft: declarationDate ? 18 : null,
       },
     ],
   });
@@ -168,7 +205,7 @@ async function openDetail(
   await page.goto(`/sinistres/${SINISTRE_ID_1}`);
 }
 
-test('the plan is an ordered list with one item per step, each status named in words', async ({
+test('the plan is an ordered list with one item per step, each state named by its badge', async ({
   page,
 }) => {
   await openDetail(page, sinistreDetail());
@@ -177,17 +214,25 @@ test('the plan is an ordered list with one item per step, each status named in w
     name: fr.sinistres.detail.timelineLabel,
   });
   await expect(timeline.getByRole('listitem')).toHaveCount(STEPS.length);
+  for (const item of STEPS) {
+    const card = timeline.getByRole('listitem').filter({ hasText: item.name });
+    for (const text of BADGE_TEXTS[item.id]) {
+      await expect(card, item.id).toContainText(text);
+    }
+  }
+});
+
+test('the lines of text the badges replaced are gone from the page', async ({
+  page,
+}) => {
+  await openDetail(page, sinistreDetail());
   await expect(
-    timeline.getByRole('listitem').filter({ hasText: 'Envoyer les photos' }),
-  ).toContainText(fr.sinistres.detail.stepStatus.A_FAIRE);
-  await expect(
-    timeline
-      .getByRole('listitem')
-      .filter({ hasText: 'Déposer la déclaration' }),
-  ).toContainText(fr.sinistres.detail.stepStatus.EN_RETARD);
-  await expect(
-    timeline.getByRole('listitem').filter({ hasText: 'Prévenir le voisin' }),
-  ).toContainText(fr.sinistres.detail.stepStatus.FAIT);
+    page.getByRole('list', { name: fr.sinistres.detail.timelineLabel }),
+  ).toBeVisible();
+
+  for (const gone of [/Prévue le/, /Il reste/, /Date limite/, /À faire/]) {
+    await expect(page.getByText(gone)).toHaveCount(0);
+  }
 });
 
 test('exactly one step carries aria-current, and it is the nearest upcoming one', async ({
@@ -211,9 +256,7 @@ test('a step without a planned date is neither overdue nor the next one', async 
     .getByRole('listitem')
     .filter({ hasText: 'Demander l’état estimatif' });
   await expect(waiting).not.toHaveAttribute('aria-current', 'step');
-  await expect(waiting).not.toContainText(
-    fr.sinistres.detail.stepStatus.EN_RETARD,
-  );
+  await expect(waiting).not.toContainText(badgeCopy.enRetard);
   await expect(waiting).toContainText(
     fr.sinistres.detail.attentePar.DATE_ETAT_ESTIMATIF,
   );
@@ -226,44 +269,43 @@ test('an overdue declaration deadline is said in words, with the days past it', 
     page,
     sinistreDetail({
       declarationDeadline: {
-        date: '2026-09-15',
+        date: '2026-10-10',
         daysLeft: -3,
         source: SOURCE,
       },
     }),
   );
 
-  await expect(
-    page.getByText(fr.sinistres.detail.deadline.overdue(3)),
-  ).toBeVisible();
-  await expect(page.getByText(/Il reste/)).toHaveCount(0);
+  const hero = heroBadge(page);
+  await expect(hero).toContainText(badgeCopy.enRetard);
+  await expect(hero).toContainText(badgeCopy.compteARebours(-3));
 });
 
-test('the days left before the declaration deadline are shown as a number', async ({
+test('the days left before the declaration deadline are shown as a number, next to the date', async ({
   page,
 }) => {
   await openDetail(page, sinistreDetail());
 
-  await expect(
-    page.getByText(fr.sinistres.detail.deadline.remaining(14)),
-  ).toBeVisible();
+  const hero = heroBadge(page);
+  await expect(hero).toContainText(badgeCopy.compteARebours(14));
+  await expect(hero).toContainText(dateParts(toIsoDate('2026-10-27')).day);
 });
 
-test('one day left is written in the singular', async ({ page }) => {
+test('on the last day to declare the badge says so', async ({ page }) => {
   await openDetail(
     page,
     sinistreDetail({
       declarationDeadline: {
-        date: '2026-10-04',
-        daysLeft: 1,
+        date: '2026-10-13',
+        daysLeft: 0,
         source: SOURCE,
       },
     }),
   );
 
-  await expect(
-    page.getByText(fr.sinistres.detail.deadline.remaining(1), { exact: true }),
-  ).toBeVisible();
+  const hero = heroBadge(page);
+  await expect(hero).toContainText(badgeCopy.aujourdhui);
+  await expect(hero).toContainText(badgeCopy.compteARebours(0));
 });
 
 test('each calculated date links to the text it comes from and is called indicative', async ({
@@ -345,6 +387,30 @@ for (const colorScheme of ['light', 'dark'] as const) {
   });
 }
 
+for (const colorScheme of ['light', 'dark'] as const) {
+  test(`a done step fades next to one still to do, with no green on it — theme ${colorScheme}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 900, height: 700 });
+    await page.emulateMedia({ colorScheme });
+    await openDetail(
+      page,
+      sinistreDetail({
+        steps: STEPS.filter(({ id }) =>
+          ['step-proche', 'step-fait'].includes(id),
+        ),
+      }),
+    );
+
+    const timeline = page.getByRole('list', {
+      name: fr.sinistres.detail.timelineLabel,
+    });
+    await expect(timeline).toHaveScreenshot(`etapes-${colorScheme}.png`);
+    // Done is not a reward: nothing on the settled card lights up in green.
+    expect(await greenColours(timeline)).toEqual([]);
+  });
+}
+
 function timelineItem(page: Page, stepName: string) {
   return page.getByRole('listitem').filter({ hasText: stepName });
 }
@@ -369,7 +435,7 @@ test('a mark is announced in a live region already on the page, and the other st
     fr.sinistres.detail.annonce.fait('Envoyer les photos'),
   );
   await expect(timelineItem(page, 'Envoyer les photos')).toContainText(
-    fr.sinistres.detail.stepStatus.FAIT,
+    badgeCopy.fait(null),
   );
   await expect(timelineItem(page, 'Envoyer les photos')).toBeFocused();
   await expect(sibling).toHaveAttribute('data-intact', 'oui');
@@ -414,7 +480,7 @@ test('un-marking a done step sends null, and the step falls back to its computed
     fr.sinistres.detail.annonce.annule('Prévenir le voisin'),
   );
   await expect(timelineItem(page, 'Prévenir le voisin')).toContainText(
-    fr.sinistres.detail.stepStatus.A_FAIRE,
+    badgeCopy.enRetard,
   );
 });
 
@@ -431,7 +497,7 @@ test('a mark that fails leaves the step as it was and says so in French', async 
   await expect(page.getByRole('status')).toHaveText(
     fr.sinistres.detail.marquageEchec,
   );
-  await expect(step).toContainText(fr.sinistres.detail.stepStatus.A_FAIRE);
+  await expect(step).toContainText(badgeCopy.derniereSemaine);
 });
 
 test('a declaration date counts the steps anchored on it, and clearing it takes the dates back', async ({
@@ -463,9 +529,7 @@ test('a declaration date counts the steps anchored on it, and clearing it takes 
   await expect(page.getByRole('status')).toHaveText(
     fr.sinistres.detail.declaration.enregistree,
   );
-  await expect(declarationStep).toContainText(
-    fr.sinistres.detail.datePrevue(formatDateFr(toIsoDate('2026-10-01'))),
-  );
+  await expect(declarationStep).toContainText(shortDate('2026-10-31'));
 
   await page
     .getByRole('button', { name: fr.sinistres.detail.declaration.effacer })
@@ -474,9 +538,7 @@ test('a declaration date counts the steps anchored on it, and clearing it takes 
   await expect(declarationStep).toContainText(
     fr.sinistres.detail.attentePar.DATE_DECLARATION,
   );
-  await expect(declarationStep).not.toContainText(
-    fr.sinistres.detail.datePrevue(formatDateFr(toIsoDate('2026-10-01'))),
-  );
+  await expect(declarationStep).not.toContainText(shortDate('2026-10-31'));
   await expect(page.getByRole('status')).toHaveText(
     fr.sinistres.detail.declaration.effacee,
   );

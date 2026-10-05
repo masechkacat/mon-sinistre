@@ -11,6 +11,7 @@ import {
   type IsoDate,
   type Step,
 } from '@mon-sinistre/contracts';
+import { DeadlineBadge } from '@/components/deadline-badge';
 import { FieldError } from '@/components/field-error';
 import { PageContainer } from '@/components/page-container';
 import { PageTitle } from '@/components/page-title';
@@ -22,7 +23,6 @@ import {
   inputFrameClassName,
   inputFrameInvalidClassName,
 } from '@/components/ui/input';
-import { formatDateFr } from '@/i18n/date';
 import { fr } from '@/i18n/fr';
 import { ApiError } from '@/lib/api/client';
 import {
@@ -34,6 +34,7 @@ import {
 } from '@/lib/api/sinistres';
 import { queryKeys } from '@/lib/api/keys';
 import { useSessionGuard } from '@/lib/api/use-session-guard';
+import { deadlineBadgeState } from '@/lib/deadline-badge';
 import { cn } from '@/lib/utils';
 import { dossierTitle } from '@/lib/dossier-title';
 import { nextUpcomingStep } from '@/lib/sinistre-timeline';
@@ -307,26 +308,22 @@ function DeclarationDeadlineBlock({
   deadline: DeclarationDeadline;
 }) {
   const copy = fr.sinistres.detail.deadline;
-  let remaining: string;
-  if (deadline.daysLeft > 0) {
-    remaining = copy.remaining(deadline.daysLeft);
-  } else if (deadline.daysLeft === 0) {
-    remaining = copy.today;
-  } else {
-    remaining = copy.overdue(-deadline.daysLeft);
-  }
 
   return (
-    <section className="space-y-1">
+    <section className="space-y-2">
       <h2 className="text-xl font-semibold">{copy.heading}</h2>
-      <p className="text-base">
-        {copy.dateLimite(formatDateFr(deadline.date))}
-      </p>
-      <p className="text-lg font-medium">{remaining}</p>
-      <SourceNote
-        source={deadline.source}
-        sujet={fr.sinistres.detail.deadline.heading}
+      <DeadlineBadge
+        form="hero"
+        // The deadline is not a step and has no status of its own; any status
+        // but FAIT and NON_APPLICABLE leaves the days left to decide.
+        state={deadlineBadgeState({
+          status: StepStatus.A_FAIRE,
+          daysLeft: deadline.daysLeft,
+        })}
+        date={deadline.date}
+        daysLeft={deadline.daysLeft}
       />
+      <SourceNote source={deadline.source} sujet={copy.heading} />
     </section>
   );
 }
@@ -364,18 +361,20 @@ function StepItem({
       ref={itemRef}
       tabIndex={-1}
       aria-current={isNext ? 'step' : undefined}
-      className="space-y-1 rounded-lg border p-4"
+      className="space-y-2 rounded-lg border p-4"
     >
       <p className="text-lg font-medium">{step.name}</p>
       {isNext ? (
         <p className="text-sm font-semibold">{copy.prochaineEtape}</p>
       ) : null}
-      <p className="text-base">{copy.stepStatus[step.status]}</p>
-      {step.plannedDate ? (
-        <p className="text-sm text-muted-foreground">
-          {copy.datePrevue(formatDateFr(step.plannedDate))}
-        </p>
-      ) : null}
+      <DeadlineBadge
+        form="row"
+        state={deadlineBadgeState(step)}
+        date={step.plannedDate}
+        daysLeft={step.daysLeft}
+        completedAt={step.completedAt}
+        delay={step.delay}
+      />
       {step.plannedDate && step.source && !isClosed ? (
         <SourceNote source={step.source} sujet={step.name} />
       ) : null}

@@ -83,3 +83,59 @@ export const paintedColours = (control: Locator) =>
     context.fillRect(0, 0, 1, 1);
     return { background, text: pixel() };
   });
+
+/**
+ * Every text, background and border colour inside an element whose hue reads
+ * as green, named as `<tag>.<property>: <colour>` — the palette has no green
+ * at all (docs/prd/design-system.md, «Правила цвета»).
+ */
+export const greenColours = (scope: Locator) =>
+  scope.evaluate((root) => {
+    const canvas = document.createElement('canvas').getContext('2d')!;
+    /**
+     * The canvas does the parsing, since `oklab()` and `color-mix()` reach
+     * `getComputedStyle` unresolved. A value it refuses leaves the green
+     * sentinel in place and is reported: a check that skips what it cannot
+     * read passes on everything.
+     */
+    const isGreen = (colour: string): boolean => {
+      canvas.fillStyle = '#00ff00';
+      canvas.fillStyle = colour;
+      canvas.clearRect(0, 0, 1, 1);
+      canvas.fillRect(0, 0, 1, 1);
+      const [r, g, b, alpha] = canvas.getImageData(0, 0, 1, 1).data;
+      if (alpha === 0) return false;
+      const max = Math.max(r, g, b);
+      const span = max - Math.min(r, g, b);
+      // Grey carries no hue: black and white would otherwise both read as red.
+      if (span < 16) return false;
+      const sixth =
+        max === r
+          ? (g - b) / span
+          : max === g
+            ? 2 + (b - r) / span
+            : 4 + (r - g) / span;
+      const degrees = (((sixth * 60) % 360) + 360) % 360;
+      return degrees >= 70 && degrees <= 170;
+    };
+    // Each border side on its own: the `borderColor` shorthand serializes to
+    // an empty string as soon as the sides differ.
+    const properties = [
+      'color',
+      'backgroundColor',
+      'borderTopColor',
+      'borderRightColor',
+      'borderBottomColor',
+      'borderLeftColor',
+    ] as const;
+    const offenders: string[] = [];
+    for (const node of [root, ...root.querySelectorAll('*')]) {
+      const style = getComputedStyle(node);
+      for (const property of properties) {
+        const colour = style[property];
+        if (!isGreen(colour)) continue;
+        offenders.push(`${node.tagName.toLowerCase()}.${property}: ${colour}`);
+      }
+    }
+    return offenders;
+  });
