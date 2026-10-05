@@ -64,6 +64,8 @@ export function toStepResponse(step: StepResponseRow, today: IsoDate): Step {
     fromTemplate: step.fromTemplate,
     anchor: step.anchor as StepAnchor | null,
     source: sourceOf(step, today),
+    daysLeft: null,
+    delay: null,
   };
 }
 

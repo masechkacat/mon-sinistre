@@ -78,6 +78,12 @@ export enum FileKind {
 /** Days before the planned date at which a step becomes {@link StepStatus.A_FAIRE}. */
 export const SOON_THRESHOLD_DAYS = 30;
 
+/**
+ * Days left at or below which a deadline counts as urgent — a product
+ * decision of 04.10.2026, not a legal figure.
+ */
+export const DEADLINE_URGENT_THRESHOLD_DAYS = 7;
+
 /** Offsets, in days before a step's planned date, that trigger a reminder. */
 export const REMINDER_OFFSETS_DAYS = [30, 14, 3] as const;
 

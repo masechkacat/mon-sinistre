@@ -191,6 +191,10 @@ export interface Step {
   fromTemplate: boolean;
   anchor: StepAnchor | null;
   source: SourceReference | null;
+  /** Days to `plannedDate`, counted from the same day as `status`. */
+  daysLeft: number | null;
+  /** Window the step's deadline rule allows; null for a step without a rule. */
+  delay: { value: number; unit: DurationUnit } | null;
 }
 
 /**
