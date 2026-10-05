@@ -108,12 +108,7 @@
   /* Hover and chip grounds: the sheet names no eighth value for them, so they
      are derived — the ground tinted with its own ink — not a new literal. */
   --surface-tint: color-mix(in oklab, var(--fond) 92%, var(--encre));
-  --secondary: var(--surface-tint);
-  --secondary-foreground: var(--foreground);
-  --muted: var(--surface-tint);
   --muted-foreground: var(--secondaire);
-  --accent: var(--surface-tint);
-  --accent-foreground: var(--foreground);
   --destructive: var(--vermillon);
   --border: var(--filet);
   --input: var(--filet);
@@ -176,6 +171,18 @@
   --primary: var(--petrole);
   --primary-foreground: var(--papier);
   --ring: var(--petrole);
+}
+
+/* A custom property is resolved where it is declared and inherited resolved:
+   declared on :root alone, these would keep the ground's tint and ink inside
+   a sheet. */
+:root,
+[data-surface='papier'] {
+  --secondary: var(--surface-tint);
+  --secondary-foreground: var(--foreground);
+  --muted: var(--surface-tint);
+  --accent: var(--surface-tint);
+  --accent-foreground: var(--foreground);
 }
 
 /*

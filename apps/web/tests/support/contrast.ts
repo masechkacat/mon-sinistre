@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
+import type { Locator } from '@playwright/test';
 
 const globalsPath = path.resolve(
   __dirname,
@@ -57,3 +58,28 @@ export function contrastRatio(a: string, b: string): number {
   const [dark, light] = [luminance(a), luminance(b)].sort((x, y) => x - y);
   return (light + 0.05) / (dark + 0.05);
 }
+
+/** The colours a control is painted with: every background from the
+ * root down composited onto one canvas pixel, since `bg-input/30` and the
+ * like are translucent and only mean something over what lies beneath. */
+export const paintedColours = (control: Locator) =>
+  control.evaluate((element) => {
+    const context = document.createElement('canvas').getContext('2d')!;
+    const pixel = () =>
+      '#' +
+      Array.from(context.getImageData(0, 0, 1, 1).data.slice(0, 3))
+        .map((channel) => channel.toString(16).padStart(2, '0'))
+        .join('');
+    const chain: Element[] = [];
+    for (let node: Element | null = element; node; node = node.parentElement) {
+      chain.unshift(node);
+    }
+    for (const node of chain) {
+      context.fillStyle = getComputedStyle(node).backgroundColor;
+      context.fillRect(0, 0, 1, 1);
+    }
+    const background = pixel();
+    context.fillStyle = getComputedStyle(element).color;
+    context.fillRect(0, 0, 1, 1);
+    return { background, text: pixel() };
+  });

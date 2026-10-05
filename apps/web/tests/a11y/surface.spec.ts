@@ -1,6 +1,11 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import { fr } from '../../src/i18n/fr';
-import { roles, toRgb } from '../support/contrast';
+import {
+  contrastRatio,
+  paintedColours,
+  roles,
+  toRgb,
+} from '../support/contrast';
 import { testApiBaseUrl } from '../support/env';
 import { mockSession } from '../support/session-mock';
 import { SINISTRE_ID_1, sinistreFixture } from '../support/sinistres';
@@ -99,4 +104,30 @@ test('light theme: the sheet rule changes nothing', async ({ page }) => {
     toRgb(light.petrole),
   );
   await expect(newSinistreButton(page)).toHaveCSS('color', toRgb(light.papier));
+});
+
+const expectHoveredAA = async (control: Locator) => {
+  await control.hover();
+  // `transition-all` fades the hover ground in: measured mid-way, the resting
+  // colours would pass for the hovered ones.
+  await control.evaluate((element) =>
+    Promise.all(element.getAnimations().map((animation) => animation.finished)),
+  );
+  const { background, text } = await paintedColours(control);
+  expect(contrastRatio(background, text)).toBeGreaterThanOrEqual(4.5);
+};
+
+test('dark theme: a hovered outline button keeps AA text contrast on the ground and on a sheet', async ({
+  page,
+}) => {
+  await gotoListe(page, 'dark');
+  await expectHoveredAA(
+    page.getByRole('link', { name: fr.sinistres.liste.viewLink }),
+  );
+
+  await page.route(`${testApiBaseUrl}/auth/me`, (route) => route.abort());
+  await page.goto('/espace-personnel');
+  await expectHoveredAA(
+    page.getByRole('link', { name: fr.compte.espacePersonnel.sinistresLink }),
+  );
 });
