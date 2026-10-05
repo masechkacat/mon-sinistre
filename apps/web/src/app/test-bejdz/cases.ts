@@ -1,5 +1,6 @@
 import {
   DurationUnit,
+  StepAnchor,
   StepStatus,
   toIsoDate,
   type IsoDate,
@@ -14,6 +15,7 @@ import {
 export const CASE_DATE = toIsoDate('2026-10-15');
 export const CASE_COMPLETED_AT = toIsoDate('2026-10-12');
 export const CASE_DELAY = { value: 30, unit: DurationUnit.DAYS } as const;
+export const CASE_ANCHOR = StepAnchor.DATE_DECLARATION;
 
 const inputs = [
   { status: StepStatus.A_VENIR, daysLeft: 30, date: CASE_DATE },
@@ -33,6 +35,7 @@ const inputs = [
     daysLeft: null,
     date: null,
     delay: CASE_DELAY,
+    anchor: CASE_ANCHOR,
   },
 ] satisfies {
   status: StepStatus;
@@ -40,6 +43,7 @@ const inputs = [
   date: IsoDate | null;
   completedAt?: IsoDate;
   delay?: Step['delay'];
+  anchor?: Step['anchor'];
 }[];
 
 export type BadgeCase = (typeof inputs)[number] & {

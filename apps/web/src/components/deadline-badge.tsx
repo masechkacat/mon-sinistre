@@ -23,6 +23,8 @@ export interface DeadlineBadgeProps {
   completedAt?: IsoDate | null;
   /** The window of the step's deadline rule, read by « date à venir ». */
   delay?: Step['delay'];
+  /** What the window is counted from. */
+  anchor?: Step['anchor'];
 }
 
 interface Material {
@@ -84,6 +86,7 @@ export function DeadlineBadge({
   daysLeft,
   completedAt = null,
   delay = null,
+  anchor = null,
 }: DeadlineBadgeProps) {
   const { dated, urgent, quiet, dashed, stamped, explained } = material[state];
   const hero = form === 'hero';
@@ -161,7 +164,7 @@ export function DeadlineBadge({
 
       {explained && delay ? (
         <p className={cn('text-sm', hero ? 'mt-1' : 'basis-full')}>
-          {copy.delai(delay)}
+          {copy.delai(delay, anchor)}
         </p>
       ) : null}
     </div>

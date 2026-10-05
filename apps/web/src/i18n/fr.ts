@@ -85,6 +85,16 @@ const RAPPELS_DESACTIVER = 'Désactiver les rappels';
 const VOIR_MON_DOSSIER = 'Voir mon dossier';
 const FAIT = 'Fait';
 
+const apresAncre: Record<StepAnchor, string> = {
+  [StepAnchor.DATE_SINISTRE]: 'après le sinistre',
+  [StepAnchor.DATE_PUBLICATION_ARRETE]: 'après l’arrêté',
+  [StepAnchor.DATE_DECLARATION]: 'après votre déclaration',
+  [StepAnchor.DATE_ETAT_ESTIMATIF]: 'après l’état estimatif',
+  [StepAnchor.DATE_ETAT_ESTIMATIF_OU_EXPERTISE]:
+    'après l’état estimatif ou l’expertise',
+  [StepAnchor.DATE_ACCORD_INDEMNISATION]: 'après l’accord d’indemnisation',
+};
+
 export const fr = {
   serviceName: 'Mon Sinistre',
   layout: {
@@ -146,10 +156,16 @@ export const fr = {
     fait: (date: string | null) => (date ? `${FAIT} le ${date}` : FAIT),
     sansObjet: 'Sans objet',
     dateAVenir: 'Date à venir',
-    delai: ({ value, unit }: { value: number; unit: DurationUnit }) =>
-      unit === DurationUnit.MONTHS
-        ? `${value} mois après l’arrêté`
-        : `${value} jour${value === 1 ? '' : 's'} après l’arrêté`,
+    delai: (
+      { value, unit }: { value: number; unit: DurationUnit },
+      anchor: StepAnchor | null,
+    ) => {
+      const duree =
+        unit === DurationUnit.MONTHS
+          ? `${value} mois`
+          : `${value} jour${value === 1 ? '' : 's'}`;
+      return anchor ? `${duree} ${apresAncre[anchor]}` : duree;
+    },
     compteARebours: (daysLeft: number) => {
       if (daysLeft === 0) return 'Jour J';
       return daysLeft > 0 ? `J-${daysLeft}` : `J+${-daysLeft}`;

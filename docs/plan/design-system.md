@@ -129,7 +129,7 @@ plannedDate)` от того же `todayInParis`, что `declarationDeadlineOf`,
       `data-slot="deadline-number"`, материал CSS (перфорация, второй лист,
       штемпель, пунктир); строки состояний в `fr.ts` («dernière semaine»,
       «demain», «aujourd'hui, dernier délai», «en retard», «fait le …»,
-      «sans objet», «date à venir», «N jours après l'arrêté» из `delay`);
+      «sans objet», «date à venir», «N jours après …» из `delay` и якоря шага);
       тестовая страница `/test-bejdz` под `TEST_ROUTES` со всеми состояниями
       обеих форм, кнопкой и ссылкой на fond и на papier, зарегистрирована в
       `tests/support/pages.ts`. **Проверяется тестами (до кода):**

@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import {
   badgeCases,
+  CASE_ANCHOR,
   CASE_COMPLETED_AT,
   CASE_DATE,
   CASE_DELAY,
@@ -44,7 +45,7 @@ const expected: Record<
   },
   [DeadlineBadgeState.sansObjet]: { words: [copy.sansObjet], dated: false },
   [DeadlineBadgeState.dateAVenir]: {
-    words: [copy.dateAVenir, copy.delai(CASE_DELAY)],
+    words: [copy.dateAVenir, copy.delai(CASE_DELAY, CASE_ANCHOR)],
     dated: false,
   },
 };
@@ -88,6 +89,17 @@ for (const form of forms) {
     }
   });
 }
+
+test('« date à venir » counts the window from the step’s own anchor', async ({
+  page,
+}) => {
+  await gotoPage(page, testBejdz);
+  for (const form of forms) {
+    const locator = badge(page, form, DeadlineBadgeState.dateAVenir);
+    await expect(locator).toContainText('après votre déclaration');
+    await expect(locator).not.toContainText('arrêté');
+  }
+});
 
 for (const colorScheme of themes) {
   for (const colour of ['couleur', 'grayscale'] as const) {

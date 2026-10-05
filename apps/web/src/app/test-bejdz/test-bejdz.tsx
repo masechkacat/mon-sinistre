@@ -52,6 +52,7 @@ export function TestBejdz() {
                 daysLeft={entry.daysLeft}
                 completedAt={'completedAt' in entry ? entry.completedAt : null}
                 delay={'delay' in entry ? entry.delay : null}
+                anchor={'anchor' in entry ? entry.anchor : null}
               />
             </div>
           ))}

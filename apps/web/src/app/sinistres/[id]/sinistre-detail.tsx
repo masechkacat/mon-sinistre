@@ -374,6 +374,7 @@ function StepItem({
         daysLeft={step.daysLeft}
         completedAt={step.completedAt}
         delay={step.delay}
+        anchor={step.anchor}
       />
       {step.plannedDate && step.source && !isClosed ? (
         <SourceNote source={step.source} sujet={step.name} />
