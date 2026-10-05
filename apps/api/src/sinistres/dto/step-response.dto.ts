@@ -1,11 +1,20 @@
 import { ApiProperty } from '@nestjs/swagger';
 import {
+  DurationUnit,
   StepAnchor,
   StepStatus,
   type IsoDate,
   type Step,
 } from '@mon-sinistre/contracts';
 import { SourceReferenceDto } from './source-reference.dto';
+
+export class StepDelayDto {
+  @ApiProperty()
+  value: number;
+
+  @ApiProperty({ enum: DurationUnit })
+  unit: DurationUnit;
+}
 
 /**
  * Swagger-only mirror of {@link Step} — `implements` makes the compiler fail
@@ -41,4 +50,10 @@ export class StepResponseDto implements Step {
 
   @ApiProperty({ type: SourceReferenceDto, nullable: true })
   source: SourceReferenceDto | null;
+
+  @ApiProperty({ nullable: true })
+  daysLeft: number | null;
+
+  @ApiProperty({ type: StepDelayDto, nullable: true })
+  delay: StepDelayDto | null;
 }

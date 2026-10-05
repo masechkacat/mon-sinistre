@@ -5,6 +5,7 @@ import { resolveDeadline } from 'src/deadline-rules/resolve-deadline';
 import { fr } from 'src/i18n/fr';
 import { PrismaService } from 'src/prisma/prisma.service';
 import {
+  DECLARATION_ASSUREUR_CODE,
   PROVISION_INDEMNITE_CODE,
   seedDeadlineRules,
 } from 'src/deadline-rules/deadline-rule.seed';
@@ -36,6 +37,8 @@ interface SinistreWithDetail extends SinistreWithSteps {
     status: string;
     plannedDate: string | null;
     source: { url: string } | null;
+    daysLeft: number | null;
+    delay: { value: number; unit: string } | null;
   }[];
 }
 
@@ -350,6 +353,37 @@ describe('SinistresController (integration)', () => {
     expect(otherSees.payload).toBe(nonexistent.payload);
   });
 
+  // Остаток дней и срок шага в ответе, docs/plan/design-system.md, Фаза 2
+  // (issue #232).
+  it('answers each step with the days left to its date and the window of its rule', async () => {
+    const email = await createUser(prisma);
+    const headers = await bearerFor(email);
+    const rule = await prisma.deadlineRule.findFirstOrThrow({
+      where: { code: DECLARATION_ASSUREUR_CODE },
+    });
+    const today = todayInParis();
+    const created = await createSinistre(headers, today);
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/sinistres/${created.id}`,
+      headers,
+    });
+    const body = JSON.parse(res.payload) as SinistreWithDetail;
+
+    // Шаг с offsetDays: 0 от даты события, то есть запланированный на сегодня.
+    const dueToday = body.steps.find((s) => s.plannedDate === today);
+    expect(dueToday?.daysLeft).toBe(0);
+    expect(dueToday?.delay).toBeNull();
+
+    const declaration = legalStepOf(body, 'DATE_PUBLICATION_ARRETE');
+    expect(declaration.daysLeft).toBeNull();
+    expect(declaration.delay).toEqual({
+      value: rule.duration,
+      unit: rule.unit,
+    });
+  });
+
   it('rejects a malformed id with 400 rather than letting the invalid uuid reach Postgres as a 500', async () => {
     const email = await createUser(prisma);
     const headers = await bearerFor(email);
@@ -592,6 +626,35 @@ describe('SinistresController (integration)', () => {
       for (const before of othersBefore) {
         const afterStep = after.steps.find((s) => s.id === before.id);
         expect(afterStep?.status).toBe(before.status);
+      }
+    });
+
+    it('answers the patched step with its rule window on both the no-change and the update path', async () => {
+      const email = await createUser(prisma);
+      const headers = await bearerFor(email);
+      const rule = await prisma.deadlineRule.findFirstOrThrow({
+        where: { code: DECLARATION_ASSUREUR_CODE },
+      });
+      const sinistre = await createSinistre(headers);
+      const target = sinistre.steps.find(
+        (s) => s.anchor === 'DATE_PUBLICATION_ARRETE',
+      );
+      if (!target) {
+        throw new Error('fixture has no DATE_PUBLICATION_ARRETE step');
+      }
+
+      const expected = { value: rule.duration, unit: rule.unit };
+      for (const status of [null, 'FAIT']) {
+        const res = await app.inject({
+          method: 'PATCH',
+          url: `/sinistres/${sinistre.id}/etapes/${target.id}`,
+          headers,
+          payload: { status },
+        });
+        const patched = JSON.parse(res.payload) as {
+          delay: { value: number; unit: string } | null;
+        };
+        expect(patched.delay).toEqual(expected);
       }
     });
 

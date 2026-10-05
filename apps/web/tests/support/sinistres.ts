@@ -21,6 +21,8 @@ export function stepFixture(overrides: Partial<Step> = {}): Step {
     fromTemplate: true,
     anchor: null,
     source: null,
+    daysLeft: null,
+    delay: null,
     ...overrides,
   };
 }
