@@ -313,7 +313,7 @@ entry не проходит без `MonitorAlert`.
 
 - [ ] `SinistreDetail.declarationDeadline: { date: IsoDate; daysLeft: number } | null`
       — остаток критического срока, который по research считает API («Статусы
-      шагов»). Критический срок — дедлайн декларации (ТЗ § 3.3): шаг с правилом
+      шагов»). Критический срок — дедлайн декларации (ТЗ § 3.4): шаг с правилом
       `DECLARATION_ASSUREUR_CODE`; `daysLeft` отрицателен при просрочке.
       Календарная арифметика — `daysBetween` из `step-status.ts`, второй не
       заводить. **Проверяется тестами (до кода):** до публикации arrêté — `null`;

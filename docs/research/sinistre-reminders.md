@@ -2,7 +2,7 @@
 
 **PRD**: docs/prd/sinistre-reminders.md (план фаз пишется после этого отчёта)
 **Дата**: 2026-10-04
-**Входные данные**: ТЗ §§ 3.2, 6, 7, 9; `docs/research/data-model.md` §§ 1, 5, 6
+**Входные данные**: ТЗ §§ 3.3, 6, 7, 9; `docs/research/data-model.md` §§ 1, 5, 6
 (`ReminderLog` спроектирован там 02.08.2026); `docs/research/sinistre-plan.md`
 (outbox письма владельцу, статусы на чтении, «сегодня» в Europe/Paris);
 `docs/research/veille-subscription-lifecycle.md` (one-click отписка);
