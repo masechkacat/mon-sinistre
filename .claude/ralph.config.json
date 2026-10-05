@@ -1,6 +1,6 @@
 {
   "feature": "design-system",
-  "phases": [2],
+  "phases": [3],
   "maxIterations": 8,
   "stallLimit": 2,
   "model": "claude-opus-5",
