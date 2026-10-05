@@ -4,6 +4,7 @@ import {
   StepAnchor,
   type Commune,
   type DeclarationDeadline,
+  type DurationUnit,
   type IsoDate,
   type SinistreDetail,
   type SinistreSummary,
@@ -14,6 +15,7 @@ import type { StepPersistedStatus } from 'src/generated/prisma/enums';
 import { toSourceReference } from 'src/common/source-reference';
 import { isDeclarationRule } from 'src/deadline-rules/deadline-rule.seed';
 import { dateToIsoDate } from 'src/deadline-rules/resolve-deadline';
+import type { ResolvedDeadlineRule } from './build-step-snapshot';
 import { daysBetween, stepStatus } from './step-status';
 
 /** The `Sinistre` fields `toSinistreDetail` needs off a Prisma row. */
@@ -41,14 +43,11 @@ export interface StepRow {
   fromTemplate: boolean;
   sourceUrl: string | null;
   sourceVerifiedAt: Date | null;
-  deadlineRule: { code: string } | null;
+  deadlineRule:
+    (Pick<ResolvedDeadlineRule, 'duration' | 'unit'> & { code: string }) | null;
 }
 
-/** The rule code is read only by `declarationDeadlineOf`; a bare `Step` row
- * (as `SinistresService.updateStep` reads it) maps without it. */
-export type StepResponseRow = Omit<StepRow, 'deadlineRule'>;
-
-export function toStepResponse(step: StepResponseRow, today: IsoDate): Step {
+export function toStepResponse(step: StepRow, today: IsoDate): Step {
   const plannedDate = step.plannedDate ? dateToIsoDate(step.plannedDate) : null;
   return {
     id: step.id,
@@ -64,15 +63,17 @@ export function toStepResponse(step: StepResponseRow, today: IsoDate): Step {
     fromTemplate: step.fromTemplate,
     anchor: step.anchor as StepAnchor | null,
     source: sourceOf(step, today),
-    daysLeft: null,
-    delay: null,
+    daysLeft: plannedDate ? daysBetween(today, plannedDate) : null,
+    delay: step.deadlineRule
+      ? {
+          value: step.deadlineRule.duration,
+          unit: step.deadlineRule.unit as DurationUnit,
+        }
+      : null,
   };
 }
 
-function sourceOf(
-  step: StepResponseRow,
-  today: IsoDate,
-): SourceReference | null {
+function sourceOf(step: StepRow, today: IsoDate): SourceReference | null {
   return step.sourceUrl && step.sourceVerifiedAt
     ? toSourceReference(
         step.sourceUrl,

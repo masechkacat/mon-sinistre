@@ -44,13 +44,14 @@ import {
   toStepResponse,
 } from './to-sinistre-detail';
 
-/** Everything a `SinistreDetail` read needs, including each step's rule code. */
+const stepInclude = {
+  deadlineRule: { select: { code: true, duration: true, unit: true } },
+} as const;
+
+/** Everything a `SinistreDetail` read needs. */
 const detailInclude = {
   commune: { select: communeFields },
-  steps: {
-    orderBy: { order: 'asc' },
-    include: { deadlineRule: { select: { code: true } } },
-  },
+  steps: { orderBy: { order: 'asc' }, include: stepInclude },
 } as const;
 
 @Injectable()
@@ -349,6 +350,7 @@ export class SinistresService {
     return this.prisma.$transaction(async (tx) => {
       const current = await tx.step.findFirst({
         where: { id: stepId, sinistre: { id: sinistreId, userId } },
+        include: stepInclude,
       });
       if (!current) {
         throw new NotFoundException();
@@ -362,6 +364,7 @@ export class SinistresService {
           persistedStatus: status,
           completedAt: status ? isoDateToDate(today) : null,
         },
+        include: stepInclude,
       });
       return toStepResponse(step, today);
     });

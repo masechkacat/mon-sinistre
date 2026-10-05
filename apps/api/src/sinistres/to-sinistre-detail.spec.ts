@@ -1,6 +1,13 @@
-import { toIsoDate } from '@mon-sinistre/contracts';
-import { DECLARATION_ASSUREUR_CODE } from 'src/deadline-rules/deadline-rule.seed';
-import { declarationDeadlineOf, type StepRow } from './to-sinistre-detail';
+import { DurationUnit, toIsoDate } from '@mon-sinistre/contracts';
+import {
+  DECLARATION_ASSUREUR_CODE,
+  INFORMATION_ASSUREUR_CODE,
+} from 'src/deadline-rules/deadline-rule.seed';
+import {
+  declarationDeadlineOf,
+  toStepResponse,
+  type StepRow,
+} from './to-sinistre-detail';
 
 const TODAY = toIsoDate('2026-08-23');
 
@@ -23,10 +30,52 @@ function step(overrides: Partial<StepRow> = {}): StepRow {
     fromTemplate: true,
     sourceUrl: SOURCE.url,
     sourceVerifiedAt: new Date('2026-08-18'),
-    deadlineRule: { code: DECLARATION_ASSUREUR_CODE },
+    deadlineRule: {
+      code: DECLARATION_ASSUREUR_CODE,
+      duration: 30,
+      unit: 'DAYS',
+    },
     ...overrides,
   };
 }
+
+describe('toStepResponse', () => {
+  it('counts whole calendar days to the planned date, both ways round today', () => {
+    const daysLeftOn = (plannedDate: string) =>
+      toStepResponse(step({ plannedDate: new Date(plannedDate) }), TODAY)
+        .daysLeft;
+
+    expect(daysLeftOn('2026-08-22')).toBe(-1);
+    expect(daysLeftOn('2026-08-23')).toBe(0);
+    expect(daysLeftOn('2026-08-30')).toBe(7);
+  });
+
+  it('has no days left to count while the step has no planned date', () => {
+    expect(
+      toStepResponse(step({ plannedDate: null }), TODAY).daysLeft,
+    ).toBeNull();
+  });
+
+  it("carries the rule's window, so the client never names the figure itself", () => {
+    expect(toStepResponse(step(), TODAY).delay).toEqual({
+      value: 30,
+      unit: DurationUnit.DAYS,
+    });
+  });
+
+  it('leaves delay null for a step that cites no rule', () => {
+    expect(
+      toStepResponse(step({ deadlineRule: null }), TODAY).delay,
+    ).toBeNull();
+  });
+
+  it('agrees with declarationDeadlineOf on the days left to the déclaration', () => {
+    const declarationStep = step();
+    expect(toStepResponse(declarationStep, TODAY).daysLeft).toBe(
+      declarationDeadlineOf([declarationStep], TODAY)?.daysLeft,
+    );
+  });
+});
 
 describe('declarationDeadlineOf', () => {
   it('is null before the arrêté is published, while the step has no plannedDate', () => {
@@ -80,7 +129,11 @@ describe('declarationDeadlineOf', () => {
     const insurerStep = step({
       id: 'insurer',
       plannedDate: new Date('2026-08-24'),
-      deadlineRule: { code: 'INFORMATION_ASSUREUR' },
+      deadlineRule: {
+        code: INFORMATION_ASSUREUR_CODE,
+        duration: 1,
+        unit: 'MONTHS',
+      },
     });
     expect(declarationDeadlineOf([insurerStep], TODAY)).toBeNull();
     expect(declarationDeadlineOf([insurerStep, step()], TODAY)).toEqual({
