@@ -41,14 +41,9 @@ test('a step whose anchor has not happened yet has its date to come', () => {
   ).toBe(DeadlineBadgeState.dateAVenir);
 });
 
-test('a wider threshold moves the boundary of the last week', () => {
-  const daysLeft = DEADLINE_URGENT_THRESHOLD_DAYS + 1;
-
-  expect(
-    deadlineBadgeState({
-      status: StepStatus.A_FAIRE,
-      daysLeft,
-      urgentThresholdDays: daysLeft,
-    }),
-  ).toBe(DeadlineBadgeState.derniereSemaine);
+test('the declaration deadline, which is no step, is placed by its days left alone', () => {
+  expect(deadlineBadgeState({ daysLeft: 14 })).toBe(DeadlineBadgeState.norme);
+  expect(deadlineBadgeState({ daysLeft: -1 })).toBe(
+    DeadlineBadgeState.enRetard,
+  );
 });

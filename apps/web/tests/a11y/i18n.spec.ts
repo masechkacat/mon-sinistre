@@ -28,26 +28,26 @@ test('formatDateFr renders an IsoDate in French without a day shift', () => {
 });
 
 test('formatDateShortFr renders the badge line date without a day shift', () => {
-  expect(formatDateShortFr(toIsoDate('2026-10-15'))).toBe('jeu. 15 oct.');
-  expect(formatDateShortFr(toIsoDate('2026-01-01'))).toBe('jeu. 1 janv.');
-  expect(formatDateShortFr(toIsoDate('2026-12-31'))).toBe('jeu. 31 déc.');
+  expect(formatDateShortFr(toIsoDate('2026-10-15'))).toBe('jeu. 15 oct. 2026');
+  expect(formatDateShortFr(toIsoDate('2026-01-01'))).toBe('jeu. 1 janv. 2026');
+  expect(formatDateShortFr(toIsoDate('2026-12-31'))).toBe('jeu. 31 déc. 2026');
 });
 
 test('dateParts splits the badge header without a day shift', () => {
   expect(dateParts(toIsoDate('2026-10-15'))).toEqual({
-    month: 'OCT.',
+    month: 'oct.',
     day: '15',
-    weekday: 'JEUDI',
+    weekday: 'jeudi',
   });
   expect(dateParts(toIsoDate('2026-01-01'))).toEqual({
-    month: 'JANV.',
+    month: 'janv.',
     day: '1',
-    weekday: 'JEUDI',
+    weekday: 'jeudi',
   });
   expect(dateParts(toIsoDate('2026-12-31'))).toEqual({
-    month: 'DÉC.',
+    month: 'déc.',
     day: '31',
-    weekday: 'JEUDI',
+    weekday: 'jeudi',
   });
 });
 

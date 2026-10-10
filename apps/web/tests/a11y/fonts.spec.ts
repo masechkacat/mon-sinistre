@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { firstFamily } from '../support/fonts';
+import { expectFace } from '../support/fonts';
 import { gotoPage, home } from '../support/pages';
 import { sourceFiles } from '../support/sources';
 
@@ -20,8 +20,8 @@ test('the text is set in Luciole and the heading in Newsreader', async ({
   page,
 }) => {
   await gotoPage(page, home);
-  expect(await firstFamily(page, 'body')).toMatch(/luciole/i);
-  expect(await firstFamily(page, 'h1')).toMatch(/newsreader/i);
+  await expectFace(page, 'body', /luciole/i);
+  await expectFace(page, 'h1', /newsreader/i);
 });
 
 test('no source file reaches for Google Fonts', () => {

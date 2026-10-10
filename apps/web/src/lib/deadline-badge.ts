@@ -18,17 +18,14 @@ export enum DeadlineBadgeState {
 export function deadlineBadgeState({
   status,
   daysLeft,
-  urgentThresholdDays = DEADLINE_URGENT_THRESHOLD_DAYS,
-}: Pick<Step, 'status' | 'daysLeft'> & {
-  urgentThresholdDays?: number;
-}): DeadlineBadgeState {
+}: Pick<Step, 'daysLeft'> & Partial<Pick<Step, 'status'>>): DeadlineBadgeState {
   if (status === StepStatus.FAIT) return DeadlineBadgeState.fait;
   if (status === StepStatus.NON_APPLICABLE) return DeadlineBadgeState.sansObjet;
   if (daysLeft === null) return DeadlineBadgeState.dateAVenir;
   if (daysLeft < 0) return DeadlineBadgeState.enRetard;
   if (daysLeft === 0) return DeadlineBadgeState.aujourdhui;
   if (daysLeft === 1) return DeadlineBadgeState.demain;
-  if (daysLeft <= urgentThresholdDays)
+  if (daysLeft <= DEADLINE_URGENT_THRESHOLD_DAYS)
     return DeadlineBadgeState.derniereSemaine;
   return DeadlineBadgeState.norme;
 }

@@ -314,12 +314,7 @@ function DeclarationDeadlineBlock({
       <h2 className="text-xl font-semibold">{copy.heading}</h2>
       <DeadlineBadge
         form="hero"
-        // The deadline is not a step and has no status of its own; any status
-        // but FAIT and NON_APPLICABLE leaves the days left to decide.
-        state={deadlineBadgeState({
-          status: StepStatus.A_FAIRE,
-          daysLeft: deadline.daysLeft,
-        })}
+        state={deadlineBadgeState({ daysLeft: deadline.daysLeft })}
         date={deadline.date}
         daysLeft={deadline.daysLeft}
       />

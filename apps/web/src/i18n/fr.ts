@@ -147,8 +147,6 @@ export const fr = {
     selected: (label: string) => `Commune sélectionnée : ${label}`,
   },
   deadlineBadge: {
-    // No word for the norme state: a badge far from its deadline says the
-    // date and the days left, and « dans les délais » would only add noise.
     derniereSemaine: 'Dernière semaine',
     demain: 'Demain',
     aujourdhui: 'Aujourd’hui, dernier délai',
@@ -156,6 +154,7 @@ export const fr = {
     fait: (date: string | null) => (date ? `${FAIT} le ${date}` : FAIT),
     sansObjet: 'Sans objet',
     dateAVenir: 'Date à venir',
+    prevueLe: (date: string) => `Prévue le ${date}`,
     delai: (
       { value, unit }: { value: number; unit: DurationUnit },
       anchor: StepAnchor | null,
@@ -171,7 +170,6 @@ export const fr = {
       return daysLeft > 0 ? `J-${daysLeft}` : `J+${-daysLeft}`;
     },
     sansDate: '—',
-    // The h1 the layout asks of /test-bejdz, test route included.
     testPage: 'Badge de délai',
   },
   veille: {

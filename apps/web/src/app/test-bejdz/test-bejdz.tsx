@@ -10,9 +10,6 @@ import { badgeCases } from './cases';
 
 const forms = ['hero', 'row'] as const;
 
-// A button and a link twice over: on the ground and on a sheet. The pair is
-// what axe needs to measure the interactive colours of both surfaces, and
-// this page is the one the shared suites walk in both themes.
 function Controls() {
   return (
     <>
@@ -24,11 +21,6 @@ function Controls() {
   );
 }
 
-/**
- * The material sample of the deadline badge: every state of both forms, which
- * is what the snapshot and contrast suites photograph (docs/research/design-system.md,
- * «Тесты: контраст, снимки, правила по исходникам»).
- */
 export function TestBejdz() {
   return (
     <PageContainer className="space-y-8">

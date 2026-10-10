@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import {
+  DEADLINE_URGENT_THRESHOLD_DAYS,
   REFERENCE_DATA_STALE_AFTER_MONTHS,
   SinistreStatus,
   StepAnchor,
@@ -47,7 +48,7 @@ const STEPS = [
     name: 'Envoyer les photos',
     plannedDate: toIsoDate('2026-10-20'),
     status: StepStatus.A_FAIRE,
-    daysLeft: 7,
+    daysLeft: DEADLINE_URGENT_THRESHOLD_DAYS,
   }),
   step({
     id: 'step-sans-date',
@@ -74,25 +75,26 @@ const STEPS = [
 ];
 
 const badgeCopy = fr.deadlineBadge;
-const shortDate = (date: string) => formatDateShortFr(toIsoDate(date));
+const prevueLe = (date: string) =>
+  badgeCopy.prevueLe(formatDateShortFr(toIsoDate(date)));
 
 // What the fields of each step above must reach the badge as.
 const BADGE_TEXTS: Record<string, string[]> = {
   'step-retard': [
     badgeCopy.enRetard,
     badgeCopy.compteARebours(-3),
-    shortDate('2026-10-10'),
+    prevueLe('2026-10-10'),
   ],
   'step-proche': [
     badgeCopy.derniereSemaine,
-    badgeCopy.compteARebours(7),
-    shortDate('2026-10-20'),
+    badgeCopy.compteARebours(DEADLINE_URGENT_THRESHOLD_DAYS),
+    prevueLe('2026-10-20'),
   ],
   'step-sans-date': [badgeCopy.dateAVenir],
-  'step-plus-tard': [badgeCopy.compteARebours(30), shortDate('2026-11-12')],
+  'step-plus-tard': [badgeCopy.compteARebours(30), prevueLe('2026-11-12')],
   'step-fait': [
     badgeCopy.fait(formatDateFr(toIsoDate('2026-10-08'))),
-    shortDate('2026-10-10'),
+    prevueLe('2026-10-10'),
   ],
 };
 
@@ -230,7 +232,7 @@ test('the lines of text the badges replaced are gone from the page', async ({
     page.getByRole('list', { name: fr.sinistres.detail.timelineLabel }),
   ).toBeVisible();
 
-  for (const gone of [/Prévue le/, /Il reste/, /Date limite/, /À faire/]) {
+  for (const gone of [/Il reste/, /Date limite/, /À faire/]) {
     await expect(page.getByText(gone)).toHaveCount(0);
   }
 });
@@ -529,7 +531,7 @@ test('a declaration date counts the steps anchored on it, and clearing it takes 
   await expect(page.getByRole('status')).toHaveText(
     fr.sinistres.detail.declaration.enregistree,
   );
-  await expect(declarationStep).toContainText(shortDate('2026-10-31'));
+  await expect(declarationStep).toContainText(prevueLe('2026-10-31'));
 
   await page
     .getByRole('button', { name: fr.sinistres.detail.declaration.effacer })
@@ -538,7 +540,7 @@ test('a declaration date counts the steps anchored on it, and clearing it takes 
   await expect(declarationStep).toContainText(
     fr.sinistres.detail.attentePar.DATE_DECLARATION,
   );
-  await expect(declarationStep).not.toContainText(shortDate('2026-10-31'));
+  await expect(declarationStep).not.toContainText(prevueLe('2026-10-31'));
   await expect(page.getByRole('status')).toHaveText(
     fr.sinistres.detail.declaration.effacee,
   );

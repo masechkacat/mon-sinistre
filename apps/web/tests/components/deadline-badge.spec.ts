@@ -14,7 +14,7 @@ import {
 } from '../../src/i18n/date';
 import { fr } from '../../src/i18n/fr';
 import { DeadlineBadgeState } from '../../src/lib/deadline-badge';
-import { firstFamily } from '../support/fonts';
+import { expectFace } from '../support/fonts';
 import { gotoPage, testBejdz } from '../support/pages';
 import { sourceFiles } from '../support/sources';
 
@@ -55,7 +55,7 @@ const expected: Record<
 const parts = dateParts(CASE_DATE);
 const dateFragments = {
   hero: [parts.month, parts.day, parts.weekday],
-  row: [formatDateShortFr(CASE_DATE)],
+  row: [copy.prevueLe(formatDateShortFr(CASE_DATE))],
 } as const;
 
 function expectedTexts(
@@ -149,7 +149,7 @@ test('Newsreader is used in two places: the page title and the badge number', as
   expect(elsewhere).toEqual([]);
 
   for (const selector of headingFaces) {
-    expect(await firstFamily(page, selector), selector).toMatch(/newsreader/i);
+    await expectFace(page, selector, /newsreader/i);
   }
 });
 

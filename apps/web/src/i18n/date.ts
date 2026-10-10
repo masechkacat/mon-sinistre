@@ -10,6 +10,7 @@ const shortFormatter = frUtcFormatter({
   weekday: 'short',
   day: 'numeric',
   month: 'short',
+  year: 'numeric',
 });
 
 const partsFormatter = frUtcFormatter({
@@ -43,9 +44,5 @@ export function dateParts(date: IsoDate): DateParts {
   const part = (type: Intl.DateTimeFormatPartTypes) =>
     parts.find((candidate) => candidate.type === type)?.value ?? '';
 
-  return {
-    month: part('month').toLocaleUpperCase('fr-FR'),
-    day: part('day'),
-    weekday: part('weekday').toLocaleUpperCase('fr-FR'),
-  };
+  return { month: part('month'), day: part('day'), weekday: part('weekday') };
 }

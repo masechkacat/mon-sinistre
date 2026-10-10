@@ -4,41 +4,22 @@ import { fr } from '@/i18n/fr';
 import { DeadlineBadgeState } from '@/lib/deadline-badge';
 import { cn } from '@/lib/utils';
 
-/**
- * A tear-off calendar sheet carrying one date and how far away it is: `hero`
- * for the declaration deadline at the top of a dossier, `row` for a step of
- * the plan. The state comes from `deadlineBadgeState`, computed on the fields
- * of the API — the badge only draws it.
- *
- * Both forms read in the same order they are spoken: the word of the state,
- * the days left, then the date.
- */
 export interface DeadlineBadgeProps {
   form: 'hero' | 'row';
   state: DeadlineBadgeState;
-  /** The date the badge counts to; null while the step's anchor is unknown. */
   date: IsoDate | null;
   daysLeft: number | null;
-  /** The day the step was marked done, stamped on the sheet. */
   completedAt?: IsoDate | null;
-  /** The window of the step's deadline rule, read by « date à venir ». */
   delay?: Step['delay'];
-  /** What the window is counted from. */
   anchor?: Step['anchor'];
 }
 
 interface Material {
-  /** The sheet shows its date and, unless done, the days left. */
   dated?: boolean;
-  /** The number and the countdown take the signal colour. */
   urgent?: boolean;
-  /** The sheet steps back: nothing about a settled step is highlighted. */
   quiet?: boolean;
-  /** Told apart from a done step by its shape, not by its colour. */
   dashed?: boolean;
-  /** The word of the state is a stamp struck across the sheet. */
   stamped?: boolean;
-  /** The window of the deadline rule stands in for the date it has not got. */
   explained?: boolean;
 }
 
@@ -66,9 +47,6 @@ function stateWord(
   return copy[state];
 }
 
-// Dotted top edge and offset second sheet: the paper the badge is made of.
-// Both are decoration, so pseudo-elements draw them and the DOM never sees
-// them.
 const perforation =
   "relative pt-3 before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:h-3 before:content-[''] " +
   'before:[background-image:radial-gradient(circle_at_50%_0,var(--background)_0,var(--background)_3.5px,transparent_4px)] ' +
@@ -77,7 +55,6 @@ const secondSheet =
   'shadow-[4px_4px_0_0_var(--papier),4px_4px_0_1px_var(--filet)]';
 
 const caps = 'text-[0.8125rem] font-bold tracking-wider uppercase';
-const number = 'font-heading leading-none font-bold tabular-nums';
 
 export function DeadlineBadge({
   form,
@@ -91,7 +68,8 @@ export function DeadlineBadge({
   const { dated, urgent, quiet, dashed, stamped, explained } = material[state];
   const hero = form === 'hero';
   const word = stateWord(state, completedAt);
-  const parts = dated && date ? dateParts(date) : null;
+  const shownDate = dated ? date : null;
+  const parts = hero && shownDate ? dateParts(shownDate) : null;
   const signal = urgent ? 'text-vermillon' : undefined;
   const countdown =
     dated && daysLeft !== null && !stamped
@@ -146,17 +124,21 @@ export function DeadlineBadge({
           {parts ? (
             <p className={cn(caps, 'text-muted-foreground')}>{parts.month}</p>
           ) : null}
-          <HeroDay day={parts?.day ?? null} signal={signal} />
+          <Figure
+            text={parts?.day ?? null}
+            size="text-[4.25rem]"
+            signal={signal}
+          />
           {parts ? (
             <p className={cn(caps, 'text-muted-foreground')}>{parts.weekday}</p>
           ) : null}
         </>
       ) : (
         <>
-          <RowNumber countdown={countdown} signal={signal} />
-          {parts && date ? (
+          <Figure text={countdown} size="text-[3.25rem]" signal={signal} />
+          {shownDate ? (
             <p className="text-[1.0625rem] tabular-nums">
-              {formatDateShortFr(date)}
+              {copy.prevueLe(formatDateShortFr(shownDate))}
             </p>
           ) : null}
         </>
@@ -171,33 +153,26 @@ export function DeadlineBadge({
   );
 }
 
-function HeroDay({ day, signal }: { day: string | null; signal?: string }) {
-  return (
-    <p
-      data-slot="deadline-number"
-      className={cn(number, 'text-[4.25rem]', signal)}
-      aria-hidden={day === null ? true : undefined}
-    >
-      {day ?? copy.sansDate}
-    </p>
-  );
-}
-
-/** The row has no sheet to fill, so its figure is the countdown itself. */
-function RowNumber({
-  countdown,
+function Figure({
+  text,
+  size,
   signal,
 }: {
-  countdown: string | null;
+  text: string | null;
+  size: string;
   signal?: string;
 }) {
   return (
     <p
       data-slot="deadline-number"
-      className={cn(number, 'text-[3.25rem]', signal)}
-      aria-hidden={countdown === null ? true : undefined}
+      className={cn(
+        'font-heading leading-none font-bold tabular-nums',
+        size,
+        signal,
+      )}
+      aria-hidden={text === null ? true : undefined}
     >
-      {countdown ?? copy.sansDate}
+      {text ?? copy.sansDate}
     </p>
   );
 }
