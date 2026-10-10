@@ -1,6 +1,7 @@
 import {
   RisqueCatnat,
   SinistreStatus,
+  StepKind,
   StepStatus,
   toIsoDate,
   type Sinistre,
@@ -15,6 +16,7 @@ export function stepFixture(overrides: Partial<Step> = {}): Step {
     sinistreId: SINISTRE_ID_1,
     name: 'Étape',
     description: '',
+    kind: StepKind.ACTION,
     plannedDate: null,
     status: StepStatus.A_VENIR,
     completedAt: null,
@@ -23,6 +25,7 @@ export function stepFixture(overrides: Partial<Step> = {}): Step {
     source: null,
     daysLeft: null,
     delay: null,
+    order: 1,
     ...overrides,
   };
 }

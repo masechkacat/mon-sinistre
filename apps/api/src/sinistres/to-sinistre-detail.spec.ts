@@ -28,6 +28,7 @@ function step(overrides: Partial<StepRow> = {}): StepRow {
     persistedStatus: null,
     completedAt: null,
     fromTemplate: true,
+    order: 7,
     sourceUrl: SOURCE.url,
     sourceVerifiedAt: new Date('2026-08-18'),
     deadlineRule: {

@@ -2,6 +2,7 @@ import { ApiProperty } from '@nestjs/swagger';
 import {
   DurationUnit,
   StepAnchor,
+  StepKind,
   StepStatus,
   type IsoDate,
   type Step,
@@ -33,6 +34,9 @@ export class StepResponseDto implements Step {
   @ApiProperty()
   description: string;
 
+  @ApiProperty({ enum: StepKind })
+  kind: StepKind;
+
   @ApiProperty({ type: String, format: 'date', nullable: true })
   plannedDate: IsoDate | null;
 
@@ -56,4 +60,7 @@ export class StepResponseDto implements Step {
 
   @ApiProperty({ type: StepDelayDto, nullable: true })
   delay: StepDelayDto | null;
+
+  @ApiProperty()
+  order: number;
 }

@@ -43,6 +43,20 @@ export enum StepAnchor {
 }
 
 /**
+ * What a step asks of its owner. `ACTION` is a step that is simply ticked off;
+ * the four others open the container named by the value — ТЗ § 3.4. A property
+ * of the step itself, carried by the template and copied into a sinistre's plan
+ * snapshot (docs/research/dossier-preliminaire.md).
+ */
+export enum StepKind {
+  ACTION = 'ACTION',
+  PHOTOS = 'PHOTOS',
+  JUSTIFICATIFS = 'JUSTIFICATIFS',
+  OBJETS = 'OBJETS',
+  DECLARATION = 'DECLARATION',
+}
+
+/**
  * Six values, deliberately coarser than the official CatNat risk categories —
  * docs/research/sinistre-plan.md, "Классификация риска".
  */
@@ -102,6 +116,13 @@ export const OVERDUE_REMINDER_MAX_COUNT = 4;
 export const REFERENCE_DATA_STALE_AFTER_MONTHS = 6;
 
 export const COMMUNE_SEARCH_LIMIT = 10;
+
+/**
+ * How far back the answer about a commune lists its arrêtés, in months — a
+ * product decision of 10.10.2026, not a legal figure, so it carries no
+ * `SourceReference`.
+ */
+export const COMMUNE_ARRETES_WINDOW_MONTHS = 12;
 
 /**
  * Shortest `q` worth a lookup: a single letter matches thousands of communes

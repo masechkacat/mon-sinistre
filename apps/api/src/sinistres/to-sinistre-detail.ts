@@ -2,6 +2,7 @@ import {
   RisqueCatnat,
   SinistreStatus,
   StepAnchor,
+  StepKind,
   type Commune,
   type DeclarationDeadline,
   type DurationUnit,
@@ -41,6 +42,7 @@ export interface StepRow {
   persistedStatus: StepPersistedStatus | null;
   completedAt: Date | null;
   fromTemplate: boolean;
+  order: number;
   sourceUrl: string | null;
   sourceVerifiedAt: Date | null;
   deadlineRule:
@@ -54,6 +56,8 @@ export function toStepResponse(step: StepRow, today: IsoDate): Step {
     sinistreId: step.sinistreId,
     name: step.name,
     description: step.description,
+    // No `kind` column until this phase's migration.
+    kind: StepKind.ACTION,
     plannedDate,
     status: stepStatus(
       { plannedDate, persistedStatus: step.persistedStatus },
@@ -70,6 +74,7 @@ export function toStepResponse(step: StepRow, today: IsoDate): Step {
           unit: step.deadlineRule.unit as DurationUnit,
         }
       : null,
+    order: step.order,
   };
 }
 
