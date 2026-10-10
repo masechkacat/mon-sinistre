@@ -7,12 +7,6 @@
       "skillPath": "skills/accessibility/SKILL.md",
       "computedHash": "10e83284d3395ab5ec2f2db602b663480a37a4ff404d16510eefe86b034fcc1a"
     },
-    "git-commit": {
-      "source": "github/awesome-copilot",
-      "sourceType": "github",
-      "skillPath": "skills/git-commit/SKILL.md",
-      "computedHash": "2607fc60629b82b257136dd2a7a373f0a4466c0b49df7746d845d59313c99b21"
-    },
     "nestjs-best-practices": {
       "source": "kadajett/agent-nestjs-skills",
       "sourceType": "github",
@@ -25,30 +19,6 @@
       "skillPath": "prisma-client-api/SKILL.md",
       "computedHash": "0434410e48fb796bbdc3ad0050654bfc9cf72c89b30dbad098ee5c9f655b7f85"
     },
-    "prisma-database-setup": {
-      "source": "prisma/skills",
-      "sourceType": "github",
-      "skillPath": "prisma-database-setup/SKILL.md",
-      "computedHash": "6a991a2530a6da7131e3fc71c353e8278702d0146b8b6e1d2fdfc2d3d0a21bd2"
-    },
-    "prisma-next": {
-      "source": "prisma/prisma-next",
-      "sourceType": "github",
-      "skillPath": "skills/prisma-next/SKILL.md",
-      "computedHash": "0e12f86c73b9dad3e0de4326ac0f6ee804cb88bf9d515119268a79944adbf79f"
-    },
-    "prisma-postgres": {
-      "source": "prisma/skills",
-      "sourceType": "github",
-      "skillPath": "prisma-postgres/SKILL.md",
-      "computedHash": "8ddb96affba2097240fff6449622e82c069f9fac32b77375f9b96c7fbea1a3a7"
-    },
-    "request-refactor-plan": {
-      "source": "mattpocock/skills",
-      "sourceType": "github",
-      "skillPath": "skills/deprecated/request-refactor-plan/SKILL.md",
-      "computedHash": "08c06e587d0f979b8731f6a00c67fb8d00e563614daf80bf648d41148e553473"
-    },
     "requesting-code-review": {
       "source": "obra/superpowers",
       "sourceType": "github",
@@ -60,12 +30,6 @@
       "sourceType": "github",
       "skillPath": "plugins/tanstack-query/skills/tanstack-query/SKILL.md",
       "computedHash": "b8a0477cd4d7bf8fa54d27f8e64d82388402f0d502591db50a357df5b9995c75"
-    },
-    "ui-ux-pro-max": {
-      "source": "nextlevelbuilder/ui-ux-pro-max-skill",
-      "sourceType": "github",
-      "skillPath": ".claude/skills/ui-ux-pro-max/SKILL.md",
-      "computedHash": "f0916ca326ad6dbde1d0770b46956a213406b8ea4a19ed931bb4f2dc7d04c16d"
     },
     "vercel-react-best-practices": {
       "source": "vercel-labs/agent-skills",
