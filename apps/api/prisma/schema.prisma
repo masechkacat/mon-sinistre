@@ -279,6 +279,9 @@ model ArreteEntry {
   // сопоставлен — партиальный unique, Prisma такое не выражает: CREATE UNIQUE
   // INDEX руками в миграции (общее правило § 1 data-model), дрейфом не
   // считается — как collation у Commune.nameNormalized выше.
+
+  // Выборка arrêtés по коммуне: тот unique начинается с arreteId и ей не служит.
+  @@index([codeInsee])
 }
 
 // Прогресс монитора по дельтам DILA — docs/research/jorf-monitor.md,
@@ -389,6 +392,17 @@ enum RisqueCatnat {
   VENTS_CYCLONIQUES
 }
 
+// Чего шаг просит от пострадавшего: ACTION отмечается галочкой, остальные
+// четыре открывают одноимённый контейнер (ТЗ § 3.4) —
+// docs/research/dossier-preliminaire.md, «Вид шага».
+enum StepKind {
+  ACTION
+  PHOTOS
+  JUSTIFICATIFS
+  OBJETS
+  DECLARATION
+}
+
 // Шаблон шага плана — docs/research/data-model.md § 3,
 // docs/research/sinistre-plan.md, «Шаблон плана». Шаг одной из трёх форм:
 // продуктовый (offsetDays задан), юридический (deadlineRuleCode задан, срок
@@ -403,6 +417,7 @@ model StepTemplate {
   name             String
   description      String
   anchor           StepAnchor
+  kind             StepKind   @default(ACTION)
   // null — юридический шаг или памятка (см. докблок модели).
   offsetDays       Int?
   // Код DeadlineRule.code — резолвится всегда, даже когда якорь ещё не
@@ -456,6 +471,8 @@ model Step {
   description      String
   // null у шага, добавленного пользователем (fromTemplate: false).
   anchor           StepAnchor?
+  // Копия из шаблона; у своего шага пользователя — ACTION.
+  kind             StepKind             @default(ACTION)
   // Для пересчёта при появлении якоря; в contracts поля нет — серверное.
   offsetDays       Int?
   // null, пока якорь не наступил.

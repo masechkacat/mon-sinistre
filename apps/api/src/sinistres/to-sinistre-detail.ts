@@ -56,7 +56,7 @@ export function toStepResponse(step: StepRow, today: IsoDate): Step {
     sinistreId: step.sinistreId,
     name: step.name,
     description: step.description,
-    // No `kind` column until this phase's migration.
+    // Снапшот плана `kind` ещё не копирует: у всех шагов умолчание колонки.
     kind: StepKind.ACTION,
     plannedDate,
     status: stepStatus(
