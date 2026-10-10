@@ -20,14 +20,10 @@ import {
 import { fr } from 'src/i18n/fr';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { todayInParis } from 'src/common/time/today-in-paris';
-import { anchorDatesOf } from './anchor-dates';
-import { buildStepSnapshot } from './build-step-snapshot';
 import type { CreateSinistreDto } from './dto/create-sinistre.dto';
-import { matchArreteFor } from './match-arrete';
 import { recomputeDeclarationSteps } from './recompute-declaration-steps';
-import { resolveStepRule } from './resolve-step-rule';
-import { CATNAT_PLAN_KEY } from 'src/step-templates/step-template.seed';
 import { sinistreStatus } from './sinistre-status';
+import { planDossier } from './snapshot-plan';
 import { communeFields } from 'src/communes/commune-fields';
 import {
   toSinistreDetail,
@@ -75,45 +71,11 @@ export class SinistresService {
     userId: string,
     dto: CreateSinistreDto,
   ): Promise<SinistreDetail> {
-    const commune = await this.prisma.commune.findFirst({
-      where: { codeInsee: dto.codeInsee, effectiveTo: null },
-      select: { codeInsee: true },
-    });
-    if (!commune) {
-      throw new BadRequestException(fr.sinistres.unknownCommune);
-    }
-
-    const today = todayInParis();
-    const match = await matchArreteFor(this.prisma, dto);
-    const anchorDates = anchorDatesOf({
-      eventDate: dto.eventDate,
-      declarationDate: null,
-      arretePublishedAt:
-        match?.outcome === 'RECONNU' ? match.publishedAt : null,
-    });
-
-    const templates = await this.prisma.stepTemplate.findMany({
-      where: { planKey: CATNAT_PLAN_KEY },
-      orderBy: { order: 'asc' },
-    });
-
-    const steps = await Promise.all(
-      templates.map(async (template) => {
-        const rule = await resolveStepRule(
-          this.deadlineRules,
-          template,
-          anchorDates,
-          today,
-          this.logger,
-        );
-        const snapshot = buildStepSnapshot(template, anchorDates, rule);
-        return {
-          ...snapshot,
-          plannedDate: snapshot.plannedDate
-            ? isoDateToDate(snapshot.plannedDate)
-            : null,
-        };
-      }),
+    const { today, match, plan, status } = await planDossier(
+      this.prisma,
+      this.deadlineRules,
+      dto,
+      this.logger,
     );
 
     const sinistre = await this.prisma.sinistre.create({
@@ -124,12 +86,8 @@ export class SinistresService {
         eventDate: isoDateToDate(dto.eventDate),
         declarationDate: null,
         arreteEntryId: match?.arreteEntryId ?? null,
-        status: sinistreStatus({
-          current: null,
-          link: match ? { outcome: match.outcome } : null,
-          declarationDate: null,
-        }),
-        steps: { create: steps },
+        status,
+        steps: { create: plan.map((step) => step.row) },
       },
       include: detailInclude,
     });

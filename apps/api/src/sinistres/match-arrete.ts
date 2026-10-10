@@ -12,11 +12,15 @@ import {
   type MatchCandidateSinistre,
 } from './match-sinistres';
 
-/** The matched entry's fields a caller needs to date and status a plan. */
+/** The matched entry's fields a caller needs to date and status a plan, and
+ * to print the arrêté without a row of its own to read it off. */
 export interface MatchedArrete {
   arreteEntryId: string;
   outcome: ArreteEntryOutcome;
   publishedAt: IsoDate;
+  legifranceUrl: string;
+  eventStart: IsoDate;
+  eventEnd: IsoDate;
 }
 
 /**
@@ -48,7 +52,7 @@ export async function matchArreteFor(
         eventStart: true,
         eventEnd: true,
         outcome: true,
-        arrete: { select: { publishedAt: true } },
+        arrete: { select: { publishedAt: true, legifranceUrl: true } },
       },
     }),
     loadSuccessorMap(prisma),
@@ -71,5 +75,8 @@ export async function matchArreteFor(
     arreteEntryId,
     outcome: entry.outcome,
     publishedAt: dateToIsoDate(entry.arrete.publishedAt),
+    legifranceUrl: entry.arrete.legifranceUrl,
+    eventStart: dateToIsoDate(entry.eventStart),
+    eventEnd: dateToIsoDate(entry.eventEnd),
   };
 }
