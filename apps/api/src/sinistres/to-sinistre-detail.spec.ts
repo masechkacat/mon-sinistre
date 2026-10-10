@@ -6,7 +6,9 @@ import {
 import {
   declarationDeadlineOf,
   toStepResponse,
+  toStepView,
   type StepRow,
+  type StepViewRow,
 } from './to-sinistre-detail';
 
 const TODAY = toIsoDate('2026-08-23');
@@ -17,18 +19,14 @@ const SOURCE = {
   possiblyOutdated: false,
 };
 
-function step(overrides: Partial<StepRow> = {}): StepRow {
+function viewRow(overrides: Partial<StepViewRow> = {}): StepViewRow {
   return {
-    id: 'step',
-    sinistreId: 'sinistre',
     name: 'Déclarer le sinistre à votre assureur',
     description: '',
     anchor: 'DATE_PUBLICATION_ARRETE',
     kind: StepKind.DECLARATION,
     plannedDate: new Date('2026-09-01'),
     persistedStatus: null,
-    completedAt: null,
-    fromTemplate: true,
     order: 7,
     sourceUrl: SOURCE.url,
     sourceVerifiedAt: new Date('2026-08-18'),
@@ -37,6 +35,17 @@ function step(overrides: Partial<StepRow> = {}): StepRow {
       duration: 30,
       unit: 'DAYS',
     },
+    ...overrides,
+  };
+}
+
+function step(overrides: Partial<StepRow> = {}): StepRow {
+  return {
+    id: 'step',
+    sinistreId: 'sinistre',
+    completedAt: null,
+    fromTemplate: true,
+    ...viewRow(),
     ...overrides,
   };
 }
@@ -82,6 +91,23 @@ describe('toStepResponse', () => {
     expect(toStepResponse(declarationStep, TODAY).daysLeft).toBe(
       declarationDeadlineOf([declarationStep], TODAY)?.daysLeft,
     );
+  });
+});
+
+describe('toStepView', () => {
+  it('derives the same step a saved one answers with, minus its identity and marks', () => {
+    const plannedDate = new Date('2026-08-30');
+
+    // Identity added back rather than stripped off the response, so the whole
+    // object is compared: a `StepView` carrying any further trace of a saved
+    // row fails here too.
+    expect({
+      ...toStepView(viewRow({ plannedDate }), TODAY),
+      id: 'step',
+      sinistreId: 'sinistre',
+      completedAt: null,
+      fromTemplate: true,
+    }).toEqual(toStepResponse(step({ plannedDate }), TODAY));
   });
 });
 

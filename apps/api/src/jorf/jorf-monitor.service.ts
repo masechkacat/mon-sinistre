@@ -763,7 +763,7 @@ export class JorfMonitorService {
     // Bounded to the candidates' own event dates: an entry outside every one
     // of them can never match any candidate, and the ArreteEntry table
     // otherwise grows for as long as the monitor runs — the same per-window
-    // read `SinistresService.matchArrete` applies for its single candidate,
+    // read `matchArreteFor` applies for its single candidate,
     // extended to the range this batch needs. Folded rather than spread into
     // `Math.min`/`Math.max`: the candidate list grows with the product, and a
     // spread of it would blow the call stack long before the query strains.
@@ -871,7 +871,7 @@ export class JorfMonitorService {
     };
   }
 
-  /** Same isolation as `SinistresService.resolveRule`: the product would
+  /** Same isolation as `resolveStepRule`: the product would
    * rather link the sinistre without a déclaration date than drop the whole
    * run over one missing `DeadlineRule` version. */
   private async resolveDeclarationRuleGuarded(
