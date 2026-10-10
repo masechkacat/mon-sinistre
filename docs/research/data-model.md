@@ -309,13 +309,16 @@ SinistreNotification»).
 ## 6. Veille и идемпотентность рассылок
 
 - `Veille`: id, email, confirmedAt (null = не подтверждена, писем не получает),
-  confirmTokenHash, unsubscribeTokenHash, confirmExpiresAt, createdAt. Токены
-  хранятся хешами. `unique(email)` — одна veille на адрес; email нормализуется
+  confirmTokenHash, confirmExpiresAt, createdAt. Токены хранятся хешами.
+  `unique(email)` — одна veille на адрес; email нормализуется
   (lowercase, trim) до проверки уникальности. Три обязательных нюанса:
   изменение состава коммун — тоже double opt-in (зная чужой email, нельзя
   менять его подписку); ответ формы одинаков для нового и существующего адреса
   (анти-enumeration, созвучно правилу «чужой и несуществующий неразличимы»);
   нюансы `confirmExpiresAt` и токенов — `docs/research/veille-subscription-lifecycle.md`.
+- `VeilleUnsubscribeToken`: tokenHash PK, veilleId → Veille (cascade). Строка
+  на каждое письмо подписчику, действуют все — тот же приём, что
+  `ReminderUnsubscribeToken` (§ 5).
 - `VeilleCommune`: veilleId → Veille (cascade), codeInsee → Commune
   (restrict); PK составной, индекс `(codeInsee)` — fan-out уведомлений в день
   arrêté.

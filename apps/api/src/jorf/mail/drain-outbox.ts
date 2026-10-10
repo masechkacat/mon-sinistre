@@ -30,7 +30,7 @@ export type PendingOutboxRow = {
  * `Mail` to send; `null`, meaning the row turns out to have nothing left to
  * mail and is drained without sending anything; or absent, meaning the row
  * is left untouched this pass (a recipient token race — see
- * `JorfMonitorService.rotateUnsubscribeToken` — not a normal branch).
+ * `JorfMonitorService.mintUnsubscribeToken` — not a normal branch).
  */
 export type OutboxAdapter<Row extends PendingOutboxRow, Mail> = {
   loadPending(): Promise<Row[]>;

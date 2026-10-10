@@ -96,10 +96,16 @@ describe('POST /veille (integration)', () => {
     expect(veille.confirmTokenHash).not.toBe(confirmToken);
 
     const unsubscribeToken = tokenFrom(message, VEILLE_UNSUBSCRIBE_PATH);
-    expect(veille.unsubscribeTokenHash).toBe(
-      createHash('sha256').update(unsubscribeToken).digest('hex'),
-    );
-    expect(veille.unsubscribeTokenHash).not.toBe(unsubscribeToken);
+    expect(
+      await prisma.veilleUnsubscribeToken.findMany({
+        where: { veilleId: veille.id },
+        select: { tokenHash: true },
+      }),
+    ).toEqual([
+      {
+        tokenHash: createHash('sha256').update(unsubscribeToken).digest('hex'),
+      },
+    ]);
   });
 
   it('creates exactly one subscription for two spellings of the same address', async () => {
@@ -322,7 +328,9 @@ describe('POST /veille (integration)', () => {
             data: {
               email,
               confirmTokenHash: `confirm-${reborn}`,
-              unsubscribeTokenHash: `unsubscribe-${reborn}`,
+              unsubscribeTokens: {
+                create: { tokenHash: `unsubscribe-${reborn}` },
+              },
               confirmExpiresAt: new Date(Date.now() + DAY_MS),
             },
           });
@@ -476,7 +484,7 @@ describe('POST /veille (integration)', () => {
       expect(await prisma.veille.findMany({ where: { email } })).toEqual([]);
     });
 
-    it('rotates both the change and the unsubscribe token on every submission, so the previous mail’s links stop matching', async () => {
+    it('rotates the change token on every submission, while the unsubscribe link of every mail keeps working', async () => {
       await prisma.commune.create({ data: communeFixture('30189', 'Nîmes') });
       await prisma.commune.create({
         data: communeFixture('34172', 'Montpellier'),
@@ -510,17 +518,15 @@ describe('POST /veille (integration)', () => {
         createHash('sha256').update(staleChangeToken).digest('hex'),
       );
 
-      // Idempotent-looking 204 (anti-enumeration), but the row survives —
-      // the latest change mail's freshly rotated link is the one that works.
-      const staleUnsubscribeRes = await app.inject({
+      // Two change mails later, the confirmation mail's link still deletes
+      // the subscription — ТЗ § 7, отписка в один клик.
+      const firstUnsubscribeRes = await app.inject({
         method: 'POST',
         url: '/veille/desinscription',
         payload: { token: firstUnsubscribeToken },
       });
-      expect(staleUnsubscribeRes.statusCode).toBe(204);
-      expect(await prisma.veille.findMany({ where: { email } })).toHaveLength(
-        1,
-      );
+      expect(firstUnsubscribeRes.statusCode).toBe(204);
+      expect(await prisma.veille.findMany({ where: { email } })).toEqual([]);
     });
 
     // The 400 itself (0 or > VEILLE_MAX_COMMUNES communes) is already proven

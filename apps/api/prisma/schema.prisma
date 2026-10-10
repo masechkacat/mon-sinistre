@@ -145,13 +145,13 @@ model Veille {
   // null = подписка не подтверждена, писем об arrêté не получает
   confirmedAt          DateTime?            @db.Timestamptz(6)
   confirmTokenHash     String               @unique
-  unsubscribeTokenHash String               @unique
   // Действует, пока confirmedAt null
   confirmExpiresAt     DateTime             @db.Timestamptz(6)
   createdAt            DateTime             @default(now()) @db.Timestamptz(6)
   communes             VeilleCommune[]
   change               VeilleChange?
   notifications        VeilleNotification[]
+  unsubscribeTokens    VeilleUnsubscribeToken[]
 
   // Индекс под часовую чистку — частичный, Prisma такие не выражает: CREATE
   // INDEX и причина живут в миграции veille_cleanup_indexes, дрейфом это не
@@ -160,6 +160,16 @@ model Veille {
 
 // Неподтверждённая заявка на смену состава коммун — docs/research/veille-commune-change.md.
 // На рассылку не влияет: действующий состав — только VeilleCommune.
+// Токен ссылки отписки: свой у каждого письма, и действуют все, а не только
+// последний — data-model.md § 6, как ReminderUnsubscribeToken выше.
+model VeilleUnsubscribeToken {
+  tokenHash String @id
+  veilleId  String @db.Uuid
+  veille    Veille @relation(fields: [veilleId], references: [id], onDelete: Cascade)
+
+  @@index([veilleId])
+}
+
 model VeilleChange {
   id              String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
   veilleId        String   @unique @db.Uuid

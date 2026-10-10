@@ -33,7 +33,7 @@ describe('POST /veille/desinscription (integration)', () => {
     await prisma.$executeRaw`TRUNCATE TABLE "Veille", "Commune", "VeilleFormEmail" CASCADE`;
   });
 
-  it('deletes the subscription and its VeilleCommune rows', async () => {
+  it('deletes the subscription with its VeilleCommune rows and its tokens', async () => {
     await prisma.commune.create({ data: communeFixture('30189', 'Nîmes') });
     const token = await createUnsubscribable({ communeCodes: ['30189'] });
 
@@ -43,6 +43,7 @@ describe('POST /veille/desinscription (integration)', () => {
     expect(res.payload).toBe('');
     expect(await prisma.veille.findFirst()).toBeNull();
     expect(await prisma.veilleCommune.findFirst()).toBeNull();
+    expect(await prisma.veilleUnsubscribeToken.findFirst()).toBeNull();
   });
 
   it('answers 204 without error on a repeat call with the same token', async () => {
@@ -55,11 +56,14 @@ describe('POST /veille/desinscription (integration)', () => {
     expect(res.payload).toBe('');
   });
 
-  it('answers 204 without error on an unknown token', async () => {
+  it('answers 204 without error on an unknown token, and deletes nothing', async () => {
+    await createUnsubscribable();
+
     const res = await post('unknown-token');
 
     expect(res.statusCode).toBe(204);
     expect(res.payload).toBe('');
+    expect(await prisma.veille.count()).toBe(1);
   });
 
   it('deletes an unconfirmed subscription entirely — the link sent in the phase 1 mail', async () => {

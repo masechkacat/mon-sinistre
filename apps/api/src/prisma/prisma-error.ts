@@ -14,6 +14,11 @@ const HTTP_FOR_CODE = new Map<string, () => HttpException>([
   ['P2025', () => new NotFoundException()],
 ]);
 
+/** `P2025` — for a conditional `update` whose filter matched no row. */
+export const isRecordNotFound = (exception: unknown): boolean =>
+  exception instanceof Prisma.PrismaClientKnownRequestError &&
+  exception.code === 'P2025';
+
 export const httpExceptionForPrisma = (
   exception: unknown,
 ): HttpException | undefined =>
