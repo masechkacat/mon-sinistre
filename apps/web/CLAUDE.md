@@ -25,7 +25,10 @@ handler и экран подтверждения по токену, перекл
 их маппинг на токены shadcn, поверхность `data-surface="papier"` в тёмной
 теме, локальные шрифты Luciole/Newsreader, бейдж дедлайна и его состояния,
 тесты контраста и снимков, déclaration d'accessibilité) —
-`../../docs/research/design-system.md`.
+`../../docs/research/design-system.md`; досье без аккаунта (главная с
+полем коммуны и блоком ответа, страница `/dossier` с параметрами в адресе,
+общие презентационные компоненты плана для двух режимов, шапка с состоянием
+сессии, `suivant` после входа) — `../../docs/research/dossier-preliminaire.md`.
 
 ## Команды
 

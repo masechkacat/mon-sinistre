@@ -33,7 +33,11 @@ CNIL, bcrypt, JWT-сессии с ротацией, глобальный guard, 
 `ArreteEntry`, сроки страховщика в справочнике, outbox письма владельцу) —
 `../../docs/research/sinistre-plan.md`; напоминания по шагам (`ReminderLog`,
 отбор поводов по шкалам, прогон 07:00, токен выключения, эндпоинты
-`/rappels`) — `../../docs/research/sinistre-reminders.md`.
+`/rappels`) — `../../docs/research/sinistre-reminders.md`; досье без
+аккаунта (публичный модуль `src/dossier/`, ответ по коммуне и аперçу из тех
+же функций, что `SinistresService.create`, `StepKind`, `DossierEnAttente` до
+подтверждения, `409` двойника на `POST /sinistres`) —
+`../../docs/research/dossier-preliminaire.md`.
 
 ## Единственные точки входа
 
