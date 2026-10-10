@@ -19,6 +19,13 @@ export const serverError = {
   path: '/test-erreur' satisfies Route,
   status: 500,
 } as const;
+// The eight states of the deadline badge in both forms, behind TEST_ROUTES
+// like serverError above: from the registry the sample page gets axe, reflow
+// and reduced-motion for free (docs/research/design-system.md, «Тесты»).
+export const testBejdz = {
+  path: '/test-bejdz' satisfies Route,
+  status: 200,
+} as const;
 export const veille = { path: '/veille' satisfies Route, status: 200 } as const;
 // The token is deliberately unknown, and the status GET is mocked to a real
 // domain "invalid" response: nothing listens on testApiBaseUrl during
@@ -115,6 +122,7 @@ export const pages = [
   home,
   notFound,
   serverError,
+  testBejdz,
   veille,
   veilleConfirmation,
   veilleDesinscriptionConfirmer,
