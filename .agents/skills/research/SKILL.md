@@ -3,7 +3,7 @@ name: research
 description: Проводит технический ресерч по approved PRD фичи и сохраняет отчёт с принятыми решениями в docs/research/. Использовать после prd и до plan-phase — план применяет решения отчёта, не перевыбирает их: «сделай ресерч по PRD», «исследуй техническую реализацию».
 argument-hint: "<имя-фичи>"
 disable-model-invocation: true
-allowed-tools: Read, Write, Edit, Glob, Grep, WebSearch, WebFetch, Bash(npm view:*), Bash(npm audit:*)
+allowed-tools: Read, Write, Edit, Glob, Grep, WebSearch, WebFetch, Bash(npm view:*)
 ---
 
 # Технический ресерч
@@ -65,10 +65,11 @@ allowed-tools: Read, Write, Edit, Glob, Grep, WebSearch, WebFetch, Bash(npm view
   это не двадцать строк своего кода; **Alive** — дата последнего релиза
   (`npm view <pkg> time.modified`), не «популярная»; **Right-sized** — размер
   и число поддепов (`npm view <pkg> dist.unpackedSize dependencies`) против
-  того, что реально используем; **Maintained securely** — `npm audit` и
-  известные advisories с версией, где исправлено. Факт, который не удалось
-  проверить, помечается `?`, а не додумывается. Ralph `package.json` не
-  правит: установка — за человеком, решение — за отчётом.
+  того, что реально используем; **Maintained securely** — advisories по точной
+  версии из deps.dev (`npm audit` видит только lockfile, новый пакет для него
+  чист): `https://api.deps.dev/v3/systems/npm/packages/<pkg>/versions/<ver>`,
+  поле `advisoryKeys`, с версией, где исправлено. Факт, который не удалось
+  проверить, помечается `?`, а не додумывается.
 - Юридические сроки и справочные данные — только со ссылкой на источник и датой
   сверки (правило SourceReference); при расхождении источников — консервативное
   значение.

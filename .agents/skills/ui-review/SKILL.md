@@ -2,7 +2,6 @@
 name: ui-review
 description: Ревью изменённого UI web-приложения по дизайн-системе и доступности проекта — вживую через Playwright MCP, в обеих темах, поверх тестов tests/a11y/. Вызывать после любого изменения UI, прежде чем считать задачу завершённой.
 argument-hint: '[страницы или компоненты]'
-disable-model-invocation: true
 allowed-tools: Read, Grep, Glob, Bash(git diff:*), Bash(git status:*), Bash(npm run test:web:*), mcp__playwright__*
 ---
 

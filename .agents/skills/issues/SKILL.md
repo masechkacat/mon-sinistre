@@ -3,7 +3,7 @@ name: issues
 description: Создаёт GitHub milestones и issues из файла плана в docs/plan/. Использовать, когда план с фазами готов и нужно завести бэклог — «создай issues по плану», «заведи задачи в GitHub».
 argument-hint: '<имя-фичи>'
 disable-model-invocation: true
-allowed-tools: Read, Bash(gh api repos/masechkacat/mon-sinistre/milestones:*), Bash(gh issue list:*), Bash(gh issue create:*), Bash(gh label list:*), Bash(gh label create:*)
+allowed-tools: Read, Bash(gh api repos/{owner}/{repo}/milestones:*), Bash(gh issue list:*), Bash(gh issue create:*), Bash(gh label list:*), Bash(gh label create:*)
 ---
 
 # Генератор бэклога
@@ -19,13 +19,13 @@ allowed-tools: Read, Bash(gh api repos/masechkacat/mon-sinistre/milestones:*), B
 
 1. Прочитай файл плана, выпиши фазы и задачи.
 2. Проверь, что уже существует, чтобы не создавать дубли:
-   `gh api repos/masechkacat/mon-sinistre/milestones --jq '.[].title'` и
+   `gh api repos/{owner}/{repo}/milestones --jq '.[].title'` и
    `gh issue list --state all --limit 100 --json title`.
    Существующие milestone и issue не пересоздавать — только досоздать недостающие.
 3. Проверь метки (`gh label list`); недостающие создай:
    `gh label create <name> --color <hex>`.
 4. Для каждой фазы создай milestone:
-   `gh api repos/masechkacat/mon-sinistre/milestones -f title="[{фича}] Фаза N: {название}" -f description="Цель: {…}. Когда готова: {…}"`
+   `gh api repos/{owner}/{repo}/milestones -f title="[{фича}] Фаза N: {название}" -f description="Цель: {…}. Когда готова: {…}"`
 5. Для каждой задачи создай issue **в порядке фаз** (нумерация issues повторит план):
    `gh issue create --title "…" --body "…" --label "…" --milestone "[{фича}] Фаза N: {название}"`
 6. Выведи сводку: фаза → milestone → номера созданных issues.
