@@ -22,8 +22,8 @@ import type { ComposeMailInput } from 'src/mail/mail-message';
 import { MailService } from 'src/mail/mail.service';
 import {
   isForeignKeyViolation,
-  isRecordNotFound,
   isUniqueViolationOn,
+  nullIfRecordNotFound,
 } from 'src/prisma/prisma-error';
 import { PrismaService } from 'src/prisma/prisma.service';
 import type { CreateVeilleDto } from './dto/create-veille.dto';
@@ -34,6 +34,7 @@ import {
 } from './veille-confirmation-mail';
 import { hashVeilleFormEmail } from './veille-email-hash';
 import { generateVeilleToken, hashVeilleToken } from './veille-token';
+import { mintUnsubscribeToken } from './veille-unsubscribe-token';
 
 /** Re-exported for the veille specs, which import it from here — the single
  * definition lives in src/common/time.ts (shared with account confirmation),
@@ -247,18 +248,16 @@ export class VeilleService {
     await this.sendFormMail(email, async () => {
       const confirm = generateVeilleToken();
       const unsubscribe = generateVeilleToken();
-      try {
-        await this.prisma.veille.update({
+      const rotated = await nullIfRecordNotFound(() =>
+        this.prisma.veille.update({
           where: { id: veilleId, confirmedAt: null },
           data: {
             confirmTokenHash: confirm.hash,
             unsubscribeTokens: { create: { tokenHash: unsubscribe.hash } },
           },
-        });
-      } catch (error) {
-        if (isRecordNotFound(error)) return null;
-        throw error;
-      }
+        }),
+      );
+      if (rotated === null) return null;
       return confirmationMailFor(
         email,
         communes,
@@ -277,10 +276,10 @@ export class VeilleService {
    * `veilleId` comes from the same claim that already proved the row
    * confirmed, so the write below cannot land on a different subscription's
    * request in the email-normalisation race that `claimUnconfirmed` guards
-   * against; the mail-gated rotation further down still keys its unsubscribe
-   * half by `email` (research: same condition as the deleted
-   * `sendAlreadySubscribedMail`), since that hash lives on `Veille`, not on
-   * this request.
+   * against; the mail-gated mint further down still keys its unsubscribe
+   * token by `email` (research: same condition as the deleted
+   * `sendAlreadySubscribedMail`), since that token hangs off `Veille`, not
+   * off this request.
    *
    * `create` needs *some* hash to satisfy the column — `placeholder` — whose
    * token is dropped on the spot: the rotation below mails a freshly generated
@@ -348,23 +347,13 @@ export class VeilleService {
       try {
         return await this.prisma.$transaction(async (tx) => {
           const change = generateVeilleToken();
-          const unsubscribe = generateVeilleToken();
           const rotatedChange = await tx.veilleChange.updateMany({
             where: { veilleId },
             data: { changeTokenHash: change.hash },
           });
           if (rotatedChange.count === 0) throw new ChangeMailRaceLost();
-          try {
-            await tx.veille.update({
-              where: { email, confirmedAt: { not: null } },
-              data: {
-                unsubscribeTokens: { create: { tokenHash: unsubscribe.hash } },
-              },
-            });
-          } catch (error) {
-            if (isRecordNotFound(error)) throw new ChangeMailRaceLost();
-            throw error;
-          }
+          const minted = await mintUnsubscribeToken(tx, { email });
+          if (minted === null) throw new ChangeMailRaceLost();
 
           const request = await tx.veilleChange.findUniqueOrThrow({
             where: { veilleId },
@@ -379,7 +368,7 @@ export class VeilleService {
             email,
             communes,
             change.token,
-            unsubscribe.token,
+            minted.unsubscribeToken,
           );
         });
       } catch (error) {

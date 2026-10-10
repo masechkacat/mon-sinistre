@@ -218,6 +218,9 @@ Auth уже решён (api/CLAUDE.md): Passport local + JWT, refresh с рот�
 - `ReminderUnsubscribeToken`: tokenHash PK, userId → User (cascade). Строка на
   каждое письмо-напоминание, действуют все: человек жмёт ссылку в том письме,
   которое открыл, а не в последнем (миграция `reminder_unsubscribe_tokens`).
+  Чистки нет осознанно: срок, после которого ссылка из доставленного письма
+  перестаёт работать, нечем обосновать, а рост таблицы равен числу
+  отправленных писем и уходит каскадом вместе с владельцем.
 - `RefreshToken`: id, userId → User (cascade), tokenHash `unique`, expiresAt,
   revokedAt null. Ротация = вставка нового + revoke старого; чистка истёкших —
   фоновая задача.
@@ -318,7 +321,9 @@ SinistreNotification»).
   нюансы `confirmExpiresAt` и токенов — `docs/research/veille-subscription-lifecycle.md`.
 - `VeilleUnsubscribeToken`: tokenHash PK, veilleId → Veille (cascade). Строка
   на каждое письмо подписчику, действуют все — тот же приём, что
-  `ReminderUnsubscribeToken` (§ 5).
+  `ReminderUnsubscribeToken` (§ 5), без чистки по той же причине. Письма,
+  которые чеканит анонимная форма, ограничены `VEILLE_FORM_EMAIL_DAILY_LIMIT`
+  в сутки на адрес — столько же строк в худшем случае.
 - `VeilleCommune`: veilleId → Veille (cascade), codeInsee → Commune
   (restrict); PK составной, индекс `(codeInsee)` — fan-out уведомлений в день
   arrêté.

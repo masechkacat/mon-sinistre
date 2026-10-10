@@ -24,7 +24,7 @@ import type {
 } from 'src/generated/prisma/enums';
 import type { ComposeMailInput } from 'src/mail/mail-message';
 import { MailService } from 'src/mail/mail.service';
-import { isRecordNotFound, isUniqueViolationOn } from 'src/prisma/prisma-error';
+import { isUniqueViolationOn } from 'src/prisma/prisma-error';
 import { PrismaService } from 'src/prisma/prisma.service';
 import {
   type ResolvedDeadlineRule,
@@ -39,7 +39,10 @@ import {
 import { anchorDatesOf } from 'src/sinistres/anchor-dates';
 import { recomputeDeclarationSteps } from 'src/sinistres/recompute-declaration-steps';
 import { sinistreStatus } from 'src/sinistres/sinistre-status';
-import { generateVeilleToken } from 'src/veille/veille-token';
+import {
+  type MintedUnsubscribeToken,
+  mintUnsubscribeToken,
+} from 'src/veille/veille-unsubscribe-token';
 import { AdminAlertService } from './alerts/admin-alert.service';
 import { DilaClient } from './dila/dila.client';
 import { classifyRisques } from './parse/classify-risques';
@@ -178,8 +181,8 @@ type PendingSinistreNotification = {
   attempts: number;
 };
 
-/** One watcher's address plus the plaintext unsubscribe token minted for this run's mail(s) — `null` once {@link JorfMonitorService.mintUnsubscribeToken} finds the row gone. */
-type Recipient = { email: string; unsubscribeToken: string };
+/** One watcher's address plus the plaintext unsubscribe token minted for this run's mail(s) — `null` once {@link mintUnsubscribeToken} finds the row gone. */
+type Recipient = MintedUnsubscribeToken;
 
 /**
  * State the send step carries across both drains of one run
@@ -2223,35 +2226,8 @@ export class JorfMonitorService {
     if (memoized !== undefined) {
       return memoized;
     }
-    const recipient = await this.mintUnsubscribeToken(veilleId);
+    const recipient = await mintUnsubscribeToken(this.prisma, { id: veilleId });
     pass.recipients.set(veilleId, recipient);
     return recipient;
-  }
-
-  /**
-   * As `RemindersService.mintUnsubscribeToken`. `null` means the watcher's
-   * row is gone (cascaded away with the Veille) or no longer confirmed —
-   * Veille never reverts `confirmedAt` once set (`apps/api/src/veille/
-   * CLAUDE.md`, "Жизненный цикл подписки"), so this is the same defensive
-   * race guard `VeilleService.rotateAndSendChangeMail` takes, not a
-   * reachable branch under normal operation.
-   */
-  private async mintUnsubscribeToken(
-    veilleId: string,
-  ): Promise<{ email: string; unsubscribeToken: string } | null> {
-    const unsubscribe = generateVeilleToken();
-    try {
-      const veille = await this.prisma.veille.update({
-        where: { id: veilleId, confirmedAt: { not: null } },
-        data: {
-          unsubscribeTokens: { create: { tokenHash: unsubscribe.hash } },
-        },
-        select: { email: true },
-      });
-      return { email: veille.email, unsubscribeToken: unsubscribe.token };
-    } catch (error) {
-      if (isRecordNotFound(error)) return null;
-      throw error;
-    }
   }
 }

@@ -1,30 +1,37 @@
 import { HttpException, NotFoundException } from '@nestjs/common';
 import { Prisma } from 'src/generated/prisma/client';
 
-/**
- * Short on purpose: a code belongs here only when one answer is true for every
- * endpoint at once, and almost none are. P2002 is deliberately absent —
- * `apps/api/CLAUDE.md`, «Правила проекта».
- *
- * A Map rather than an object literal: the key comes off the error, and an
- * object literal answers `constructor` with something that is not a mapping.
- */
-const HTTP_FOR_CODE = new Map<string, () => HttpException>([
-  /** 404, not 403: ownership is part of the where clause, and a 403 would confirm the row exists. */
-  ['P2025', () => new NotFoundException()],
-]);
-
-/** `P2025` — for a conditional `update` whose filter matched no row. */
+/** `P2025` — a conditional `update`/`delete` whose filter matched no row. */
 export const isRecordNotFound = (exception: unknown): boolean =>
   exception instanceof Prisma.PrismaClientKnownRequestError &&
   exception.code === 'P2025';
 
+/**
+ * A conditional write whose filter matching no row is an answer, not an
+ * error: `null` instead of `P2025`. Every "row vanished mid-flight" race
+ * guard is this call; anything else Prisma throws still propagates.
+ */
+export const nullIfRecordNotFound = async <T>(
+  write: () => Promise<T>,
+): Promise<T | null> => {
+  try {
+    return await write();
+  } catch (error) {
+    if (isRecordNotFound(error)) return null;
+    throw error;
+  }
+};
+
+/**
+ * Short on purpose: a code is mapped here only when one answer is true for
+ * every endpoint at once, and almost none are. P2002 is deliberately absent —
+ * `apps/api/CLAUDE.md`, «Правила проекта». 404, not 403: ownership is part of
+ * the where clause, and a 403 would confirm the row exists.
+ */
 export const httpExceptionForPrisma = (
   exception: unknown,
 ): HttpException | undefined =>
-  exception instanceof Prisma.PrismaClientKnownRequestError
-    ? HTTP_FOR_CODE.get(exception.code)?.()
-    : undefined;
+  isRecordNotFound(exception) ? new NotFoundException() : undefined;
 
 const asRecord = (value: unknown): Record<string, unknown> | undefined =>
   typeof value === 'object' && value !== null

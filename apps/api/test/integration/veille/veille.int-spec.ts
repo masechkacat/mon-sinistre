@@ -228,7 +228,7 @@ describe('POST /veille (integration)', () => {
       expect(transport.sent).toHaveLength(2);
     });
 
-    it('rotates both tokens: the resent mail confirms and unsubscribes, superseding the first mail', async () => {
+    it('rotates the confirm token: the first mail no longer confirms, the resent mail confirms and unsubscribes', async () => {
       await prisma.commune.create({ data: communeFixture('30189', 'Nîmes') });
       await prisma.commune.create({
         data: communeFixture('34172', 'Montpellier'),
@@ -245,7 +245,8 @@ describe('POST /veille (integration)', () => {
       if (!resentMail) throw new Error('expected a resent mail');
 
       // The resent mail exists for an address that lost the first one, so
-      // its own links must actually work — the first mail's stop matching.
+      // its own links must actually work — the first mail's confirm link
+      // stops matching.
       const staleRes = await app.inject({
         method: 'GET',
         url: `/veille/confirmation?token=${firstConfirmToken}`,
@@ -264,6 +265,27 @@ describe('POST /veille (integration)', () => {
         method: 'POST',
         url: '/veille/desinscription',
         payload: { token: tokenFrom(resentMail, VEILLE_UNSUBSCRIBE_PATH) },
+      });
+      expect(unsubscribeRes.statusCode).toBe(204);
+      expect(await prisma.veille.findMany({ where: { email } })).toEqual([]);
+    });
+
+    it('keeps the first mail’s unsubscribe link working after a resend', async () => {
+      await prisma.commune.create({ data: communeFixture('30189', 'Nîmes') });
+      const email = 'riverain@example.fr';
+
+      await post({ email, communeCodes: ['30189'] });
+      const [firstMail] = transport.sent;
+      if (!firstMail) throw new Error('expected a first mail to be sent');
+      await post({ email, communeCodes: ['30189'] });
+      expect(transport.sent).toHaveLength(2);
+
+      // ТЗ § 7, отписка в один клик: the mail they open is the one they
+      // click, resend or not.
+      const unsubscribeRes = await app.inject({
+        method: 'POST',
+        url: '/veille/desinscription',
+        payload: { token: tokenFrom(firstMail, VEILLE_UNSUBSCRIBE_PATH) },
       });
       expect(unsubscribeRes.statusCode).toBe(204);
       expect(await prisma.veille.findMany({ where: { email } })).toEqual([]);
@@ -652,7 +674,7 @@ describe('POST /veille (integration)', () => {
       expect(JSON.parse(confirmRes.payload)).toEqual({ status: 'active' });
     });
 
-    it('does not rotate the change or unsubscribe tokens when the limit suppresses the change mail, but still rewrites the pending request', async () => {
+    it('does not rotate the change token when the limit suppresses the change mail, but still rewrites the pending request', async () => {
       await prisma.commune.create({ data: communeFixture('30189', 'Nîmes') });
       await prisma.commune.create({
         data: communeFixture('34172', 'Montpellier'),
@@ -670,7 +692,7 @@ describe('POST /veille (integration)', () => {
       });
 
       // Change mails up to the limit; the last delivered one carries the
-      // tokens whose hashes are stored.
+      // change token whose hash is stored.
       for (let i = 1; i < VEILLE_FORM_EMAIL_DAILY_LIMIT; i++) {
         resetThrottler(app);
         await post({ email, communeCodes: ['34172'] });
@@ -680,8 +702,8 @@ describe('POST /veille (integration)', () => {
       if (!lastChangeMail) throw new Error('expected a change mail');
 
       // Sixth form: suppressed — anonymous form submissions must not be able
-      // to invalidate every delivered unsubscribe or change link (ТЗ § 7,
-      // one-click), yet the request itself still reflects the latest form.
+      // to invalidate every delivered change link, yet the request itself
+      // still reflects the latest form.
       resetThrottler(app);
       expect((await post({ email, communeCodes: ['30189'] })).statusCode).toBe(
         204,

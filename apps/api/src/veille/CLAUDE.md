@@ -48,6 +48,11 @@
   Сама механика — в `src/common/security/secure-token.ts` (общая с токеном
   подтверждения аккаунта, `src/auth/`); этот файл — только переименование под
   привычные здесь имена, второй генерации не заводить.
+- `veille-unsubscribe-token.ts` (`mintUnsubscribeToken`) — единственная
+  чеканка строки `VeilleUnsubscribeToken` под письмо подтверждённой подписке:
+  её зовут и `rotateAndSendChangeMail`, и монитор JORF (`src/jorf/`) для
+  письма об arrêté; условие `confirmedAt` и ответ на исчезнувшую строку —
+  докблок функции, второй чеканки не заводить.
 - `veille-email-hash.ts` (`hashVeilleFormEmail`) — тонкий ре-экспорт общей
   HMAC-утилиты `hashEmail` (`src/common/security/email-hash.ts`, общая со счётчиками
   аккаунта, `src/auth/`) под привычным здесь именем; получает
