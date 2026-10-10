@@ -42,7 +42,9 @@ export function veilleData(overrides: Partial<{ email: string }> = {}) {
   return {
     email: overrides.email ?? `riverain-${Math.random()}@example.fr`,
     confirmTokenHash: `confirm-${Math.random()}`,
-    unsubscribeTokenHash: `unsubscribe-${Math.random()}`,
+    unsubscribeTokens: {
+      create: { tokenHash: `unsubscribe-${Math.random()}` },
+    },
     confirmExpiresAt: new Date('2026-08-22'),
   };
 }
@@ -71,7 +73,7 @@ export const createVeille = async (
     data: {
       email: overrides.email ?? `riverain-${Math.random()}@example.fr`,
       confirmTokenHash: confirm.hash,
-      unsubscribeTokenHash: unsubscribe.hash,
+      unsubscribeTokens: { create: { tokenHash: unsubscribe.hash } },
       confirmedAt: overrides.confirmedAt ?? null,
       confirmExpiresAt: overrides.confirmExpiresAt ?? nextConfirmExpiresAt(),
       ...(overrides.communeCodes && {

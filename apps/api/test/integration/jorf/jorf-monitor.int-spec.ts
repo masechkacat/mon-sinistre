@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
-import { toIsoDate } from '@mon-sinistre/contracts';
+import { toIsoDate, VEILLE_UNSUBSCRIBE_PATH } from '@mon-sinistre/contracts';
 import { createIntTestApp } from 'test/helpers/app';
 import type { FetchFn } from 'src/common/fetch-fn';
 import { commune as communeFixture } from 'test/helpers/commune';
@@ -9,6 +9,7 @@ import { formatFrenchDate } from 'src/jorf/parse/french-date';
 import { seedDeadlineRules } from 'src/deadline-rules/deadline-rule.seed';
 import { seedStepTemplates } from 'src/step-templates/step-template.seed';
 import { captureLogs } from 'test/helpers/mail-log';
+import { tokenFrom } from 'test/helpers/mail-links';
 import { MailDeliveryError } from 'src/mail/mail-delivery.error';
 import { MAIL_TRANSPORT } from 'src/mail/mail-transport';
 import { RecordingTransport } from 'test/helpers/mail-transport';
@@ -1516,7 +1517,55 @@ describe('veille notification outbox (issue #106)', () => {
     ).toMatchObject({ attempts: NOTIFICATION_ATTEMPTS_BEFORE_ALERT + 1 });
   });
 
-  it('keeps the unsubscribe link alive when a queued row turns out to have nothing to mail', async () => {
+  // Two drains of one run share a token; a later run mints its own, and the
+  // link of the earlier mail keeps working — ТЗ § 7, отписка в один клик.
+  it('the unsubscribe link of an earlier run still works after a later run', async () => {
+    await prisma.commune.create({
+      data: communeFixture('02005', 'Amigny-Rouy', '02', 'Aisne'),
+    });
+    const { veilleId } = await createVeille(prisma, {
+      confirmedAt: new Date(),
+      communeCodes: ['02005'],
+    });
+    const FIRST = 'JORFSIMPLE_20260709-060000.tar.gz';
+    const SECOND = 'JORFSIMPLE_20260709-180000.tar.gz';
+    const THIRD = 'JORFSIMPLE_20260710-060000.tar.gz';
+    const downloads = {
+      [FIRST]: await buildDelta('JORFTEXT000000009101', 'INTJ2600091A', {
+        reconnues: [AMIGNY],
+      }),
+      [SECOND]: await buildDelta('JORFTEXT000000009102', 'INTJ2600092A', {
+        reconnues: [AMIGNY],
+      }),
+      [THIRD]: await buildDelta('JORFTEXT000000009103', 'INTJ2600093A', {
+        reconnues: [AMIGNY],
+      }),
+    };
+
+    currentFetch = stubFetch([FIRST, SECOND], downloads);
+    await monitor.run();
+    currentFetch = stubFetch([FIRST, SECOND, THIRD], downloads);
+    await monitor.run();
+
+    const tokens = transport.sent.map((mail) =>
+      tokenFrom(mail, VEILLE_UNSUBSCRIBE_PATH),
+    );
+    expect(tokens).toHaveLength(3);
+    expect(tokens[0]).toBe(tokens[1]);
+    expect(tokens[2]).not.toBe(tokens[0]);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/veille/desinscription',
+      payload: { token: tokens[0] },
+    });
+    expect(res.statusCode).toBe(204);
+    expect(
+      await prisma.veille.findUnique({ where: { id: veilleId } }),
+    ).toBeNull();
+  });
+
+  it('mints no unsubscribe token for a queued row that turns out to have nothing to mail', async () => {
     await prisma.commune.create({
       data: communeFixture('02005', 'Amigny-Rouy', '02', 'Aisne'),
     });
@@ -1533,21 +1582,20 @@ describe('veille notification outbox (issue #106)', () => {
     });
     transport.failNext = true;
     await monitor.run();
-    const mailed = await prisma.veille.findUniqueOrThrow({
-      where: { id: veilleId },
+    const minted = await prisma.veilleUnsubscribeToken.count({
+      where: { veilleId },
     });
 
     // The watcher drops the commune before the row is retried: nothing is
-    // left to mail, so the row drains — but the token must not rotate, or the
-    // link in the mail they already have stops working with no replacement
-    // ever sent (ТЗ § 7, отписка в один клик).
+    // left to mail, so the row drains without a mail — and without a token
+    // no mail would ever carry.
     await prisma.veilleCommune.deleteMany({ where: { veilleId } });
     await monitor.run();
 
     expect(transport.sent).toHaveLength(0);
     expect(
-      await prisma.veille.findUniqueOrThrow({ where: { id: veilleId } }),
-    ).toMatchObject({ unsubscribeTokenHash: mailed.unsubscribeTokenHash });
+      await prisma.veilleUnsubscribeToken.count({ where: { veilleId } }),
+    ).toBe(minted);
     expect(
       await prisma.veilleNotification.count({ where: { sentAt: null } }),
     ).toBe(0);

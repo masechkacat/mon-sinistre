@@ -20,9 +20,9 @@
   переходов — `classifyConfirmation` в сервисе, единственный источник решения
   `pending | active | invalid` для обоих эндпоинтов confirmation.
 - `POST /veille/desinscription` → `VeilleService.unsubscribe`; каскад
-  `VeilleCommune` сносится вместе с `Veille`. Единственный маршрут под
-  `@ThrottleByToken` (`src/common/http/token-throttler.guard.ts`) — почему, сказано
-  у декоратора.
+  `VeilleCommune` и `VeilleUnsubscribeToken` сносится вместе с `Veille`.
+  Единственный маршрут под `@ThrottleByToken`
+  (`src/common/http/token-throttler.guard.ts`) — почему, сказано у декоратора.
 - `GET /veille/changement?token=…` → `VeilleService.getChangeStatus`; почему
   один `findFirst`, а не `findUnique` — докблок метода.
 - `POST /veille/changement` → `VeilleService.applyChange`; удаление заявки —
@@ -41,11 +41,18 @@
   спека рядом, второго описания того же письма не заводить.
 - `veille-token.ts` — единственный способ получить пару токен/хеш
   (`generateVeilleToken`) и пересчитать хеш по токену (`hashVeilleToken`,
-  используется и статусом подтверждения, и отпиской — оба ищут `Veille` по
-  своему хешу): `randomBytes(32).base64url` в письмо, `sha256` hex в базу.
+  используется и статусом подтверждения, который ищет `Veille` по
+  `confirmTokenHash`, и отпиской, которая ищет её по строке
+  `VeilleUnsubscribeToken`): `randomBytes(32).base64url` в письмо, `sha256`
+  hex в базу.
   Сама механика — в `src/common/security/secure-token.ts` (общая с токеном
   подтверждения аккаунта, `src/auth/`); этот файл — только переименование под
   привычные здесь имена, второй генерации не заводить.
+- `veille-unsubscribe-token.ts` (`mintUnsubscribeToken`) — единственная
+  чеканка строки `VeilleUnsubscribeToken` под письмо подтверждённой подписке:
+  её зовут и `rotateAndSendChangeMail`, и монитор JORF (`src/jorf/`) для
+  письма об arrêté; условие `confirmedAt` и ответ на исчезнувшую строку —
+  докблок функции, второй чеканки не заводить.
 - `veille-email-hash.ts` (`hashVeilleFormEmail`) — тонкий ре-экспорт общей
   HMAC-утилиты `hashEmail` (`src/common/security/email-hash.ts`, общая со счётчиками
   аккаунта, `src/auth/`) под привычным здесь именем; получает

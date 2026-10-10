@@ -23,6 +23,7 @@ import { MailService } from 'src/mail/mail.service';
 import {
   isForeignKeyViolation,
   isUniqueViolationOn,
+  nullIfRecordNotFound,
 } from 'src/prisma/prisma-error';
 import { PrismaService } from 'src/prisma/prisma.service';
 import type { CreateVeilleDto } from './dto/create-veille.dto';
@@ -33,6 +34,7 @@ import {
 } from './veille-confirmation-mail';
 import { hashVeilleFormEmail } from './veille-email-hash';
 import { generateVeilleToken, hashVeilleToken } from './veille-token';
+import { mintUnsubscribeToken } from './veille-unsubscribe-token';
 
 /** Re-exported for the veille specs, which import it from here — the single
  * definition lives in src/common/time.ts (shared with account confirmation),
@@ -138,7 +140,7 @@ export class VeilleService {
         data: {
           email,
           confirmTokenHash: confirm.hash,
-          unsubscribeTokenHash: unsubscribe.hash,
+          unsubscribeTokens: { create: { tokenHash: unsubscribe.hash } },
           confirmExpiresAt: nextConfirmExpiresAt(),
           communes: {
             create: communeCodes.map((codeInsee) => ({ codeInsee })),
@@ -233,9 +235,10 @@ export class VeilleService {
   /**
    * Why a resent mail rotates hashes and mails fresh tokens, and why only
    * inside the limit gate — research, врезка «Исправлено при реализации».
-   * Local to this method: both hashes rotate, conditioned on
-   * `confirmedAt: null` so a concurrent confirmation keeps its delivered
-   * links working.
+   * Local to this method: the confirm hash rotates and an unsubscribe token
+   * is minted, conditioned on `confirmedAt: null` so a concurrent
+   * confirmation keeps its delivered links working. One nested write, so the
+   * token row cannot outlive a subscription deleted in between.
    */
   private async resendConfirmationMail(
     veilleId: string,
@@ -245,14 +248,16 @@ export class VeilleService {
     await this.sendFormMail(email, async () => {
       const confirm = generateVeilleToken();
       const unsubscribe = generateVeilleToken();
-      const rotated = await this.prisma.veille.updateMany({
-        where: { id: veilleId, confirmedAt: null },
-        data: {
-          confirmTokenHash: confirm.hash,
-          unsubscribeTokenHash: unsubscribe.hash,
-        },
-      });
-      if (rotated.count === 0) return null;
+      const rotated = await nullIfRecordNotFound(() =>
+        this.prisma.veille.update({
+          where: { id: veilleId, confirmedAt: null },
+          data: {
+            confirmTokenHash: confirm.hash,
+            unsubscribeTokens: { create: { tokenHash: unsubscribe.hash } },
+          },
+        }),
+      );
+      if (rotated === null) return null;
       return confirmationMailFor(
         email,
         communes,
@@ -271,10 +276,10 @@ export class VeilleService {
    * `veilleId` comes from the same claim that already proved the row
    * confirmed, so the write below cannot land on a different subscription's
    * request in the email-normalisation race that `claimUnconfirmed` guards
-   * against; the mail-gated rotation further down still keys its unsubscribe
-   * half by `email` (research: same condition as the deleted
-   * `sendAlreadySubscribedMail`), since that hash lives on `Veille`, not on
-   * this request.
+   * against; the mail-gated mint further down still keys its unsubscribe
+   * token by `email` (research: same condition as the deleted
+   * `sendAlreadySubscribedMail`), since that token hangs off `Veille`, not
+   * off this request.
    *
    * `create` needs *some* hash to satisfy the column — `placeholder` — whose
    * token is dropped on the spot: the rotation below mails a freshly generated
@@ -321,14 +326,15 @@ export class VeilleService {
 
   /**
    * Token rotation is gated the same way `resendConfirmationMail`'s is: only
-   * a mail that actually goes out gets a link that still works. Both
-   * rotations and the read of the composition to mail share one transaction,
-   * not two independent `updateMany` calls — either the change hash matching
-   * zero rows (a concurrent desinscription already cascaded the request
-   * away) or the unsubscribe hash doing the same throws `ChangeMailRaceLost`
-   * to roll back, so a lost race can never strand a rotated `changeTokenHash`
-   * whose token was never mailed. The composition mailed is read back inside
-   * the same transaction rather than trusting the caller's snapshot: a second
+   * a mail that actually goes out gets a link that still works. The change
+   * rotation, the unsubscribe mint and the read of the composition to mail
+   * share one transaction, not independent calls — either the change hash
+   * matching zero rows (a concurrent desinscription already cascaded the
+   * request away) or the mint finding the subscription gone throws
+   * `ChangeMailRaceLost` to roll back, so a lost race can never strand a
+   * rotated `changeTokenHash` whose token was never mailed. The composition
+   * mailed is read back inside the same transaction rather than trusting the
+   * caller's snapshot: a second
    * submission racing this one between `upsertChangeRequest`'s write and this
    * rotation would otherwise mail a list that no longer matches what the
    * link, once confirmed, actually applies.
@@ -341,17 +347,13 @@ export class VeilleService {
       try {
         return await this.prisma.$transaction(async (tx) => {
           const change = generateVeilleToken();
-          const unsubscribe = generateVeilleToken();
           const rotatedChange = await tx.veilleChange.updateMany({
             where: { veilleId },
             data: { changeTokenHash: change.hash },
           });
           if (rotatedChange.count === 0) throw new ChangeMailRaceLost();
-          const rotatedUnsubscribe = await tx.veille.updateMany({
-            where: { email, confirmedAt: { not: null } },
-            data: { unsubscribeTokenHash: unsubscribe.hash },
-          });
-          if (rotatedUnsubscribe.count === 0) throw new ChangeMailRaceLost();
+          const minted = await mintUnsubscribeToken(tx, { email });
+          if (minted === null) throw new ChangeMailRaceLost();
 
           const request = await tx.veilleChange.findUniqueOrThrow({
             where: { veilleId },
@@ -366,7 +368,7 @@ export class VeilleService {
             email,
             communes,
             change.token,
-            unsubscribe.token,
+            minted.unsubscribeToken,
           );
         });
       } catch (error) {
@@ -516,7 +518,9 @@ export class VeilleService {
    */
   async unsubscribe(token: string): Promise<void> {
     await this.prisma.veille.deleteMany({
-      where: { unsubscribeTokenHash: hashVeilleToken(token) },
+      where: {
+        unsubscribeTokens: { some: { tokenHash: hashVeilleToken(token) } },
+      },
     });
   }
 

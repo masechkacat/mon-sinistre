@@ -39,7 +39,10 @@ import {
 import { anchorDatesOf } from 'src/sinistres/anchor-dates';
 import { recomputeDeclarationSteps } from 'src/sinistres/recompute-declaration-steps';
 import { sinistreStatus } from 'src/sinistres/sinistre-status';
-import { generateVeilleToken } from 'src/veille/veille-token';
+import {
+  type MintedUnsubscribeToken,
+  mintUnsubscribeToken,
+} from 'src/veille/veille-unsubscribe-token';
 import { AdminAlertService } from './alerts/admin-alert.service';
 import { DilaClient } from './dila/dila.client';
 import { classifyRisques } from './parse/classify-risques';
@@ -178,8 +181,8 @@ type PendingSinistreNotification = {
   attempts: number;
 };
 
-/** One watcher's address plus the plaintext unsubscribe token minted for this run's mail(s) — `null` once {@link JorfMonitorService.rotateUnsubscribeToken} finds the row gone. */
-type Recipient = { email: string; unsubscribeToken: string };
+/** One watcher's address plus the plaintext unsubscribe token minted for this run's mail(s) — `null` once {@link mintUnsubscribeToken} finds the row gone. */
+type Recipient = MintedUnsubscribeToken;
 
 /**
  * State the send step carries across both drains of one run
@@ -2211,10 +2214,9 @@ export class JorfMonitorService {
   /**
    * One watcher's address and unsubscribe token for this run, minted on
    * first use and reused afterwards — {@link SendPass}. Deliberately called
-   * from inside the per-recipient loop, not ahead of it: rotating for a row
-   * that turns out to have nothing to mail (its watcher dropped every
-   * commune since it was queued) would silently kill the link in every mail
-   * already delivered to them, with no new mail carrying a replacement.
+   * from inside the per-recipient loop, not ahead of it: a row that turns
+   * out to have nothing to mail (its watcher dropped every commune since it
+   * was queued) must not leave behind a token no mail ever carried.
    */
   private async recipientFor(
     pass: SendPass,
@@ -2224,40 +2226,8 @@ export class JorfMonitorService {
     if (memoized !== undefined) {
       return memoized;
     }
-    const recipient = await this.rotateUnsubscribeToken(veilleId);
+    const recipient = await mintUnsubscribeToken(this.prisma, { id: veilleId });
     pass.recipients.set(veilleId, recipient);
     return recipient;
-  }
-
-  /**
-   * Rotates one watcher's unsubscribe token for the mail about to go out,
-   * same pattern as `VeilleService.rotateAndSendChangeMail`
-   * (`apps/api/src/veille/veille.service.ts`) — only `unsubscribeTokenHash`
-   * is stored, so the plaintext token a mail can link to only ever exists
-   * right after this write. `null` means the watcher's row is gone (cascaded
-   * away with the Veille) or no longer confirmed — Veille never reverts
-   * `confirmedAt` once set (`apps/api/src/veille/CLAUDE.md`, "Жизненный цикл
-   * подписки"), so this is the same defensive race guard
-   * `rotateAndSendChangeMail` takes, not a reachable branch under normal
-   * operation.
-   */
-  private async rotateUnsubscribeToken(
-    veilleId: string,
-  ): Promise<{ email: string; unsubscribeToken: string } | null> {
-    return this.prisma.$transaction(async (tx) => {
-      const unsubscribe = generateVeilleToken();
-      const result = await tx.veille.updateMany({
-        where: { id: veilleId, confirmedAt: { not: null } },
-        data: { unsubscribeTokenHash: unsubscribe.hash },
-      });
-      if (result.count === 0) {
-        return null;
-      }
-      const veille = await tx.veille.findUniqueOrThrow({
-        where: { id: veilleId },
-        select: { email: true },
-      });
-      return { email: veille.email, unsubscribeToken: unsubscribe.token };
-    });
   }
 }
