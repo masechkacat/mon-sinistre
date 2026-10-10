@@ -52,7 +52,7 @@ CNIL, bcrypt, JWT-сессии с ротацией, глобальный guard, 
 | атомарный счётчик по адресу                | `withAddressLock` (`src/common/address-lock.ts`)                 |
 | резолв действующего `DeadlineRule`         | `DeadlineRuleService.resolveActive` (`src/deadline-rules/`)      |
 | описание ошибки в логе                     | `errorSummary`/`stackOf` (`src/common/`)                         |
-| изоляция шага часовой чистки               | `runGuarded` (`src/common/scheduled-cleanup.ts`)                 |
+| изоляция шага фонового прогона             | `runGuarded` (`src/common/scheduled-cleanup.ts`)                 |
 | строки для пользователя                    | `src/i18n/fr.ts`                                                 |
 | чтение окружения                           | `ConfigService<EnvironmentVariables, true>`                      |
 | пометить эндпоинт публичным                | `@Public()` (`src/auth/public.decorator.ts`)                     |

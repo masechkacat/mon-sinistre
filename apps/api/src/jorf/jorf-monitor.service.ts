@@ -8,6 +8,7 @@ import type {
 } from '@mon-sinistre/contracts';
 import { Cron } from '@nestjs/schedule';
 import { errorSummary, stackOf } from 'src/common/error-report';
+import { runGuarded } from 'src/common/scheduled-cleanup';
 import { loadSuccessorMap } from 'src/communes/load-successor-map';
 import { normalizeCommuneName } from 'src/communes/normalize-commune-name';
 import { DeadlineRuleService } from 'src/deadline-rules/deadline-rule.service';
@@ -696,14 +697,9 @@ export class JorfMonitorService {
     attempted: Set<string>,
     label: string,
   ): Promise<void> {
-    try {
-      await runOutboxDrain(this.logger, adapter, attempted);
-    } catch (error) {
-      this.logger.error(
-        `jorf monitor: sending ${label} failed: ${errorSummary(error)}`,
-        stackOf(error),
-      );
-    }
+    await runGuarded(this.logger, `jorf monitor: sending ${label}`, () =>
+      runOutboxDrain(this.logger, adapter, attempted),
+    );
   }
 
   /** Isolated the same way as {@link drainOutbox}: a lookup or resolve
@@ -1907,12 +1903,10 @@ export class JorfMonitorService {
         });
       },
       incrementAttempts: async (notification) => {
-        const attempts = notification.attempts + 1;
         await this.prisma.veilleNotification.update({
           where: { id: notification.id },
-          data: { attempts },
+          data: { attempts: { increment: 1 } },
         });
-        return attempts;
       },
       onStuck: (notification, attempts) =>
         this.raiseNotificationStuck(
@@ -2134,12 +2128,10 @@ export class JorfMonitorService {
         });
       },
       incrementAttempts: async (row) => {
-        const attempts = row.attempts + 1;
         await this.prisma.sinistreNotification.update({
           where: { id: row.id },
-          data: { attempts },
+          data: { attempts: { increment: 1 } },
         });
-        return attempts;
       },
       onStuck: (row, attempts) =>
         this.raiseNotificationStuck(
