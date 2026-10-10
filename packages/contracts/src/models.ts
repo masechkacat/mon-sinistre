@@ -229,6 +229,10 @@ export interface SinistreDetail extends Sinistre {
 /** Response body of `GET /sinistres` — one row per sinistre, no steps. */
 export type SinistreSummary = Sinistre;
 
+/** What one annex line says about the event it covers. */
+export type ArreteCoverage = Pick<Arrete, 'publishedAt' | 'legifranceUrl'> &
+  Pick<ArreteEntry, 'outcome' | 'eventStart' | 'eventEnd'>;
+
 /**
  * Response body of `GET /dossier/apercu` — the plan the three parameters would
  * get as a sinistre, computed without storing anything. No `id`: no resource
@@ -244,12 +248,28 @@ export interface DossierApercu {
    * Null while no arrêté covers the event — the aperçu is then "attendu". The
    * event period is what the page offers as bounds for refining `eventDate`.
    */
-  arrete:
-    | (Pick<Arrete, 'publishedAt' | 'legifranceUrl'> &
-        Pick<ArreteEntry, 'outcome' | 'eventStart' | 'eventEnd'>)
-    | null;
+  arrete: ArreteCoverage | null;
   steps: StepView[];
   declarationDeadline: DeclarationDeadline | null;
+}
+
+/** One annex line naming the commune: an arrêté names it once per risk and period. */
+export interface CommuneArrete extends ArreteCoverage, Pick<Arrete, 'nor'> {
+  arreteEntryId: string;
+  risqueLabel: ArreteEntry['risque'];
+  /** Categories `risqueLabel` classifies to; usually one. */
+  risques: RisqueCatnat[];
+  /** Only for a RECONNU entry; null also when no active rule resolved. */
+  declarationDeadline: DeclarationDeadline | null;
+}
+
+/**
+ * Response body of `GET /dossier/arretes` — the window of
+ * `COMMUNE_ARRETES_WINDOW_MONTHS`, newest publication first.
+ */
+export interface CommuneArretes {
+  commune: Commune;
+  arretes: CommuneArrete[];
 }
 
 /**
