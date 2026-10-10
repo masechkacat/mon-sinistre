@@ -41,3 +41,22 @@ for (const { path, dict } of legalPages) {
     await expect(page.getByRole('heading', { level: 2 })).toHaveText(headings);
   });
 }
+
+// What the loop above cannot see: the model counts six sections, and the loop
+// compares the page against the dictionary rather than against the model.
+test('the accessibility declaration: six model sections, recourse link outbound', async ({
+  page,
+}) => {
+  expect(fr.accessibilite.sections).toHaveLength(6);
+  await gotoPage(page, { path: '/accessibilite', status: 200 });
+  const links = fr.accessibilite.sections.flatMap((section) =>
+    'links' in section ? section.links : [],
+  );
+  expect(links).not.toEqual([]);
+  for (const { text, href } of links) {
+    expect(href).toMatch(/^https:\/\//);
+    await expect(
+      page.getByRole('main').getByRole('link', { name: text }),
+    ).toHaveAttribute('href', href);
+  }
+});

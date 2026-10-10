@@ -10,4 +10,5 @@ export const legalPages = [
     path: '/politique-de-confidentialite' satisfies Route,
     dict: fr.politiqueConfidentialite,
   },
+  { path: '/accessibilite' satisfies Route, dict: fr.accessibilite },
 ] as const;

@@ -578,6 +578,58 @@ export const fr = {
       },
     ],
   },
+  accessibilite: {
+    title: 'Déclaration d’accessibilité',
+    sections: [
+      {
+        heading: 'État de conformité',
+        paragraphs: [
+          'Mon Sinistre est non conforme au référentiel général d’amélioration de l’accessibilité (RGAA) version 4.1.2, le référentiel français qui décline pour les services en ligne les règles internationales d’accessibilité WCAG.',
+          '« Non conforme » est le statut prévu par le référentiel tant qu’aucun audit complet n’a été réalisé : il ne veut pas dire que le site est inutilisable, mais que sa conformité n’a pas encore été établie sur les 106 critères du RGAA. Cet audit est prévu, et ce statut sera corrigé à son issue.',
+        ],
+      },
+      {
+        heading: 'Résultats des tests',
+        paragraphs: [
+          'Aucun audit de conformité au RGAA n’a été mené à ce jour. Les vérifications suivantes sont en revanche automatisées et rejouées à chaque modification du site : contrôle des règles WCAG 2.1 niveau AA sur chacune des pages publiques, dans le thème clair comme dans le thème sombre ; contraste des couleurs ; parcours complet au clavier, avec un focus visible à chaque étape ; affichage à 320 pixels de large et à 200 % de zoom ; respect du réglage système de réduction des animations.',
+          'Ces vérifications automatiques ne couvrent qu’une partie des critères : elles ne remplacent ni un audit RGAA ni un essai avec un lecteur d’écran réel.',
+        ],
+      },
+      {
+        heading: 'Contenus non accessibles',
+        paragraphs: [
+          'Faute d’audit, la liste des non-conformités n’est pas établie. Les limites connues à ce jour sont les suivantes : le site n’a pas été parcouru avec les lecteurs d’écran les plus répandus (NVDA, JAWS, VoiceOver), ni testé par des personnes en situation de handicap.',
+          'Aucune dérogation pour charge disproportionnée n’est revendiquée, et le site ne reprend aucun contenu de tiers qui échapperait à l’obligation d’accessibilité.',
+        ],
+      },
+      {
+        heading: 'Établissement de cette déclaration',
+        paragraphs: [
+          'Cette déclaration a été établie le [date de première publication — à compléter avant publication].',
+          'Technologies utilisées : HTML, CSS et JavaScript. Les vérifications décrites plus haut sont exécutées par Playwright et axe-core dans le navigateur Chromium, sur l’ensemble des pages publiques du site. Les autres navigateurs ne sont pas encore couverts.',
+        ],
+      },
+      {
+        heading: 'Retour d’information et contact',
+        paragraphs: [
+          'Si vous n’arrivez pas à accéder à un contenu ou à une fonctionnalité du site, écrivez à [adresse électronique — à compléter avant publication] : le contenu vous sera transmis sous une autre forme, ou une solution de remplacement vous sera proposée. Votre signalement sert aussi à corriger le site.',
+        ],
+      },
+      {
+        heading: 'Voies de recours',
+        paragraphs: [
+          'Si vous signalez un défaut d’accessibilité qui vous empêche d’accéder à un contenu ou à une fonctionnalité du site et que vous n’obtenez pas de réponse, vous pouvez saisir le Défenseur des droits, l’autorité indépendante chargée de défendre les personnes dont les droits ne sont pas respectés.',
+          'Trois moyens de le saisir : le formulaire en ligne ; un délégué du Défenseur des droits près de chez vous, dont les coordonnées figurent sur defenseurdesdroits.fr ; un courrier postal gratuit, sans timbre, adressé au Défenseur des droits, Libre réponse 71120, 75342 Paris CEDEX 07.',
+        ],
+        links: [
+          {
+            text: 'Saisir le Défenseur des droits par le formulaire en ligne',
+            href: 'https://formulaire.defenseurdesdroits.fr',
+          },
+        ],
+      },
+    ],
+  },
   politiqueConfidentialite: {
     title: 'Politique de confidentialité',
     sections: [

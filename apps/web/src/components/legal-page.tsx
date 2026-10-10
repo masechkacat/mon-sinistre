@@ -2,7 +2,11 @@ import { PageContainer } from '@/components/page-container';
 import { PageTitle } from '@/components/page-title';
 import { SectionHeading } from '@/components/section-heading';
 
-export type LegalSection = { heading: string; paragraphs: readonly string[] };
+export type LegalSection = {
+  heading: string;
+  paragraphs: readonly string[];
+  links?: readonly { text: string; href: string }[];
+};
 
 export function LegalPage({
   title,
@@ -22,6 +26,13 @@ export function LegalPage({
             // content, while legal boilerplate can repeat a sentence verbatim
             // — text-as-key would then collide.
             <p key={index}>{paragraph}</p>
+          ))}
+          {section.links?.map((link) => (
+            <p key={link.href}>
+              <a href={link.href} className="underline underline-offset-4">
+                {link.text}
+              </a>
+            </p>
           ))}
         </section>
       ))}
