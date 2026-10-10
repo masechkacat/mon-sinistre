@@ -10,6 +10,8 @@ build/
 .next/
 out/
 *.tsbuildinfo
+# next генерирует его сам, и после dev и после build содержимое разное
+apps/web/next-env.d.ts
 
 # environment — никогда не коммитим реальные значения
 .env

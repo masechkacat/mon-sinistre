@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import type { LegalSection } from '../../src/components/legal-page';
 import { fr } from '../../src/i18n/fr';
 import { legalPages } from '../../src/lib/legal-pages';
 import { gotoPage, home } from '../support/pages';
@@ -41,3 +42,42 @@ for (const { path, dict } of legalPages) {
     await expect(page.getByRole('heading', { level: 2 })).toHaveText(headings);
   });
 }
+
+// What the loop above cannot see: it checks that whatever the dictionary says
+// reaches the page, not that the attribution CC BY requires — author, licence
+// and a link to the licence text — is still in it.
+test('mentions légales: the Crédits section credits the font', () => {
+  const credits: LegalSection | undefined = fr.mentionsLegales.sections.find(
+    (section) => section.heading === 'Crédits',
+  );
+  const credited = stringLeaves(credits).join(' ');
+  for (const mention of ['Luciole', 'CC BY 4.0'])
+    expect(credited).toContain(mention);
+  expect(credits?.links?.map(({ href }) => href.href)).toContain(
+    'https://creativecommons.org/licenses/by/4.0/',
+  );
+});
+
+// What the loop above cannot see: the loop compares the page against the
+// dictionary, not against the RGAA 4.1.2 model, whose six headings these are.
+test('the accessibility declaration: model sections, recourse link outbound', async ({
+  page,
+}) => {
+  expect(fr.accessibilite.sections.map((section) => section.heading)).toEqual([
+    'État de conformité',
+    'Résultats des tests',
+    'Contenus non accessibles',
+    'Établissement de cette déclaration',
+    'Retour d’information et contact',
+    'Voies de recours',
+  ]);
+  await gotoPage(page, { path: '/accessibilite', status: 200 });
+  const recours = fr.accessibilite.sections[5];
+  expect(recours.links).not.toEqual([]);
+  for (const { text, href } of recours.links) {
+    expect(href.hostname).toMatch(/defenseurdesdroits\.fr$/);
+    await expect(
+      page.getByRole('main').getByRole('link', { name: text }),
+    ).toHaveAttribute('href', href.href);
+  }
+});

@@ -175,9 +175,8 @@ test:web` зелёный; визуальная проверка экрана в 
       — шесть заголовков разделов присутствуют в порядке модели, ссылка в
       футере на главной ведёт на `/accessibilite`, ссылка Défenseur des
       droits — внешняя и с текстом из `fr.ts`; `no-literal-string` проходит.
-- [ ] Раздел «Crédits» в `fr.mentionsLegales`: Luciole © Laurent Bourcellier
-      & Jonathan Perez, luciole-vision.com, CC BY 4.0; Newsreader ©
-      Production Type, SIL OFL 1.1. **Проверяется тестами (до кода):**
+- [ ] Раздел «Crédits» в `fr.mentionsLegales`: авторство, лицензии и ссылки
+      на источники шрифтов — по research. **Проверяется тестами (до кода):**
       `tests/pages/legal.spec.ts` — на `/mentions-legales` есть заголовок
       «Crédits» и строка с «Luciole» и «CC BY 4.0».
 
