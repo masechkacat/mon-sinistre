@@ -1,6 +1,9 @@
 ---
 name: issues
 description: Создаёт GitHub milestones и issues из файла плана в docs/plan/. Использовать, когда план с фазами готов и нужно завести бэклог — «создай issues по плану», «заведи задачи в GitHub».
+argument-hint: '<имя-фичи>'
+disable-model-invocation: true
+allowed-tools: Read, Bash(gh api repos/{owner}/{repo}/milestones:*), Bash(gh issue list:*), Bash(gh issue create:*), Bash(gh label list:*), Bash(gh label create:*)
 ---
 
 # Генератор бэклога

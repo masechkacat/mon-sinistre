@@ -1,6 +1,9 @@
 ---
 name: prd
 description: Создаёт PRD-документ для фичи по стандартной структуре проекта в docs/prd/. Использовать, когда нужно описать требования к новой фиче перед реализацией — «напиши PRD», «опиши требования к фиче».
+argument-hint: '<описание фичи>'
+disable-model-invocation: true
+allowed-tools: Read, Write, Glob, Grep
 ---
 
 # PRD генератор

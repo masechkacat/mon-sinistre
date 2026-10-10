@@ -210,8 +210,8 @@ Europe/Paris с записью после отправки, ротация то�
       `useMutation(updateReminders)` с инвалидацией
       `queryKeys.currentUser()`, результат — через заранее смонтированный
       `role="status"`, строки в `fr.compte.espacePersonnel.rappels`.
-      Визуальная проверка по правилу `apps/web/CLAUDE.md` (Playwright MCP и
-      скилл ui-ux-pro-max) — часть задачи. **Проверяется тестами (до
+      Визуальная проверка по правилу `apps/web/CLAUDE.md` (`/ui-review`) — часть
+      задачи. **Проверяется тестами (до
       кода):** `tests/compte/espace-personnel.spec.ts` — с `mockSession` и
       `page.route` на `/auth/me` и `/rappels`: состояние показано текстом,
       нажатие шлёт `PATCH` с противоположным значением, после ответа фраза

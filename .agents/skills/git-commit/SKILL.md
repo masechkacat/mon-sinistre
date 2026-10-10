@@ -2,7 +2,7 @@
 name: git-commit
 description: 'Execute git commit with conventional commit message analysis, intelligent staging, and message generation. Use when user asks to commit changes, create a git commit, or mentions "/commit". Supports: (1) Auto-detecting type and scope from changes, (2) Generating conventional commit messages from diff, (3) Interactive commit with optional type/scope/description overrides, (4) Intelligent file staging for logical grouping'
 license: MIT
-allowed-tools: Bash
+allowed-tools: Bash(git status:*), Bash(git diff:*), Bash(git add:*), Bash(git commit:*), Bash(git log:*)
 ---
 
 # Git Commit with Conventional Commits
@@ -76,8 +76,6 @@ git add path/to/file1 path/to/file2
 git add *.test.*
 git add src/components/*
 
-# Interactive staging
-git add -p
 ```
 
 **Never commit secrets** (.env, credentials.json, private keys).
@@ -115,26 +113,14 @@ EOF
 - Reference issues: `Closes #<N>`, `Refs #<N>` (see the rule below — never a live number in an example)
 - Keep description under 72 characters
 
-## Closing Keywords Are Live — Never Use a Real Number in an Example
+## Closing keywords are live
 
-GitHub scans the **whole** commit message (and PR body) for closing keywords —
-`Closes`, `Fixes`, `Resolves` and their forms — and does not care about
-typography. A line written as an illustration, in quotes, still closes the
-issue on merge.
+A real closing trailer appears **once** per commit; every example or mention
+of it uses the placeholder `Closes #<N>`. The rule and why it is strict live in
+the root `CLAUDE.md`, «Коммиты и PR» — this file does not restate them.
 
-This has already cost this project the same task twice in one day (2026-08-02):
-an illustrative line in commit `f7075e6` closed issue 12, which nobody had
-worked on, and it dropped out of the phase plan silently. Reopening it was not
-enough — quoting that same line in the commit that introduced this very rule
-closed it again.
-
-- A real closing trailer appears **once** per commit — the one for this commit.
-- Any example, quote, or explanation of the trailer uses a placeholder:
-  `Closes #<N>`. Never a number that exists in the repo.
-- Quotes and backticks are not a shield. Do not rely on them.
-- Writing about an incident: keep the keyword and the live number apart — say
-  "issue 12", never the trailer form with that number.
-- The same applies to PR titles and bodies: they close issues on merge too.
+This skill is a project fork of `github/awesome-copilot`'s `git-commit` and is
+deliberately absent from `skills-lock.json`: a skills update must not overwrite it.
 
 ## Git Safety Protocol
 

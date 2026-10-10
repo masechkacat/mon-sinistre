@@ -4,6 +4,20 @@
 
 set -e
 
+# En premier : un test rouge ne doit pas cacher une clé indexée.
+# Installer gitleaks : https://github.com/gitleaks/gitleaks#installing
+if command -v gitleaks >/dev/null 2>&1; then
+  echo "pre-commit: gitleaks"
+  # `gitleaks git` n'existe qu'à partir de 8.19.
+  if gitleaks git --help >/dev/null 2>&1; then
+    gitleaks git --pre-commit --staged --redact --no-banner
+  else
+    gitleaks protect --staged --redact --no-banner
+  fi
+else
+  echo "pre-commit: gitleaks absent — secrets non vérifiés" >&2
+fi
+
 echo "pre-commit: npm run lint"
 npm run lint
 
