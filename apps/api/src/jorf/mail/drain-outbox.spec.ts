@@ -67,6 +67,17 @@ const row = (id: string, arreteId: string): PendingOutboxRow => ({
   attempts: 0,
 });
 
+/** A `send` that rejects row a's mail and records every other one. */
+const sendRejectingA =
+  (sent: string[]) =>
+  (mail: string): Promise<void> => {
+    if (mail === 'mail-a') {
+      throw new Error('mailbox rejected');
+    }
+    sent.push(mail);
+    return Promise.resolve();
+  };
+
 describe('drainOutbox', () => {
   it('sends every pending row of every arrête group', async () => {
     const { adapter, sent, state } = fakeAdapter([
@@ -82,17 +93,10 @@ describe('drainOutbox', () => {
   });
 
   it('a failed send to one recipient does not block the others in the same group', async () => {
-    const { adapter, sent, state } = fakeAdapter(
+    const sent: string[] = [];
+    const { adapter, state } = fakeAdapter(
       [row('a', 'arrete-1'), row('b', 'arrete-1')],
-      {
-        send: (mail) => {
-          if (mail === 'mail-a') {
-            throw new Error('mailbox rejected');
-          }
-          sent.push(mail);
-          return Promise.resolve();
-        },
-      },
+      { send: sendRejectingA(sent) },
     );
 
     await drainOutbox(fakeLogger(), adapter, new Set());
@@ -159,6 +163,80 @@ describe('drainOutbox', () => {
     expect(state.get('a')).toMatchObject({
       attempts: NOTIFICATION_ATTEMPTS_BEFORE_ALERT + 1,
     });
+  });
+
+  it('a mark that fails after a successful send is not a delivery failure', async () => {
+    const incrementAttempts = jest.fn();
+    const onStuck = jest.fn();
+    const { adapter, sent, state } = fakeAdapter([row('a', 'arrete-1')], {
+      markSent: () => Promise.reject(new Error('db timeout')),
+      incrementAttempts,
+      onStuck,
+    });
+
+    await drainOutbox(fakeLogger(), adapter, new Set());
+
+    expect(sent).toEqual(['mail-a']);
+    expect(incrementAttempts).not.toHaveBeenCalled();
+    expect(onStuck).not.toHaveBeenCalled();
+    expect(state.get('a')).toMatchObject({ attempts: 0 });
+    await drainOutbox(fakeLogger(), adapter, new Set());
+    expect(sent).toEqual(['mail-a', 'mail-a']);
+  });
+
+  it.each([
+    [
+      'incrementAttempts',
+      { incrementAttempts: () => Promise.reject(new Error('db down')) },
+    ],
+    [
+      'onStuck',
+      {
+        incrementAttempts: () =>
+          Promise.resolve(NOTIFICATION_ATTEMPTS_BEFORE_ALERT),
+        onStuck: () => Promise.reject(new Error('alert mail down')),
+      },
+    ],
+  ] as const)(
+    'a failure of %s for one recipient does not block the others in the same group',
+    async (_name, overrides) => {
+      const sent: string[] = [];
+      const { adapter } = fakeAdapter(
+        [row('a', 'arrete-1'), row('b', 'arrete-1')],
+        { send: sendRejectingA(sent), ...overrides },
+      );
+
+      await drainOutbox(fakeLogger(), adapter, new Set());
+
+      expect(sent).toEqual(['mail-b']);
+    },
+  );
+
+  it('a failed mark of a row mailed to nobody does not block the others in the same group', async () => {
+    const { adapter, sent, state } = fakeAdapter(
+      [row('a', 'arrete-1'), row('b', 'arrete-1')],
+      {
+        loadMails: () =>
+          Promise.resolve(
+            new Map<string, string | null>([
+              ['a', null],
+              ['b', 'mail-b'],
+            ]),
+          ),
+        markSent: (r) => {
+          if (r.id === 'a') {
+            return Promise.reject(new Error('db timeout'));
+          }
+          state.delete(r.id);
+          return Promise.resolve();
+        },
+      },
+    );
+
+    await drainOutbox(fakeLogger(), adapter, new Set());
+
+    expect(sent).toEqual(['mail-b']);
+    expect(state.has('b')).toBe(false);
   });
 
   it('a row mailed to nobody is marked sent without calling send', async () => {

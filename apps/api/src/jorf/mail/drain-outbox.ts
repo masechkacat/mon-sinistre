@@ -94,23 +94,15 @@ export async function drainOutbox<Row extends PendingOutboxRow, Mail>(
           continue;
         }
         const mail = mails.get(row.id) ?? null;
-        if (mail === null) {
-          await adapter.markSent(row);
-          continue;
-        }
-        try {
-          await adapter.send(mail);
-          await adapter.markSent(row);
-        } catch (error) {
-          logger.error(
-            `outbox: notification email failed: ${errorSummary(error)}`,
-            stackOf(error),
-          );
-          const attempts = await adapter.incrementAttempts(row);
-          if (attempts === NOTIFICATION_ATTEMPTS_BEFORE_ALERT) {
-            await adapter.onStuck(row, attempts);
+        if (mail !== null) {
+          try {
+            await adapter.send(mail);
+          } catch (error) {
+            await countFailure(logger, adapter, row, error);
+            continue;
           }
         }
+        await markSent(logger, adapter, row);
       }
     } catch (error) {
       logger.error(
@@ -118,5 +110,49 @@ export async function drainOutbox<Row extends PendingOutboxRow, Mail>(
         stackOf(error),
       );
     }
+  }
+}
+
+/**
+ * Swallows its own failure — a mail already out is no failed delivery, the
+ * same trade as `RemindersService.recordSent`; also the exit of a row with
+ * nothing to send.
+ */
+async function markSent<Row extends PendingOutboxRow>(
+  logger: Logger,
+  adapter: Pick<OutboxAdapter<Row, unknown>, 'markSent'>,
+  row: Row,
+): Promise<void> {
+  try {
+    await adapter.markSent(row);
+  } catch (error) {
+    logger.error(
+      `outbox: row ${row.id} drained but not marked sent: ${errorSummary(error)}`,
+      stackOf(error),
+    );
+  }
+}
+
+/** As `RemindersService.countFailure`. */
+async function countFailure<Row extends PendingOutboxRow>(
+  logger: Logger,
+  adapter: Pick<OutboxAdapter<Row, unknown>, 'incrementAttempts' | 'onStuck'>,
+  row: Row,
+  error: unknown,
+): Promise<void> {
+  logger.error(
+    `outbox: notification email failed: ${errorSummary(error)}`,
+    stackOf(error),
+  );
+  try {
+    const attempts = await adapter.incrementAttempts(row);
+    if (attempts === NOTIFICATION_ATTEMPTS_BEFORE_ALERT) {
+      await adapter.onStuck(row, attempts);
+    }
+  } catch (countError) {
+    logger.error(
+      `outbox: failure of row ${row.id} not counted: ${errorSummary(countError)}`,
+      stackOf(countError),
+    );
   }
 }
