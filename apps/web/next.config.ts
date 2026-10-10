@@ -6,6 +6,8 @@ const nextConfig: NextConfig = {
   // it watched in dev: a contracts rebuild is picked up without a restart.
   transpilePackages: ['@mon-sinistre/contracts'],
   typedRoutes: true,
+  // Otherwise `next dev` appends its own block to CLAUDE.md on every start.
+  agentRules: false,
 };
 
 export default nextConfig;
