@@ -17,3 +17,12 @@ npm run test:tooling
 # Copier-coller : nouveau clone absent de .jscpd-baseline.json => refus.
 echo "pre-commit: npm run dup"
 npm run dup
+
+# Secrets dans l'index : gitleaks (>= 8.19). Outil absent => avertissement,
+# pas de blocage — l'installer : https://github.com/gitleaks/gitleaks#installing
+if command -v gitleaks >/dev/null 2>&1; then
+  echo "pre-commit: gitleaks"
+  gitleaks git --pre-commit --staged --redact --no-banner
+else
+  echo "pre-commit: gitleaks absent — secrets non vérifiés" >&2
+fi

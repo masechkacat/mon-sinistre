@@ -63,8 +63,9 @@ npm workspaces, три пакета:
   скриптов есть отдельный `npm run test:tooling` (встроенный `node --test`,
   новый `.claude/*.test.js` подхватывается сам).
 - Pre-commit хук (`.githooks/`, подключается скриптом `prepare`) гоняет lint,
-  test, test:tooling и dup и **не должен изменять файлы**: `lint` без `--fix`,
-  автопочинка — отдельным `lint:fix` в API.
+  test, test:tooling, dup и gitleaks (секреты в индексе; без установленного
+  gitleaks — предупреждение, не блокировка) и **не должен изменять файлы**:
+  `lint` без `--fix`, автопочинка — отдельным `lint:fix` в API.
 - `dup` — jscpd против `.jscpd-baseline.json`: буквальный копипаст, которого
   нет в baseline, валит коммит. Baseline — список известных клонов, а не
   разрешение на них: устранив клон, пересобрать его `dup:baseline`, чтобы он

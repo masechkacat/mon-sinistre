@@ -27,6 +27,13 @@ export default tseslint.config(
   {
     rules: {
       '@typescript-eslint/no-floating-promises': 'error',
+      // Application logs go through Logger only (CLAUDE.md, «Правила проекта»).
+      'no-console': 'error',
     },
+  },
+  {
+    // Scripts and the seed run outside Nest: stdout is their interface.
+    files: ['scripts/**', 'prisma/**'],
+    rules: { 'no-console': 'off' },
   },
 );
