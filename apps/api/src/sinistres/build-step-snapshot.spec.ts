@@ -4,6 +4,7 @@ import { buildStepSnapshot } from './build-step-snapshot';
 const template = (
   overrides: Partial<{
     anchor: 'DATE_SINISTRE' | 'DATE_PUBLICATION_ARRETE' | 'DATE_DECLARATION';
+    kind: 'ACTION' | 'PHOTOS';
     offsetDays: number | null;
     deadlineRuleCode: string | null;
     sourceUrl: string | null;
@@ -13,6 +14,7 @@ const template = (
   name: 'Photographier',
   description: 'Avant nettoyage',
   anchor: overrides.anchor ?? ('DATE_SINISTRE' as const),
+  kind: overrides.kind ?? ('ACTION' as const),
   offsetDays: overrides.offsetDays === undefined ? 0 : overrides.offsetDays,
   deadlineRuleCode:
     overrides.deadlineRuleCode === undefined
@@ -117,10 +119,10 @@ describe('buildStepSnapshot', () => {
     expect(step.sourceVerifiedAt).toEqual(new Date('2026-08-18'));
   });
 
-  it('copies name, description, anchor, offsetDays and order straight from the template', () => {
+  it('copies name, description, anchor, kind, offsetDays and order straight from the template', () => {
     const step = buildStepSnapshot(
       {
-        ...template({ offsetDays: 7 }),
+        ...template({ offsetDays: 7, kind: 'PHOTOS' }),
         name: 'Vérifier',
         description: 'Mairie',
         order: 6,
@@ -131,6 +133,7 @@ describe('buildStepSnapshot', () => {
     expect(step.name).toBe('Vérifier');
     expect(step.description).toBe('Mairie');
     expect(step.anchor).toBe('DATE_SINISTRE');
+    expect(step.kind).toBe('PHOTOS');
     expect(step.offsetDays).toBe(7);
     expect(step.order).toBe(6);
     expect(step.fromTemplate).toBe(true);

@@ -1,4 +1,4 @@
-import { DurationUnit, toIsoDate } from '@mon-sinistre/contracts';
+import { DurationUnit, StepKind, toIsoDate } from '@mon-sinistre/contracts';
 import {
   DECLARATION_ASSUREUR_CODE,
   INFORMATION_ASSUREUR_CODE,
@@ -24,6 +24,7 @@ function step(overrides: Partial<StepRow> = {}): StepRow {
     name: 'Déclarer le sinistre à votre assureur',
     description: '',
     anchor: 'DATE_PUBLICATION_ARRETE',
+    kind: StepKind.DECLARATION,
     plannedDate: new Date('2026-09-01'),
     persistedStatus: null,
     completedAt: null,
@@ -62,6 +63,12 @@ describe('toStepResponse', () => {
       value: 30,
       unit: DurationUnit.DAYS,
     });
+  });
+
+  it('reports the kind the plan copy carries, so a container stays a container on read', () => {
+    expect(toStepResponse(step({ kind: StepKind.PHOTOS }), TODAY).kind).toBe(
+      StepKind.PHOTOS,
+    );
   });
 
   it('leaves delay null for a step that cites no rule', () => {

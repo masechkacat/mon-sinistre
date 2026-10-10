@@ -38,6 +38,7 @@ export interface StepRow {
   name: string;
   description: string;
   anchor: string | null;
+  kind: string;
   plannedDate: Date | null;
   persistedStatus: StepPersistedStatus | null;
   completedAt: Date | null;
@@ -56,8 +57,7 @@ export function toStepResponse(step: StepRow, today: IsoDate): Step {
     sinistreId: step.sinistreId,
     name: step.name,
     description: step.description,
-    // Снапшот плана `kind` ещё не копирует: у всех шагов умолчание колонки.
-    kind: StepKind.ACTION,
+    kind: step.kind as StepKind,
     plannedDate,
     status: stepStatus(
       { plannedDate, persistedStatus: step.persistedStatus },

@@ -1,5 +1,5 @@
 import type { IsoDate } from '@mon-sinistre/contracts';
-import type { StepAnchor } from 'src/generated/prisma/enums';
+import type { StepAnchor, StepKind } from 'src/generated/prisma/enums';
 import { resolveDeadline } from 'src/deadline-rules/resolve-deadline';
 
 /** The `StepTemplate` fields `buildStepSnapshot` copies onto a `Step`. */
@@ -7,6 +7,7 @@ export interface StepTemplateRow {
   name: string;
   description: string;
   anchor: StepAnchor;
+  kind: StepKind;
   offsetDays: number | null;
   deadlineRuleCode: string | null;
   order: number;
@@ -27,6 +28,7 @@ export interface StepSnapshot {
   name: string;
   description: string;
   anchor: StepAnchor;
+  kind: StepKind;
   offsetDays: number | null;
   plannedDate: IsoDate | null;
   order: number;
@@ -96,6 +98,7 @@ export function buildStepSnapshot(
     name: template.name,
     description: template.description,
     anchor: template.anchor,
+    kind: template.kind,
     offsetDays: template.offsetDays,
     plannedDate,
     order: template.order,

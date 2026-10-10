@@ -39,13 +39,14 @@ describe('seedStepTemplates (integration)', () => {
       expect(matches[0]).toMatchObject({
         name: expected.name,
         anchor: expected.anchor,
+        kind: expected.kind,
         offsetDays: expected.offsetDays,
         deadlineRuleCode: expected.deadlineRuleCode,
       });
     }
   });
 
-  it('re-running the seed edits rows in place rather than duplicating them after a text change', async () => {
+  it('re-running the seed edits rows in place rather than duplicating them after a text or kind change', async () => {
     await seedStepTemplates(prisma);
     const firstRun = await prisma.stepTemplate.findFirstOrThrow({
       where: { planKey: CATNAT_PLAN_KEY, order: 1 },
@@ -53,7 +54,7 @@ describe('seedStepTemplates (integration)', () => {
 
     await prisma.stepTemplate.update({
       where: { id: firstRun.id },
-      data: { name: 'Texte modifié à la main' },
+      data: { name: 'Texte modifié à la main', kind: 'ACTION' },
     });
     await seedStepTemplates(prisma);
 
@@ -63,5 +64,6 @@ describe('seedStepTemplates (integration)', () => {
     expect(rows).toHaveLength(1);
     expect(rows[0]?.id).toBe(firstRun.id);
     expect(rows[0]?.name).toBe(STEP_TEMPLATE_SEED[0]?.name);
+    expect(rows[0]?.kind).toBe(STEP_TEMPLATE_SEED[0]?.kind);
   });
 });
