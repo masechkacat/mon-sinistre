@@ -1,6 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
 import {
-  ArreteEntryOutcome,
   RisqueCatnat,
   SinistreStatus,
   type Commune,
@@ -10,23 +9,7 @@ import {
 import { CommuneResponseDto } from 'src/communes/dto/commune-response.dto';
 import { DeclarationDeadlineResponseDto } from 'src/sinistres/dto/declaration-deadline-response.dto';
 import { StepViewResponseDto } from 'src/sinistres/dto/step-response.dto';
-
-class ApercuArreteDto implements NonNullable<DossierApercu['arrete']> {
-  @ApiProperty({ type: String, format: 'date' })
-  publishedAt: IsoDate;
-
-  @ApiProperty()
-  legifranceUrl: string;
-
-  @ApiProperty({ enum: ArreteEntryOutcome })
-  outcome: ArreteEntryOutcome;
-
-  @ApiProperty({ type: String, format: 'date' })
-  eventStart: IsoDate;
-
-  @ApiProperty({ type: String, format: 'date' })
-  eventEnd: IsoDate;
-}
+import { ArreteCoverageResponseDto } from './arrete-coverage-response.dto';
 
 /**
  * Swagger-only mirror of {@link DossierApercu} — `implements` makes the
@@ -45,8 +28,8 @@ export class DossierApercuResponseDto implements DossierApercu {
   @ApiProperty({ enum: SinistreStatus })
   status: SinistreStatus;
 
-  @ApiProperty({ type: ApercuArreteDto, nullable: true })
-  arrete: ApercuArreteDto | null;
+  @ApiProperty({ type: ArreteCoverageResponseDto, nullable: true })
+  arrete: ArreteCoverageResponseDto | null;
 
   @ApiProperty({ type: StepViewResponseDto, isArray: true })
   steps: StepViewResponseDto[];

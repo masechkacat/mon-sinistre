@@ -1,11 +1,10 @@
-import { BadRequestException, type Logger } from '@nestjs/common';
+import type { Logger } from '@nestjs/common';
 import type { Commune, IsoDate, SinistreStatus } from '@mon-sinistre/contracts';
 import { todayInParis } from 'src/common/time/today-in-paris';
-import { communeFields } from 'src/communes/commune-fields';
+import { requireActiveCommune } from 'src/communes/active-commune';
 import type { DeadlineRuleService } from 'src/deadline-rules/deadline-rule.service';
 import { isoDateToDate } from 'src/deadline-rules/resolve-deadline';
 import type { StepAnchor } from 'src/generated/prisma/enums';
-import { fr } from 'src/i18n/fr';
 import type { PrismaService } from 'src/prisma/prisma.service';
 import { CATNAT_PLAN_KEY } from 'src/step-templates/step-template.seed';
 import { anchorDatesOf } from './anchor-dates';
@@ -104,14 +103,7 @@ export async function planDossier(
   dto: CreateSinistreDto,
   logger: Logger,
 ): Promise<PlannedDossier> {
-  const commune = await prisma.commune.findFirst({
-    where: { codeInsee: dto.codeInsee, effectiveTo: null },
-    select: communeFields,
-  });
-  if (!commune) {
-    throw new BadRequestException(fr.sinistres.unknownCommune);
-  }
-
+  const commune = await requireActiveCommune(prisma, dto.codeInsee);
   const today = todayInParis();
   const match = await matchArreteFor(prisma, dto);
   const plan = await snapshotPlan(

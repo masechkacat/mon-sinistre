@@ -836,18 +836,6 @@ export class JorfMonitorService {
     }
   }
 
-  /** The one `resolveActive` call for the déclaration-délai rule, shared by
-   * the mail step ({@link loadVeilleMails}) and the linking pass
-   * ({@link linkSinistres}) — `DECLARATION_ASSUREUR_CODE` paired with
-   * `DATE_PUBLICATION_ARRETE` is spelled once, not guessed at twice. */
-  private resolveDeclarationRule(onDate: Date): Promise<ResolvedDeadlineRule> {
-    return this.deadlineRules.resolveActive(
-      DECLARATION_ASSUREUR_CODE,
-      'DATE_PUBLICATION_ARRETE',
-      onDate,
-    );
-  }
-
   /** The déclaration rule plus the `ArreteForMail` shape, both derived from
    * nothing but `arrete.publishedAt`/`legifranceUrl` — every mail-loading
    * step of both outbox halves needs exactly this pair right after fetching
@@ -859,7 +847,7 @@ export class JorfMonitorService {
     declarationRule: ResolvedDeadlineRule;
     arreteForMail: ArreteForMail;
   }> {
-    const declarationRule = await this.resolveDeclarationRule(
+    const declarationRule = await this.deadlineRules.resolveDeclaration(
       arrete.publishedAt,
     );
     return {
@@ -878,7 +866,9 @@ export class JorfMonitorService {
     publishedAt: IsoDate,
   ): Promise<ResolvedDeadlineRule | null> {
     try {
-      return await this.resolveDeclarationRule(isoDateToDate(publishedAt));
+      return await this.deadlineRules.resolveDeclaration(
+        isoDateToDate(publishedAt),
+      );
     } catch (error) {
       this.logger.error(
         `jorf monitor: DeadlineRule ${DECLARATION_ASSUREUR_CODE} did not resolve for publication ${publishedAt}, linked sinistres left without a déclaration date: ${errorSummary(error)}`,

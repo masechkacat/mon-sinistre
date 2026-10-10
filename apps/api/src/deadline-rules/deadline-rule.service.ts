@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import type { StepAnchor } from 'src/generated/prisma/enums';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { DECLARATION_ASSUREUR_CODE } from './deadline-rule.seed';
 
 /**
  * The one query for "which `DeadlineRule` is active for this code and anchor
@@ -34,5 +35,15 @@ export class DeadlineRuleService {
       );
     }
     return rule;
+  }
+
+  /** The déclaration délai active on a publication date — the one place
+   * `DECLARATION_ASSUREUR_CODE` is paired with `DATE_PUBLICATION_ARRETE`. */
+  resolveDeclaration(publishedAt: Date) {
+    return this.resolveActive(
+      DECLARATION_ASSUREUR_CODE,
+      'DATE_PUBLICATION_ARRETE',
+      publishedAt,
+    );
   }
 }
