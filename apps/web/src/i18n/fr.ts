@@ -579,8 +579,22 @@ export const fr = {
       {
         heading: 'Crédits',
         paragraphs: [
-          'Police Luciole © Laurent Bourcellier & Jonathan Perez, luciole-vision.com, licence CC BY 4.0.',
-          'Police Newsreader © Production Type, SIL Open Font License 1.1.',
+          'Police Luciole © Laurent Bourcellier & Jonathan Perez, 2019, licence CC BY 4.0.',
+          'Police Newsreader © 2020 The Newsreader Project Authors, SIL Open Font License 1.1.',
+        ],
+        links: [
+          {
+            text: 'Site de la police Luciole (luciole-vision.com)',
+            href: new URL('https://www.luciole-vision.com/'),
+          },
+          {
+            text: 'Texte de la licence CC BY 4.0',
+            href: new URL('https://creativecommons.org/licenses/by/4.0/'),
+          },
+          {
+            text: 'Sources de la police Newsreader sur GitHub',
+            href: new URL('https://github.com/productiontype/Newsreader'),
+          },
         ],
       },
     ],
@@ -631,7 +645,7 @@ export const fr = {
         links: [
           {
             text: 'Saisir le Défenseur des droits par le formulaire en ligne',
-            href: 'https://formulaire.defenseurdesdroits.fr',
+            href: new URL('https://formulaire.defenseurdesdroits.fr'),
           },
         ],
       },
