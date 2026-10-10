@@ -14,6 +14,19 @@ function fakeLogger(): Logger {
   } as unknown as Logger;
 }
 
+/** A logger whose `error` calls the test can read back as `errors`. */
+function spyingLogger(): { logger: Logger; errors: jest.Mock } {
+  const errors = jest.fn();
+  return {
+    logger: {
+      error: errors,
+      warn: jest.fn(),
+      log: jest.fn(),
+    } as unknown as Logger,
+    errors,
+  };
+}
+
 /**
  * An in-memory outbox: `state` holds every row not yet sent, so a later
  * `loadPending()` call — modelling the next scheduled run — naturally
@@ -50,7 +63,7 @@ function fakeAdapter(
         throw new Error(`row ${row.id} not pending`);
       }
       current.attempts += 1;
-      return Promise.resolve(current.attempts);
+      return Promise.resolve();
     },
     onStuck: (row, attempts) => {
       stuck.push({ rowId: row.id, attempts });
@@ -61,11 +74,22 @@ function fakeAdapter(
   return { adapter, sent, stuck, state };
 }
 
-const row = (id: string, arreteId: string): PendingOutboxRow => ({
+const row = (id: string, arreteId: string, attempts = 0): PendingOutboxRow => ({
   id,
   arreteId,
-  attempts: 0,
+  attempts,
 });
+
+/** A `send` that rejects row a's mail and records every other one. */
+const sendRejectingA =
+  (sent: string[]) =>
+  (mail: string): Promise<void> => {
+    if (mail === 'mail-a') {
+      throw new Error('mailbox rejected');
+    }
+    sent.push(mail);
+    return Promise.resolve();
+  };
 
 describe('drainOutbox', () => {
   it('sends every pending row of every arrête group', async () => {
@@ -82,25 +106,23 @@ describe('drainOutbox', () => {
   });
 
   it('a failed send to one recipient does not block the others in the same group', async () => {
-    const { adapter, sent, state } = fakeAdapter(
+    const sent: string[] = [];
+    const { logger, errors } = spyingLogger();
+    const { adapter, state } = fakeAdapter(
       [row('a', 'arrete-1'), row('b', 'arrete-1')],
-      {
-        send: (mail) => {
-          if (mail === 'mail-a') {
-            throw new Error('mailbox rejected');
-          }
-          sent.push(mail);
-          return Promise.resolve();
-        },
-      },
+      { send: sendRejectingA(sent) },
     );
 
-    await drainOutbox(fakeLogger(), adapter, new Set());
+    await drainOutbox(logger, adapter, new Set());
 
     expect(sent).toEqual(['mail-b']);
     // b was sent and drained; a failed and stays pending with one attempt.
     expect(state.has('b')).toBe(false);
     expect(state.get('a')).toMatchObject({ attempts: 1 });
+    expect(errors).toHaveBeenCalledWith(
+      expect.stringContaining('row a send failed (attempt 1)'),
+      expect.anything(),
+    );
   });
 
   it('a group that fails to compose does not block another group', async () => {
@@ -159,6 +181,129 @@ describe('drainOutbox', () => {
     expect(state.get('a')).toMatchObject({
       attempts: NOTIFICATION_ATTEMPTS_BEFORE_ALERT + 1,
     });
+  });
+
+  it('an alert that fails to raise is retried by the next run, not lost with a counted attempt', async () => {
+    const onStuck = jest
+      .fn<Promise<void>, [PendingOutboxRow, number]>()
+      .mockRejectedValueOnce(new Error('alert mail down'))
+      .mockResolvedValue(undefined);
+    const { adapter, state } = fakeAdapter(
+      [row('a', 'arrete-1', NOTIFICATION_ATTEMPTS_BEFORE_ALERT - 1)],
+      {
+        send: () => {
+          throw new Error('boom');
+        },
+        onStuck,
+      },
+    );
+
+    await drainOutbox(fakeLogger(), adapter, new Set());
+    // The attempt that would have crossed the threshold is not persisted...
+    expect(state.get('a')).toMatchObject({
+      attempts: NOTIFICATION_ATTEMPTS_BEFORE_ALERT - 1,
+    });
+
+    // ...so the next run crosses it again, and this time the alert is raised.
+    await drainOutbox(fakeLogger(), adapter, new Set());
+    expect(onStuck).toHaveBeenCalledTimes(2);
+    expect(state.get('a')).toMatchObject({
+      attempts: NOTIFICATION_ATTEMPTS_BEFORE_ALERT,
+    });
+  });
+
+  it('a mark that fails after a successful send is not a delivery failure', async () => {
+    const incrementAttempts = jest.fn();
+    const onStuck = jest.fn();
+    const { logger, errors } = spyingLogger();
+    const { adapter, sent, state } = fakeAdapter([row('a', 'arrete-1')], {
+      markSent: () => Promise.reject(new Error('db timeout')),
+      incrementAttempts,
+      onStuck,
+    });
+
+    await drainOutbox(logger, adapter, new Set());
+
+    expect(sent).toEqual(['mail-a']);
+    expect(incrementAttempts).not.toHaveBeenCalled();
+    expect(onStuck).not.toHaveBeenCalled();
+    expect(state.get('a')).toMatchObject({ attempts: 0 });
+    expect(errors).toHaveBeenCalledWith(
+      expect.stringContaining('row a mark sent failed'),
+      expect.anything(),
+    );
+    await drainOutbox(fakeLogger(), adapter, new Set());
+    expect(sent).toEqual(['mail-a', 'mail-a']);
+  });
+
+  it.each([
+    [
+      'incrementAttempts',
+      [row('a', 'arrete-1'), row('b', 'arrete-1')],
+      { incrementAttempts: () => Promise.reject(new Error('db down')) },
+    ],
+    [
+      'onStuck',
+      [
+        row('a', 'arrete-1', NOTIFICATION_ATTEMPTS_BEFORE_ALERT - 1),
+        row('b', 'arrete-1'),
+      ],
+      { onStuck: () => Promise.reject(new Error('alert mail down')) },
+    ],
+  ] as const)(
+    'a failure of %s for one recipient is logged and does not block the others in the same group',
+    async (_name, rows, overrides) => {
+      const sent: string[] = [];
+      const { logger, errors } = spyingLogger();
+      const { adapter } = fakeAdapter([...rows], {
+        send: sendRejectingA(sent),
+        ...overrides,
+      });
+
+      await drainOutbox(logger, adapter, new Set());
+
+      expect(sent).toEqual(['mail-b']);
+      expect(errors).toHaveBeenCalledWith(
+        expect.stringContaining('row a failure count failed'),
+        expect.anything(),
+      );
+    },
+  );
+
+  it('a failed mark of a row mailed to nobody does not block the others in the same group', async () => {
+    const incrementAttempts = jest.fn();
+    const { logger, errors } = spyingLogger();
+    const { adapter, sent, state } = fakeAdapter(
+      [row('a', 'arrete-1'), row('b', 'arrete-1')],
+      {
+        loadMails: () =>
+          Promise.resolve(
+            new Map<string, string | null>([
+              ['a', null],
+              ['b', 'mail-b'],
+            ]),
+          ),
+        markSent: (r) => {
+          if (r.id === 'a') {
+            return Promise.reject(new Error('db timeout'));
+          }
+          state.delete(r.id);
+          return Promise.resolve();
+        },
+        incrementAttempts,
+      },
+    );
+
+    await drainOutbox(logger, adapter, new Set());
+
+    expect(sent).toEqual(['mail-b']);
+    expect(state.has('b')).toBe(false);
+    expect(incrementAttempts).not.toHaveBeenCalled();
+    expect(state.get('a')).toMatchObject({ attempts: 0 });
+    expect(errors).toHaveBeenCalledWith(
+      expect.stringContaining('row a mark sent failed'),
+      expect.anything(),
+    );
   });
 
   it('a row mailed to nobody is marked sent without calling send', async () => {

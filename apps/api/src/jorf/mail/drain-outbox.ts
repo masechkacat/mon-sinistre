@@ -1,5 +1,6 @@
 import type { Logger } from '@nestjs/common';
 import { errorSummary, stackOf } from 'src/common/error-report';
+import { runGuarded } from 'src/common/scheduled-cleanup';
 
 /**
  * Failed sends of one outbox row before it is called stuck
@@ -41,9 +42,9 @@ export type OutboxAdapter<Row extends PendingOutboxRow, Mail> = {
   ): Promise<ReadonlyMap<string, Mail | null>>;
   send(mail: Mail): Promise<void>;
   markSent(row: Row): Promise<void>;
-  /** Persists `attempts + 1` and returns the new count. */
-  incrementAttempts(row: Row): Promise<number>;
-  /** Called exactly once for a row, the run its attempts reach {@link NOTIFICATION_ATTEMPTS_BEFORE_ALERT} — raises that row's `NOTIFICATION_STUCK` alert. */
+  /** Persists one more failed attempt on the row. */
+  incrementAttempts(row: Row): Promise<void>;
+  /** Raises the row's `NOTIFICATION_STUCK` alert — the run its attempts reach {@link NOTIFICATION_ATTEMPTS_BEFORE_ALERT}, before that attempt is persisted ({@link countFailure}). */
   onStuck(row: Row, attempts: number): Promise<void>;
 };
 
@@ -94,23 +95,20 @@ export async function drainOutbox<Row extends PendingOutboxRow, Mail>(
           continue;
         }
         const mail = mails.get(row.id) ?? null;
-        if (mail === null) {
-          await adapter.markSent(row);
-          continue;
-        }
-        try {
-          await adapter.send(mail);
-          await adapter.markSent(row);
-        } catch (error) {
-          logger.error(
-            `outbox: notification email failed: ${errorSummary(error)}`,
-            stackOf(error),
-          );
-          const attempts = await adapter.incrementAttempts(row);
-          if (attempts === NOTIFICATION_ATTEMPTS_BEFORE_ALERT) {
-            await adapter.onStuck(row, attempts);
+        if (mail !== null) {
+          try {
+            await adapter.send(mail);
+          } catch (error) {
+            await countFailure(logger, adapter, row, error);
+            continue;
           }
         }
+        // A mail already out is no failed delivery (the trade
+        // `RemindersService.recordSent` makes too): a failed mark leaves
+        // the row pending for the next run's send, not for the counter.
+        await runGuarded(logger, `outbox: row ${row.id} mark sent`, () =>
+          adapter.markSent(row),
+        );
       }
     } catch (error) {
       logger.error(
@@ -119,4 +117,33 @@ export async function drainOutbox<Row extends PendingOutboxRow, Mail>(
       );
     }
   }
+}
+
+/**
+ * As `RemindersService.countFailure`, but the alert goes first: raised
+ * before the attempt that crosses the threshold is persisted, so a raise
+ * that fails leaves the row one attempt short and the next run tries both
+ * again. The other order keeps the count and loses the alert for good —
+ * the equality check never fires again — and a stuck row nobody is told
+ * about is the one state this counter exists to prevent. The price is a
+ * possible second alert when persisting the attempt fails right after a
+ * raised one.
+ */
+async function countFailure<Row extends PendingOutboxRow>(
+  logger: Logger,
+  adapter: Pick<OutboxAdapter<Row, unknown>, 'incrementAttempts' | 'onStuck'>,
+  row: Row,
+  error: unknown,
+): Promise<void> {
+  const attempts = row.attempts + 1;
+  logger.error(
+    `outbox: row ${row.id} send failed (attempt ${attempts}): ${errorSummary(error)}`,
+    stackOf(error),
+  );
+  await runGuarded(logger, `outbox: row ${row.id} failure count`, async () => {
+    if (attempts === NOTIFICATION_ATTEMPTS_BEFORE_ALERT) {
+      await adapter.onStuck(row, attempts);
+    }
+    await adapter.incrementAttempts(row);
+  });
 }
