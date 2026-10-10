@@ -19,7 +19,7 @@ export interface MatchArreteEntry {
 }
 
 /** The `ArreteEntry` row shape (Prisma `Date` columns, nested `arrete`) both
- * `SinistresService.matchArrete` and `JorfMonitorService.linkSinistres` read
+ * `matchArreteFor` and `JorfMonitorService.linkSinistres` read
  * off the database before calling `matchSinistres`. */
 export interface MatchArreteEntryRow {
   id: string;

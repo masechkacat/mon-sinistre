@@ -2,6 +2,7 @@ import {
   RisqueCatnat,
   SinistreStatus,
   StepAnchor,
+  StepKind,
   type Commune,
   type DeclarationDeadline,
   type DurationUnit,
@@ -10,6 +11,7 @@ import {
   type SinistreSummary,
   type SourceReference,
   type Step,
+  type StepView,
 } from '@mon-sinistre/contracts';
 import type { StepPersistedStatus } from 'src/generated/prisma/enums';
 import { toSourceReference } from 'src/common/source-reference';
@@ -30,37 +32,48 @@ export interface SinistreRow {
   createdAt: Date;
 }
 
-/** The `Step` fields `toSinistreDetail` needs off a Prisma row. */
-export interface StepRow {
-  id: string;
-  sinistreId: string;
+/**
+ * The step fields a {@link StepView} is computed from — no identity and no
+ * marks, so a step that was never saved satisfies it too: a plan can be
+ * printed off bare snapshots (docs/research/dossier-preliminaire.md,
+ * «Аперçu досье»).
+ */
+export interface StepViewRow {
   name: string;
   description: string;
   anchor: string | null;
+  kind: string;
   plannedDate: Date | null;
   persistedStatus: StepPersistedStatus | null;
-  completedAt: Date | null;
-  fromTemplate: boolean;
+  order: number;
   sourceUrl: string | null;
   sourceVerifiedAt: Date | null;
   deadlineRule:
     (Pick<ResolvedDeadlineRule, 'duration' | 'unit'> & { code: string }) | null;
 }
 
-export function toStepResponse(step: StepRow, today: IsoDate): Step {
+/** A saved `Step` row — a {@link StepViewRow} that also has identity and marks. */
+export interface StepRow extends StepViewRow {
+  id: string;
+  sinistreId: string;
+  completedAt: Date | null;
+  fromTemplate: boolean;
+}
+
+/** The part of a step every reader computes the same way — dates, derived
+ * status, cited source. {@link toStepResponse} adds what only a saved step
+ * has. */
+export function toStepView(step: StepViewRow, today: IsoDate): StepView {
   const plannedDate = step.plannedDate ? dateToIsoDate(step.plannedDate) : null;
   return {
-    id: step.id,
-    sinistreId: step.sinistreId,
     name: step.name,
     description: step.description,
+    kind: step.kind as StepKind,
     plannedDate,
     status: stepStatus(
       { plannedDate, persistedStatus: step.persistedStatus },
       today,
     ),
-    completedAt: step.completedAt ? dateToIsoDate(step.completedAt) : null,
-    fromTemplate: step.fromTemplate,
     anchor: step.anchor as StepAnchor | null,
     source: sourceOf(step, today),
     daysLeft: plannedDate ? daysBetween(today, plannedDate) : null,
@@ -70,10 +83,21 @@ export function toStepResponse(step: StepRow, today: IsoDate): Step {
           unit: step.deadlineRule.unit as DurationUnit,
         }
       : null,
+    order: step.order,
   };
 }
 
-function sourceOf(step: StepRow, today: IsoDate): SourceReference | null {
+export function toStepResponse(step: StepRow, today: IsoDate): Step {
+  return {
+    ...toStepView(step, today),
+    id: step.id,
+    sinistreId: step.sinistreId,
+    completedAt: step.completedAt ? dateToIsoDate(step.completedAt) : null,
+    fromTemplate: step.fromTemplate,
+  };
+}
+
+function sourceOf(step: StepViewRow, today: IsoDate): SourceReference | null {
   return step.sourceUrl && step.sourceVerifiedAt
     ? toSourceReference(
         step.sourceUrl,
@@ -102,7 +126,7 @@ export function toSinistreSummary(sinistre: SinistreRow): SinistreSummary {
 
 /** The critical deadline is the step with the déclaration rule (ТЗ § 3.3). */
 export function declarationDeadlineOf(
-  steps: StepRow[],
+  steps: StepViewRow[],
   today: IsoDate,
 ): DeclarationDeadline | null {
   const step = steps.find((candidate) =>

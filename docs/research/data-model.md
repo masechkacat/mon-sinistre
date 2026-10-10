@@ -127,6 +127,7 @@ Sinistre при слиянии **никогда не переписываютс�
 | planKey                     | text             |
 | name, description           | text             |
 | anchor                      | enum StepAnchor  |
+| kind                        | enum StepKind    |
 | offsetDays                  | int, null        |
 | deadlineRuleCode            | text, null       |
 | required                    | bool             |
@@ -137,6 +138,9 @@ Sinistre при слиянии **никогда не переписываютс�
 юридический (задан `deadlineRuleCode` — длительность берётся из `DeadlineRule`,
 и юридической цифры в seed'е нет) или памятка (пусты оба — дата неизвестна в
 принципе); `docs/research/sinistre-plan.md`, § «Схема».
+
+`kind` — вид шага, `ACTION` или один из четырёх контейнеров ТЗ § 3.4:
+`docs/research/dossier-preliminaire.md`, «Вид шага».
 
 `unique(planKey, order)`. Шаблоны меняются только seed'ом; версионирование не
 нужно — синистр хранит копию плана (§ 5), шаблон никогда не читается задним
@@ -169,7 +173,11 @@ Sinistre при слиянии **никогда не переписываютс�
 | updatedAt                       | timestamptz              | **технический** («строку кто-то потрогал», включая ручную починку mapping'а) — в доказательствах не участвует |
 
 `unique(arreteId, codeInsee, risque, eventStart, eventEnd)` — где codeInsee
-сопоставлен. Rectificatif (повторный NOR, изменившийся `contentHash`) обновляет
+сопоставлен. Индекс `(codeInsee)` — выборка arrêtés по коммуне для публичного
+ответа: тот unique начинается с `arreteId` и ей не служит; создан миграцией
+`add_step_kind` заранее, под `GET /dossier/arretes`.
+
+Rectificatif (повторный NOR, изменившийся `contentHash`) обновляет
 entries существующего arrêté; факт изменения логируется, таблица ревизий не
 заводится, пока у истории нет читателя (решение 30.07.2026 — вопрос № 2).
 Вопрос «почему письмо пришло 12-го, а не 8-го» отвечается из базы без ревизий:
@@ -264,6 +272,7 @@ Auth уже решён (api/CLAUDE.md): Passport local + JWT, refresh с рот�
 | sinistreId                  | uuid → Sinistre, cascade            |                                                            |
 | name, description           | text                                |                                                            |
 | anchor                      | enum, null                          | null у шагов, добавленных пользователем                    |
+| kind                        | enum StepKind                       | копия из шаблона (§ 3)                                     |
 | offsetDays                  | int, null                           | в contracts `Step` поля нет — оно серверное, для пересчёта |
 | plannedDate                 | date, null                          | null, пока якорь не наступил                               |
 | persistedStatus             | enum FAIT/NON_APPLICABLE, null      | остальные статусы — на чтении                              |
@@ -275,6 +284,12 @@ Auth уже решён (api/CLAUDE.md): Passport local + JWT, refresh с рот�
 
 Индекс `(plannedDate) where persistedStatus is null` — ежедневный отбор
 напоминаний; создан миграцией `add_reminder_log`.
+
+> **Исключение: бэкфилл `kind`.** Миграция `add_step_kind` — единственное
+> место, где миграция меняет копии планов: `kind` шагам `fromTemplate = true`
+> проставлен по `order` позициями seed'а CATNAT. Прецедентом для дат и
+> статусов это не является; почему — `docs/research/dossier-preliminaire.md`,
+> «Вид шага».
 
 Семантика редактирования (вместо отдельной колонки `systemManaged` — внешнее
 ревью, решение 30.07.2026): у шаблонного шага (`fromTemplate = true`) дата

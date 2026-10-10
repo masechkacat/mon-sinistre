@@ -11,13 +11,7 @@ import {
   type SinistreSummary,
   type Step,
 } from '@mon-sinistre/contracts';
-import type {
-  ArreteEntryOutcome,
-  StepAnchor,
-  StepPersistedStatus,
-} from 'src/generated/prisma/enums';
-import { errorSummary, stackOf } from 'src/common/error-report';
-import { loadSuccessorMap } from 'src/communes/load-successor-map';
+import type { StepPersistedStatus } from 'src/generated/prisma/enums';
 import { DeadlineRuleService } from 'src/deadline-rules/deadline-rule.service';
 import {
   dateToIsoDate,
@@ -26,17 +20,10 @@ import {
 import { fr } from 'src/i18n/fr';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { todayInParis } from 'src/common/time/today-in-paris';
-import { anchorDatesOf } from './anchor-dates';
-import {
-  buildStepSnapshot,
-  type ResolvedDeadlineRule,
-  type StepTemplateRow,
-} from './build-step-snapshot';
 import type { CreateSinistreDto } from './dto/create-sinistre.dto';
-import { matchSinistres, toMatchArreteEntry } from './match-sinistres';
 import { recomputeDeclarationSteps } from './recompute-declaration-steps';
-import { CATNAT_PLAN_KEY } from 'src/step-templates/step-template.seed';
 import { sinistreStatus } from './sinistre-status';
+import { planDossier } from './snapshot-plan';
 import { communeFields } from 'src/communes/commune-fields';
 import {
   toSinistreDetail,
@@ -84,39 +71,11 @@ export class SinistresService {
     userId: string,
     dto: CreateSinistreDto,
   ): Promise<SinistreDetail> {
-    const commune = await this.prisma.commune.findFirst({
-      where: { codeInsee: dto.codeInsee, effectiveTo: null },
-      select: { codeInsee: true },
-    });
-    if (!commune) {
-      throw new BadRequestException(fr.sinistres.unknownCommune);
-    }
-
-    const today = todayInParis();
-    const match = await this.matchArrete(dto);
-    const anchorDates = anchorDatesOf({
-      eventDate: dto.eventDate,
-      declarationDate: null,
-      arretePublishedAt:
-        match?.outcome === 'RECONNU' ? match.publishedAt : null,
-    });
-
-    const templates = await this.prisma.stepTemplate.findMany({
-      where: { planKey: CATNAT_PLAN_KEY },
-      orderBy: { order: 'asc' },
-    });
-
-    const steps = await Promise.all(
-      templates.map(async (template) => {
-        const rule = await this.resolveRule(template, anchorDates, today);
-        const snapshot = buildStepSnapshot(template, anchorDates, rule);
-        return {
-          ...snapshot,
-          plannedDate: snapshot.plannedDate
-            ? isoDateToDate(snapshot.plannedDate)
-            : null,
-        };
-      }),
+    const { today, match, plan, status } = await planDossier(
+      this.prisma,
+      this.deadlineRules,
+      dto,
+      this.logger,
     );
 
     const sinistre = await this.prisma.sinistre.create({
@@ -127,111 +86,13 @@ export class SinistresService {
         eventDate: isoDateToDate(dto.eventDate),
         declarationDate: null,
         arreteEntryId: match?.arreteEntryId ?? null,
-        status: sinistreStatus({
-          current: null,
-          link: match ? { outcome: match.outcome } : null,
-          declarationDate: null,
-        }),
-        steps: { create: steps },
+        status,
+        steps: { create: plan.map((step) => step.row) },
       },
       include: detailInclude,
     });
 
     return toSinistreDetail(sinistre, sinistre.steps, today);
-  }
-
-  /**
-   * Matches a not-yet-created sinistre against already-ingested arrêtés
-   * through the shared pure `matchSinistres` (`src/sinistres/match-sinistres.ts`)
-   * — the same function the monitor's own linking pass
-   * (docs/plan/sinistre-plan.md, Фаза 3) will call for already-created
-   * dossiers, so the two never disagree on what counts as a match. The
-   * candidate carries a placeholder id: `matchSinistres` only echoes it
-   * back on the `Link` it returns, and this caller has exactly one
-   * candidate, so the id itself is never read.
-   */
-  private async matchArrete(dto: CreateSinistreDto): Promise<{
-    arreteEntryId: string;
-    outcome: ArreteEntryOutcome;
-    publishedAt: IsoDate;
-  } | null> {
-    const eventDate = isoDateToDate(dto.eventDate);
-    const [entries, successorOf] = await Promise.all([
-      this.prisma.arreteEntry.findMany({
-        where: {
-          codeInsee: { not: null },
-          eventStart: { lte: eventDate },
-          eventEnd: { gte: eventDate },
-        },
-        select: {
-          id: true,
-          codeInsee: true,
-          risque: true,
-          eventStart: true,
-          eventEnd: true,
-          outcome: true,
-          arrete: { select: { publishedAt: true } },
-        },
-      }),
-      loadSuccessorMap(this.prisma),
-    ]);
-
-    const links = matchSinistres(
-      entries.map(toMatchArreteEntry),
-      [
-        {
-          id: 'candidate',
-          codeInsee: dto.codeInsee,
-          risque: dto.risque,
-          eventDate: dto.eventDate,
-        },
-      ],
-      successorOf,
-    );
-    const arreteEntryId = links[0]?.arreteEntryId;
-    if (!arreteEntryId) {
-      return null;
-    }
-    const entry = entries.find((e) => e.id === arreteEntryId);
-    if (!entry) {
-      return null;
-    }
-    return {
-      arreteEntryId,
-      outcome: entry.outcome,
-      publishedAt: dateToIsoDate(entry.arrete.publishedAt),
-    };
-  }
-
-  /**
-   * A step whose rule does not resolve is snapshotted without one, the way
-   * `JorfMonitorService.drainOutbox` isolates its own call: {@link
-   * DeadlineRuleService.resolveActive} throws by design, and a gap in the
-   * referential must not cost the whole dossier — the `DATE_SINISTRE` steps
-   * and the déclaration deadline are what the user came for on day one. The
-   * step keeps no date and no source rather than an unconfirmed one (ТЗ § 7).
-   */
-  private async resolveRule(
-    template: StepTemplateRow,
-    anchorDates: Partial<Record<StepAnchor, IsoDate>>,
-    today: IsoDate,
-  ): Promise<ResolvedDeadlineRule | null> {
-    if (!template.deadlineRuleCode) {
-      return null;
-    }
-    try {
-      return await this.deadlineRules.resolveActive(
-        template.deadlineRuleCode,
-        template.anchor,
-        isoDateToDate(anchorDates[template.anchor] ?? today),
-      );
-    } catch (error) {
-      this.logger.error(
-        `sinistre plan: DeadlineRule ${template.deadlineRuleCode} on ${template.anchor} did not resolve, step created without a deadline: ${errorSummary(error)}`,
-        stackOf(error),
-      );
-      return null;
-    }
   }
 
   /** Ownership is part of the `where`, not checked after the fact — a chosen

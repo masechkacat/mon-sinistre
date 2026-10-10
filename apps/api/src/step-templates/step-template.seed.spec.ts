@@ -10,6 +10,18 @@ describe('STEP_TEMPLATE_SEED', () => {
     expect(STEP_TEMPLATE_SEED).toHaveLength(13);
   });
 
+  it('marks four steps as the four containers and leaves the nine others plain actions', () => {
+    const kinds = STEP_TEMPLATE_SEED.map((step) => step.kind);
+
+    expect(kinds.filter((kind) => kind !== 'ACTION').sort()).toEqual([
+      'DECLARATION',
+      'JUSTIFICATIFS',
+      'OBJETS',
+      'PHOTOS',
+    ]);
+    expect(kinds.filter((kind) => kind === 'ACTION')).toHaveLength(9);
+  });
+
   it.each(STEP_TEMPLATE_SEED)(
     'step $order carries no digit in its text',
     (step) => {

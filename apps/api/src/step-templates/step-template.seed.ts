@@ -29,6 +29,7 @@ export const STEP_TEMPLATE_SEED = [
     description:
       "Avant tout nettoyage, photographiez et filmez l'ensemble des dégâts, pièce par pièce et objet par objet : cette preuve est la base de votre dossier.",
     anchor: 'DATE_SINISTRE' as const,
+    kind: 'PHOTOS' as const,
     offsetDays: 0,
     deadlineRuleCode: null,
   },
@@ -38,6 +39,7 @@ export const STEP_TEMPLATE_SEED = [
     description:
       "Conservez tous les objets et matériaux endommagés, même hors d'usage : l'expert de l'assurance doit pouvoir les examiner.",
     anchor: 'DATE_SINISTRE' as const,
+    kind: 'ACTION' as const,
     offsetDays: 0,
     deadlineRuleCode: null,
   },
@@ -47,6 +49,7 @@ export const STEP_TEMPLATE_SEED = [
     description:
       "Prenez les mesures d'urgence nécessaires pour éviter que les dégâts empirent (bâcher une toiture, couper l'électricité...) et conservez les factures de ces mesures.",
     anchor: 'DATE_SINISTRE' as const,
+    kind: 'ACTION' as const,
     offsetDays: 1,
     deadlineRuleCode: null,
   },
@@ -56,6 +59,7 @@ export const STEP_TEMPLATE_SEED = [
     description:
       "Contactez votre assureur pour l'informer du sinistre, même avant la publication de l'arrêté : cette pré-déclaration accélère la suite du dossier.",
     anchor: 'DATE_SINISTRE' as const,
+    kind: 'ACTION' as const,
     offsetDays: 1,
     deadlineRuleCode: null,
   },
@@ -65,6 +69,7 @@ export const STEP_TEMPLATE_SEED = [
     description:
       "Retrouvez les factures, tickets de caisse et autres justificatifs d'achat des biens endommagés : ils appuient votre demande d'indemnisation.",
     anchor: 'DATE_SINISTRE' as const,
+    kind: 'JUSTIFICATIFS' as const,
     offsetDays: 3,
     deadlineRuleCode: null,
   },
@@ -74,6 +79,7 @@ export const STEP_TEMPLATE_SEED = [
     description:
       "Assurez-vous auprès de votre mairie qu'elle a bien déposé la demande de reconnaissance de l'état de catastrophe naturelle pour votre commune.",
     anchor: 'DATE_SINISTRE' as const,
+    kind: 'ACTION' as const,
     offsetDays: 7,
     deadlineRuleCode: null,
   },
@@ -83,6 +89,7 @@ export const STEP_TEMPLATE_SEED = [
     description:
       "Une fois l'arrêté publié, déclarez officiellement le sinistre à votre assureur : c'est ce qui déclenche les délais légaux d'indemnisation.",
     anchor: 'DATE_PUBLICATION_ARRETE' as const,
+    kind: 'DECLARATION' as const,
     offsetDays: null,
     deadlineRuleCode: DECLARATION_ASSUREUR_CODE,
   },
@@ -92,6 +99,7 @@ export const STEP_TEMPLATE_SEED = [
     description:
       'Votre assureur doit vous indiquer les modalités de mise en jeu de vos garanties et, si besoin, désigner un expert.',
     anchor: 'DATE_DECLARATION' as const,
+    kind: 'ACTION' as const,
     offsetDays: null,
     deadlineRuleCode: INFORMATION_ASSUREUR_CODE,
   },
@@ -101,6 +109,7 @@ export const STEP_TEMPLATE_SEED = [
     description:
       "Préparez et transmettez à votre assureur l'état estimatif de vos pertes, avec l'appui de vos photos et justificatifs.",
     anchor: 'DATE_DECLARATION' as const,
+    kind: 'OBJETS' as const,
     offsetDays: null,
     deadlineRuleCode: null,
   },
@@ -110,6 +119,7 @@ export const STEP_TEMPLATE_SEED = [
     description:
       "Votre assureur doit vous verser une provision sur l'indemnisation à venir.",
     anchor: 'DATE_ETAT_ESTIMATIF' as const,
+    kind: 'ACTION' as const,
     offsetDays: null,
     deadlineRuleCode: PROVISION_INDEMNITE_CODE,
   },
@@ -119,6 +129,7 @@ export const STEP_TEMPLATE_SEED = [
     description:
       "Votre assureur doit vous faire une proposition d'indemnisation, sur la base de l'état estimatif ou du rapport d'expertise.",
     anchor: 'DATE_ETAT_ESTIMATIF_OU_EXPERTISE' as const,
+    kind: 'ACTION' as const,
     offsetDays: null,
     deadlineRuleCode: PROPOSITION_INDEMNISATION_CODE,
   },
@@ -128,6 +139,7 @@ export const STEP_TEMPLATE_SEED = [
     description:
       'Une fois votre accord donné sur la proposition, votre assureur doit mandater une entreprise pour effectuer les réparations.',
     anchor: 'DATE_ACCORD_INDEMNISATION' as const,
+    kind: 'ACTION' as const,
     offsetDays: null,
     deadlineRuleCode: REPARATION_MISSIONNEE_CODE,
   },
@@ -137,6 +149,7 @@ export const STEP_TEMPLATE_SEED = [
     description:
       "Votre assureur doit vous verser l'indemnisation due, une fois votre accord donné sur la proposition.",
     anchor: 'DATE_ACCORD_INDEMNISATION' as const,
+    kind: 'ACTION' as const,
     offsetDays: null,
     deadlineRuleCode: VERSEMENT_INDEMNITE_CODE,
   },
@@ -144,7 +157,8 @@ export const STEP_TEMPLATE_SEED = [
 
 // Upsert by (planKey, order) — the same key the schema's unique index
 // enforces — so a repeated run edits rows in place instead of duplicating
-// them.
+// them. Even the nine `ACTION` rows spell `kind` out: `update` writes only the
+// fields it is handed.
 export async function seedStepTemplates(prisma: PrismaClient): Promise<void> {
   for (const step of STEP_TEMPLATE_SEED) {
     const data = {

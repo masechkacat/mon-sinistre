@@ -21,7 +21,7 @@ NestJS 12 на **Fastify**, не Express: плагины через `app.registe
 ## Модули
 
 Свои `CLAUDE.md` у `src/prisma/`, `src/communes/`, `src/mail/`, `src/veille/`,
-`src/auth/` — правила там. Решения фичи veille (схема, токены, лимит писем, чистка) —
+`src/auth/`, `src/dossier/` — правила там. Решения фичи veille (схема, токены, лимит писем, чистка) —
 `../../docs/research/veille-subscription-lifecycle.md`; изменение состава
 коммун (заявка `VeilleChange`, эндпоинты `changement`) —
 `../../docs/research/veille-commune-change.md`; монитор Journal Officiel

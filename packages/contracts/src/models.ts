@@ -7,6 +7,7 @@ import {
   RisqueCatnat,
   SinistreStatus,
   StepAnchor,
+  StepKind,
   StepStatus,
   VeilleChangeStatus,
   VeilleConfirmationStatus,
@@ -172,12 +173,14 @@ export interface StepTemplate {
   source: SourceReference;
 }
 
-/** A step within a sinistre. */
-export interface Step {
-  id: string;
-  sinistreId: string;
+/**
+ * A step as it is displayed: no identity and no marks of its own. What the
+ * dossier aperçu answers with, since nothing is stored for it to have an id.
+ */
+export interface StepView {
   name: string;
   description: string;
+  kind: StepKind;
   /**
    * Computed date the step should be acted on; null while the step's anchor
    * date is not known yet (e.g. anchored to an arrêté not published yet).
@@ -185,16 +188,24 @@ export interface Step {
   plannedDate: IsoDate | null;
   /** Derived at read time, except for FAIT and NON_APPLICABLE. */
   status: StepStatus;
-  /** Date the user marked it done. */
-  completedAt: IsoDate | null;
-  /** False for steps the user added themselves; those are never recomputed. */
-  fromTemplate: boolean;
   anchor: StepAnchor | null;
   source: SourceReference | null;
   /** Days to `plannedDate`, counted from the same day as `status`. */
   daysLeft: number | null;
   /** Window the step's deadline rule allows; null for a step without a rule. */
   delay: { value: number; unit: DurationUnit } | null;
+  /** Position in the plan, and the only stable key a step without an id has. */
+  order: number;
+}
+
+/** A step within a sinistre — a {@link StepView} that exists in the database. */
+export interface Step extends StepView {
+  id: string;
+  sinistreId: string;
+  /** Date the user marked it done. */
+  completedAt: IsoDate | null;
+  /** False for steps the user added themselves; those are never recomputed. */
+  fromTemplate: boolean;
 }
 
 /**
@@ -217,6 +228,39 @@ export interface SinistreDetail extends Sinistre {
 
 /** Response body of `GET /sinistres` — one row per sinistre, no steps. */
 export type SinistreSummary = Sinistre;
+
+/**
+ * Response body of `GET /dossier/apercu` — the plan the three parameters would
+ * get as a sinistre, computed without storing anything. No `id`: no resource
+ * exists to carry one.
+ */
+export interface DossierApercu {
+  commune: Commune;
+  risque: RisqueCatnat;
+  eventDate: IsoDate;
+  /** Only AVANT_ARRETE, ARRETE_PUBLIE or ARRETE_REFUSE: an aperçu has nothing declared. */
+  status: SinistreStatus;
+  /**
+   * Null while no arrêté covers the event — the aperçu is then "attendu". The
+   * event period is what the page offers as bounds for refining `eventDate`.
+   */
+  arrete:
+    | (Pick<Arrete, 'publishedAt' | 'legifranceUrl'> &
+        Pick<ArreteEntry, 'outcome' | 'eventStart' | 'eventEnd'>)
+    | null;
+  steps: StepView[];
+  declarationDeadline: DeclarationDeadline | null;
+}
+
+/**
+ * Body of the `409` from `POST /sinistres`: the user already has a dossier for
+ * this commune and risk under another date, and the request did not confirm a
+ * second one.
+ */
+export interface SinistreConflict {
+  code: 'DOSSIER_EXISTANT';
+  existing: { id: string; eventDate: IsoDate };
+}
 
 /** A file attached to an inventory item. Stored privately; served via signed URLs only. */
 export interface FileRef {

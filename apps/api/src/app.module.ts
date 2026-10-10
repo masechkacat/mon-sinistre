@@ -10,6 +10,7 @@ import { JwtAuthGuard } from './auth/passport/jwt-auth.guard';
 import { CommunesModule } from './communes/communes.module';
 import { validateEnv } from './config/env.validation';
 import { DeadlineRulesModule } from './deadline-rules/deadline-rules.module';
+import { DossierModule } from './dossier/dossier.module';
 import { HealthController } from './health/health.controller';
 import { JorfModule } from './jorf/jorf.module';
 import { MailModule } from './mail/mail.module';
@@ -43,6 +44,7 @@ export const GLOBAL_RATE_LIMIT = { ttl: 60_000, limit: 100 } as const;
     VeilleModule,
     JorfModule,
     SinistresModule,
+    DossierModule,
     RemindersModule,
   ],
   controllers: [HealthController],
