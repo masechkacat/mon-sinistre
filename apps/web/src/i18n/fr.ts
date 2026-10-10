@@ -576,6 +576,13 @@ export const fr = {
           'Le site est hébergé par [dénomination de l’hébergeur — à compléter avant publication], [adresse — à compléter], [téléphone — à compléter].',
         ],
       },
+      {
+        heading: 'Crédits',
+        paragraphs: [
+          'Police Luciole © Laurent Bourcellier & Jonathan Perez, luciole-vision.com, licence CC BY 4.0.',
+          'Police Newsreader © Production Type, SIL Open Font License 1.1.',
+        ],
+      },
     ],
   },
   accessibilite: {

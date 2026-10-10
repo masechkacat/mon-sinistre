@@ -42,6 +42,17 @@ for (const { path, dict } of legalPages) {
   });
 }
 
+// What the loop above cannot see: it checks that whatever the dictionary says
+// reaches the page, not that the credit CC BY requires is still in it.
+test('mentions légales: the Crédits section credits the font', () => {
+  const credits = fr.mentionsLegales.sections.find(
+    (section) => section.heading === 'Crédits',
+  );
+  const credited = stringLeaves(credits).join(' ');
+  for (const mention of ['Luciole', 'CC BY 4.0'])
+    expect(credited).toContain(mention);
+});
+
 // What the loop above cannot see: the model counts six sections, and the loop
 // compares the page against the dictionary rather than against the model.
 test('the accessibility declaration: six model sections, recourse link outbound', async ({
