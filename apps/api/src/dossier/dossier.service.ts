@@ -8,8 +8,7 @@ import {
 } from '@mon-sinistre/contracts';
 import { todayInParis } from 'src/common/time/today-in-paris';
 import { requireActiveCommune } from 'src/communes/active-commune';
-import { loadSuccessorMap } from 'src/communes/load-successor-map';
-import { predecessorCodesOf } from 'src/communes/predecessor-codes';
+import { codesMergedInto } from 'src/communes/codes-merged-into';
 import { DeadlineRuleService } from 'src/deadline-rules/deadline-rule.service';
 import {
   dateToIsoDate,
@@ -66,15 +65,13 @@ export class DossierService {
   async arretes(codeInsee: string): Promise<CommuneArretes> {
     const commune = await requireActiveCommune(this.prisma, codeInsee);
     // Sequential, not `Promise.all`: the endpoint is public, and a code the
-    // referential does not know must cost one indexed lookup, not the whole
-    // merged-communes table read before the 400.
-    const successorOf = await loadSuccessorMap(this.prisma);
+    // referential does not know must cost one indexed lookup, not the walk
+    // over its predecessors before the 400.
+    const codes = await codesMergedInto(this.prisma, codeInsee);
     const today = todayInParis();
     const entries = await this.prisma.arreteEntry.findMany({
       where: {
-        codeInsee: {
-          in: [codeInsee, ...predecessorCodesOf(codeInsee, successorOf)],
-        },
+        codeInsee: { in: codes },
         arrete: {
           publishedAt: {
             gte: isoDateToDate(
