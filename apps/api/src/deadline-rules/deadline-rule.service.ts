@@ -1,6 +1,5 @@
 import { Injectable, type Logger } from '@nestjs/common';
 import type { IsoDate } from '@mon-sinistre/contracts';
-import { errorSummary, stackOf } from 'src/common/error-report';
 import type { StepAnchor } from 'src/generated/prisma/enums';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { DECLARATION_ASSUREUR_CODE } from './deadline-rule.seed';
@@ -73,9 +72,10 @@ export class DeadlineRuleService {
       if (!(error instanceof NoActiveDeadlineRuleError)) {
         throw error;
       }
+      // No stack: it is always this file's, and the public commune page
+      // would print it at request rate on a mis-seeded environment.
       logger.error(
-        `DeadlineRule ${code} on ${anchor} did not resolve for ${onDate.toISOString().slice(0, 10)}, ${consequence}: ${errorSummary(error)}`,
-        stackOf(error),
+        `DeadlineRule ${code} on ${anchor} did not resolve for ${onDate.toISOString().slice(0, 10)}, ${consequence}`,
       );
       return null;
     }

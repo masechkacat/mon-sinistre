@@ -1,9 +1,6 @@
 import { Logger } from '@nestjs/common';
 import type { PrismaService } from 'src/prisma/prisma.service';
-import {
-  DeadlineRuleService,
-  NoActiveDeadlineRuleError,
-} from './deadline-rule.service';
+import { DeadlineRuleService } from './deadline-rule.service';
 
 // resolveActiveOrNull isolates exactly one failure — the referential gap —
 // and lets a failed query through: a public page answering "no deadline"
@@ -37,8 +34,9 @@ describe('DeadlineRuleService.resolveActiveOrNull', () => {
     ).resolves.toBeNull();
 
     expect(error).toHaveBeenCalledTimes(1);
-    expect(error.mock.calls[0]?.[0]).toContain('left dateless');
-    expect(error.mock.calls[0]?.[0]).toContain(NoActiveDeadlineRuleError.name);
+    expect(error.mock.calls[0]).toEqual([
+      expect.stringContaining('left dateless') as unknown,
+    ]);
   });
 
   it('resolves once per publication date and answers null for a refusal without asking', async () => {
