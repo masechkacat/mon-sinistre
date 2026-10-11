@@ -87,12 +87,12 @@
 
 - [ ] Contracts: `CommuneArrete`, `CommuneArretes` по research.
       **Проверяется тестами (до кода):** `npm run build:contracts`.
-- [ ] `src/communes/predecessor-codes.ts`: `predecessorCodesOf(code,
-    successorOf)` — коды, которые `resolveCurrentCode` сводит к `code`
-      (инверсия `loadSuccessorMap`). **Проверяется тестами (до кода):**
-      `predecessor-codes.spec.ts` — Z: код без предшественников → `[]`; O:
-      одно слияние; M: цепочка A → B → C даёт для C оба; цикл в карте не
-      зацикливает (`resolveCurrentCode` возвращает `null`).
+- [ ] `src/communes/codes-merged-into.ts`: `codesMergedInto(prisma, code)` —
+      `code` и его предшественники (research, врезка 11.10.2026).
+      **Проверяется тестами (до кода):**
+      `codes-merged-into.spec.ts` — Z: код без предшественников → `[code]`;
+      O: одно слияние; M: цепочка A → B → C даёт для C все три, запрос на
+      хоп; цикл в справочнике не зацикливает и даёт `[code]`.
 - [ ] `DossierService.arretes(codeInsee)` и `GET /dossier/arretes`: entries
       по `{code} ∪ predecessors` с `arrete.publishedAt ≥ resolveDeadline(today,
     -COMMUNE_ARRETES_WINDOW_MONTHS, 'MONTHS')`, сортировка `publishedAt desc`,

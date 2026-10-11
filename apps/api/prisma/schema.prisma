@@ -46,6 +46,9 @@ model Commune {
   // Prisma не поддерживает и в схеме не выражается: она живёт только в SQL
   // миграции, дрейфом не считается (проверка — commune-name-normalized.int-spec).
   @@index([nameNormalized])
+
+  // Частичный индекс successorCodeInsee — только в миграции
+  // commune_successor_index (проверка — commune-successor-index.int-spec).
 }
 
 // Аккаунт пострадавшего — docs/research/user-account.md, data-model.md § 5.

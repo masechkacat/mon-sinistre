@@ -324,6 +324,49 @@ describe('DossierController GET /dossier/arretes (integration)', () => {
     expect(body.commune.codeInsee).toBe('30189');
   });
 
+  it('lists an entry named under a commune merged twice, two hops back', async () => {
+    await prisma.commune.create({
+      data: {
+        ...commune('30188', 'Vieux-Nîmes', '30', 'Gard', '2026-01-01'),
+        successorCodeInsee: '30189',
+      },
+    });
+    await prisma.commune.create({
+      data: {
+        ...commune('30187', 'Très-Vieux-Nîmes', '30', 'Gard', '2025-01-01'),
+        successorCodeInsee: '30188',
+      },
+    });
+    const publishedAt = daysAgo(10);
+    await createEntry({ publishedAt, codeInsee: '30187' });
+
+    const body = await arretesBody();
+
+    expect(body.arretes.map((entry) => entry.publishedAt)).toEqual([
+      publishedAt,
+    ]);
+  });
+
+  it('lists only its own entries when the referential has a successor cycle', async () => {
+    await prisma.commune.create({
+      data: {
+        ...commune('30188', 'Vieux-Nîmes', '30', 'Gard', '2026-01-01'),
+        successorCodeInsee: '30189',
+      },
+    });
+    await prisma.commune.update({
+      where: { codeInsee: '30189' },
+      data: { successorCodeInsee: '30188' },
+    });
+    const own = daysAgo(10);
+    await createEntry({ publishedAt: own });
+    await createEntry({ publishedAt: daysAgo(5), codeInsee: '30188' });
+
+    const body = await arretesBody();
+
+    expect(body.arretes.map((entry) => entry.publishedAt)).toEqual([own]);
+  });
+
   it('lists nothing of another commune, nor of a commune merged into that other one', async () => {
     await prisma.commune.create({
       data: commune('30007', 'Alès', '30', 'Gard'),

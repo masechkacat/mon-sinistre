@@ -77,7 +77,15 @@ interface CommuneArretes {
 `todayInParis()`. Коммуна-преемник: entries ищутся по множеству кодов
 `{code} ∪ {предшественники}`, где предшественники — ключи `loadSuccessorMap`,
 для которых `resolveCurrentCode(key) === code` (инверсия той же карты, что
-использует `matchSinistres`). Срок декларации —
+использует `matchSinistres`).
+
+> Расхождение с реализацией (11.10.2026): карта целиком остаётся у
+> `matchSinistres` и монитора; `codesMergedInto` (`src/communes/`) собирает
+> только рёбра, ведущие к `code`, обходом `successorCodeInsee` назад по хопам
+> по частичному индексу `Commune(successorCodeInsee)` (data-model § 3), и
+> фильтрует их тем же `resolveCurrentCode`.
+
+Срок декларации —
 `DeadlineRuleService.resolveActive(DECLARATION_ASSUREUR_CODE,
 'DATE_PUBLICATION_ARRETE', publishedAt)` → `resolveDeadline` →
 `daysBetween(today, date)` → `toSourceReference` — все четыре уже есть;
