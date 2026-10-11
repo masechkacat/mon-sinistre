@@ -6,6 +6,17 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { DECLARATION_ASSUREUR_CODE } from './deadline-rule.seed';
 import { isoDateToDate } from './resolve-deadline';
 
+/** What {@link DeadlineRuleService.resolveActive} throws for a gap in the
+ * referential — the one failure a reader may go on without the rule from. */
+export class NoActiveDeadlineRuleError extends Error {
+  constructor(code: string, anchor: StepAnchor, onDate: Date) {
+    super(
+      `no active DeadlineRule ${code} anchored on ${anchor} for ${onDate.toISOString().slice(0, 10)}`,
+    );
+    this.name = NoActiveDeadlineRuleError.name;
+  }
+}
+
 /**
  * The one query for "which `DeadlineRule` is active for this code and anchor
  * on this date" — every caller that needs a legal deadline resolves through
@@ -33,9 +44,7 @@ export class DeadlineRuleService {
       },
     });
     if (!rule) {
-      throw new Error(
-        `no active DeadlineRule ${code} anchored on ${anchor} for ${onDate.toISOString().slice(0, 10)}`,
-      );
+      throw new NoActiveDeadlineRuleError(code, anchor, onDate);
     }
     return rule;
   }
@@ -46,9 +55,11 @@ export class DeadlineRuleService {
    * without the rule takes this path — a step snapshotted without a deadline,
    * a sinistre linked without a déclaration date, a public page listing the
    * arrêté without its délai — because a gap in the referential must not
-   * cost the whole plan, run or page. `consequence` is what the log says
-   * went dateless; the logger is the caller's, so the log names the class
-   * that needed the rule.
+   * cost the whole plan, run or page. Only that gap is isolated: a query
+   * that failed is rethrown, because "no deadline" printed over a dropped
+   * connection would be the one silence this product exists to prevent.
+   * `consequence` is what the log says went dateless; the logger is the
+   * caller's, so the log names the class that needed the rule.
    */
   async resolveActiveOrNull(
     code: string,
@@ -60,6 +71,9 @@ export class DeadlineRuleService {
     try {
       return await this.resolveActive(code, anchor, onDate);
     } catch (error) {
+      if (!(error instanceof NoActiveDeadlineRuleError)) {
+        throw error;
+      }
       logger.error(
         `DeadlineRule ${code} on ${anchor} did not resolve for ${onDate.toISOString().slice(0, 10)}, ${consequence}: ${errorSummary(error)}`,
         stackOf(error),
