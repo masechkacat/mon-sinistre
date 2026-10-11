@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
 import {
   COMMUNE_ARRETES_WINDOW_MONTHS,
@@ -228,6 +229,36 @@ describe('DossierController GET /dossier/arretes (integration)', () => {
     const entry = onlyArrete(body);
     expect(entry.outcome).toBe('REFUSE');
     expect(entry.declarationDeadline).toBeNull();
+  });
+
+  it('still lists a RECONNU entry, without its deadline, when no déclaration rule is active — one log line per publication date', async () => {
+    const publishedAt = daysAgo(10);
+    await createEntry({ publishedAt });
+    await createEntry({ publishedAt, risque: 'Sécheresse' });
+    // An environment whose seed never ran after the DeadlineRule migration:
+    // the page must still name the arrêté (ТЗ § 7 — no hard-coded number in
+    // its place), and the gap must cost the log one line per date, not one
+    // per visitor per entry.
+    await prisma.deadlineRule.deleteMany();
+    const logged = jest
+      .spyOn(Logger.prototype, 'error')
+      .mockImplementation(() => undefined);
+
+    try {
+      const body = await arretesBody();
+
+      expect(body.arretes.map((entry) => entry.outcome)).toEqual([
+        'RECONNU',
+        'RECONNU',
+      ]);
+      expect(body.arretes.map((entry) => entry.declarationDeadline)).toEqual([
+        null,
+        null,
+      ]);
+      expect(logged).toHaveBeenCalledTimes(1);
+    } finally {
+      logged.mockRestore();
+    }
   });
 
   it('lists an entry a merged commune was named under by its old INSEE code', async () => {
