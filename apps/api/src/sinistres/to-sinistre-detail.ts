@@ -124,6 +124,25 @@ export function toSinistreSummary(sinistre: SinistreRow): SinistreSummary {
   };
 }
 
+/** The wire shape of a déclaration deadline dated `date` and cited from
+ * `cited` — a `Step` here, the `DeadlineRule` itself on the public commune
+ * page, which has no step to read. */
+export function toDeclarationDeadline(
+  date: IsoDate,
+  cited: { sourceUrl: string; sourceVerifiedAt: Date },
+  today: IsoDate,
+): DeclarationDeadline {
+  return {
+    date,
+    daysLeft: daysBetween(today, date),
+    source: toSourceReference(
+      cited.sourceUrl,
+      dateToIsoDate(cited.sourceVerifiedAt),
+      today,
+    ),
+  };
+}
+
 /** The critical deadline is the step with the déclaration rule (ТЗ § 3.3). */
 export function declarationDeadlineOf(
   steps: StepViewRow[],
@@ -132,12 +151,19 @@ export function declarationDeadlineOf(
   const step = steps.find((candidate) =>
     isDeclarationRule(candidate.deadlineRule?.code),
   );
-  const source = step ? sourceOf(step, today) : null;
-  if (!step?.plannedDate || !source || step.persistedStatus !== null) {
+  if (
+    !step?.plannedDate ||
+    !step.sourceUrl ||
+    !step.sourceVerifiedAt ||
+    step.persistedStatus !== null
+  ) {
     return null;
   }
-  const date = dateToIsoDate(step.plannedDate);
-  return { date, daysLeft: daysBetween(today, date), source };
+  return toDeclarationDeadline(
+    dateToIsoDate(step.plannedDate),
+    { sourceUrl: step.sourceUrl, sourceVerifiedAt: step.sourceVerifiedAt },
+    today,
+  );
 }
 
 /** Maps a `Sinistre` row and its `Step` rows to the wire `SinistreDetail` — the

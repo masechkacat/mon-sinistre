@@ -8,10 +8,9 @@
 
 - **Только чтение**: ни строки в базе, ни письма.
 - **Своей доменной логики модуль не держит** — всё приходит из
-  `src/sinistres/` (`planDossier`, `toStepView`, `declarationDeadlineOf`) и
-  `src/deadline-rules/` (`resolveDeclaration`, `resolveDeadline`). Иначе
-  публичный аперçу и созданный синистр разошлись бы в датах. Срок декларации
-  в ответе по коммуне собирается из них на месте: `Step`, из которого его
-  читает `declarationDeadlineOf`, у публичного ответа нет.
+  `src/sinistres/` (`planDossier`, `toStepView`, `declarationDeadlineOf`,
+  `toDeclarationDeadline`) и `src/deadline-rules/`
+  (`resolveDeclarationByDate`, `resolveDeadline`). Иначе публичный аперçу и
+  созданный синистр разошлись бы в датах.
 - `@Public()` стоит на классе: закрытых маршрутов здесь не появится —
   закрытый ресурс живёт в `src/sinistres/`.
