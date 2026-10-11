@@ -26,6 +26,13 @@ export const testBejdz = {
   path: '/test-bejdz' satisfies Route,
   status: 200,
 } as const;
+// The plan of a dossier in both modes, behind TEST_ROUTES for the same
+// reason: the read mode has no page of its own until /dossier exists, and the
+// registry gives it axe, reflow and reduced-motion.
+export const testPlan = {
+  path: '/test-plan' satisfies Route,
+  status: 200,
+} as const;
 export const veille = { path: '/veille' satisfies Route, status: 200 } as const;
 // The token is deliberately unknown, and the status GET is mocked to a real
 // domain "invalid" response: nothing listens on testApiBaseUrl during
@@ -123,6 +130,7 @@ export const pages = [
   notFound,
   serverError,
   testBejdz,
+  testPlan,
   veille,
   veilleConfirmation,
   veilleDesinscriptionConfirmer,

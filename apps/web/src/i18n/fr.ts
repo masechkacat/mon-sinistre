@@ -6,6 +6,7 @@ import {
   RisqueCatnat,
   SinistreStatus,
   StepAnchor,
+  StepKind,
 } from '@mon-sinistre/contracts';
 
 // The space before ":" and "?" is a literal U+00A0, not a typo — same
@@ -84,6 +85,9 @@ const RAPPELS_DESACTIVER = 'Désactiver les rappels';
 // as the text on screen, and inside the longer name a screen reader gets.
 const VOIR_MON_DOSSIER = 'Voir mon dossier';
 const FAIT = 'Fait';
+
+const conteneurVide = (contenu: string) =>
+  `${contenu} : cet espace s’ouvrira une fois votre dossier enregistré.`;
 
 const apresAncre: Record<StepAnchor, string> = {
   [StepAnchor.DATE_SINISTRE]: 'après le sinistre',
@@ -529,6 +533,21 @@ export const fr = {
           `Source non revérifiée depuis plus de ${months} mois : la date peut avoir changé.`,
         indicative: `Date indicative, ${A_VERIFIER_AVEC_CONTRAT}.`,
       },
+    },
+  },
+  dossier: {
+    testPage: 'Plan du dossier',
+    conteneur: {
+      [StepKind.PHOTOS]: conteneurVide('Photos et vidéos des dégâts'),
+      [StepKind.JUSTIFICATIFS]: conteneurVide(
+        'Factures, devis et autres justificatifs',
+      ),
+      [StepKind.OBJETS]: conteneurVide(
+        'Liste des objets endommagés et de leur valeur',
+      ),
+      [StepKind.DECLARATION]: conteneurVide(
+        'Date de votre déclaration à l’assureur',
+      ),
     },
   },
   session: {

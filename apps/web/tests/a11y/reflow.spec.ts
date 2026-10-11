@@ -31,6 +31,9 @@ for (const entry of pages) {
           .filter((el) =>
             ['hidden', 'clip'].includes(getComputedStyle(el).overflowX),
           )
+          // `sr-only` clips its text into a 1 px box by design: nothing is
+          // lost, the text is meant for screen readers only.
+          .filter((el) => !el.classList.contains('sr-only'))
           .filter((el) => el.scrollWidth > el.clientWidth)
           // el.className is an SVGAnimatedString on SVG elements — the
           // attribute reads as plain text everywhere.

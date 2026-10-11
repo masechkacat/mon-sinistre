@@ -4,17 +4,12 @@ import { Field } from '@base-ui/react/field';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { useRef, useState, type FormEvent } from 'react';
-import {
-  StepStatus,
-  isIsoDate,
-  type DeclarationDeadline,
-  type IsoDate,
-  type Step,
-} from '@mon-sinistre/contracts';
-import { DeadlineBadge } from '@/components/deadline-badge';
+import { StepStatus, isIsoDate, type IsoDate } from '@mon-sinistre/contracts';
 import { FieldError } from '@/components/field-error';
 import { PageContainer } from '@/components/page-container';
-import { PageTitle } from '@/components/page-title';
+import { DeclarationDeadlineBlock } from '@/components/plan/declaration-deadline-block';
+import { DossierEntete } from '@/components/plan/dossier-entete';
+import { PlanList } from '@/components/plan/plan-list';
 import { RequestError } from '@/components/request-error';
 import { AlertDialog, AlertDialogContent } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
@@ -34,11 +29,8 @@ import {
 } from '@/lib/api/sinistres';
 import { queryKeys } from '@/lib/api/keys';
 import { useSessionGuard } from '@/lib/api/use-session-guard';
-import { deadlineBadgeState } from '@/lib/deadline-badge';
 import { cn } from '@/lib/utils';
 import { dossierTitle } from '@/lib/dossier-title';
-import { nextUpcomingStep } from '@/lib/sinistre-timeline';
-import { SourceNote } from './source-note';
 
 interface StepMarkRequest {
   stepId: string;
@@ -73,7 +65,6 @@ export function SinistreDetailView({ id }: { id: string }) {
     onError: () => setAnnouncement(fr.sinistres.detail.marquageEchec),
   });
   const sinistre = query.data;
-  const next = sinistre ? nextUpcomingStep(sinistre.steps) : null;
 
   return (
     <PageContainer className="space-y-8">
@@ -94,12 +85,10 @@ export function SinistreDetailView({ id }: { id: string }) {
 
       {sinistre ? (
         <>
-          <section className="space-y-1">
-            <PageTitle>{dossierTitle(sinistre)}</PageTitle>
-            <p className="text-lg text-muted-foreground">
-              {fr.sinistres.statut[sinistre.status]}
-            </p>
-          </section>
+          <DossierEntete
+            title={dossierTitle(sinistre)}
+            statut={fr.sinistres.statut[sinistre.status]}
+          />
 
           <DeclarationSection
             sinistreId={id}
@@ -111,29 +100,20 @@ export function SinistreDetailView({ id }: { id: string }) {
             <DeclarationDeadlineBlock deadline={sinistre.declarationDeadline} />
           ) : null}
 
-          <ol
-            aria-label={fr.sinistres.detail.timelineLabel}
-            className="space-y-4"
-          >
-            {sinistre.steps.map((step) => (
-              <StepItem
-                key={step.id}
-                step={step}
-                isNext={step.id === next?.id}
-                itemRef={(node) => {
-                  if (node) stepItems.current.set(step.id, node);
-                  else stepItems.current.delete(step.id);
-                }}
-                onMark={(mark) =>
-                  markMutation.mutate({
-                    stepId: step.id,
-                    etape: step.name,
-                    status: mark,
-                  })
-                }
-              />
-            ))}
-          </ol>
+          <PlanList
+            steps={sinistre.steps}
+            itemRef={(step, node) => {
+              if (node) stepItems.current.set(step.id, node);
+              else stepItems.current.delete(step.id);
+            }}
+            onMark={(step, mark) =>
+              markMutation.mutate({
+                stepId: step.id,
+                etape: step.name,
+                status: mark,
+              })
+            }
+          />
 
           <SuppressionSection sinistreId={id} />
         </>
@@ -302,106 +282,9 @@ function SuppressionSection({ sinistreId }: { sinistreId: string }) {
   );
 }
 
-function DeclarationDeadlineBlock({
-  deadline,
-}: {
-  deadline: DeclarationDeadline;
-}) {
-  const copy = fr.sinistres.detail.deadline;
-
-  return (
-    <section className="space-y-2">
-      <h2 className="text-xl font-semibold">{copy.heading}</h2>
-      <DeadlineBadge
-        form="hero"
-        state={deadlineBadgeState({ daysLeft: deadline.daysLeft })}
-        date={deadline.date}
-        daysLeft={deadline.daysLeft}
-      />
-      <SourceNote source={deadline.source} sujet={copy.heading} />
-    </section>
-  );
-}
-
 function markAnnouncement({ etape, status }: StepMarkRequest) {
   const copy = fr.sinistres.detail.annonce;
   if (status === StepStatus.FAIT) return copy.fait(etape);
   if (status === StepStatus.NON_APPLICABLE) return copy.nonApplicable(etape);
   return copy.annule(etape);
-}
-
-function StepItem({
-  step,
-  isNext,
-  itemRef,
-  onMark,
-}: {
-  step: Step;
-  isNext: boolean;
-  itemRef: (node: HTMLLIElement | null) => void;
-  onMark: (mark: StepMark) => void;
-}) {
-  const copy = fr.sinistres.detail;
-  const isClosed =
-    step.status === StepStatus.FAIT ||
-    step.status === StepStatus.NON_APPLICABLE;
-  // Names the step inside each button, so a reader listing the buttons can
-  // tell the steps apart — the three labels repeat across the timeline.
-  const sujet = (
-    <span className="sr-only">{copy.marquer.sujet(step.name)}</span>
-  );
-
-  return (
-    <li
-      ref={itemRef}
-      tabIndex={-1}
-      aria-current={isNext ? 'step' : undefined}
-      className="space-y-2 rounded-lg border p-4"
-    >
-      <p className="text-lg font-medium">{step.name}</p>
-      {isNext ? (
-        <p className="text-sm font-semibold">{copy.prochaineEtape}</p>
-      ) : null}
-      <DeadlineBadge
-        form="row"
-        state={deadlineBadgeState(step)}
-        date={step.plannedDate}
-        daysLeft={step.daysLeft}
-        completedAt={step.completedAt}
-        delay={step.delay}
-        anchor={step.anchor}
-      />
-      {step.plannedDate && step.source && !isClosed ? (
-        <SourceNote source={step.source} sujet={step.name} />
-      ) : null}
-      {!step.plannedDate && !isClosed ? (
-        <p className="text-sm text-muted-foreground">
-          {step.anchor ? copy.attentePar[step.anchor] : copy.sansDateNiAncre}
-        </p>
-      ) : null}
-      <div className="flex flex-wrap gap-2 pt-2">
-        {isClosed ? (
-          <Button variant="outline" size="touch" onClick={() => onMark(null)}>
-            {copy.marquer.annuler}
-            {sujet}
-          </Button>
-        ) : (
-          <>
-            <Button size="touch" onClick={() => onMark(StepStatus.FAIT)}>
-              {copy.marquer.fait}
-              {sujet}
-            </Button>
-            <Button
-              variant="outline"
-              size="touch"
-              onClick={() => onMark(StepStatus.NON_APPLICABLE)}
-            >
-              {copy.marquer.nonApplicable}
-              {sujet}
-            </Button>
-          </>
-        )}
-      </div>
-    </li>
-  );
 }
