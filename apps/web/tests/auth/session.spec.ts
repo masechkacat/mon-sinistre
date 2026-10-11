@@ -3,6 +3,7 @@ import { fr } from '../../src/i18n/fr';
 import { expectNoAxeViolations } from '../support/a11y';
 import { testApiBaseUrl } from '../support/env';
 import { VALID_PASSWORD as PASSWORD } from '../support/form';
+import { loginPathWithNext } from '../../src/lib/api/session';
 import {
   ACCESS_TOKEN,
   mockNoSession,
@@ -33,7 +34,7 @@ test('no session redirects to the login page instead of showing protected conten
 
   await page.goto('/espace-personnel');
 
-  await expect(page).toHaveURL(/\/connexion$/);
+  await expect(page).toHaveURL(loginPathWithNext('/espace-personnel'));
   await expect(page.getByTestId('espace-personnel-content')).toHaveCount(0);
 });
 

@@ -14,6 +14,7 @@ import { RequestError } from '@/components/request-error';
 import { PasswordField } from '@/components/text-field';
 import { Button } from '@/components/ui/button';
 import { apiFetch } from '@/lib/api/client';
+import { loginPathToSinistre } from '@/lib/api/session';
 import { validatePassword } from '@/lib/password-pattern';
 import { fr } from '@/i18n/fr';
 
@@ -43,7 +44,9 @@ export function ReinitialisationForm() {
         body: JSON.stringify(input),
       }),
     onSuccess: (data) => {
-      if (data.status === 'reset') router.push('/connexion');
+      if (data.status === 'reset') {
+        router.push(loginPathToSinistre(data.sinistreId));
+      }
     },
   });
 

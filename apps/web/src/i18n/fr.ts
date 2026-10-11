@@ -454,6 +454,7 @@ export const fr = {
         `Un dossier est déjà ouvert pour cette commune et ce type de risque, pour un événement du ${date}. Vous pouvez l’ouvrir, ou créer un second dossier s’il s’agit d’un autre événement.`,
       ouvrir: 'Ouvrir ce dossier',
       creer: 'Créer un second dossier',
+      corriger: 'Revenir et corriger',
     },
     // Values are the letter of SinistreStatus (root CLAUDE.md, «Не
     // дублировать»); labels are the only French text a status carries — the
@@ -558,6 +559,10 @@ export const fr = {
     legifranceLink: 'Consulter l’arrêté sur Légifrance',
     delaiExpire: 'Délai expiré',
     enregistrer: 'Enregistrer ce dossier',
+    enregistrement: 'Enregistrement du dossier…',
+    echecApresConnexion:
+      'Vous êtes bien connecté, mais votre dossier n’a pas pu être enregistré.',
+    revenir: 'Revenir à mon dossier',
     resume: (parts: readonly string[]) =>
       `Votre dossier : ${parts.join(' · ')}`,
     formulaire: {

@@ -4,6 +4,7 @@ import { useMutation } from '@tanstack/react-query';
 import type { Route } from 'next';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { flushSync } from 'react-dom';
 import type { SinistreConflict } from '@mon-sinistre/contracts';
 import { createSinistre, sinistreConflictOf } from './sinistres';
 
@@ -32,8 +33,7 @@ export function useCreateSinistre() {
       if (asked) setConflict(asked);
     },
     onSuccess: (sinistre) => {
-      // `/sinistres/[id]` is dynamic, and typedRoutes cannot check a path
-      // built from an id known only at runtime — same cast as the list screen.
+      // typedRoutes cannot check a path built from a runtime id.
       router.push(`/sinistres/${sinistre.id}` as Route);
     },
   });
@@ -46,6 +46,13 @@ export function useCreateSinistre() {
     confirmNew: () => {
       const sent = mutation.variables;
       if (sent) mutation.mutate({ ...sent, confirmNew: true });
+    },
+    /** Synchronous, so the screen given back can take the focus at once. */
+    dismissConflict: () => {
+      flushSync(() => {
+        setConflict(null);
+        mutation.reset();
+      });
     },
   };
 }

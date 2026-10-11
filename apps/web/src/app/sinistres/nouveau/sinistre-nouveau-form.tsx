@@ -33,7 +33,8 @@ export function SinistreNouveauForm() {
   const [eventDateError, setEventDateError] = useState<string>();
   const formRef = useRef<HTMLFormElement>(null);
 
-  const { mutation, conflict, failed, confirmNew } = useCreateSinistre();
+  const { mutation, conflict, failed, confirmNew, dismissConflict } =
+    useCreateSinistre();
 
   // The date's own future-date rule lives once, in the API's DTO validator
   // (IsNotFutureIsoDate) — this reads its French answer back rather than
@@ -107,6 +108,10 @@ export function SinistreNouveauForm() {
     <DossierExistant
       conflict={conflict}
       onConfirmNew={confirmNew}
+      onCorriger={() => {
+        dismissConflict();
+        focusFirstFieldError(formRef.current, {});
+      }}
       pending={mutation.isPending}
       failed={requestFailed}
     >

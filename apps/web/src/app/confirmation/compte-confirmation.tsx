@@ -13,7 +13,7 @@ import { PageTitle } from '@/components/page-title';
 import { RequestError } from '@/components/request-error';
 import { Button } from '@/components/ui/button';
 import { apiFetch } from '@/lib/api/client';
-import { LOGIN_PATH, loginPathWithNext } from '@/lib/api/session';
+import { loginPathToSinistre } from '@/lib/api/session';
 import { fr } from '@/i18n/fr';
 
 // Unlike veille's confirmation page, there is no GET status endpoint here
@@ -40,11 +40,6 @@ export function CompteConfirmation() {
     ? 'invalid'
     : confirmMutation.data?.status;
 
-  // The dossier the registration carried, saved by the confirmation. The
-  // click opens no session (docblock above), so the way to it runs through
-  // the login and back.
-  const sinistreId = confirmMutation.data?.sinistreId;
-
   const result =
     status === 'confirmed'
       ? fr.compte.confirmation.confirmed
@@ -58,11 +53,7 @@ export function CompteConfirmation() {
       resultAction={
         status === 'confirmed' ? (
           <Link
-            href={
-              sinistreId
-                ? loginPathWithNext(`/sinistres/${sinistreId}`)
-                : LOGIN_PATH
-            }
+            href={loginPathToSinistre(confirmMutation.data?.sinistreId)}
             className="underline underline-offset-4"
             data-testid="compte-confirmation-login-link"
           >

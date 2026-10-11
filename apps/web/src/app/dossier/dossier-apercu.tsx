@@ -71,12 +71,8 @@ export function DossierApercuView() {
   );
 }
 
-/**
- * The failed save was sent for the dossier now on screen, so its answer still
- * belongs under the button. After the date is refined the address is another
- * dossier, and the banner would describe the previous one — the form of
- * `/sinistres/nouveau` drops it on the first edit for the same reason.
- */
+// `Apercu` outlives a change of address (`keepPreviousData`), and with it the
+// answer to a save sent for the previous one.
 function pourCeDossier(
   sent: CreateSinistreInput | undefined,
   params: Required<DossierParams>,
@@ -96,8 +92,11 @@ function Apercu({
   risqueOptions: readonly RisqueCatnat[];
 }) {
   const router = useRouter();
-  const { mutation, conflict, failed, confirmNew } = useCreateSinistre();
+  const { mutation, conflict, failed, confirmNew, dismissConflict } =
+    useCreateSinistre();
+  const actuel = pourCeDossier(mutation.variables, params);
   const [enregistrement, setEnregistrement] = useState(false);
+  const ecranRef = useRef<HTMLDivElement>(null);
   const query = useQuery({
     queryKey: queryKeys.dossierApercu(
       params.commune,
@@ -116,8 +115,6 @@ function Apercu({
   // "try again later" of a failed request.
   const refuse = query.error instanceof ApiError && query.error.status === 400;
 
-  // Saving is the one step of the dossier that needs an account: the refresh
-  // cookie is asked before the visitor is.
   const enregistrer = async () => {
     setEnregistrement(true);
     try {
@@ -136,12 +133,18 @@ function Apercu({
 
   return (
     <DossierExistant
-      conflict={conflict}
+      conflict={actuel ? conflict : null}
       onConfirmNew={confirmNew}
+      onCorriger={() => {
+        dismissConflict();
+        ecranRef.current
+          ?.querySelector<HTMLElement>('input[type="date"], [data-enregistrer]')
+          ?.focus();
+      }}
       pending={mutation.isPending}
-      failed={failed}
+      failed={actuel && failed}
     >
-      <PageContainer className="space-y-8">
+      <PageContainer ref={ecranRef} className="space-y-8">
         {/* The whole screen comes from the request, so until it answers there
           is nothing else on the page to read. Mounted before the answer and
           only ever changing text: the refusal below is announced that way
@@ -215,15 +218,14 @@ function Apercu({
               size="touch"
               onClick={() => enregistrer()}
               disabled={enregistrement}
+              data-enregistrer
             >
               {enregistrement
-                ? fr.sinistres.nouveau.submitting
+                ? fr.dossier.enregistrement
                 : fr.dossier.enregistrer}
             </Button>
 
-            {failed && pourCeDossier(mutation.variables, params) ? (
-              <RequestError />
-            ) : null}
+            {actuel && failed ? <RequestError /> : null}
           </>
         ) : null}
       </PageContainer>

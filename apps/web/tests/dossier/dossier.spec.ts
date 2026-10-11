@@ -13,6 +13,7 @@ import {
 import { formatDateFr, formatDateShortFr } from '../../src/i18n/date';
 import { fr } from '../../src/i18n/fr';
 import { dossierSearch } from '../../src/lib/dossier-params';
+import { loginPathWithNext } from '../../src/lib/api/session';
 import { dossierTitle } from '../../src/lib/dossier-title';
 import { RISQUES } from '../../src/lib/risques';
 import { expectNoAxeViolations } from '../support/a11y';
@@ -253,6 +254,40 @@ test('a dossier already open for the commune is asked about instead of being dou
   await expect(
     page.getByRole('list', { name: copy.timelineLabel }),
   ).toHaveCount(0);
+});
+
+test('“revenir et corriger” gives the aperçu back with its save button focused', async ({
+  page,
+}) => {
+  await mockSession(page).install();
+  await mockCreateSinistre(page, [
+    conflictReply(SINISTRE_ID_2, AUTRE_DATE_EVENEMENT),
+  ]);
+  await openDossier(page, apercuFixture());
+
+  await page.getByRole('button', { name: fr.dossier.enregistrer }).click();
+  await page
+    .getByRole('button', { name: fr.sinistres.doublon.corriger })
+    .click();
+
+  await expect(
+    page.getByRole('button', { name: fr.dossier.enregistrer }),
+  ).toBeFocused();
+  await expect(page.getByTestId('dossier-existant')).toHaveCount(0);
+});
+
+test('a session lost on saving sends to the login on the way back to this dossier', async ({
+  page,
+}) => {
+  await mockSession(page).install();
+  await page.route(`${testApiBaseUrl}/sinistres`, (route) =>
+    route.fulfill({ status: 401, contentType: 'application/json', body: '{}' }),
+  );
+  await openDossier(page, apercuFixture());
+
+  await page.getByRole('button', { name: fr.dossier.enregistrer }).click();
+
+  await expect(page).toHaveURL(loginPathWithNext(DOSSIER_PATH));
 });
 
 test('a save that failed stops being reported once the date is refined', async ({

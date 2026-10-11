@@ -17,6 +17,12 @@ export function loginPathWithNext(path: string): Route {
   return `${LOGIN_PATH}?${search}` as Route;
 }
 
+export function loginPathToSinistre(sinistreId: string | undefined): Route {
+  return sinistreId
+    ? loginPathWithNext(`/sinistres/${sinistreId}`)
+    : LOGIN_PATH;
+}
+
 /** Any origin will do, as long as resolving against it is the only way to
  * reach it: `.invalid` is reserved and resolves nowhere. */
 const SAME_ORIGIN = 'https://interne.invalid';
@@ -132,17 +138,19 @@ export function clearSessionAndNavigate(path: string): void {
 
 /**
  * A session confirmed lost — a failed silent refresh, or an authenticated
- * request's 401 that a refresh could not recover.
+ * request's 401 that a refresh could not recover. The login comes back to the
+ * page that lost it.
  */
 export function redirectToLogin(): void {
-  clearSessionAndNavigate(LOGIN_PATH);
+  clearSessionAndNavigate(
+    loginPathWithNext(`${window.location.pathname}${window.location.search}`),
+  );
 }
 
 /**
  * Ends the session everywhere: revokes the refresh cookie server-side (best
  * effort — a network failure here must not strand the person on a screen
- * that still looks logged in) before falling back to the same redirect as
- * an ordinary lost session.
+ * that still looks logged in) before leaving for the login page.
  */
 export async function endSession(): Promise<void> {
   try {
@@ -153,5 +161,5 @@ export async function endSession(): Promise<void> {
   } catch {
     // Best effort — see docblock above.
   }
-  redirectToLogin();
+  clearSessionAndNavigate(LOGIN_PATH);
 }

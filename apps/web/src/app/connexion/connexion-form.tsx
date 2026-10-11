@@ -1,6 +1,7 @@
 'use client';
 
 import { useMutation } from '@tanstack/react-query';
+import type { Route } from 'next';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
@@ -11,12 +12,17 @@ import { PageTitle } from '@/components/page-title';
 import { DossierExistant } from '@/components/plan/dossier-existant';
 import { RequestError } from '@/components/request-error';
 import { EmailField, PasswordField } from '@/components/text-field';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { ApiError, apiFetch } from '@/lib/api/client';
 import { loginNextPath, setAccessToken } from '@/lib/api/session';
 import { useCreateSinistre } from '@/lib/api/use-create-sinistre';
-import { dossierInput, parseDossierParams } from '@/lib/dossier-params';
+import {
+  dossierInput,
+  dossierSearch,
+  parseDossierParams,
+} from '@/lib/dossier-params';
 import { validateEmail } from '@/lib/email-pattern';
+import { useFocusOnSuccess } from '@/lib/use-focus-on-success';
 import { fr } from '@/i18n/fr';
 
 interface LoginInput {
@@ -27,9 +33,9 @@ interface LoginInput {
 export function ConnexionForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  // A dossier still to save comes before a page to return to: it is the one
-  // that would be lost.
-  const dossier = dossierInput(parseDossierParams(searchParams));
+  const params = parseDossierParams(searchParams);
+  const dossier = dossierInput(params);
+  const dossierPath = `/dossier${dossierSearch(params)}` as Route;
   const suivant = loginNextPath(searchParams);
 
   const [email, setEmail] = useState('');
@@ -38,6 +44,7 @@ export function ConnexionForm() {
   const [passwordError, setPasswordError] = useState<string>();
 
   const enregistrement = useCreateSinistre();
+  const echecRef = useFocusOnSuccess(enregistrement.failed);
 
   const mutation = useMutation({
     mutationFn: (input: LoginInput) =>
@@ -81,17 +88,16 @@ export function ConnexionForm() {
     mutation.isError &&
     mutation.error instanceof ApiError &&
     mutation.error.status === 401;
-  // The save happens on this screen too, so its failure is reported under
-  // the same button — but never beside the message above, which answers the
-  // submit the person is looking at.
-  const requestFailed =
-    !invalidCredentials && (mutation.isError || enregistrement.failed);
-  const pending = mutation.isPending || enregistrement.mutation.isPending;
+  const connecte = mutation.isSuccess && dossier !== undefined;
+  const enregistrementRefuse =
+    enregistrement.mutation.error instanceof ApiError &&
+    enregistrement.mutation.error.status === 400;
 
   return (
     <DossierExistant
       conflict={enregistrement.conflict}
       onConfirmNew={enregistrement.confirmNew}
+      onCorriger={() => router.push(dossierPath)}
       pending={enregistrement.mutation.isPending}
       failed={enregistrement.failed}
     >
@@ -103,63 +109,107 @@ export function ConnexionForm() {
           </p>
         </section>
 
-        <form
-          className="space-y-6"
-          onSubmit={handleSubmit}
-          noValidate
-          aria-busy={pending}
+        <p
+          role="status"
+          className="text-lg text-muted-foreground empty:sr-only"
         >
-          <EmailField
-            label={fr.compte.connexion.emailLabel}
-            placeholder={fr.compte.connexion.emailPlaceholder}
-            value={email}
-            onValueChange={(next) => {
-              setEmail(next);
-              setEmailError(undefined);
-            }}
-            error={emailError}
-          />
+          {connecte && enregistrement.mutation.isPending
+            ? fr.dossier.enregistrement
+            : null}
+        </p>
 
-          <PasswordField
-            label={fr.compte.connexion.passwordLabel}
-            autoComplete="current-password"
-            value={password}
-            onValueChange={(next) => {
-              setPassword(next);
-              setPasswordError(undefined);
-            }}
-            error={passwordError}
-          />
-
-          <p className="text-sm">
-            <Link
-              href="/mot-de-passe-oublie"
-              className="underline underline-offset-4"
+        {connecte ? (
+          enregistrement.failed ? (
+            <div
+              ref={echecRef}
+              tabIndex={-1}
+              className="space-y-6 outline-none"
             >
-              {fr.compte.connexion.forgotPasswordLink}
-            </Link>
-          </p>
+              <p className="text-lg">{fr.dossier.echecApresConnexion}</p>
+              <RequestError />
+              <div className="flex flex-wrap gap-4">
+                {enregistrementRefuse ? null : (
+                  <Button
+                    size="touch"
+                    onClick={() => enregistrement.mutation.mutate(dossier)}
+                  >
+                    {fr.serverError.retry}
+                  </Button>
+                )}
+                <Link
+                  href={dossierPath}
+                  className={buttonVariants({
+                    size: 'touch',
+                    variant: enregistrementRefuse ? 'default' : 'outline',
+                  })}
+                >
+                  {fr.dossier.revenir}
+                </Link>
+              </div>
+            </div>
+          ) : null
+        ) : (
+          <form
+            className="space-y-6"
+            onSubmit={handleSubmit}
+            noValidate
+            aria-busy={mutation.isPending}
+          >
+            <EmailField
+              label={fr.compte.connexion.emailLabel}
+              placeholder={fr.compte.connexion.emailPlaceholder}
+              value={email}
+              onValueChange={(next) => {
+                setEmail(next);
+                setEmailError(undefined);
+              }}
+              error={emailError}
+            />
 
-          <Button type="submit" disabled={pending}>
-            {pending
-              ? fr.compte.connexion.submitting
-              : fr.compte.connexion.submit}
-          </Button>
+            <PasswordField
+              label={fr.compte.connexion.passwordLabel}
+              autoComplete="current-password"
+              value={password}
+              onValueChange={(next) => {
+                setPassword(next);
+                setPasswordError(undefined);
+              }}
+              error={passwordError}
+            />
 
-          <p className="text-sm">
-            {fr.compte.connexion.noAccount}{' '}
-            <Link href="/inscription" className="underline underline-offset-4">
-              {fr.compte.connexion.registerLink}
-            </Link>
-          </p>
+            <p className="text-sm">
+              <Link
+                href="/mot-de-passe-oublie"
+                className="underline underline-offset-4"
+              >
+                {fr.compte.connexion.forgotPasswordLink}
+              </Link>
+            </p>
 
-          {invalidCredentials ? (
-            <Alert variant="destructive" data-testid="connexion-error">
-              <AlertTitle>{fr.compte.connexion.invalidError}</AlertTitle>
-            </Alert>
-          ) : null}
-          {requestFailed ? <RequestError /> : null}
-        </form>
+            <Button type="submit" disabled={mutation.isPending}>
+              {mutation.isPending
+                ? fr.compte.connexion.submitting
+                : fr.compte.connexion.submit}
+            </Button>
+
+            <p className="text-sm">
+              {fr.compte.connexion.noAccount}{' '}
+              <Link
+                href={`/inscription${dossierSearch(params)}` as Route}
+                className="underline underline-offset-4"
+              >
+                {fr.compte.connexion.registerLink}
+              </Link>
+            </p>
+
+            {invalidCredentials ? (
+              <Alert variant="destructive" data-testid="connexion-error">
+                <AlertTitle>{fr.compte.connexion.invalidError}</AlertTitle>
+              </Alert>
+            ) : null}
+            {mutation.isError && !invalidCredentials ? <RequestError /> : null}
+          </form>
+        )}
       </PageContainer>
     </DossierExistant>
   );

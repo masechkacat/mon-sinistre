@@ -5,7 +5,7 @@ import type { Route } from 'next';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
-import type { RegisterInput } from '@mon-sinistre/contracts';
+import type { DossierInput, RegisterInput } from '@mon-sinistre/contracts';
 import { AnnouncedResult } from '@/components/announced-result';
 import { PageContainer } from '@/components/page-container';
 import { PageTitle } from '@/components/page-title';
@@ -26,11 +26,7 @@ import { formatDateFr } from '@/i18n/date';
 import { fr } from '@/i18n/fr';
 
 /** What is about to be saved, over the form that makes saving possible. */
-function DossierResume({
-  dossier,
-}: {
-  dossier: NonNullable<RegisterInput['dossier']>;
-}) {
+function DossierResume({ dossier }: { dossier: DossierInput }) {
   // The address carries the commune as a code, which says nothing to the
   // person reading the line. Its name is awaited rather than inserted later:
   // text appended to a line a screen reader has already read goes unannounced

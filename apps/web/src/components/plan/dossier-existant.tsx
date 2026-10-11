@@ -20,12 +20,15 @@ import { cn } from '@/lib/utils';
 export function DossierExistant({
   conflict,
   onConfirmNew,
+  onCorriger,
   pending = false,
   failed = false,
   children,
 }: {
   conflict: SinistreConflict | null;
   onConfirmNew: () => void;
+  /** Neither answer: back to where the commune, risque or date can change. */
+  onCorriger: () => void;
   /** The confirming request is in flight; the question stays on screen. */
   pending?: boolean;
   /** That request failed: the question is still the way out of this screen. */
@@ -80,6 +83,14 @@ export function DossierExistant({
                 {pending
                   ? fr.sinistres.nouveau.submitting
                   : fr.sinistres.doublon.creer}
+              </Button>
+              <Button
+                variant="ghost"
+                size="touch"
+                onClick={onCorriger}
+                disabled={pending}
+              >
+                {fr.sinistres.doublon.corriger}
               </Button>
             </div>
             {failed ? <RequestError /> : null}

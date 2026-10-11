@@ -1,6 +1,6 @@
 import {
   isIsoDate,
-  type CreateSinistreInput,
+  type DossierInput,
   type IsoDate,
   type RisqueCatnat,
 } from '@mon-sinistre/contracts';
@@ -12,9 +12,6 @@ export interface DossierParams {
   risque?: RisqueCatnat;
   date?: IsoDate;
 }
-
-/** The three parameters as the API names them. */
-type DossierInput = Omit<CreateSinistreInput, 'confirmNew'>;
 
 /**
  * The same three as the API takes them — to save the dossier

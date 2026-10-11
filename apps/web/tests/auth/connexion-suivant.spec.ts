@@ -3,7 +3,13 @@ import { fr } from '../../src/i18n/fr';
 import { LOGIN_NEXT_PARAM } from '../../src/lib/api/session';
 import { dossierSearch } from '../../src/lib/dossier-params';
 import { LOGIN_EMAIL, fillLoginForm, mockLogin } from '../support/connexion';
-import { APERCU_PARAMS, AUTRE_DATE_EVENEMENT } from '../support/dossier';
+import {
+  APERCU_PARAMS,
+  AUTRE_DATE_EVENEMENT,
+  DOSSIER_PATH,
+  apercuFixture,
+  mockApercu,
+} from '../support/dossier';
 import { VALID_PASSWORD } from '../support/form';
 import {
   SINISTRE_ID_1,
@@ -98,3 +104,70 @@ for (const suivant of [
     await expect(page).toHaveURL('/espace-personnel');
   });
 }
+
+test('a save that fails after the login is retried on its own, without logging in again', async ({
+  page,
+}) => {
+  const logins = await mockLogin(page);
+  const sent = await mockCreateSinistre(page, [
+    { status: 500, contentType: 'application/json', body: '{}' },
+    createdReply(SINISTRE_ID_1, 201),
+  ]);
+
+  await login(page, CONNEXION_DOSSIER_PATH);
+
+  await expect(page.getByTestId('request-error')).toBeVisible();
+  await expect(page.getByLabel(fr.compte.connexion.passwordLabel)).toHaveCount(
+    0,
+  );
+  await page.getByRole('button', { name: fr.serverError.retry }).click();
+
+  await expect(page).toHaveURL(`/sinistres/${SINISTRE_ID_1}`);
+  expect(sent).toHaveLength(2);
+  expect(logins).toHaveLength(1);
+});
+
+test('a dossier the API refuses after the login is not retried, only taken back to', async ({
+  page,
+}) => {
+  await mockLogin(page);
+  await mockCreateSinistre(page, [
+    { status: 400, contentType: 'application/json', body: '{}' },
+  ]);
+
+  await login(page, CONNEXION_DOSSIER_PATH);
+
+  await expect(
+    page.getByRole('link', { name: fr.dossier.revenir }),
+  ).toHaveAttribute('href', DOSSIER_PATH);
+  await expect(
+    page.getByRole('button', { name: fr.serverError.retry }),
+  ).toHaveCount(0);
+});
+
+test('“revenir et corriger” after the login goes back to the dossier, still logged in', async ({
+  page,
+}) => {
+  await mockLogin(page);
+  await mockApercu(page, apercuFixture());
+  await mockCreateSinistre(page, [
+    conflictReply(SINISTRE_ID_2, AUTRE_DATE_EVENEMENT),
+  ]);
+
+  await login(page, CONNEXION_DOSSIER_PATH);
+  await page
+    .getByRole('button', { name: fr.sinistres.doublon.corriger })
+    .click();
+
+  await expect(page).toHaveURL(DOSSIER_PATH);
+});
+
+test('the link to the registration carries the dossier of the address', async ({
+  page,
+}) => {
+  await page.goto(CONNEXION_DOSSIER_PATH);
+
+  await expect(
+    page.getByRole('link', { name: fr.compte.connexion.registerLink }),
+  ).toHaveAttribute('href', `/inscription${dossierSearch(APERCU_PARAMS)}`);
+});

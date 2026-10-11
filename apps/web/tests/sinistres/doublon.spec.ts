@@ -167,3 +167,27 @@ for (const colorScheme of ['light', 'dark'] as const) {
     await expectNoAxeViolations(page);
   });
 }
+
+test('“revenir et corriger” gives the form back as it was sent, on the date', async ({
+  page,
+}) => {
+  const sent = await openConflict(page);
+
+  await page
+    .getByRole('button', { name: fr.sinistres.doublon.corriger })
+    .click();
+
+  const date = page.getByLabel(fr.sinistres.nouveau.eventDateLabel);
+  await expect(date).toBeFocused();
+  await expect(date).toHaveValue(EVENT_DATE);
+  await expect(page.getByTestId('request-error')).toHaveCount(0);
+
+  await date.fill(EXISTING_DATE);
+  await page.getByRole('button', { name: fr.sinistres.nouveau.submit }).click();
+
+  await expect(page).toHaveURL(`/sinistres/${SINISTRE_ID_2}`);
+  expect(sent.map((body) => body.eventDate)).toEqual([
+    EVENT_DATE,
+    EXISTING_DATE,
+  ]);
+});
