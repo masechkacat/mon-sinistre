@@ -21,12 +21,14 @@ import {
   type AccountConfirmationResponse,
   type CurrentUserResponse,
   type LoginResponse,
-  type PasswordResetStatus,
+  type ResetPasswordResponse,
   type RisqueCatnat,
 } from '@mon-sinistre/contracts';
 import { withAdvisoryLock } from 'src/common/advisory-lock';
 import { errorSummary } from 'src/common/error-report';
 import { requireActiveCommune } from 'src/communes/active-commune';
+import { loadSuccessorMap } from 'src/communes/load-successor-map';
+import { resolveCurrentCode } from 'src/jorf/recipients/resolve-recipients';
 import {
   dateToIsoDate,
   isoDateToDate,
@@ -258,18 +260,19 @@ export class AuthService {
    * mail, the same acceptance as before this issue.
    *
    * A `dossier` in the body rides along until the confirmation turns it into
-   * a `Sinistre` — the three branches it takes are
-   * docs/research/dossier-preliminaire.md, «Три параметра до подтверждения».
-   * A body without one is not the same as an empty one: it leaves a stored
-   * dossier alone rather than clearing it, the person reaching the plain
-   * registration form having none in hand to replace it with.
+   * a `Sinistre` (docs/research/dossier-preliminaire.md, «Три параметра до
+   * подтверждения»); a body without one leaves a stored dossier in place.
    */
   async register(dto: RegisterDto): Promise<void> {
     const pending = dto.dossier
       ? await this.pendingDossierFor(dto.dossier)
       : undefined;
     const passwordHash = await bcrypt.hash(dto.password, this.saltRounds);
-    const claim = await this.claimUnconfirmedAccount(dto.email, passwordHash);
+    const claim = await this.claimUnconfirmedAccount(
+      dto.email,
+      passwordHash,
+      pending,
+    );
     if (claim === 'confirmed') {
       await this.sendAccountMail(
         dto.email,
@@ -279,7 +282,6 @@ export class AuthService {
       return;
     }
     if (claim === 'rewritten') {
-      if (pending) await this.savePendingDossier(dto.email, pending);
       await this.sendAccountMail(
         dto.email,
         ACCOUNT_REGISTRATION_MAIL_LIMIT,
@@ -335,25 +337,44 @@ export class AuthService {
    * row (the caller's write matched nothing to claim), or nothing at all —
    * deleted before the claim, or never created — which `register` treats the
    * same as a brand-new address.
+   *
+   * The `dossier` is stored in the claim's transaction, under the row lock
+   * its `updateMany` took: a confirmation waits for it and drains it, or
+   * commits first and leaves no unconfirmed row to claim.
    */
   private async claimUnconfirmedAccount(
     email: string,
     passwordHash: string,
+    dossier?: Prisma.DossierEnAttenteUncheckedCreateWithoutUserInput,
   ): Promise<'confirmed' | 'rewritten' | 'absent'> {
-    const claimed = await this.prisma.user.updateMany({
-      where: { email, confirmedAt: null },
-      data: {
-        passwordHash,
-        confirmExpiresAt: nextConfirmExpiresAt(),
-      },
-    });
-    if (claimed.count > 0) return 'rewritten';
+    return this.prisma.$transaction(async (tx) => {
+      const claimed = await tx.user.updateMany({
+        where: { email, confirmedAt: null },
+        data: {
+          passwordHash,
+          confirmExpiresAt: nextConfirmExpiresAt(),
+        },
+      });
+      if (claimed.count > 0) {
+        if (dossier) {
+          await tx.user.update({
+            where: { email },
+            data: {
+              dossierEnAttente: {
+                upsert: { create: dossier, update: dossier },
+              },
+            },
+          });
+        }
+        return 'rewritten';
+      }
 
-    const existing = await this.prisma.user.findUnique({
-      where: { email },
-      select: { confirmedAt: true },
+      const existing = await tx.user.findUnique({
+        where: { email },
+        select: { confirmedAt: true },
+      });
+      return existing?.confirmedAt ? 'confirmed' : 'absent';
     });
-    return existing?.confirmedAt ? 'confirmed' : 'absent';
   }
 
   /**
@@ -375,47 +396,24 @@ export class AuthService {
   }
 
   /**
-   * The id the claim's `updateMany` cannot return, read back under the claim's
-   * own condition: a dossier stored on an account confirmed in between is
-   * stored for nobody — the confirmation that turns it into a `Sinistre` has
-   * run, and the hourly cleanup only sweeps unconfirmed accounts. The read
-   * narrows that window rather than closing it, and the accepted cost is the
-   * three fields re-entered on `POST /sinistres`. `P2003` — same race lost to
-   * a deletion — answers like `requestPasswordReset`'s own.
-   */
-  private async savePendingDossier(
-    email: string,
-    dossier: Prisma.DossierEnAttenteUncheckedCreateWithoutUserInput,
-  ): Promise<void> {
-    const user = await this.prisma.user.findFirst({
-      where: { email, confirmedAt: null },
-      select: { id: true },
-    });
-    if (!user) return;
-
-    try {
-      await this.prisma.dossierEnAttente.upsert({
-        where: { userId: user.id },
-        create: { ...dossier, userId: user.id },
-        update: dossier,
-      });
-    } catch (error) {
-      if (isForeignKeyViolation(error)) return;
-      throw error;
-    }
-  }
-
-  /**
    * One conditional `updateMany`, not read-then-update — same reason as
    * veille's `VeilleService.confirm`: a concurrent call with the same token
    * must answer "confirmed" too, not throw `P2025` the way a plain `update`
    * would once the first call already won the race. `confirmTokenHash` is
    * never cleared on activation, so a repeat call still finds the row and
    * answers "confirmed" regardless of `confirmExpiresAt` — an already-active
-   * account never expires back to "invalid".
+   * account never expires back to "invalid". Only a token of an unconfirmed
+   * account opens the transaction the drain needs.
    */
   async confirm(token: string): Promise<AccountConfirmationResponse> {
     const tokenHash = hashSecureToken(token);
+    const known = await this.prisma.user.findUnique({
+      where: { confirmTokenHash: tokenHash },
+      select: { confirmedAt: true },
+    });
+    if (!known) return { status: 'invalid' };
+    if (known.confirmedAt) return { status: 'confirmed' };
+
     return this.prisma.$transaction(async (tx) => {
       const activated = await tx.user.updateMany({
         where: { confirmTokenHash: tokenHash, ...awaitingConfirmation() },
@@ -439,23 +437,12 @@ export class AuthService {
    * Turns the dossier the registration stored into the account's sinistre and
    * spends the row — docs/research/dossier-preliminaire.md, «Три параметра до
    * подтверждения». Called only by the branch that has just confirmed the
-   * account, in that branch's own transaction: an account confirmed earlier
-   * could have sinistres of its own by now, and the twin check of
-   * `SinistresService.create` would then answer a confirmation or a reset with
-   * a 409 meant for `POST /sinistres`. `confirmNew` is left unset for the same
-   * reason it is absent from `RegisterInput` — an account being confirmed has
-   * nothing to collide with.
-   *
-   * An answer of that endpoint's own reaching this one is dropped rather than
-   * raised, and the row is spent either way: the reachable case is a commune
-   * marked merged between the registration and the confirmation
-   * (`requireActiveCommune`, a 400), and letting it out would roll the
-   * confirmation back with it — the account could then never be confirmed at
-   * all, the link answering 400 until the cleanup deletes it. Keeping the row
-   * instead would leave it forever: the cleanup only sweeps unconfirmed
-   * accounts. The cost is the three fields re-entered on `POST /sinistres`,
-   * the same cost the registration already accepts when it loses its race
-   * ({@link savePendingDossier}).
+   * account, in its transaction: an account confirmed earlier could have
+   * sinistres of its own, and the twin check would answer a confirmation with
+   * a 409. A commune merged since the registration is followed to its
+   * successor. A 400 that still reaches here — a commune closed with no
+   * successor — is dropped and the row spent anyway: raised, it would roll the
+   * confirmation back on every click of the link.
    */
   private async drainPendingDossier(
     tx: Prisma.TransactionClient,
@@ -466,12 +453,15 @@ export class AuthService {
     });
     if (!pending) return undefined;
 
+    const codeInsee =
+      resolveCurrentCode(pending.codeInsee, await loadSuccessorMap(tx)) ??
+      pending.codeInsee;
     let sinistreId: string | undefined;
     try {
       const { sinistre } = await this.sinistres.create(
         userId,
         {
-          codeInsee: pending.codeInsee,
+          codeInsee,
           risque: pending.risque as RisqueCatnat,
           eventDate: dateToIsoDate(pending.eventDate),
         },
@@ -534,7 +524,8 @@ export class AuthService {
    * a token that was mailed to the address proves the mailbox the same way
    * the confirmation link would, and without this the reset would set a
    * password that `validateCredentials` still refuses; a dossier waiting on
-   * that confirmation is drained here too ({@link drainPendingDossier}). The address's
+   * that confirmation is drained here too ({@link drainPendingDossier}), its
+   * sinistre named in the answer as the confirmation names it. The address's
    * `LoginAttempt` counter is cleared with the rest — an owner whose counter
    * an attacker filled must be able to come back through the one route the
    * attacker has no access to. A failure past the claim rolls the claim back too,
@@ -543,14 +534,14 @@ export class AuthService {
   async resetPassword(
     token: string,
     newPassword: string,
-  ): Promise<PasswordResetStatus> {
+  ): Promise<ResetPasswordResponse> {
     const tokenHash = hashSecureToken(token);
     const reset = await this.prisma.passwordReset.findUnique({
       where: { tokenHash },
       select: { userId: true, usedAt: true, expiresAt: true },
     });
     if (!reset || reset.usedAt || reset.expiresAt < new Date()) {
-      return 'invalid';
+      return { status: 'invalid' };
     }
 
     const passwordHash = await bcrypt.hash(newPassword, this.saltRounds);
@@ -559,7 +550,7 @@ export class AuthService {
         where: { tokenHash, usedAt: null, expiresAt: { gte: new Date() } },
         data: { usedAt: new Date() },
       });
-      if (claimed.count === 0) return 'invalid';
+      if (claimed.count === 0) return { status: 'invalid' };
 
       await tx.passwordReset.updateMany({
         where: { userId: reset.userId, usedAt: null },
@@ -574,14 +565,15 @@ export class AuthService {
         where: { id: reset.userId, confirmedAt: null },
         data: { confirmedAt: new Date() },
       });
-      if (confirmed.count > 0) {
-        await this.drainPendingDossier(tx, reset.userId);
-      }
+      const sinistreId =
+        confirmed.count > 0
+          ? await this.drainPendingDossier(tx, reset.userId)
+          : undefined;
       await this.endAllSessions(reset.userId, tx);
       await tx.loginAttempt.deleteMany({
         where: { emailHash: hashEmail(email, this.emailHashSecret) },
       });
-      return 'reset';
+      return { status: 'reset', sinistreId };
     });
   }
 

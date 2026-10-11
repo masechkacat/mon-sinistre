@@ -28,7 +28,7 @@ import { codesMergedInto } from 'src/communes/codes-merged-into';
 import type { CreateSinistreDto } from './dto/create-sinistre.dto';
 import { recomputeDeclarationSteps } from './recompute-declaration-steps';
 import { sinistreStatus } from './sinistre-status';
-import { planDossier } from './snapshot-plan';
+import { planDossier, type PlannedDossier } from './snapshot-plan';
 import { communeFields } from 'src/communes/commune-fields';
 import {
   toSinistreDetail,
@@ -92,52 +92,73 @@ export class SinistresService {
     dto: CreateSinistreDto,
     outer?: Prisma.TransactionClient,
   ): Promise<CreatedSinistre> {
-    const db = outer ?? this.prisma;
-    const codes = await codesMergedInto(db, dto.codeInsee);
-    const twin = await this.findTwin(db, userId, dto, codes, todayInParis());
+    const key = `sinistre:${userId}`;
+    if (outer) {
+      return withAdvisoryLockIn(outer, key, async (tx) =>
+        this.insert(
+          tx,
+          userId,
+          dto,
+          await codesMergedInto(tx, dto.codeInsee),
+          await planDossier(tx, this.deadlineRules.in(tx), dto, this.logger),
+        ),
+      );
+    }
+
+    const codes = await codesMergedInto(this.prisma, dto.codeInsee);
+    const twin = await this.findTwin(
+      this.prisma,
+      userId,
+      dto,
+      codes,
+      todayInParis(),
+    );
     if (twin) {
       return { sinistre: twin, created: false };
     }
 
-    const { today, match, plan, status } = await planDossier(
-      db,
+    const planned = await planDossier(
+      this.prisma,
       this.deadlineRules,
       dto,
       this.logger,
     );
+    return withAdvisoryLock(this.prisma, key, (tx) =>
+      this.insert(tx, userId, dto, codes, planned),
+    );
+  }
 
-    const write = async (
-      tx: Prisma.TransactionClient,
-    ): Promise<CreatedSinistre> => {
-      const raced = await this.findTwin(tx, userId, dto, codes, today);
-      if (raced) {
-        return { sinistre: raced, created: false };
-      }
+  /** {@link create}'s write, under the caller's lock. */
+  private async insert(
+    tx: Prisma.TransactionClient,
+    userId: string,
+    dto: CreateSinistreDto,
+    codes: string[],
+    { today, match, plan, status }: PlannedDossier,
+  ): Promise<CreatedSinistre> {
+    const raced = await this.findTwin(tx, userId, dto, codes, today);
+    if (raced) {
+      return { sinistre: raced, created: false };
+    }
 
-      const sinistre = await tx.sinistre.create({
-        data: {
-          userId,
-          codeInsee: dto.codeInsee,
-          risque: dto.risque,
-          eventDate: isoDateToDate(dto.eventDate),
-          declarationDate: null,
-          arreteEntryId: match?.arreteEntryId ?? null,
-          status,
-          steps: { create: plan.map((step) => step.row) },
-        },
-        include: detailInclude,
-      });
+    const sinistre = await tx.sinistre.create({
+      data: {
+        userId,
+        codeInsee: dto.codeInsee,
+        risque: dto.risque,
+        eventDate: isoDateToDate(dto.eventDate),
+        declarationDate: null,
+        arreteEntryId: match?.arreteEntryId ?? null,
+        status,
+        steps: { create: plan.map((step) => step.row) },
+      },
+      include: detailInclude,
+    });
 
-      return {
-        sinistre: toSinistreDetail(sinistre, sinistre.steps, today),
-        created: true,
-      };
+    return {
+      sinistre: toSinistreDetail(sinistre, sinistre.steps, today),
+      created: true,
     };
-
-    const key = `sinistre:${userId}`;
-    return outer
-      ? withAdvisoryLockIn(outer, key, write)
-      : withAdvisoryLock(this.prisma, key, write);
   }
 
   /**

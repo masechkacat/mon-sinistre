@@ -12,9 +12,7 @@ import { NormalizeEmail } from 'src/common/http/normalize-email.decorator';
 import { CreateSinistreDto } from 'src/sinistres/dto/create-sinistre.dto';
 import { IsAccountPassword } from '../is-account-password.decorator';
 
-/** `confirmNew` is the one rule of `POST /sinistres` that does not travel: a
- * brand-new account has no sinistre to collide with, and `RegisterInput`
- * omits it. */
+/** `dossier` of {@link RegisterInput}. */
 export class PendingDossierDto extends OmitType(CreateSinistreDto, [
   'confirmNew',
 ] as const) {}

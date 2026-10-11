@@ -129,6 +129,9 @@ export interface AccountConfirmationResponse {
 /** Response body of the password-reset-confirmation endpoint (`POST`). */
 export interface ResetPasswordResponse {
   status: PasswordResetStatus;
+  /** {@link AccountConfirmationResponse.sinistreId}, when the reset is what
+   * confirms the account. */
+  sinistreId?: string;
 }
 
 /**

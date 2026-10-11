@@ -12,4 +12,7 @@ import {
 export class ResetPasswordResponseDto implements ResetPasswordResponse {
   @ApiProperty({ enum: PASSWORD_RESET_STATUSES })
   status: PasswordResetStatus;
+
+  @ApiProperty({ required: false, format: 'uuid' })
+  sinistreId?: string;
 }

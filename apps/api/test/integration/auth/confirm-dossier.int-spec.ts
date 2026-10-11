@@ -171,8 +171,11 @@ describe('POST /auth/confirmation draining a pending dossier (integration)', () 
     });
 
     expect(res.statusCode).toBe(200);
-    expect(JSON.parse(res.payload)).toEqual({ status: 'reset' });
     const sinistre = await prisma.sinistre.findFirstOrThrow();
+    expect(JSON.parse(res.payload)).toEqual({
+      status: 'reset',
+      sinistreId: sinistre.id,
+    });
     expect(sinistre).toMatchObject({
       userId,
       codeInsee: CODE_INSEE,
@@ -182,7 +185,37 @@ describe('POST /auth/confirmation draining a pending dossier (integration)', () 
     expect(await prisma.dossierEnAttente.count()).toBe(0);
   });
 
-  it('confirms the account anyway when the stored commune has been merged since', async () => {
+  it('creates the sinistre on the successor when the stored commune has been merged since', async () => {
+    const successor = '30999';
+    await prisma.commune.create({
+      data: commune(successor, 'Nîmes-Métropole', '30', 'Gard'),
+    });
+    await createPendingAccount();
+    await prisma.commune.update({
+      where: { codeInsee: CODE_INSEE },
+      data: {
+        effectiveTo: new Date('2026-07-01'),
+        successorCodeInsee: successor,
+      },
+    });
+
+    const res = await confirm(TOKEN);
+
+    const { sinistreId } = JSON.parse(
+      res.payload,
+    ) as AccountConfirmationResponse;
+    const sinistre = await prisma.sinistre.findUniqueOrThrow({
+      where: { id: sinistreId },
+    });
+    expect(sinistre).toMatchObject({
+      codeInsee: successor,
+      risque: RisqueCatnat.INONDATION,
+      eventDate: new Date(EVENT_DATE),
+    });
+    expect(await prisma.dossierEnAttente.count()).toBe(0);
+  });
+
+  it('confirms the account anyway when the stored commune has been closed with no successor', async () => {
     await createPendingAccount();
     await prisma.commune.update({
       where: { codeInsee: CODE_INSEE },

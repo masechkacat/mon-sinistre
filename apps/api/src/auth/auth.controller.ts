@@ -181,7 +181,7 @@ export class AuthController {
   async resetPassword(
     @Body() dto: ResetPasswordDto,
   ): Promise<ResetPasswordResponse> {
-    return { status: await this.auth.resetPassword(dto.token, dto.password) };
+    return this.auth.resetPassword(dto.token, dto.password);
   }
 
   @Public()
