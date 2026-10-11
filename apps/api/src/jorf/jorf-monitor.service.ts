@@ -11,7 +11,10 @@ import { errorSummary, stackOf } from 'src/common/error-report';
 import { runGuarded } from 'src/common/scheduled-cleanup';
 import { loadSuccessorMap } from 'src/communes/load-successor-map';
 import { normalizeCommuneName } from 'src/communes/normalize-commune-name';
-import { DeadlineRuleService } from 'src/deadline-rules/deadline-rule.service';
+import {
+  carriesDeclarationDelai,
+  DeadlineRuleService,
+} from 'src/deadline-rules/deadline-rule.service';
 import {
   dateToIsoDate,
   isoDateToDate,
@@ -804,28 +807,17 @@ export class JorfMonitorService {
       const entry = entryById.get(link.arreteEntryId);
       return entry ? [{ link, entry }] : [];
     });
-    // Resolved ahead of every write below — {@link
-    // DeadlineRuleService.resolveActive} throws by design, and doing that
-    // inside the transaction that applies a link would abort a write already
-    // in flight over a referential gap (docs/plan/sinistre-plan.md, Фаза 3,
-    // issue #157, "правило DeadlineRule резолвит снаружи транзакции и
-    // передаёт внутрь").
-    const ruleByPublishedAt = await this.deadlineRules.resolveDeclarationByDate(
-      linkedEntries.flatMap(({ entry }) =>
-        entry.outcome === 'RECONNU'
-          ? [dateToIsoDate(entry.arrete.publishedAt)]
-          : [],
-      ),
+    // Resolved ahead of every write below (docs/plan/sinistre-plan.md,
+    // Фаза 3, issue #157, "правило DeadlineRule резолвит снаружи транзакции
+    // и передаёт внутрь").
+    const ruleFor = await this.deadlineRules.declarationRulesFor(
+      linkedEntries.map(({ entry }) => entry),
       this.logger,
       'linked sinistres left without a déclaration date',
     );
 
     for (const { link, entry } of linkedEntries) {
-      const rule =
-        entry.outcome === 'RECONNU'
-          ? (ruleByPublishedAt.get(dateToIsoDate(entry.arrete.publishedAt)) ??
-            null)
-          : null;
+      const rule = ruleFor(entry);
       await this.applyLink(
         link.sinistreId,
         entry,
@@ -1428,8 +1420,8 @@ export class JorfMonitorService {
     // second connection out of the pool (docs/plan/sinistre-plan.md, Фаза 3,
     // issue #157, "правило DeadlineRule резолвит снаружи транзакции и
     // передаёт внутрь").
-    const declarationRule = matched.some(
-      ({ entry }) => (entry.outcome as string) === 'RECONNU',
+    const declarationRule = matched.some(({ entry }) =>
+      carriesDeclarationDelai(entry.outcome),
     )
       ? await this.deadlineRules.resolveDeclarationOrNull(
           publishedAt,

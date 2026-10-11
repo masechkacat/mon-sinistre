@@ -103,10 +103,8 @@ export class DossierService {
       ],
     });
 
-    const ruleByPublishedAt = await this.deadlineRules.resolveDeclarationByDate(
-      entries
-        .filter((entry) => entry.outcome === 'RECONNU')
-        .map((entry) => dateToIsoDate(entry.arrete.publishedAt)),
+    const ruleFor = await this.deadlineRules.declarationRulesFor(
+      entries,
       this.logger,
       'that arrêté listed without a déclaration deadline',
     );
@@ -115,10 +113,7 @@ export class DossierService {
       commune,
       arretes: entries.map((entry) => {
         const publishedAt = dateToIsoDate(entry.arrete.publishedAt);
-        const rule =
-          entry.outcome === 'RECONNU'
-            ? ruleByPublishedAt.get(publishedAt)
-            : null;
+        const rule = ruleFor(entry);
         return {
           arreteEntryId: entry.id,
           nor: entry.arrete.nor,

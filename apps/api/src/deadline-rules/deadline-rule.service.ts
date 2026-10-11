@@ -4,7 +4,13 @@ import { errorSummary, stackOf } from 'src/common/error-report';
 import type { StepAnchor } from 'src/generated/prisma/enums';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { DECLARATION_ASSUREUR_CODE } from './deadline-rule.seed';
-import { isoDateToDate } from './resolve-deadline';
+import type { DeadlineRuleModel } from 'src/generated/prisma/models/DeadlineRule';
+import { dateToIsoDate, isoDateToDate } from './resolve-deadline';
+
+/** Only a line the arrêté recognises carries the déclaration délai: a
+ * refusal dates nothing, whatever rule is active (ТЗ § 3.3). */
+export const carriesDeclarationDelai = (outcome: string): boolean =>
+  outcome === 'RECONNU';
 
 /** What {@link DeadlineRuleService.resolveActive} throws for a gap in the
  * referential — the one failure a reader may go on without the rule from. */
@@ -108,22 +114,36 @@ export class DeadlineRuleService {
   }
 
   /**
-   * {@link resolveDeclarationOrNull} once per distinct date of a batch: the
-   * entries of one arrêté share its publication, and resolving is a query
-   * that throws by design — the monitor's linking pass and the commune page
-   * both need the answer for every entry before they use any of it.
+   * The déclaration rule of each entry of a batch — a lookup, resolved once
+   * per publication date before the caller uses any of it: the lines of one
+   * arrêté share their date, resolving is a query that throws by design, and
+   * the monitor must not resolve inside the transaction that applies a link.
+   * An entry the délai does not apply to ({@link carriesDeclarationDelai})
+   * answers `null` without a query.
    */
-  async resolveDeclarationByDate(
-    publishedAts: Iterable<IsoDate>,
+  async declarationRulesFor<
+    T extends { outcome: string; arrete: { publishedAt: Date } },
+  >(
+    entries: readonly T[],
     logger: Logger,
     consequence: string,
-  ) {
-    const dates = [...new Set(publishedAts)];
+  ): Promise<(entry: T) => DeadlineRuleModel | null> {
+    const dateOf = (entry: T): IsoDate =>
+      dateToIsoDate(entry.arrete.publishedAt);
+    const dates = [
+      ...new Set(
+        entries.filter((e) => carriesDeclarationDelai(e.outcome)).map(dateOf),
+      ),
+    ];
     const rules = await Promise.all(
       dates.map((date) =>
         this.resolveDeclarationOrNull(isoDateToDate(date), logger, consequence),
       ),
     );
-    return new Map(dates.map((date, index) => [date, rules[index] ?? null]));
+    const byDate = new Map(dates.map((date, index) => [date, rules[index]]));
+    return (entry) =>
+      carriesDeclarationDelai(entry.outcome)
+        ? (byDate.get(dateOf(entry)) ?? null)
+        : null;
   }
 }

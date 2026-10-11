@@ -41,6 +41,25 @@ describe('DeadlineRuleService.resolveActiveOrNull', () => {
     expect(error.mock.calls[0]?.[0]).toContain(NoActiveDeadlineRuleError.name);
   });
 
+  it('resolves once per publication date and answers null for a refusal without asking', async () => {
+    const findFirst = jest.fn().mockResolvedValue({ id: 'rule' });
+    const service = serviceWith(findFirst);
+    const { logger } = silentLogger();
+    const published = new Date('2026-06-12');
+    const reconnu = { outcome: 'RECONNU', arrete: { publishedAt: published } };
+    const refuse = { outcome: 'REFUSE', arrete: { publishedAt: published } };
+
+    const ruleFor = await service.declarationRulesFor(
+      [reconnu, reconnu, refuse],
+      logger,
+      'left dateless',
+    );
+
+    expect(findFirst).toHaveBeenCalledTimes(1);
+    expect(ruleFor(reconnu)).toEqual({ id: 'rule' });
+    expect(ruleFor(refuse)).toBeNull();
+  });
+
   it('rethrows a failed query without logging it as a gap', async () => {
     const failure = new Error('connection reset');
     const service = serviceWith(jest.fn().mockRejectedValue(failure));

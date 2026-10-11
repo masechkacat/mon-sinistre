@@ -10,7 +10,7 @@
 - **Своей доменной логики модуль не держит** — всё приходит из
   `src/sinistres/` (`planDossier`, `toStepView`, `declarationDeadlineOf`,
   `toDeclarationDeadline`) и `src/deadline-rules/`
-  (`resolveDeclarationByDate`, `resolveDeadline`). Иначе публичный аперçу и
+  (`declarationRulesFor`, `resolveDeadline`). Иначе публичный аперçу и
   созданный синистр разошлись бы в датах.
 - `@Public()` стоит на классе: закрытых маршрутов здесь не появится —
   закрытый ресурс живёт в `src/sinistres/`.
