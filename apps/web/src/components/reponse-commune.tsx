@@ -1,12 +1,13 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
+import { skipToken, useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import {
   ArreteEntryOutcome,
   COMMUNE_ARRETES_WINDOW_MONTHS,
   type Commune,
   type CommuneArrete,
+  type CommuneArretes,
 } from '@mon-sinistre/contracts';
 import { ArretePublication } from '@/components/plan/arrete-publication';
 import { DeclarationDeadlineValue } from '@/components/plan/declaration-deadline-block';
@@ -27,11 +28,17 @@ const copy = fr.reponseCommune;
  * `COMMUNE_ARRETES_WINDOW_MONTHS`, each one a way into its own dossier. Takes
  * the commune instead of reading it from the page, so the map popup can ask
  * the same question later (docs/research/dossier-preliminaire.md).
+ *
+ * `null` is the screen before a commune is chosen: the component is mounted
+ * from the first paint and asks nothing until then, so that its live region
+ * exists before it has an answer to announce. Mounting it with the choice
+ * would leave the answer unread whenever it comes from the cache — the second
+ * look at a commune already seen.
  */
-export function ReponseCommune({ commune }: { commune: Commune }) {
+export function ReponseCommune({ commune }: { commune: Commune | null }) {
   const query = useQuery({
-    queryKey: queryKeys.communeArretes(commune.codeInsee),
-    queryFn: () => fetchCommuneArretes(commune.codeInsee),
+    queryKey: queryKeys.communeArretes(commune?.codeInsee ?? ''),
+    queryFn: commune ? () => fetchCommuneArretes(commune.codeInsee) : skipToken,
   });
   const arretes = query.data?.arretes;
 
@@ -39,14 +46,12 @@ export function ReponseCommune({ commune }: { commune: Commune }) {
     <div className="space-y-8">
       <section data-testid="reponse-arretes" className="space-y-4">
         <p role="status" className="min-h-7 text-lg">
-          {query.isPending ? copy.chargement : null}
-          {arretes?.length ? copy.trouves(arretes.length, commune.name) : null}
-          {arretes?.length === 0 ? copy.aucun(commune.name) : null}
+          {commune ? annonce(commune, query) : null}
         </p>
 
         {query.isError ? <RequestError /> : null}
 
-        {arretes?.length ? (
+        {commune && arretes?.length ? (
           <ul className="space-y-4">
             {arretes.map((arrete) => (
               <li
@@ -59,7 +64,7 @@ export function ReponseCommune({ commune }: { commune: Commune }) {
           </ul>
         ) : null}
 
-        {arretes?.length === 0 ? (
+        {commune && arretes?.length === 0 ? (
           <div className="space-y-4">
             <p>{copy.aucunSuite(COMMUNE_ARRETES_WINDOW_MONTHS)}</p>
             <Link
@@ -76,9 +81,21 @@ export function ReponseCommune({ commune }: { commune: Commune }) {
           appear weeks after the event. Keyed on the commune so a subscription
           confirmed for one does not stay on screen as the answer for the
           next. */}
-      <VeilleInlineForm key={commune.codeInsee} commune={commune} />
+      {commune ? (
+        <VeilleInlineForm key={commune.codeInsee} commune={commune} />
+      ) : null}
     </div>
   );
+}
+
+function annonce(
+  commune: Commune,
+  query: { isPending: boolean; data?: CommuneArretes },
+) {
+  if (query.isPending) return copy.chargement;
+  if (!query.data) return null;
+  const { length } = query.data.arretes;
+  return length ? copy.trouves(length, commune.name) : copy.aucun(commune.name);
 }
 
 function CarteArrete({

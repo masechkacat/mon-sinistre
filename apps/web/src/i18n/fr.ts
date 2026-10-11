@@ -121,6 +121,7 @@ export const fr = {
   home: {
     title: 'Après une catastrophe naturelle, chaque jour compte',
     lead: 'Mon Sinistre vous prévient dès que l’État reconnaît la catastrophe dans votre commune, puis vous aide à faire vos démarches auprès de votre assurance sans manquer aucun délai.',
+    communeLabel: 'Quelle est votre commune ?',
     catnat: {
       heading: 'L’arrêté de catastrophe naturelle, expliqué simplement',
       event:
@@ -144,14 +145,6 @@ export const fr = {
       items: [
         `Ne donne pas de conseils juridiques : les dates calculées sont indicatives, ${A_VERIFIER_AVEC_CONTRAT}.`,
         'N’écrit jamais à votre assurance à votre place : vous gardez la main sur toutes vos démarches.',
-      ],
-    },
-    next: {
-      heading: 'Et ensuite ?',
-      steps: [
-        'Vous choisissez les communes à surveiller.',
-        'Dès qu’un arrêté qui les concerne paraît au Journal officiel, vous recevez un message.',
-        'Si vous subissez des dégâts, Mon Sinistre vous guide pas à pas : déclaration dans les délais, suivi des échéances, inventaire des dégâts.',
       ],
     },
   },
@@ -204,10 +197,6 @@ export const fr = {
     testPage: 'Badge de délai',
   },
   veille: {
-    page: {
-      title: 'Être prévenu·e en cas de catastrophe naturelle',
-      lead: 'Indiquez votre adresse e-mail et les communes à surveiller. Vous recevrez un message le jour même de la publication d’un arrêté de catastrophe naturelle qui les concerne.',
-    },
     form: {
       communesLabel: 'Communes à surveiller',
       communesPlaceholder: COMMUNE_SEARCH_PLACEHOLDER,
@@ -216,7 +205,6 @@ export const fr = {
         count === 1 ? '1 commune trouvée' : `${count} communes trouvées`,
       maxCommunesReached: (max: number) =>
         `Nombre maximal de ${max} communes atteint`,
-      communesRequiredError: 'Choisissez au moins une commune à surveiller.',
       emailLabel: EMAIL_LABEL,
       emailPlaceholder: EMAIL_PLACEHOLDER,
       emailRequiredError: EMAIL_REQUIRED_ERROR,
@@ -224,7 +212,6 @@ export const fr = {
       purpose:
         'Votre adresse e-mail sert uniquement à vous prévenir lorsqu’un arrêté de catastrophe naturelle concerne une commune surveillée.',
       privacyPolicyLink: PRIVACY_POLICY_LINK,
-      submit: 'S’inscrire à la veille',
       submitting: 'Inscription en cours…',
     },
     inline: {
