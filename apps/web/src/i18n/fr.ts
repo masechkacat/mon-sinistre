@@ -536,7 +536,13 @@ export const fr = {
     },
   },
   dossier: {
+    page: { title: 'Aperçu de mon dossier' },
     testPage: 'Plan du dossier',
+    chargement: 'Chargement de votre dossier…',
+    publieLe: (date: string) => `Publié au Journal officiel le ${date}`,
+    legifranceLink: 'Consulter l’arrêté sur Légifrance',
+    delaiExpire: 'Délai expiré',
+    enregistrer: 'Enregistrer ce dossier',
     conteneur: {
       [StepKind.PHOTOS]: conteneurVide('Photos et vidéos des dégâts'),
       [StepKind.JUSTIFICATIFS]: conteneurVide(

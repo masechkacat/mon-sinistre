@@ -8,7 +8,12 @@ import {
   type StepView,
 } from '@mon-sinistre/contracts';
 
-const SOURCE = {
+/**
+ * The reference a calculated date carries — a real Légifrance article. Lives
+ * here because this page is `src` and cannot import from `tests/`, while the
+ * specs import it from here.
+ */
+export const SOURCE = {
   url: 'https://www.legifrance.gouv.fr/codes/id/LEGIARTI000006792617',
   verifiedAt: toIsoDate('2026-08-18'),
   possiblyOutdated: false,

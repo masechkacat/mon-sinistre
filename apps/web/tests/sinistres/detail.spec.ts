@@ -22,15 +22,10 @@ import { testApiBaseUrl } from '../support/env';
 import { mockSession } from '../support/session-mock';
 import {
   SINISTRE_ID_1,
+  SOURCE,
   sinistreFixture,
   stepFixture as step,
 } from '../support/sinistres';
-
-const SOURCE = {
-  url: 'https://www.legifrance.gouv.fr/codes/id/LEGIARTI000006792617',
-  verifiedAt: toIsoDate('2026-08-18'),
-  possiblyOutdated: false,
-};
 
 // Five steps in template order, with the `daysLeft` the API counts as if today
 // were 2026-10-13: one overdue, one due this week (the nearest upcoming), one

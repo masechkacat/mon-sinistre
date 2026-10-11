@@ -3,6 +3,7 @@ import { expect, type Page } from '@playwright/test';
 import { REMINDER_UNSUBSCRIBE_PATH } from '@mon-sinistre/contracts';
 import { legalPages } from '../../src/lib/legal-pages';
 import { fr } from '../../src/i18n/fr';
+import { DOSSIER_PATH, apercuFixture, mockApercu } from './dossier';
 import { testApiBaseUrl } from './env';
 
 // The status is asserted because a mistyped path would render the not-found
@@ -32,6 +33,14 @@ export const testBejdz = {
 export const testPlan = {
   path: '/test-plan' satisfies Route,
   status: 200,
+} as const;
+// The public dossier of three parameters in the address. Its h1 names the
+// dossier the aperçu answers with, so gotoPage's generic gate already waits
+// for the screen the mock below stands for — no `ready` of its own.
+export const dossier = {
+  path: DOSSIER_PATH,
+  status: 200,
+  mockApi: (page: Page) => mockApercu(page, apercuFixture()),
 } as const;
 export const veille = { path: '/veille' satisfies Route, status: 200 } as const;
 // The token is deliberately unknown, and the status GET is mocked to a real
@@ -131,6 +140,7 @@ export const pages = [
   serverError,
   testBejdz,
   testPlan,
+  dossier,
   veille,
   veilleConfirmation,
   veilleDesinscriptionConfirmer,
