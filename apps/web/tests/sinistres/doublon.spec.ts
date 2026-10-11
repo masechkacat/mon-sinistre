@@ -1,9 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import {
-  toIsoDate,
-  type CreateSinistreInput,
-  type SinistreConflict,
-} from '@mon-sinistre/contracts';
+import { toIsoDate } from '@mon-sinistre/contracts';
 import { formatDateFr } from '../../src/i18n/date';
 import { fr } from '../../src/i18n/fr';
 import { expectNoAxeViolations } from '../support/a11y';
@@ -14,57 +10,16 @@ import { mockSession } from '../support/session-mock';
 import {
   SINISTRE_ID_1,
   SINISTRE_ID_2,
-  sinistreDetailFixture,
+  conflictReply,
+  createdReply,
+  mockCreateSinistre,
 } from '../support/sinistres';
 
 const EVENT_DATE = '2026-06-15';
 /** The date of the dossier already open: another event, same commune and risk. */
 const EXISTING_DATE = toIsoDate('2026-03-02');
 
-interface Reply {
-  status: number;
-  contentType: string;
-  body: string;
-  /** Withheld until this resolves — the window where the request is in flight. */
-  after?: Promise<void>;
-}
-
-/** The body `SinistresService.create` answers 409 with, verbatim. */
-const CONFLICT: Reply = {
-  status: 409,
-  contentType: 'application/json',
-  body: JSON.stringify({
-    code: 'DOSSIER_EXISTANT',
-    existing: { id: SINISTRE_ID_1, eventDate: EXISTING_DATE },
-  } satisfies SinistreConflict),
-};
-
-function detail(id: string, status: number): Reply {
-  return {
-    status,
-    contentType: 'application/json',
-    body: JSON.stringify(sinistreDetailFixture({ id })),
-  };
-}
-
-/**
- * Answers `POST /sinistres` from `replies` in order and gives back the array
- * of bodies sent: the conflict and the request that answers it hit the same
- * endpoint, told apart only by their place in the sequence.
- */
-async function mockCreate(page: Page, replies: Reply[]) {
-  const sent: CreateSinistreInput[] = [];
-  await page.route(`${testApiBaseUrl}/sinistres`, async (route) => {
-    sent.push(
-      JSON.parse(route.request().postData() ?? '{}') as CreateSinistreInput,
-    );
-    const { after, ...answer } =
-      replies[Math.min(sent.length - 1, replies.length - 1)];
-    await after;
-    return route.fulfill(answer);
-  });
-  return sent;
-}
+const CONFLICT = conflictReply(SINISTRE_ID_1, EXISTING_DATE);
 
 async function submitNouveau(page: Page) {
   await page.goto('/sinistres/nouveau');
@@ -77,10 +32,13 @@ async function submitNouveau(page: Page) {
 }
 
 /** Fills the form and submits it onto a 409; the next attempt gets `after`. */
-async function openConflict(page: Page, after = detail(SINISTRE_ID_2, 201)) {
+async function openConflict(
+  page: Page,
+  after = createdReply(SINISTRE_ID_2, 201),
+) {
   await page.route(`${testApiBaseUrl}/communes**`, mockCommuneSearch);
   await mockSession(page).install();
-  const sent = await mockCreate(page, [CONFLICT, after]);
+  const sent = await mockCreateSinistre(page, [CONFLICT, after]);
   await submitNouveau(page);
   await expect(page.getByTestId('dossier-existant')).toBeVisible();
   return sent;
@@ -167,7 +125,7 @@ test('while the second dossier is being created, the link to the existing one do
 }) => {
   const held = deferred();
   await openConflict(page, {
-    ...detail(SINISTRE_ID_2, 201),
+    ...createdReply(SINISTRE_ID_2, 201),
     after: held.promise,
   });
 
@@ -189,7 +147,9 @@ test('a dossier with all three parameters already there (200) opens straight awa
   await mockSession(page).install();
   // The API answers with the dossier itself instead of creating a second one,
   // so there is nothing to confirm.
-  const sent = await mockCreate(page, [detail(SINISTRE_ID_1, 200)]);
+  const sent = await mockCreateSinistre(page, [
+    createdReply(SINISTRE_ID_1, 200),
+  ]);
 
   await submitNouveau(page);
 

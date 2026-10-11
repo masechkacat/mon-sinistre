@@ -8,6 +8,7 @@ import {
   ArreteEntryOutcome,
   isIsoDate,
   type Commune,
+  type CreateSinistreInput,
   type DossierApercu,
   type RisqueCatnat,
 } from '@mon-sinistre/contracts';
@@ -16,6 +17,7 @@ import { PageContainer } from '@/components/page-container';
 import { PageTitle } from '@/components/page-title';
 import { DeclarationDeadlineBlock } from '@/components/plan/declaration-deadline-block';
 import { DossierEntete } from '@/components/plan/dossier-entete';
+import { DossierExistant } from '@/components/plan/dossier-existant';
 import { PlanList } from '@/components/plan/plan-list';
 import { RequestError } from '@/components/request-error';
 import { SectionHeading } from '@/components/section-heading';
@@ -33,6 +35,8 @@ import { fr } from '@/i18n/fr';
 import { ApiError } from '@/lib/api/client';
 import { fetchDossierApercu } from '@/lib/api/dossier';
 import { queryKeys } from '@/lib/api/keys';
+import { getAccessToken, refreshSession } from '@/lib/api/session';
+import { useCreateSinistre } from '@/lib/api/use-create-sinistre';
 import {
   dossierSearch,
   parseDossierParams,
@@ -66,6 +70,23 @@ export function DossierApercuView() {
   );
 }
 
+/**
+ * The failed save was sent for the dossier now on screen, so its answer still
+ * belongs under the button. After the date is refined the address is another
+ * dossier, and the banner would describe the previous one — the form of
+ * `/sinistres/nouveau` drops it on the first edit for the same reason.
+ */
+function pourCeDossier(
+  sent: CreateSinistreInput | undefined,
+  params: Required<DossierParams>,
+) {
+  return (
+    sent?.codeInsee === params.commune &&
+    sent.risque === params.risque &&
+    sent.eventDate === params.date
+  );
+}
+
 function Apercu({
   params,
   risqueOptions,
@@ -74,6 +95,8 @@ function Apercu({
   risqueOptions: readonly RisqueCatnat[];
 }) {
   const router = useRouter();
+  const { mutation, conflict, failed, confirmNew } = useCreateSinistre();
+  const [enregistrement, setEnregistrement] = useState(false);
   const query = useQuery({
     queryKey: queryKeys.dossierApercu(
       params.commune,
@@ -92,92 +115,122 @@ function Apercu({
   // "try again later" of a failed request.
   const refuse = query.error instanceof ApiError && query.error.status === 400;
 
+  // Saving is the one step of the dossier that needs an account: the refresh
+  // cookie is asked before the visitor is.
+  const enregistrer = async () => {
+    setEnregistrement(true);
+    try {
+      if (getAccessToken() || (await refreshSession())) {
+        await mutation.mutateAsync({
+          codeInsee: params.commune,
+          risque: params.risque,
+          eventDate: params.date,
+        });
+      } else {
+        router.push(`/inscription${dossierSearch(params)}` as Route);
+      }
+    } catch {
+      // Answered on screen by the hook: the conflict around this page, any
+      // other failure under the button.
+    } finally {
+      setEnregistrement(false);
+    }
+  };
+
   return (
-    <PageContainer className="space-y-8">
-      {/* The whole screen comes from the request, so until it answers there
+    <DossierExistant
+      conflict={conflict}
+      onConfirmNew={confirmNew}
+      pending={mutation.isPending}
+      failed={failed}
+    >
+      <PageContainer className="space-y-8">
+        {/* The whole screen comes from the request, so until it answers there
           is nothing else on the page to read. Mounted before the answer and
           only ever changing text: the refusal below is announced that way
           (apps/web/CLAUDE.md, live-регионы). */}
-      <p
-        role="status"
-        className={cn(
-          'min-h-7 text-lg',
-          refuse ? 'text-destructive' : 'text-muted-foreground',
-        )}
-      >
-        {query.isPending || query.isPlaceholderData
-          ? fr.dossier.chargement
-          : null}
-        {refuse ? fr.dossier.formulaire.parametresRefuses : null}
-      </p>
+        <p
+          role="status"
+          className={cn(
+            'min-h-7 text-lg',
+            refuse ? 'text-destructive' : 'text-muted-foreground',
+          )}
+        >
+          {query.isPending || query.isPlaceholderData
+            ? fr.dossier.chargement
+            : null}
+          {refuse ? fr.dossier.formulaire.parametresRefuses : null}
+        </p>
 
-      {query.isError && !refuse ? <RequestError /> : null}
+        {query.isError && !refuse ? <RequestError /> : null}
 
-      {refuse ? (
-        <>
-          <FormulaireEntete />
-          <Formulaire
-            params={params}
-            risqueOptions={risqueOptions}
-            refuse
-          />
-        </>
-      ) : null}
+        {refuse ? (
+          <>
+            <FormulaireEntete />
+            <Formulaire params={params} risqueOptions={risqueOptions} refuse />
+          </>
+        ) : null}
 
-      {apercu ? (
-        <>
-          <DossierEntete
-            title={dossierTitle(apercu)}
-            statut={fr.sinistres.statut[apercu.status]}
-          >
-            <p>
-              {fr.sinistres.liste.eventDate(formatDateFr(apercu.eventDate))}
-            </p>
-            {apercu.arrete ? <ArreteLignes arrete={apercu.arrete} /> : null}
-          </DossierEntete>
+        {apercu ? (
+          <>
+            <DossierEntete
+              title={dossierTitle(apercu)}
+              statut={fr.sinistres.statut[apercu.status]}
+            >
+              <p>
+                {fr.sinistres.liste.eventDate(formatDateFr(apercu.eventDate))}
+              </p>
+              {apercu.arrete ? <ArreteLignes arrete={apercu.arrete} /> : null}
+            </DossierEntete>
 
-          {/* With a recognised arrêté the event date is no longer asked but
+            {/* With a recognised arrêté the event date is no longer asked but
               refined: the visitor arrived from the commune answer with the
               first day of the period, and only the days it covers can anchor
               the plan (PRD, «Ouvrir mon dossier»). */}
-          {apercu.arrete?.outcome === ArreteEntryOutcome.RECONNU ? (
-            <section className="space-y-4">
-              <SectionHeading>
-                {fr.dossier.formulaire.preciser.titre}
-              </SectionHeading>
-              <Formulaire
-                params={params}
-                risqueOptions={risqueOptions}
-                periode={{
-                  min: apercu.arrete.eventStart,
-                  max: apercu.arrete.eventEnd,
-                }}
+            {apercu.arrete?.outcome === ArreteEntryOutcome.RECONNU ? (
+              <section className="space-y-4">
+                <SectionHeading>
+                  {fr.dossier.formulaire.preciser.titre}
+                </SectionHeading>
+                <Formulaire
+                  params={params}
+                  risqueOptions={risqueOptions}
+                  periode={{
+                    min: apercu.arrete.eventStart,
+                    max: apercu.arrete.eventEnd,
+                  }}
+                />
+              </section>
+            ) : null}
+
+            {apercu.declarationDeadline ? (
+              <DeclarationDeadlineBlock
+                deadline={apercu.declarationDeadline}
+                apercu
               />
-            </section>
-          ) : null}
+            ) : null}
 
-          {apercu.declarationDeadline ? (
-            <DeclarationDeadlineBlock
-              deadline={apercu.declarationDeadline}
-              apercu
-            />
-          ) : null}
-
-          {/* No onMark: nothing is stored to be marked until the dossier is
+            {/* No onMark: nothing is stored to be marked until the dossier is
               saved, so the plan is read-only here. */}
-          <PlanList steps={apercu.steps} apercu />
+            <PlanList steps={apercu.steps} apercu />
 
-          <Button
-            size="touch"
-            onClick={() =>
-              router.push(`/inscription${dossierSearch(params)}` as Route)
-            }
-          >
-            {fr.dossier.enregistrer}
-          </Button>
-        </>
-      ) : null}
-    </PageContainer>
+            <Button
+              size="touch"
+              onClick={() => enregistrer()}
+              disabled={enregistrement}
+            >
+              {enregistrement
+                ? fr.sinistres.nouveau.submitting
+                : fr.dossier.enregistrer}
+            </Button>
+
+            {failed && pourCeDossier(mutation.variables, params) ? (
+              <RequestError />
+            ) : null}
+          </>
+        ) : null}
+      </PageContainer>
+    </DossierExistant>
   );
 }
 

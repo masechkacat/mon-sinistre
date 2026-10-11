@@ -1,15 +1,20 @@
+import type { Page } from '@playwright/test';
 import {
   RisqueCatnat,
   SinistreStatus,
   StepKind,
   StepStatus,
   toIsoDate,
+  type CreateSinistreInput,
+  type IsoDate,
   type Sinistre,
+  type SinistreConflict,
   type SinistreDetail,
   type Step,
   type StepView,
 } from '@mon-sinistre/contracts';
 import { NIMES } from './communes';
+import { testApiBaseUrl } from './env';
 
 export { SOURCE } from '../../src/app/test-plan/cases';
 
@@ -71,4 +76,54 @@ export function sinistreDetailFixture(
     declarationDeadline: null,
     ...overrides,
   };
+}
+
+/** One answer to `POST /sinistres`, in the order a spec expects them. */
+export interface CreateReply {
+  status: number;
+  contentType: string;
+  body: string;
+  /** Withheld until this resolves — the window where the request is in flight. */
+  after?: Promise<void>;
+}
+
+/** The dossier itself: `201` for one just created, `200` for one the API
+ * answered with instead of creating a second of the same three parameters. */
+export function createdReply(id: string, status: number): CreateReply {
+  return {
+    status,
+    contentType: 'application/json',
+    body: JSON.stringify(sinistreDetailFixture({ id })),
+  };
+}
+
+/** The body `SinistresService.create` answers `409` with, verbatim. */
+export function conflictReply(id: string, eventDate: IsoDate): CreateReply {
+  return {
+    status: 409,
+    contentType: 'application/json',
+    body: JSON.stringify({
+      code: 'DOSSIER_EXISTANT',
+      existing: { id, eventDate },
+    } satisfies SinistreConflict),
+  };
+}
+
+/**
+ * Answers `POST /sinistres` from `replies` in order and gives back the array
+ * of bodies sent: a conflict and the request that answers it hit the same
+ * endpoint, told apart only by their place in the sequence.
+ */
+export async function mockCreateSinistre(page: Page, replies: CreateReply[]) {
+  const sent: CreateSinistreInput[] = [];
+  await page.route(`${testApiBaseUrl}/sinistres`, async (route) => {
+    sent.push(
+      JSON.parse(route.request().postData() ?? '{}') as CreateSinistreInput,
+    );
+    const { after, ...answer } =
+      replies[Math.min(sent.length - 1, replies.length - 1)];
+    await after;
+    return route.fulfill(answer);
+  });
+  return sent;
 }
