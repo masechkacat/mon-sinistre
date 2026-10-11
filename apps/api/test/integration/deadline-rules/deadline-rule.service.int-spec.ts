@@ -1,7 +1,10 @@
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { createIntTestApp } from 'test/helpers/app';
 import { deadlineRuleData } from 'test/helpers/deadline-rule';
-import { DeadlineRuleService } from 'src/deadline-rules/deadline-rule.service';
+import {
+  DeadlineRuleService,
+  NoActiveDeadlineRuleError,
+} from 'src/deadline-rules/deadline-rule.service';
 import { PrismaService } from 'src/prisma/prisma.service';
 
 // DeadlineRuleService.resolveActive — the one query "which DeadlineRule is
@@ -91,7 +94,7 @@ describe('DeadlineRuleService.resolveActive (integration)', () => {
         'DATE_PUBLICATION_ARRETE',
         new Date('2026-07-01'),
       ),
-    ).rejects.toThrow();
+    ).rejects.toThrow(NoActiveDeadlineRuleError);
   });
 
   it('throws when a rule exists for the code but on a different anchor', async () => {
@@ -105,6 +108,6 @@ describe('DeadlineRuleService.resolveActive (integration)', () => {
         'DATE_PUBLICATION_ARRETE',
         new Date('2026-07-01'),
       ),
-    ).rejects.toThrow();
+    ).rejects.toThrow(NoActiveDeadlineRuleError);
   });
 });

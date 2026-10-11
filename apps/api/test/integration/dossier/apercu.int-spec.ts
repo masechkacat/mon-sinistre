@@ -12,6 +12,7 @@ import { seedStepTemplates } from 'src/step-templates/step-template.seed';
 import { createIntTestApp } from 'test/helpers/app';
 import { arreteData, arreteEntryData } from 'test/helpers/arrete';
 import { commune } from 'test/helpers/commune';
+import { countWrites } from 'test/helpers/write-counters';
 
 interface ApercuStep {
   name: string;
@@ -295,19 +296,11 @@ describe('DossierController GET /dossier/apercu (integration)', () => {
 
   it('writes nothing: no sinistre, no step, no queued letter', async () => {
     await createEntry({ publishedAt: '2026-06-05' });
-    const countAll = async () => ({
-      sinistres: await prisma.sinistre.count(),
-      steps: await prisma.step.count(),
-      // The two outboxes a letter would be queued in — the project has no
-      // MailLog table, these are what «ни одного письма» means in the schema.
-      sinistreNotifications: await prisma.sinistreNotification.count(),
-      veilleNotifications: await prisma.veilleNotification.count(),
-    });
-    const before = await countAll();
+    const before = await countWrites(prisma);
 
     await apercuBody();
 
-    expect(await countAll()).toEqual(before);
+    expect(await countWrites(prisma)).toEqual(before);
     expect(before.sinistres).toBe(0);
     expect(before.steps).toBe(0);
   });

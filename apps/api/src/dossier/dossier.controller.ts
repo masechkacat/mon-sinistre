@@ -5,9 +5,11 @@ import {
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
-import type { DossierApercu } from '@mon-sinistre/contracts';
+import type { CommuneArretes, DossierApercu } from '@mon-sinistre/contracts';
 import { Public } from 'src/auth/public.decorator';
 import { CreateSinistreDto } from 'src/sinistres/dto/create-sinistre.dto';
+import { CommuneArretesQueryDto } from './dto/commune-arretes-query.dto';
+import { CommuneArretesResponseDto } from './dto/commune-arretes-response.dto';
 import { DossierApercuResponseDto } from './dto/dossier-apercu-response.dto';
 import { DossierService } from './dossier.service';
 
@@ -36,5 +38,20 @@ export class DossierController {
   })
   apercu(@Query() dto: CreateSinistreDto): Promise<DossierApercu> {
     return this.dossier.apercu(dto);
+  }
+
+  @Get('arretes')
+  @ApiOperation({
+    summary: 'List the CatNat arrêtés naming a commune in the last 12 months',
+    description:
+      'Public endpoint. One item per annexe line naming the commune — an ' +
+      'arrêté names it once per risk and period — newest publication first, ' +
+      'with the déclaration deadline of every recognition. An unknown ' +
+      'commune answers 400.',
+  })
+  @ApiOkResponse({ type: CommuneArretesResponseDto })
+  @ApiBadRequestResponse({ description: 'Unknown commune' })
+  arretes(@Query() dto: CommuneArretesQueryDto): Promise<CommuneArretes> {
+    return this.dossier.arretes(dto.codeInsee);
   }
 }

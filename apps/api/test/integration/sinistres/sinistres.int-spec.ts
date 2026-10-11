@@ -13,13 +13,7 @@ import { seedStepTemplates } from 'src/step-templates/step-template.seed';
 import { createIntTestApp } from 'test/helpers/app';
 import { arreteData, arreteEntryData } from 'test/helpers/arrete';
 import { commune } from 'test/helpers/commune';
-import {
-  accessTokenOf,
-  createUser,
-  headersForEmail,
-  login,
-  withBearer,
-} from 'test/helpers/session';
+import { createUser, headersForEmail, withBearer } from 'test/helpers/session';
 
 interface SinistreWithSteps {
   id: string;
@@ -66,11 +60,10 @@ describe('SinistresController (integration)', () => {
     await seedStepTemplates(prisma);
   });
 
-  async function bearerFor(
-    email: string,
-  ): Promise<ReturnType<typeof withBearer>> {
-    const res = await login(app, email);
-    return withBearer(accessTokenOf(res));
+  /** Minted, not logged in: this suite signs in more than
+   * `AUTH_FORM_RATE_LIMIT` times a minute (`headersForEmail`'s docblock). */
+  function bearerFor(email: string): ReturnType<typeof headersForEmail> {
+    return headersForEmail(app, prisma, email);
   }
 
   async function createSinistre(
@@ -427,11 +420,6 @@ describe('SinistresController (integration)', () => {
       return arrete.entries[0]!;
     }
 
-    // headersFor's own bearer-minting shortcut moved to test/helpers/session.ts
-    // (headersForEmail) — this describe's other tests already run each to a
-    // real login and sit right at AUTH_FORM_RATE_LIMIT (30/min,
-    // src/auth/auth.controller.ts); four more login calls here would tip the
-    // last few over it.
     async function postSinistre(eventDate = '2026-06-10') {
       const email = await createUser(prisma);
       const headers = await headersForEmail(app, prisma, email);

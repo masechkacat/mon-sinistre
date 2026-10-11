@@ -11,8 +11,10 @@ import { errorSummary, stackOf } from 'src/common/error-report';
 import { runGuarded } from 'src/common/scheduled-cleanup';
 import { loadSuccessorMap } from 'src/communes/load-successor-map';
 import { normalizeCommuneName } from 'src/communes/normalize-commune-name';
-import { DeadlineRuleService } from 'src/deadline-rules/deadline-rule.service';
-import { DECLARATION_ASSUREUR_CODE } from 'src/deadline-rules/deadline-rule.seed';
+import {
+  carriesDeclarationDelai,
+  DeadlineRuleService,
+} from 'src/deadline-rules/deadline-rule.service';
 import {
   dateToIsoDate,
   isoDateToDate,
@@ -750,7 +752,7 @@ export class JorfMonitorService {
     // "Привязка entry ↔ синистр"): only a `RECONNU` link dates that step, so
     // the undated ones are exactly those a link can still help — unlinked,
     // refused, and the ones a `DeadlineRule` gap left dateless ({@link
-    // resolveDeclarationRuleGuarded}). A status list loses the refused
+    // DeadlineRuleService.resolveActiveOrNull}). A status list loses the refused
     // dossier the moment its owner declares, and never sees that gap at all.
     const sinistres = await this.prisma.sinistre.findMany({
       where: UNDATED_DECLARATION_STEP,
@@ -801,26 +803,21 @@ export class JorfMonitorService {
     }
 
     const entryById = new Map(entries.map((entry) => [entry.id, entry]));
-    // Memoized per publication date, resolved ahead of every write below —
-    // {@link DeadlineRuleService.resolveActive} throws by design, and doing
-    // that inside the transaction that applies a link would abort a write
-    // already in flight over a referential gap (docs/plan/sinistre-plan.md,
+    const linkedEntries = links.flatMap((link) => {
+      const entry = entryById.get(link.arreteEntryId);
+      return entry ? [{ link, entry }] : [];
+    });
+    // Resolved ahead of every write below (docs/plan/sinistre-plan.md,
     // Фаза 3, issue #157, "правило DeadlineRule резолвит снаружи транзакции
     // и передаёт внутрь").
-    const ruleByPublishedAt = new Map<IsoDate, ResolvedDeadlineRule | null>();
+    const ruleFor = await this.deadlineRules.declarationRulesFor(
+      linkedEntries.map(({ entry }) => entry),
+      this.logger,
+      'linked sinistres left without a déclaration date',
+    );
 
-    for (const link of links) {
-      const entry = entryById.get(link.arreteEntryId);
-      if (!entry) {
-        continue;
-      }
-      const rule =
-        entry.outcome === 'RECONNU'
-          ? await this.resolveRuleMemoized(
-              dateToIsoDate(entry.arrete.publishedAt),
-              ruleByPublishedAt,
-            )
-          : null;
+    for (const { link, entry } of linkedEntries) {
+      const rule = ruleFor(entry);
       await this.applyLink(
         link.sinistreId,
         entry,
@@ -836,18 +833,6 @@ export class JorfMonitorService {
     }
   }
 
-  /** The one `resolveActive` call for the déclaration-délai rule, shared by
-   * the mail step ({@link loadVeilleMails}) and the linking pass
-   * ({@link linkSinistres}) — `DECLARATION_ASSUREUR_CODE` paired with
-   * `DATE_PUBLICATION_ARRETE` is spelled once, not guessed at twice. */
-  private resolveDeclarationRule(onDate: Date): Promise<ResolvedDeadlineRule> {
-    return this.deadlineRules.resolveActive(
-      DECLARATION_ASSUREUR_CODE,
-      'DATE_PUBLICATION_ARRETE',
-      onDate,
-    );
-  }
-
   /** The déclaration rule plus the `ArreteForMail` shape, both derived from
    * nothing but `arrete.publishedAt`/`legifranceUrl` — every mail-loading
    * step of both outbox halves needs exactly this pair right after fetching
@@ -859,7 +844,7 @@ export class JorfMonitorService {
     declarationRule: ResolvedDeadlineRule;
     arreteForMail: ArreteForMail;
   }> {
-    const declarationRule = await this.resolveDeclarationRule(
+    const declarationRule = await this.deadlineRules.resolveDeclaration(
       arrete.publishedAt,
     );
     return {
@@ -869,41 +854,6 @@ export class JorfMonitorService {
         legifranceUrl: arrete.legifranceUrl,
       },
     };
-  }
-
-  /** Same isolation as `resolveStepRule`: the product would
-   * rather link the sinistre without a déclaration date than drop the whole
-   * run over one missing `DeadlineRule` version. */
-  private async resolveDeclarationRuleGuarded(
-    publishedAt: IsoDate,
-  ): Promise<ResolvedDeadlineRule | null> {
-    try {
-      return await this.resolveDeclarationRule(isoDateToDate(publishedAt));
-    } catch (error) {
-      this.logger.error(
-        `jorf monitor: DeadlineRule ${DECLARATION_ASSUREUR_CODE} did not resolve for publication ${publishedAt}, linked sinistres left without a déclaration date: ${errorSummary(error)}`,
-        stackOf(error),
-      );
-      return null;
-    }
-  }
-
-  /** The "resolve once per publication date, reuse for every entry that
-   * shares it" memoization {@link linkSinistres} needs — one run's links
-   * span the arrêtés of a whole batch of deltas, most of them sharing a
-   * `publishedAt`, and {@link DeadlineRuleService.resolveActive} is a query
-   * that throws by design. */
-  private async resolveRuleMemoized(
-    publishedAt: IsoDate,
-    cache: Map<IsoDate, ResolvedDeadlineRule | null>,
-  ): Promise<ResolvedDeadlineRule | null> {
-    if (!cache.has(publishedAt)) {
-      cache.set(
-        publishedAt,
-        await this.resolveDeclarationRuleGuarded(publishedAt),
-      );
-    }
-    return cache.get(publishedAt) ?? null;
   }
 
   /** Writes the `DATE_PUBLICATION_ARRETE` step's `plannedDate` and, when a
@@ -1470,10 +1420,14 @@ export class JorfMonitorService {
     // second connection out of the pool (docs/plan/sinistre-plan.md, Фаза 3,
     // issue #157, "правило DeadlineRule резолвит снаружи транзакции и
     // передаёт внутрь").
-    const declarationRule = matched.some(
-      ({ entry }) => (entry.outcome as string) === 'RECONNU',
+    const declarationRule = matched.some(({ entry }) =>
+      carriesDeclarationDelai(entry.outcome),
     )
-      ? await this.resolveDeclarationRuleGuarded(parsed.publishedAt)
+      ? await this.deadlineRules.resolveDeclarationOrNull(
+          publishedAt,
+          this.logger,
+          'the linked sinistres left without a déclaration date',
+        )
       : null;
     // What this revision adds — the set {@link queueNotifications} fans out
     // to, so a rectificatif that only corrects or flips the outcome of an
@@ -1647,7 +1601,7 @@ export class JorfMonitorService {
    * change or a corrected date can both change which rule applies. A
    * referential gap (`null` where the entry is `RECONNU`) leaves the step
    * exactly as it was, the same isolation {@link
-   * resolveDeclarationRuleGuarded} gives `linkSinistres`; an entry that is
+   * DeadlineRuleService.resolveActiveOrNull} gives `linkSinistres`; an entry that is
    * not `RECONNU` clears `plannedDate` back to null (no déclaration deadline
    * exists to date) but deliberately leaves
    * `deadlineRuleId`/`sourceUrl`/`sourceVerifiedAt` as last resolved, never

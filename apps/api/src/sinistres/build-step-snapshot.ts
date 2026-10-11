@@ -38,6 +38,16 @@ export interface StepSnapshot {
   sourceVerifiedAt: Date | null;
 }
 
+/** The date a legal step falls on: its anchor plus the rule's délai. The one
+ * derivation behind {@link resolveStepPlannedDate} and the public commune
+ * page, which has no step but prints the same déclaration date. */
+export function legalStepDate(
+  anchorDate: IsoDate,
+  rule: { duration: number; unit: 'DAYS' | 'MONTHS' },
+): IsoDate {
+  return resolveDeadline(anchorDate, rule.duration, rule.unit);
+}
+
 /**
  * The three-way split a step's `plannedDate` always follows: unresolved
  * anchor → null; a legal step (a rule is expected) → the rule's duration if
@@ -58,7 +68,7 @@ export function resolveStepPlannedDate(
     return null;
   }
   if (isLegalStep) {
-    return rule ? resolveDeadline(anchorDate, rule.duration, rule.unit) : null;
+    return rule ? legalStepDate(anchorDate, rule) : null;
   }
   return offsetDays !== null
     ? resolveDeadline(anchorDate, offsetDays, 'DAYS')

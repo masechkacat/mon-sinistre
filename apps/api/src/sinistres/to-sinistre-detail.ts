@@ -75,7 +75,7 @@ export function toStepView(step: StepViewRow, today: IsoDate): StepView {
       today,
     ),
     anchor: step.anchor as StepAnchor | null,
-    source: sourceOf(step, today),
+    source: citedSourceOf(step, today),
     daysLeft: plannedDate ? daysBetween(today, plannedDate) : null,
     delay: step.deadlineRule
       ? {
@@ -97,11 +97,25 @@ export function toStepResponse(step: StepRow, today: IsoDate): Step {
   };
 }
 
-function sourceOf(step: StepViewRow, today: IsoDate): SourceReference | null {
-  return step.sourceUrl && step.sourceVerifiedAt
+/** The wire `SourceReference` of a row that cites its source — a `Step`, or
+ * the `DeadlineRule` itself on the public commune page; `null` only when the
+ * row may cite none and does not. */
+export function citedSourceOf(
+  cited: { sourceUrl: string; sourceVerifiedAt: Date },
+  today: IsoDate,
+): SourceReference;
+export function citedSourceOf(
+  cited: { sourceUrl: string | null; sourceVerifiedAt: Date | null },
+  today: IsoDate,
+): SourceReference | null;
+export function citedSourceOf(
+  cited: { sourceUrl: string | null; sourceVerifiedAt: Date | null },
+  today: IsoDate,
+): SourceReference | null {
+  return cited.sourceUrl && cited.sourceVerifiedAt
     ? toSourceReference(
-        step.sourceUrl,
-        dateToIsoDate(step.sourceVerifiedAt),
+        cited.sourceUrl,
+        dateToIsoDate(cited.sourceVerifiedAt),
         today,
       )
     : null;
@@ -124,6 +138,16 @@ export function toSinistreSummary(sinistre: SinistreRow): SinistreSummary {
   };
 }
 
+/** The wire shape of a déclaration deadline dated `date` — read off a `Step`
+ * here, off the `DeadlineRule` on the public commune page. */
+export function toDeclarationDeadline(
+  date: IsoDate,
+  source: SourceReference,
+  today: IsoDate,
+): DeclarationDeadline {
+  return { date, daysLeft: daysBetween(today, date), source };
+}
+
 /** The critical deadline is the step with the déclaration rule (ТЗ § 3.3). */
 export function declarationDeadlineOf(
   steps: StepViewRow[],
@@ -132,12 +156,11 @@ export function declarationDeadlineOf(
   const step = steps.find((candidate) =>
     isDeclarationRule(candidate.deadlineRule?.code),
   );
-  const source = step ? sourceOf(step, today) : null;
+  const source = step ? citedSourceOf(step, today) : null;
   if (!step?.plannedDate || !source || step.persistedStatus !== null) {
     return null;
   }
-  const date = dateToIsoDate(step.plannedDate);
-  return { date, daysLeft: daysBetween(today, date), source };
+  return toDeclarationDeadline(dateToIsoDate(step.plannedDate), source, today);
 }
 
 /** Maps a `Sinistre` row and its `Step` rows to the wire `SinistreDetail` — the
