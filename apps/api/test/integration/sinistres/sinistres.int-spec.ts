@@ -69,12 +69,18 @@ describe('SinistresController (integration)', () => {
   async function createSinistre(
     headers: ReturnType<typeof withBearer>,
     eventDate = '2026-06-01',
+    confirmNew?: boolean,
   ): Promise<SinistreWithSteps> {
     const res = await app.inject({
       method: 'POST',
       url: '/sinistres',
       headers,
-      payload: { codeInsee: '30189', risque: 'INONDATION', eventDate },
+      payload: {
+        codeInsee: '30189',
+        risque: 'INONDATION',
+        eventDate,
+        confirmNew,
+      },
     });
     return JSON.parse(res.payload) as SinistreWithSteps;
   }
@@ -490,7 +496,8 @@ describe('SinistresController (integration)', () => {
       const ownerEmail = await createUser(prisma);
       const ownerHeaders = await bearerFor(ownerEmail);
       const firstId = (await createSinistre(ownerHeaders, '2026-05-01')).id;
-      const secondId = (await createSinistre(ownerHeaders, '2026-06-01')).id;
+      const secondId = (await createSinistre(ownerHeaders, '2026-06-01', true))
+        .id;
 
       const otherEmail = await createUser(prisma);
       const otherHeaders = await bearerFor(otherEmail);

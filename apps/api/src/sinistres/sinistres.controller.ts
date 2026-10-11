@@ -10,14 +10,17 @@ import {
   Patch,
   Post,
   Req,
+  Res,
 } from '@nestjs/common';
 import {
+  ApiConflictResponse,
   ApiCreatedResponse,
   ApiNoContentResponse,
   ApiOkResponse,
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
+import type { FastifyReply } from 'fastify';
 import type {
   SinistreDetail,
   SinistreSummary,
@@ -25,6 +28,7 @@ import type {
 } from '@mon-sinistre/contracts';
 import type { RequestWithJwtUser } from 'src/auth/passport/jwt.strategy';
 import { CreateSinistreDto } from './dto/create-sinistre.dto';
+import { SinistreConflictResponseDto } from './dto/sinistre-conflict-response.dto';
 import { SinistreDetailResponseDto } from './dto/sinistre-detail-response.dto';
 import { SinistreSummaryResponseDto } from './dto/sinistre-summary-response.dto';
 import { StepResponseDto } from './dto/step-response.dto';
@@ -49,11 +53,28 @@ export class SinistresController {
       'changes an already-created sinistre.',
   })
   @ApiCreatedResponse({ type: SinistreDetailResponseDto })
+  @ApiOkResponse({
+    type: SinistreDetailResponseDto,
+    description:
+      'The dossier all three parameters already name: repeating them opens ' +
+      'no second one.',
+  })
+  @ApiConflictResponse({
+    type: SinistreConflictResponseDto,
+    description:
+      'A dossier for this commune and risk exists under another date; ' +
+      'repeat the request with confirmNew to open a second one.',
+  })
   async create(
     @Req() req: RequestWithJwtUser,
     @Body() dto: CreateSinistreDto,
+    // The status is decided by what the service did, so it cannot be a
+    // `@HttpCode`: an existing dossier is not a creation.
+    @Res({ passthrough: true }) reply: FastifyReply,
   ): Promise<SinistreDetail> {
-    return this.sinistres.create(req.user.id, dto);
+    const { sinistre, created } = await this.sinistres.create(req.user.id, dto);
+    reply.status(created ? HttpStatus.CREATED : HttpStatus.OK);
+    return sinistre;
   }
 
   @Get()
