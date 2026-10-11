@@ -1,13 +1,13 @@
 'use client';
 
 import { useMutation } from '@tanstack/react-query';
-import Link from 'next/link';
 import { useState, type FormEvent } from 'react';
 import type { Commune } from '@mon-sinistre/contracts';
 import { AnnouncedResult } from '@/components/announced-result';
 import { CommuneMultiSelect } from '@/components/commune-multi-select';
 import { PageContainer } from '@/components/page-container';
 import { PageTitle } from '@/components/page-title';
+import { PrivacyNote } from '@/components/privacy-note';
 import { RequestError } from '@/components/request-error';
 import { EmailField } from '@/components/text-field';
 import { Button } from '@/components/ui/button';
@@ -84,15 +84,10 @@ export function VeilleForm() {
             error={communesError}
           />
 
-          <p className="text-sm text-muted-foreground">
-            {fr.veille.form.purpose}{' '}
-            <Link
-              href="/politique-de-confidentialite"
-              className="underline underline-offset-4"
-            >
-              {fr.veille.form.privacyPolicyLink}
-            </Link>
-          </p>
+          <PrivacyNote
+            purpose={fr.veille.form.purpose}
+            linkLabel={fr.veille.form.privacyPolicyLink}
+          />
 
           <Button type="submit" disabled={mutation.isPending}>
             {mutation.isPending

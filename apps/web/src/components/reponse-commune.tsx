@@ -13,6 +13,7 @@ import { DeclarationDeadlineValue } from '@/components/plan/declaration-deadline
 import { RequestError } from '@/components/request-error';
 import { buttonVariants } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { VeilleInlineForm } from '@/components/veille-inline-form';
 import { formatDateFr } from '@/i18n/date';
 import { fr } from '@/i18n/fr';
 import { fetchCommuneArretes } from '@/lib/api/dossier';
@@ -35,40 +36,48 @@ export function ReponseCommune({ commune }: { commune: Commune }) {
   const arretes = query.data?.arretes;
 
   return (
-    <section className="space-y-4">
-      <p role="status" className="min-h-7 text-lg">
-        {query.isPending ? copy.chargement : null}
-        {arretes?.length ? copy.trouves(arretes.length, commune.name) : null}
-        {arretes?.length === 0 ? copy.aucun(commune.name) : null}
-      </p>
+    <div className="space-y-8">
+      <section data-testid="reponse-arretes" className="space-y-4">
+        <p role="status" className="min-h-7 text-lg">
+          {query.isPending ? copy.chargement : null}
+          {arretes?.length ? copy.trouves(arretes.length, commune.name) : null}
+          {arretes?.length === 0 ? copy.aucun(commune.name) : null}
+        </p>
 
-      {query.isError ? <RequestError /> : null}
+        {query.isError ? <RequestError /> : null}
 
-      {arretes?.length ? (
-        <ul className="space-y-4">
-          {arretes.map((arrete) => (
-            <li
-              key={arrete.arreteEntryId}
-              data-testid={`arrete-${arrete.arreteEntryId}`}
+        {arretes?.length ? (
+          <ul className="space-y-4">
+            {arretes.map((arrete) => (
+              <li
+                key={arrete.arreteEntryId}
+                data-testid={`arrete-${arrete.arreteEntryId}`}
+              >
+                <CarteArrete commune={commune} arrete={arrete} />
+              </li>
+            ))}
+          </ul>
+        ) : null}
+
+        {arretes?.length === 0 ? (
+          <div className="space-y-4">
+            <p>{copy.aucunSuite(COMMUNE_ARRETES_WINDOW_MONTHS)}</p>
+            <Link
+              href={dossierPath('/dossier', { commune: commune.codeInsee })}
+              className={buttonVariants({ size: 'touch' })}
             >
-              <CarteArrete commune={commune} arrete={arrete} />
-            </li>
-          ))}
-        </ul>
-      ) : null}
+              {copy.preparer}
+            </Link>
+          </div>
+        ) : null}
+      </section>
 
-      {arretes?.length === 0 ? (
-        <div className="space-y-4">
-          <p>{copy.aucunSuite(COMMUNE_ARRETES_WINDOW_MONTHS)}</p>
-          <Link
-            href={dossierPath('/dossier', { commune: commune.codeInsee })}
-            className={buttonVariants({ size: 'touch' })}
-          >
-            {copy.preparer}
-          </Link>
-        </div>
-      ) : null}
-    </section>
+      {/* Offered whatever the answer is, and before it arrives: an arrêté can
+          appear weeks after the event. Keyed on the commune so a subscription
+          confirmed for one does not stay on screen as the answer for the
+          next. */}
+      <VeilleInlineForm key={commune.codeInsee} commune={commune} />
+    </div>
   );
 }
 

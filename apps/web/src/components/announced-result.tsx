@@ -20,6 +20,7 @@ export function AnnouncedResult({
   resultAction,
   announce,
   testId,
+  inline = false,
   children,
 }: {
   result: { title: string; description: string } | undefined;
@@ -30,6 +31,7 @@ export function AnnouncedResult({
   resultAction?: ReactNode;
   announce: boolean;
   testId?: string;
+  inline?: boolean;
   children: ReactNode;
 }) {
   const resultRef = useFocusOnSuccess(announce && result !== undefined);
@@ -45,7 +47,11 @@ export function AnnouncedResult({
           data-testid={testId}
           className="outline-none"
         >
-          <MessageScreen title={result.title} description={result.description}>
+          <MessageScreen
+            title={result.title}
+            description={result.description}
+            inline={inline}
+          >
             {resultAction}
           </MessageScreen>
         </div>

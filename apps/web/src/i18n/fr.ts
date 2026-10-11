@@ -227,6 +227,11 @@ export const fr = {
       submit: 'S’inscrire à la veille',
       submitting: 'Inscription en cours…',
     },
+    inline: {
+      heading: (commune: string) =>
+        `Être prévenu·e d’un prochain arrêté pour ${commune}`,
+      submit: 'Être prévenu·e',
+    },
     confirmationSent: {
       title: VERIFIEZ_BOITE_EMAIL,
       description:

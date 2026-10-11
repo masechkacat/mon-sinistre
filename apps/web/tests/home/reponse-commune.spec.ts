@@ -21,6 +21,10 @@ const copy = fr.reponseCommune;
 const ouvrir = { name: new RegExp(copy.ouvrir) };
 /** The cards of the answer, apart from the lists of the page around them. */
 const cartes = (page: Page) => page.getByTestId(/^arrete-/);
+/** The announcement of the answer, apart from the subscription line's own
+ * live region under it. */
+const annonce = (page: Page) =>
+  page.getByTestId('reponse-arretes').getByRole('status');
 const risqueLabel = (risque: RisqueCatnat) =>
   fr.sinistres.risque.options[risque].label;
 
@@ -36,7 +40,7 @@ test('a commune with no recent arrêté is told so, and the dossier stays on off
   await mockCommuneArretes(page, []);
   await page.goto(reponseCommunePath());
 
-  await expect(page.getByRole('status')).toHaveText(copy.aucun(NIMES.name));
+  await expect(annonce(page)).toHaveText(copy.aucun(NIMES.name));
   await expect(page.getByRole('link', { name: copy.preparer })).toHaveAttribute(
     'href',
     `/dossier?commune=${NIMES.codeInsee}`,
@@ -170,8 +174,7 @@ test('the number of arrêtés is announced in a region mounted before the answer
   );
   await page.goto(reponseCommunePath());
 
-  const annonce = page.getByRole('status');
-  await expect(annonce).toHaveText(copy.chargement);
+  await expect(annonce(page)).toHaveText(copy.chargement);
   held.release();
-  await expect(annonce).toHaveText(copy.trouves(2, NIMES.name));
+  await expect(annonce(page)).toHaveText(copy.trouves(2, NIMES.name));
 });
