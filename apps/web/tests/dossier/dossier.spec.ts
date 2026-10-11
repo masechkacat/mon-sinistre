@@ -21,6 +21,7 @@ import {
   APERCU_PARAMS,
   APERCU_STEPS,
   ARRETE,
+  AUTRE_DATE_EVENEMENT,
   DEADLINE,
   DOSSIER_FORM_PATH,
   DOSSIER_PATH,
@@ -71,9 +72,6 @@ const APERCU_REFUSE = apercuFixture({
   status: SinistreStatus.ARRETE_REFUSE,
   arrete: { ...ARRETE, outcome: ArreteEntryOutcome.REFUSE },
 });
-
-/** The event date of a dossier the visitor already has for this commune. */
-const AUTRE_DATE_EVENEMENT = toIsoDate('2026-07-04');
 
 const DEADLINE_EXPIRE: DeclarationDeadline = {
   date: toIsoDate('2026-10-05'),

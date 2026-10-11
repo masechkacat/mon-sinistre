@@ -1,24 +1,14 @@
-import {
-  expect,
-  test,
-  type Page,
-  type Route as PlaywrightRoute,
-} from '@playwright/test';
+import { expect, test, type Route as PlaywrightRoute } from '@playwright/test';
 import { fr } from '../../src/i18n/fr';
 import { expectNoAxeViolations } from '../support/a11y';
+import {
+  LOGIN_EMAIL as EMAIL,
+  fillLoginForm,
+  mockLogin,
+} from '../support/connexion';
 import { testApiBaseUrl } from '../support/env';
 import { expectErrorTiedTo, VALID_PASSWORD as PASSWORD } from '../support/form';
-
-const EMAIL = 'sinistre@example.fr';
-
-async function fillLoginForm(
-  page: Page,
-  { email, password }: { email: string; password: string },
-) {
-  await page.getByLabel(fr.compte.connexion.emailLabel).fill(email);
-  await page.getByLabel(fr.compte.connexion.passwordLabel).fill(password);
-  await page.getByRole('button', { name: fr.compte.connexion.submit }).click();
-}
+import { ACCESS_TOKEN } from '../support/session-mock';
 
 test('submitting with an empty password reports an error tied to the field, and does not send the request', async ({
   page,
@@ -64,23 +54,14 @@ test('an invalid pair shows one generic error message, announced to screen reade
 test('a successful login stores the access token and lands on espace personnel', async ({
   page,
 }) => {
-  await page.route(`${testApiBaseUrl}/auth/login`, (route: PlaywrightRoute) => {
-    expect(JSON.parse(route.request().postData() ?? '{}')).toEqual({
-      email: EMAIL,
-      password: PASSWORD,
-    });
-    return route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ accessToken: 'jeton-acces-test' }),
-    });
-  });
+  const sent = await mockLogin(page);
 
   await page.goto('/connexion');
   await fillLoginForm(page, { email: EMAIL, password: PASSWORD });
 
   await expect(page).toHaveURL(/\/espace-personnel$/);
   await expect(page.getByTestId('espace-personnel-content')).toBeVisible();
+  expect(sent).toEqual([{ email: EMAIL, password: PASSWORD }]);
 });
 
 test('an unavailable API shows the French error message, not a blank screen', async ({
@@ -126,7 +107,7 @@ test('a wrong password on a live session stays on the form instead of being take
       ? route.fulfill({
           status: 200,
           contentType: 'application/json',
-          body: JSON.stringify({ accessToken: 'jeton-acces-test' }),
+          body: JSON.stringify({ accessToken: ACCESS_TOKEN }),
         })
       : route.fulfill({
           status: 401,
@@ -140,7 +121,7 @@ test('a wrong password on a live session stays on the form instead of being take
     return route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({ accessToken: 'jeton-acces-test' }),
+      body: JSON.stringify({ accessToken: ACCESS_TOKEN }),
     });
   });
 

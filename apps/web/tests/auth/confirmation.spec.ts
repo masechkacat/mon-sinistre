@@ -1,8 +1,10 @@
 import { expect, test } from '@playwright/test';
+import type { AccountConfirmationResponse } from '@mon-sinistre/contracts';
 import { fr } from '../../src/i18n/fr';
 import { expectNoAxeViolations } from '../support/a11y';
 import { testApiBaseUrl } from '../support/env';
 import { fulfillStatus } from '../support/form';
+import { SINISTRE_ID_1 } from '../support/sinistres';
 
 const PENDING_TOKEN = 'jeton-en-attente';
 
@@ -72,6 +74,35 @@ test('clicking the button activates the account, changes the screen, and announc
   await expect(
     page.getByRole('link', { name: fr.compte.confirmation.loginLink }),
   ).toHaveAttribute('href', '/connexion');
+});
+
+test('a confirmation that created a dossier leads to it through the login page', async ({
+  page,
+}) => {
+  await page.route(`${testApiBaseUrl}/auth/confirmation`, (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        status: 'confirmed',
+        sinistreId: SINISTRE_ID_1,
+      } satisfies AccountConfirmationResponse),
+    }),
+  );
+
+  await page.goto(`/confirmation?token=${PENDING_TOKEN}`);
+  await page
+    .getByRole('button', { name: fr.compte.confirmation.confirmButton })
+    .click();
+
+  const href = await page
+    .getByTestId('compte-confirmation-login-link')
+    .getAttribute('href');
+  // Read back as an address rather than compared as a string: what matters is
+  // the path the parameter carries, not how it was escaped on the way.
+  const { pathname, searchParams } = new URL(href ?? '', testApiBaseUrl);
+  expect(pathname).toBe('/connexion');
+  expect(searchParams.get('suivant')).toBe(`/sinistres/${SINISTRE_ID_1}`);
 });
 
 test('a rejected token shows "lien invalide" after the click', async ({

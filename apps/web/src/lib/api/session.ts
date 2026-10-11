@@ -1,3 +1,4 @@
+import type { Route } from 'next';
 import type { LoginResponse } from '@mon-sinistre/contracts';
 import { apiBaseUrl } from './config';
 
@@ -7,6 +8,45 @@ import { apiBaseUrl } from './config';
  * the client links to it (`src/app/connexion/`).
  */
 export const LOGIN_PATH = '/connexion';
+
+export const LOGIN_NEXT_PARAM = 'suivant';
+
+/** The login address that comes back to `path` once the session is open. */
+export function loginPathWithNext(path: string): Route {
+  const search = new URLSearchParams({ [LOGIN_NEXT_PARAM]: path });
+  return `${LOGIN_PATH}?${search}` as Route;
+}
+
+/** Any origin will do, as long as resolving against it is the only way to
+ * reach it: `.invalid` is reserved and resolves nowhere. */
+const SAME_ORIGIN = 'https://interne.invalid';
+
+/**
+ * Where the address asks to go after the login — a path inside the app, or
+ * `null` for anything else. The value is read by the very parser that would
+ * carry the navigation rather than matched as text: `//evil.example` is a
+ * protocol-relative URL, `/\evil.example` is one too (`\` reads as `/` in an
+ * http address), and `/%09/evil.example` becomes one once the tab is dropped
+ * — three spellings of another host that all look like a path. What comes
+ * back is the parser's own reading of the value, so that what was checked is
+ * what gets navigated to.
+ */
+export function loginNextPath(searchParams: URLSearchParams): Route | null {
+  const next = searchParams.get(LOGIN_NEXT_PARAM) ?? '';
+  if (!next.startsWith('/')) return null;
+  try {
+    const url = new URL(next, SAME_ORIGIN);
+    const path = `${url.pathname}${url.search}${url.hash}`;
+    // The reading is checked again after it was read: `/..//evil.example`
+    // resolves inside the origin, and its dot segment leaves a path that is
+    // protocol-relative all over again.
+    return url.origin === SAME_ORIGIN && !path.startsWith('//')
+      ? (path as Route)
+      : null;
+  } catch {
+    return null;
+  }
+}
 
 const REFRESH_PATH = '/auth/refresh';
 const LOGOUT_PATH = '/auth/logout';

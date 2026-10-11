@@ -1,5 +1,6 @@
 import {
   isIsoDate,
+  type CreateSinistreInput,
   type IsoDate,
   type RisqueCatnat,
 } from '@mon-sinistre/contracts';
@@ -10,6 +11,25 @@ export interface DossierParams {
   commune?: string;
   risque?: RisqueCatnat;
   date?: IsoDate;
+}
+
+/** The three parameters as the API names them. */
+type DossierInput = Omit<CreateSinistreInput, 'confirmNew'>;
+
+/**
+ * The same three as the API takes them — to save the dossier
+ * (`POST /sinistres`) or to carry it through a registration
+ * (`POST /auth/register`). `undefined` while any of the three is missing: an
+ * incomplete address is not a dossier yet, and a page that already has all
+ * three (`Required<DossierParams>`) is answered without that `undefined`.
+ */
+export function dossierInput(params: Required<DossierParams>): DossierInput;
+export function dossierInput(params: DossierParams): DossierInput | undefined;
+export function dossierInput(params: DossierParams): DossierInput | undefined {
+  const { commune, risque, date } = params;
+  return commune && risque && date
+    ? { codeInsee: commune, risque, eventDate: date }
+    : undefined;
 }
 
 export function parseDossierParams(

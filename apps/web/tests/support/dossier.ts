@@ -26,6 +26,9 @@ export const APERCU_PARAMS = {
 
 export const DOSSIER_PATH = `/dossier${dossierSearch(APERCU_PARAMS)}` as Route;
 
+/** The event date of a dossier the visitor already has for this commune. */
+export const AUTRE_DATE_EVENEMENT = toIsoDate('2026-07-04');
+
 /** The same page with an empty address: it asks for the three parameters. */
 export const DOSSIER_FORM_PATH = '/dossier' satisfies Route;
 

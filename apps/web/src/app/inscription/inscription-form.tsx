@@ -15,7 +15,11 @@ import { Button } from '@/components/ui/button';
 import { apiFetch } from '@/lib/api/client';
 import { useCommuneByCode } from '@/lib/api/communes';
 import { communeLabel } from '@/lib/commune-label';
-import { dossierSearch, parseDossierParams } from '@/lib/dossier-params';
+import {
+  dossierInput,
+  dossierSearch,
+  parseDossierParams,
+} from '@/lib/dossier-params';
 import { validateEmail } from '@/lib/email-pattern';
 import { validatePassword } from '@/lib/password-pattern';
 import { formatDateFr } from '@/i18n/date';
@@ -50,14 +54,7 @@ function DossierResume({
 export function InscriptionForm() {
   const searchParams = useSearchParams();
   const params = parseDossierParams(searchParams);
-  const dossier =
-    params.commune && params.risque && params.date
-      ? {
-          codeInsee: params.commune,
-          risque: params.risque,
-          eventDate: params.date,
-        }
-      : undefined;
+  const dossier = dossierInput(params);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');

@@ -38,6 +38,7 @@ import { queryKeys } from '@/lib/api/keys';
 import { getAccessToken, refreshSession } from '@/lib/api/session';
 import { useCreateSinistre } from '@/lib/api/use-create-sinistre';
 import {
+  dossierInput,
   dossierSearch,
   parseDossierParams,
   parseRisqueOptions,
@@ -121,11 +122,7 @@ function Apercu({
     setEnregistrement(true);
     try {
       if (getAccessToken() || (await refreshSession())) {
-        await mutation.mutateAsync({
-          codeInsee: params.commune,
-          risque: params.risque,
-          eventDate: params.date,
-        });
+        await mutation.mutateAsync(dossierInput(params));
       } else {
         router.push(`/inscription${dossierSearch(params)}` as Route);
       }
