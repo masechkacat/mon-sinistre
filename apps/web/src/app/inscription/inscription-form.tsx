@@ -1,8 +1,11 @@
 'use client';
 
 import { useMutation } from '@tanstack/react-query';
+import type { Route } from 'next';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
+import type { RegisterInput } from '@mon-sinistre/contracts';
 import { AnnouncedResult } from '@/components/announced-result';
 import { PageContainer } from '@/components/page-container';
 import { PageTitle } from '@/components/page-title';
@@ -10,16 +13,52 @@ import { RequestError } from '@/components/request-error';
 import { EmailField, PasswordField } from '@/components/text-field';
 import { Button } from '@/components/ui/button';
 import { apiFetch } from '@/lib/api/client';
+import { useCommuneByCode } from '@/lib/api/communes';
+import { communeLabel } from '@/lib/commune-label';
+import { dossierSearch, parseDossierParams } from '@/lib/dossier-params';
 import { validateEmail } from '@/lib/email-pattern';
 import { validatePassword } from '@/lib/password-pattern';
+import { formatDateFr } from '@/i18n/date';
 import { fr } from '@/i18n/fr';
 
-interface RegisterInput {
-  email: string;
-  password: string;
+/** What is about to be saved, over the form that makes saving possible. */
+function DossierResume({
+  dossier,
+}: {
+  dossier: NonNullable<RegisterInput['dossier']>;
+}) {
+  // The address carries the commune as a code, which says nothing to the
+  // person reading the line. Its name is awaited rather than inserted later:
+  // text appended to a line a screen reader has already read goes unannounced
+  // (apps/web/CLAUDE.md, доступность). The height is held meanwhile, and a
+  // failed lookup leaves the line without the commune.
+  const { commune, settled } = useCommuneByCode(dossier.codeInsee);
+
+  return (
+    <p className="min-h-7 text-lg" data-testid="dossier-resume">
+      {settled
+        ? fr.dossier.resume([
+            fr.sinistres.risque.options[dossier.risque].label,
+            ...(commune ? [communeLabel(commune)] : []),
+            formatDateFr(dossier.eventDate),
+          ])
+        : null}
+    </p>
+  );
 }
 
 export function InscriptionForm() {
+  const searchParams = useSearchParams();
+  const params = parseDossierParams(searchParams);
+  const dossier =
+    params.commune && params.risque && params.date
+      ? {
+          codeInsee: params.commune,
+          risque: params.risque,
+          eventDate: params.date,
+        }
+      : undefined;
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [emailError, setEmailError] = useState<string>();
@@ -50,7 +89,7 @@ export function InscriptionForm() {
     setPasswordError(nextPasswordError);
     if (nextEmailError || nextPasswordError) return;
 
-    mutation.mutate({ email: trimmedEmail, password });
+    mutation.mutate({ email: trimmedEmail, password, dossier });
   };
 
   return (
@@ -67,6 +106,7 @@ export function InscriptionForm() {
           <p className="text-lg text-muted-foreground">
             {fr.compte.inscription.lead}
           </p>
+          {dossier ? <DossierResume dossier={dossier} /> : null}
         </section>
 
         <form
@@ -115,7 +155,10 @@ export function InscriptionForm() {
 
           <p className="text-sm">
             {fr.compte.inscription.alreadyRegistered}{' '}
-            <Link href="/connexion" className="underline underline-offset-4">
+            <Link
+              href={`/connexion${dossierSearch(params)}` as Route}
+              className="underline underline-offset-4"
+            >
               {fr.compte.inscription.loginLink}
             </Link>
           </p>

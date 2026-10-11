@@ -558,6 +558,8 @@ export const fr = {
     legifranceLink: 'Consulter l’arrêté sur Légifrance',
     delaiExpire: 'Délai expiré',
     enregistrer: 'Enregistrer ce dossier',
+    resume: (parts: readonly string[]) =>
+      `Votre dossier : ${parts.join(' · ')}`,
     formulaire: {
       titre: 'Préparer mon dossier',
       lead: 'Indiquez ce qui manque : votre plan d’actions s’affiche aussitôt, sans compte ni inscription.',
