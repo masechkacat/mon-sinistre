@@ -274,6 +274,15 @@ export interface CommuneArretes {
   arretes: CommuneArrete[];
 }
 
+/** Body of `POST /sinistres` — the three parameters a dossier starts from. */
+export interface CreateSinistreInput {
+  codeInsee: string;
+  risque: RisqueCatnat;
+  eventDate: IsoDate;
+  /** Answer to a `SinistreConflict`; omitted on a first attempt. */
+  confirmNew?: boolean;
+}
+
 /**
  * Body of the `409` from `POST /sinistres`: the user already has a dossier for
  * this commune and risk under another date, and the request did not confirm a

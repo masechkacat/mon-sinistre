@@ -1,6 +1,6 @@
 import type {
+  CreateSinistreInput,
   IsoDate,
-  RisqueCatnat,
   SinistreDetail,
   SinistreSummary,
   Step,
@@ -44,12 +44,6 @@ export function setSinistreDeclarationDate(
 
 export function deleteSinistre(sinistreId: string) {
   return authApiFetch<void>(`/sinistres/${sinistreId}`, { method: 'DELETE' });
-}
-
-export interface CreateSinistreInput {
-  codeInsee: string;
-  risque: RisqueCatnat;
-  eventDate: IsoDate;
 }
 
 // Consumed by the /sinistres/nouveau page (docs/plan/sinistre-plan.md, Фаза 6).
