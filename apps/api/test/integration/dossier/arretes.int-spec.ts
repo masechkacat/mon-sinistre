@@ -44,9 +44,12 @@ describe('DossierController GET /dossier/arretes (integration)', () => {
       data: commune('30189', 'Nîmes', '30', 'Gard'),
     });
     await seedDeadlineRules(prisma);
+    // Per test, as the service computes it per request: fixed once for the
+    // file, the twelve-month edge below would miss across Paris midnight.
+    today = todayInParis();
   });
 
-  const today = todayInParis();
+  let today: IsoDate;
   const daysAgo = (days: number): IsoDate =>
     resolveDeadline(today, -days, 'DAYS');
   const windowStart = (): IsoDate =>
