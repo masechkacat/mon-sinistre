@@ -55,18 +55,9 @@ export class DeadlineRuleService {
     return rule;
   }
 
-  /**
-   * {@link resolveActive} with the gap isolated: `null` and a line in the
-   * caller's `logger` instead of the throw. Every reader that can go on
-   * without the rule takes this path — a step snapshotted without a deadline,
-   * a sinistre linked without a déclaration date, a public page listing the
-   * arrêté without its délai — because a gap in the referential must not
-   * cost the whole plan, run or page. Only that gap is isolated: a query
-   * that failed is rethrown, because "no deadline" printed over a dropped
-   * connection would be the one silence this product exists to prevent.
-   * `consequence` is what the log says went dateless; the logger is the
-   * caller's, so the log names the class that needed the rule.
-   */
+  /** {@link resolveActive} for a reader that can go on without the rule:
+   * `null` and a line in the caller's `logger` saying what went dateless
+   * (`consequence`). */
   async resolveActiveOrNull(
     code: string,
     anchor: StepAnchor,
@@ -77,6 +68,8 @@ export class DeadlineRuleService {
     try {
       return await this.resolveActive(code, anchor, onDate);
     } catch (error) {
+      // Only the gap is isolated: "no deadline" over a dropped connection
+      // would be the one silence this product exists to prevent.
       if (!(error instanceof NoActiveDeadlineRuleError)) {
         throw error;
       }
