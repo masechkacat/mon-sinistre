@@ -23,6 +23,7 @@ import type { MatchedArrete } from 'src/sinistres/match-arrete';
 import { legalStepDate } from 'src/sinistres/build-step-snapshot';
 import { planDossier, toPlannedView } from 'src/sinistres/snapshot-plan';
 import {
+  citedSourceOf,
   declarationDeadlineOf,
   toDeclarationDeadline,
   toStepView,
@@ -126,7 +127,7 @@ export class DossierService {
           declarationDeadline: rule
             ? toDeclarationDeadline(
                 legalStepDate(publishedAt, rule),
-                rule,
+                citedSourceOf(rule, today),
                 today,
               )
             : null,
