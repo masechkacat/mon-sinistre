@@ -8,6 +8,7 @@ import {
 import { Test, type TestingModule } from '@nestjs/testing';
 import { MailService } from 'src/mail/mail.service';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { SinistresService } from 'src/sinistres/sinistres.service';
 import { AuthService } from './auth.service';
 
 /**
@@ -41,6 +42,7 @@ describe('AuthService cleanup schedule', () => {
         },
         { provide: MailService, useValue: {} },
         { provide: JwtService, useValue: {} },
+        { provide: SinistresService, useValue: {} },
         {
           provide: ConfigService,
           useValue: {

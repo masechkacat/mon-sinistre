@@ -39,6 +39,7 @@ model Commune {
   veilleCommunes     VeilleCommune[]
   arreteEntries      ArreteEntry[]
   sinistres          Sinistre[]
+  dossiersEnAttente  DossierEnAttente[]
 
   // Префиксный поиск и сортировка: колонка объявлена COLLATE "C" (миграция
   // normalize_collation), поэтому обычный btree обслуживает и LIKE 'q%', и
@@ -74,6 +75,7 @@ model User {
   refreshTokens                RefreshToken[]
   passwordResets               PasswordReset[]
   sinistres                    Sinistre[]
+  dossierEnAttente             DossierEnAttente?
 }
 
 // Токен ссылки выключения из письма-напоминания: свой у каждого письма, и
@@ -436,6 +438,18 @@ model StepTemplate {
   // сама (data-model.md § 1): @@unique генерирует корректный DDL, ручного SQL
   // не требуется.
   @@unique([planKey, order])
+}
+
+// Три параметра досье, принятые на регистрации и ждущие подтверждения адреса —
+// docs/research/dossier-preliminaire.md, «Три параметра до подтверждения».
+model DossierEnAttente {
+  userId    String       @id @db.Uuid
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  codeInsee String
+  commune   Commune      @relation(fields: [codeInsee], references: [codeInsee], onDelete: Restrict)
+  risque    RisqueCatnat
+  eventDate DateTime     @db.Date
+  createdAt DateTime     @default(now()) @db.Timestamptz(6)
 }
 
 // Досье пострадавшего — docs/research/data-model.md § 5.

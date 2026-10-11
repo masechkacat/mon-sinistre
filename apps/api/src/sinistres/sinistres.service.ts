@@ -22,13 +22,13 @@ import {
 } from 'src/deadline-rules/resolve-deadline';
 import { fr } from 'src/i18n/fr';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { withAdvisoryLock } from 'src/common/advisory-lock';
+import { withAdvisoryLock, withAdvisoryLockIn } from 'src/common/advisory-lock';
 import { todayInParis } from 'src/common/time/today-in-paris';
 import { codesMergedInto } from 'src/communes/codes-merged-into';
 import type { CreateSinistreDto } from './dto/create-sinistre.dto';
 import { recomputeDeclarationSteps } from './recompute-declaration-steps';
 import { sinistreStatus } from './sinistre-status';
-import { planDossier } from './snapshot-plan';
+import { planDossier, type PlannedDossier } from './snapshot-plan';
 import { communeFields } from 'src/communes/commune-fields';
 import {
   toSinistreDetail,
@@ -81,13 +81,30 @@ export class SinistresService {
    * Recognises a dossier the caller already has for this risk and commune,
    * merged communes included — docs/research/dossier-preliminaire.md,
    * «Создание с защитой от двойника». The second check under the lock is not
-   * redundant: the plan is built outside any transaction, and a concurrent
+   * redundant: the plan is built before the lock is taken, and a concurrent
    * POST can land meanwhile.
+   *
+   * `outer` is the caller's own transaction, which everything then runs in —
+   * why `AuthService.drainPendingDossier` needs that is in its docblock.
    */
   async create(
     userId: string,
     dto: CreateSinistreDto,
+    outer?: Prisma.TransactionClient,
   ): Promise<CreatedSinistre> {
+    const key = `sinistre:${userId}`;
+    if (outer) {
+      return withAdvisoryLockIn(outer, key, async (tx) =>
+        this.insert(
+          tx,
+          userId,
+          dto,
+          await codesMergedInto(tx, dto.codeInsee),
+          await planDossier(tx, this.deadlineRules.in(tx), dto, this.logger),
+        ),
+      );
+    }
+
     const codes = await codesMergedInto(this.prisma, dto.codeInsee);
     const twin = await this.findTwin(
       this.prisma,
@@ -100,38 +117,48 @@ export class SinistresService {
       return { sinistre: twin, created: false };
     }
 
-    const { today, match, plan, status } = await planDossier(
+    const planned = await planDossier(
       this.prisma,
       this.deadlineRules,
       dto,
       this.logger,
     );
+    return withAdvisoryLock(this.prisma, key, (tx) =>
+      this.insert(tx, userId, dto, codes, planned),
+    );
+  }
 
-    return withAdvisoryLock(this.prisma, `sinistre:${userId}`, async (tx) => {
-      const raced = await this.findTwin(tx, userId, dto, codes, today);
-      if (raced) {
-        return { sinistre: raced, created: false };
-      }
+  /** {@link create}'s write, under the caller's lock. */
+  private async insert(
+    tx: Prisma.TransactionClient,
+    userId: string,
+    dto: CreateSinistreDto,
+    codes: string[],
+    { today, match, plan, status }: PlannedDossier,
+  ): Promise<CreatedSinistre> {
+    const raced = await this.findTwin(tx, userId, dto, codes, today);
+    if (raced) {
+      return { sinistre: raced, created: false };
+    }
 
-      const sinistre = await tx.sinistre.create({
-        data: {
-          userId,
-          codeInsee: dto.codeInsee,
-          risque: dto.risque,
-          eventDate: isoDateToDate(dto.eventDate),
-          declarationDate: null,
-          arreteEntryId: match?.arreteEntryId ?? null,
-          status,
-          steps: { create: plan.map((step) => step.row) },
-        },
-        include: detailInclude,
-      });
-
-      return {
-        sinistre: toSinistreDetail(sinistre, sinistre.steps, today),
-        created: true,
-      };
+    const sinistre = await tx.sinistre.create({
+      data: {
+        userId,
+        codeInsee: dto.codeInsee,
+        risque: dto.risque,
+        eventDate: isoDateToDate(dto.eventDate),
+        declarationDate: null,
+        arreteEntryId: match?.arreteEntryId ?? null,
+        status,
+        steps: { create: plan.map((step) => step.row) },
+      },
+      include: detailInclude,
     });
+
+    return {
+      sinistre: toSinistreDetail(sinistre, sinistre.steps, today),
+      created: true,
+    };
   }
 
   /**

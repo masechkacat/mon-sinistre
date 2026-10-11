@@ -1,5 +1,6 @@
-import { Injectable, type Logger } from '@nestjs/common';
+import { Inject, Injectable, type Logger } from '@nestjs/common';
 import type { IsoDate } from '@mon-sinistre/contracts';
+import type { Prisma } from 'src/generated/prisma/client';
 import type { StepAnchor } from 'src/generated/prisma/enums';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { DECLARATION_ASSUREUR_CODE } from './deadline-rule.seed';
@@ -31,7 +32,16 @@ export class NoActiveDeadlineRuleError extends Error {
  */
 @Injectable()
 export class DeadlineRuleService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    @Inject(PrismaService)
+    private readonly prisma: Pick<PrismaService, 'deadlineRule'>,
+  ) {}
+
+  /** The same lookups run on `tx`: called through the injected client from
+   * inside a transaction, each one would hold a second pool connection. */
+  in(tx: Prisma.TransactionClient): DeadlineRuleService {
+    return new DeadlineRuleService(tx);
+  }
 
   /**
    * Throws when no row of `code`/`anchor` is active on `onDate`: the product

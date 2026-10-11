@@ -23,7 +23,12 @@
   эндпоинта нет `GET`-пары в отличие от `veille`. Идемпотентен: повторный
   вызов тем же токеном отвечает `{ status: 'confirmed' }` снова, не ошибкой —
   `confirmTokenHash` при активации не стирается, поэтому уже подтверждённый
-  аккаунт остаётся `confirmed` и после `confirmExpiresAt`. Неизвестный и
+  аккаунт остаётся `confirmed` и после `confirmExpiresAt`. Досье, принесённое
+  регистрацией (`dossier` в её теле, таблица `DossierEnAttente` — решение в
+  `docs/research/dossier-preliminaire.md`, «Три параметра до подтверждения»),
+  превращает в синистр и называет его `sinistreId` в ответе единственная точка
+  — `drainPendingDossier`; её зовут только эта ветка и подтверждающая аккаунт
+  ветка `resetPassword`, второй такой обвязки не заводить. Неизвестный и
   просроченный неподтверждённый токен дают одинаковый `{ status: 'invalid' }`
   — причина не раскрывается (anti-enumeration, тот же принцип, что у
   `VeilleService.confirm`). Окно подтверждения сравнивается с «сейчас» в одном
@@ -196,7 +201,8 @@
 - `AuthService.cleanupExpired` — `@Cron(EVERY_HOUR)`, единственный часовой
   прогон чистки фичи (`docs/research/user-account.md`, «Чистка: один
   cron-час»): неподтверждённые `User` старше `ACCOUNT_CONFIRM_TTL_DAYS`
-  (каскад сносит их `RefreshToken`/`PasswordReset`, тот же
+  (каскад сносит их `RefreshToken`/`PasswordReset`/`DossierEnAttente` — своего
+  прогона ждущему досье не нужно, тот же
   `expiredUnconfirmed` из `src/common/time/confirmation-window.ts`, что и у
   veille), просроченные `PasswordReset`, истёкшие `RefreshToken`, счётчики
   `AccountFormEmail`/`LoginAttempt` старше своего окна (`DAY_MS`/`HOUR_MS`,

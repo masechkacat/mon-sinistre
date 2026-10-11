@@ -141,7 +141,7 @@ export class AuthController {
   async confirm(
     @Body() body: AccountTokenDto,
   ): Promise<AccountConfirmationResponse> {
-    return { status: await this.auth.confirm(body.token) };
+    return this.auth.confirm(body.token);
   }
 
   @Public()
@@ -181,7 +181,7 @@ export class AuthController {
   async resetPassword(
     @Body() dto: ResetPasswordDto,
   ): Promise<ResetPasswordResponse> {
-    return { status: await this.auth.resetPassword(dto.token, dto.password) };
+    return this.auth.resetPassword(dto.token, dto.password);
   }
 
   @Public()

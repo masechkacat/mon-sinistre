@@ -104,14 +104,34 @@ export interface VeilleChangeResponse {
   communes?: Pick<Commune, 'name' | 'departementName'>[];
 }
 
+/**
+ * Body of `POST /auth/register`. `dossier` carries the three parameters of a
+ * dossier prepared without an account.
+ */
+export interface RegisterInput {
+  email: string;
+  password: string;
+  /** `confirmNew` is excluded: a brand-new account has no sinistre to collide with. */
+  dossier?: Omit<CreateSinistreInput, 'confirmNew'>;
+}
+
 /** Response body of the account confirmation endpoint (`POST`). */
 export interface AccountConfirmationResponse {
   status: AccountConfirmationStatus;
+  /**
+   * The sinistre created from the `dossier` the registration carried. Absent
+   * when it carried none, and on a repeat confirmation: nothing is left to
+   * create a second time.
+   */
+  sinistreId?: string;
 }
 
 /** Response body of the password-reset-confirmation endpoint (`POST`). */
 export interface ResetPasswordResponse {
   status: PasswordResetStatus;
+  /** {@link AccountConfirmationResponse.sinistreId}, when the reset is what
+   * confirms the account. */
+  sinistreId?: string;
 }
 
 /**

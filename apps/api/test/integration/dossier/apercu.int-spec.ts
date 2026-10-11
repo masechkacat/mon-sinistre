@@ -12,6 +12,7 @@ import { seedStepTemplates } from 'src/step-templates/step-template.seed';
 import { createIntTestApp } from 'test/helpers/app';
 import { arreteData, arreteEntryData } from 'test/helpers/arrete';
 import { commune } from 'test/helpers/commune';
+import { tomorrowInParis } from 'test/helpers/dates';
 import { countWrites } from 'test/helpers/write-counters';
 
 interface ApercuStep {
@@ -279,7 +280,7 @@ describe('DossierController GET /dossier/apercu (integration)', () => {
   });
 
   it('rejects an unknown commune, a future date and a risque outside the enum', async () => {
-    const tomorrow = resolveDeadline(todayInParis(), 1, 'DAYS');
+    const tomorrow = tomorrowInParis();
 
     const [unknown, future, risque] = await Promise.all([
       apercu({ codeInsee: '99999' }),
