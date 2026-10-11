@@ -20,6 +20,7 @@ import { classifyRisques } from 'src/jorf/parse/classify-risques';
 import { PrismaService } from 'src/prisma/prisma.service';
 import type { CreateSinistreDto } from 'src/sinistres/dto/create-sinistre.dto';
 import type { MatchedArrete } from 'src/sinistres/match-arrete';
+import { legalStepDate } from 'src/sinistres/build-step-snapshot';
 import { planDossier, toPlannedView } from 'src/sinistres/snapshot-plan';
 import {
   declarationDeadlineOf,
@@ -124,7 +125,7 @@ export class DossierService {
           outcome: entry.outcome as ArreteEntryOutcome,
           declarationDeadline: rule
             ? toDeclarationDeadline(
-                resolveDeadline(publishedAt, rule.duration, rule.unit),
+                legalStepDate(publishedAt, rule),
                 rule,
                 today,
               )
