@@ -237,6 +237,10 @@ Auth уже решён (api/CLAUDE.md): Passport local + JWT, refresh с рот�
   фоновая задача.
 - `PasswordReset`: id, userId → User (cascade), tokenHash `unique`, expiresAt,
   usedAt null (фаза 3).
+- `DossierEnAttente`: userId PK → User (cascade), codeInsee → Commune
+  (restrict), risque `RisqueCatnat`, eventDate `date`, createdAt — три параметра
+  досье, принятые на регистрации и ждущие подтверждения адреса (миграция
+  `add_dossier_en_attente`); решения — `docs/research/dossier-preliminaire.md`.
 - `AccountFormEmail`: id, emailHash, sentAt; индекс `(emailHash, sentAt)` —
   счётчик писем формы аккаунта, по образцу `VeilleFormEmail` (§ 6). `LoginAttempt`:
   id, emailHash, attemptedAt; тот же приём — счётчик неудачных попыток входа.
@@ -380,10 +384,10 @@ SinistreNotification»).
   VeilleNotification и VeilleChange. Немедленно, без корзины (жёсткое
   требование ТЗ § 7).
 - **User**: удаление аккаунта — каскад User → Sinistre → Step/InventoryItem →
-  File строками БД **плюс** удаление объектов S3 по `storageKey`. Порядок:
-  сначала собрать ключи, удалить строки транзакцией, затем чистить S3
-  (недоудалённые объекты добирает фоновая сверка — S3 не участвует в
-  транзакции БД).
+  File и User → DossierEnAttente строками БД **плюс** удаление объектов S3 по
+  `storageKey`. Порядок: сначала собрать ключи, удалить строки транзакцией,
+  затем чистить S3 (недоудалённые объекты добирает фоновая сверка — S3 не
+  участвует в транзакции БД).
 - Справочники и данные монитора (Commune, Arrete, ArreteEntry, DeadlineRule,
   StepTemplate) персональных данных не содержат и не удаляются; FK из
   Sinistre/Step на них — `restrict`, чтобы чистка справочника не могла задеть
