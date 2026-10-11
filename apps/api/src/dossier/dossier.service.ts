@@ -1,11 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import {
-  ArreteEntryOutcome,
+  type ArreteEntryOutcome,
   COMMUNE_ARRETES_WINDOW_MONTHS,
   type CommuneArrete,
   type CommuneArretes,
   type DossierApercu,
-  type RisqueCatnat,
 } from '@mon-sinistre/contracts';
 import { todayInParis } from 'src/common/time/today-in-paris';
 import { requireActiveCommune } from 'src/communes/active-commune';
@@ -119,7 +118,7 @@ export class DossierService {
           publishedAt,
           legifranceUrl: entry.arrete.legifranceUrl,
           risqueLabel: entry.risque,
-          risques: [...classifyRisques(entry.risque)] as RisqueCatnat[],
+          risques: [...classifyRisques(entry.risque)],
           eventStart: dateToIsoDate(entry.eventStart),
           eventEnd: dateToIsoDate(entry.eventEnd),
           outcome: entry.outcome as ArreteEntryOutcome,
