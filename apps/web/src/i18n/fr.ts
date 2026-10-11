@@ -89,6 +89,14 @@ const RAPPELS_DESACTIVER = 'Désactiver les rappels';
 const VOIR_MON_DOSSIER = 'Voir mon dossier';
 const FAIT = 'Fait';
 
+// The button of the commune answer names the page it leads to (dossier.formulaire).
+const PREPARER_MON_DOSSIER = 'Préparer mon dossier';
+// Read twice like VOIR_MON_DOSSIER above (reponseCommune below).
+const OUVRIR_MON_DOSSIER = 'Ouvrir mon dossier';
+// Dates a saved dossier and the period of an arrêté alike (sinistres.liste,
+// reponseCommune below).
+const EVENEMENT_DU = (date: string) => `Événement du ${date}`;
+
 const conteneurVide = (contenu: string) =>
   `${contenu} : cet espace s’ouvrira une fois votre dossier enregistré.`;
 
@@ -152,6 +160,22 @@ export const fr = {
     noneFound: COMMUNE_NONE_FOUND,
     clearSelection: 'Effacer la commune sélectionnée',
     selected: (label: string) => `Commune sélectionnée : ${label}`,
+  },
+  reponseCommune: {
+    testPage: 'Arrêtés d’une commune',
+    chargement: 'Recherche des arrêtés…',
+    trouves: (nombre: number, commune: string) =>
+      `${nombre} arrêté${nombre > 1 ? 's' : ''} trouvé${nombre > 1 ? 's' : ''} pour ${commune}.`,
+    aucun: (commune: string) => `Aucun arrêté récent pour ${commune}.`,
+    aucunSuite: (mois: number) =>
+      `Aucune catastrophe naturelle n’a été reconnue pour cette commune depuis ${mois} mois. Un arrêté peut paraître plusieurs semaines après l’événement : si vous avez des dégâts, vous pouvez préparer votre dossier dès maintenant.`,
+    preparer: PREPARER_MON_DOSSIER,
+    periode: (debut: string, fin: string) =>
+      debut === fin ? EVENEMENT_DU(debut) : `${EVENEMENT_DU(debut)} au ${fin}`,
+    refus:
+      'Reconnaissance refusée : l’État n’a pas reconnu cet événement comme catastrophe naturelle pour cette commune. Votre assurance ne peut donc pas indemniser ces dégâts au titre de la garantie catastrophe naturelle.',
+    ouvrir: OUVRIR_MON_DOSSIER,
+    ouvrirPour: (arrete: string) => `${OUVRIR_MON_DOSSIER} : ${arrete}`,
   },
   deadlineBadge: {
     derniereSemaine: 'Dernière semaine',
@@ -476,7 +500,7 @@ export const fr = {
         description:
           'Vous n’avez pas encore de dossier. Créez-en un pour recevoir votre plan d’actions après une catastrophe naturelle : démarches, délais et rappels.',
       },
-      eventDate: (date: string) => `Événement du ${date}`,
+      eventDate: EVENEMENT_DU,
       dossierLabel: (risque: string, commune: string) =>
         `${risque} — ${commune}`,
       viewLink: VOIR_MON_DOSSIER,
@@ -566,7 +590,7 @@ export const fr = {
     resume: (parts: readonly string[]) =>
       `Votre dossier : ${parts.join(' · ')}`,
     formulaire: {
-      titre: 'Préparer mon dossier',
+      titre: PREPARER_MON_DOSSIER,
       lead: 'Indiquez ce qui manque : votre plan d’actions s’affiche aussitôt, sans compte ni inscription.',
       submit: 'Voir mon plan d’actions',
       parametresRefuses:

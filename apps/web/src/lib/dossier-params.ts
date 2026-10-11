@@ -58,8 +58,17 @@ export function parseRisqueOptions(
   return named.size === 0 ? RISQUES : [...named];
 }
 
+/**
+ * The address of a dossier the commune answer links to: the three parameters,
+ * plus the categories to choose from when the arrêté named several and
+ * `risque` is therefore left out — `parseRisqueOptions` reads them back.
+ */
+export interface DossierLink extends DossierParams {
+  risques?: readonly RisqueCatnat[];
+}
+
 /** Shaped like `location.search`: `?…` when there is anything, empty string otherwise. */
-export function dossierSearch(params: DossierParams): string {
+export function dossierSearch(params: DossierLink): string {
   const searchParams = new URLSearchParams();
   if (params.commune) {
     searchParams.set('commune', params.commune);
@@ -70,6 +79,9 @@ export function dossierSearch(params: DossierParams): string {
   if (params.date) {
     searchParams.set('date', params.date);
   }
+  if (params.risques && params.risques.length > 0) {
+    searchParams.set('risques', params.risques.join(','));
+  }
 
   const query = searchParams.toString();
   return query === '' ? '' : `?${query}`;
@@ -78,7 +90,7 @@ export function dossierSearch(params: DossierParams): string {
 export type DossierPage = '/dossier' | '/inscription' | '/connexion';
 
 /** The pages a dossier travels between, each one carrying it in the address. */
-export function dossierPath(page: DossierPage, params: DossierParams): Route {
+export function dossierPath(page: DossierPage, params: DossierLink): Route {
   // typedRoutes cannot check a query built at runtime.
   return `${page}${dossierSearch(params)}` as Route;
 }
