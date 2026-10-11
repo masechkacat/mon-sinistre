@@ -16,7 +16,11 @@ import { dossierSearch } from '../../src/lib/dossier-params';
 import { dossierTitle } from '../../src/lib/dossier-title';
 import { RISQUES } from '../../src/lib/risques';
 import { expectNoAxeViolations } from '../support/a11y';
-import { NIMES, mockCommuneSearch } from '../support/communes';
+import {
+  NIMES,
+  mockCommuneSearch,
+  selectNimes,
+} from '../support/communes';
 import {
   APERCU_PARAMS,
   APERCU_STEPS,
@@ -154,6 +158,9 @@ test('arrêté refusé: the refusal is named in words, with a link to the arrêt
   );
   await expect(heroBadge(page)).toHaveCount(0);
   await expect(deadlineHeading(page)).toHaveCount(0);
+  // A refused arrêté covers nothing to refine the date in.
+  await expect(dateField(page)).toHaveCount(0);
+  await expect(page.getByRole('button')).toHaveCount(1);
 });
 
 test('an expired deadline is named expired in words, with no count of the days past it', async ({
@@ -167,6 +174,9 @@ test('an expired deadline is named expired in words, with no count of the days p
   );
   expect(fr.dossier.delaiExpire).not.toMatch(/\d/);
   await expect(heroBadge(page)).toHaveCount(0);
+  await expect(planItem(page, APERCU_STEPS.declaration)).not.toContainText(
+    badgeCopy.compteARebours(DEADLINE_EXPIRE.daysLeft),
+  );
 });
 
 test('the containers are shown empty, and the page carries one single action', async ({
@@ -349,14 +359,31 @@ test('with an arrêté the date is refined inside its period, and nowhere outsid
   await expect(page).toHaveURL(
     `/dossier${dossierSearch({ ...APERCU_PARAMS, date: ARRETE.eventEnd })}`,
   );
+  await expect(preciser).toBeFocused();
 });
 
-test('parameters the API refuses come back as the form, with an explanation instead of a server error', async ({
+test('refining the date to the one already shown says so instead of doing nothing', async ({
   page,
 }) => {
+  await openDossier(page, apercuPublie());
+
+  await page
+    .getByRole('button', { name: fr.dossier.formulaire.preciser.submit })
+    .click();
+
+  await expect(
+    page.getByText(fr.dossier.formulaire.inchange.preciser),
+  ).toBeVisible();
+  await expect(page).toHaveURL(DOSSIER_PATH);
+});
+
+/** Counts the aperçu requests, each answered with the API's 400. */
+async function refuseApercu(page: Page) {
+  const calls = { count: 0 };
   await page.route(`${testApiBaseUrl}/communes**`, mockCommuneSearch);
-  await page.route(`${testApiBaseUrl}/dossier/apercu**`, (route) =>
-    route.fulfill({
+  await page.route(`${testApiBaseUrl}/dossier/apercu**`, (route) => {
+    calls.count += 1;
+    return route.fulfill({
       status: 400,
       contentType: 'application/json',
       body: JSON.stringify({
@@ -364,14 +391,22 @@ test('parameters the API refuses come back as the form, with an explanation inst
         message: ['La date de l’événement ne peut pas être dans le futur.'],
         error: 'Bad Request',
       }),
-    }),
-  );
-
+    });
+  });
   await page.goto(DOSSIER_PATH);
-
   await expect(
     page.getByText(fr.dossier.formulaire.parametresRefuses),
   ).toBeVisible();
+  return calls;
+}
+
+test('parameters the API refuses come back as the form, with an explanation instead of a server error', async ({
+  page,
+}) => {
+  const calls = await refuseApercu(page);
+
+  // A 400 answers the same way twice: it is not retried.
+  expect(calls.count).toBe(1);
   await expect(page.getByTestId('request-error')).toHaveCount(0);
   // The refusal does not say which of the three it could not use, so all
   // three are asked again — the risk and the date keeping what the address
@@ -383,6 +418,20 @@ test('parameters the API refuses come back as the form, with an explanation inst
     }),
   ).toBeChecked();
   await expect(dateField(page)).toHaveValue(APERCU_PARAMS.date);
+});
+
+test('the refused parameters sent again are named unchanged, not sent to the API', async ({
+  page,
+}) => {
+  const calls = await refuseApercu(page);
+
+  await selectNimes(page, fr.sinistres.nouveau.communeLabel);
+  await formSubmit(page).click();
+
+  await expect(
+    page.getByText(fr.dossier.formulaire.inchange.refuse),
+  ).toBeVisible();
+  expect(calls.count).toBe(1);
 });
 
 test('the address alone opens the dossier in a browser that has never seen it', async ({

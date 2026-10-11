@@ -1,10 +1,11 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import type { Route } from 'next';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useRef, useState, type FormEvent } from 'react';
 import {
+  ArreteEntryOutcome,
   isIsoDate,
   type Commune,
   type DossierApercu,
@@ -80,6 +81,9 @@ function Apercu({
       params.date,
     ),
     queryFn: () => fetchDossierApercu(params),
+    // A refined date keeps the screen it was refined on: unmounting it while
+    // the new aperçu loads would drop the focus to the top of the page.
+    placeholderData: keepPreviousData,
   });
   const apercu = query.data;
 
@@ -101,7 +105,9 @@ function Apercu({
           refuse ? 'text-destructive' : 'text-muted-foreground',
         )}
       >
-        {query.isPending ? fr.dossier.chargement : null}
+        {query.isPending || query.isPlaceholderData
+          ? fr.dossier.chargement
+          : null}
         {refuse ? fr.dossier.formulaire.parametresRefuses : null}
       </p>
 
@@ -114,7 +120,6 @@ function Apercu({
             params={params}
             risqueOptions={risqueOptions}
             refuse
-            onRetry={() => void query.refetch()}
           />
         </>
       ) : null}
@@ -131,11 +136,11 @@ function Apercu({
             {apercu.arrete ? <ArreteLignes arrete={apercu.arrete} /> : null}
           </DossierEntete>
 
-          {/* With an arrêté the event date is no longer asked but refined:
-              the visitor arrived from the commune answer with the first day
-              of the period, and only the days it covers can anchor the plan
-              (PRD, «Ouvrir mon dossier»). */}
-          {apercu.arrete ? (
+          {/* With a recognised arrêté the event date is no longer asked but
+              refined: the visitor arrived from the commune answer with the
+              first day of the period, and only the days it covers can anchor
+              the plan (PRD, «Ouvrir mon dossier»). */}
+          {apercu.arrete?.outcome === ArreteEntryOutcome.RECONNU ? (
             <section className="space-y-4">
               <SectionHeading>
                 {fr.dossier.formulaire.preciser.titre}
@@ -160,7 +165,7 @@ function Apercu({
 
           {/* No onMark: nothing is stored to be marked until the dossier is
               saved, so the plan is read-only here. */}
-          <PlanList steps={apercu.steps} />
+          <PlanList steps={apercu.steps} apercu />
 
           <Button
             size="touch"
@@ -208,7 +213,6 @@ function Formulaire({
   params,
   risqueOptions,
   refuse,
-  onRetry,
   periode,
 }: {
   /** What the address already says: a parameter answered there is not asked. */
@@ -216,8 +220,6 @@ function Formulaire({
   risqueOptions: readonly RisqueCatnat[];
   /** The API refused this address: every field is asked again. */
   refuse?: boolean;
-  /** Called instead of a navigation when the answer repeats the address. */
-  onRetry?: () => void;
   /** Set on the aperçu screen: the date is then a refinement, not a question. */
   periode?: EventPeriode;
 }) {
@@ -233,8 +235,11 @@ function Formulaire({
   );
   const [eventDate, setEventDate] = useState<string>(params.date ?? '');
   const [errors, setErrors] = useState<SinistreFieldErrors>({});
-  const clearError = (champ: keyof SinistreFieldErrors) =>
+  const [inchange, setInchange] = useState(false);
+  const clearError = (champ: keyof SinistreFieldErrors) => {
+    setInchange(false);
     setErrors((previous) => ({ ...previous, [champ]: undefined }));
+  };
 
   // A refusal does not say which of the three it is about, so all three are
   // asked again — the commune included: only its code travelled in the
@@ -274,15 +279,14 @@ function Formulaire({
       risque: risque ?? params.risque,
       date: eventDate,
     };
-    // The same three values again: `replace` would navigate nowhere and the
-    // query would answer from its cached refusal, leaving a button that does
-    // nothing where the page just asked to try again.
+    // The same three values again: `replace` would navigate nowhere, and a
+    // refusal would only be refused again.
     if (
       reponse.commune === params.commune &&
       reponse.risque === params.risque &&
       reponse.date === params.date
     ) {
-      onRetry?.();
+      setInchange(true);
       return;
     }
 
@@ -336,9 +340,6 @@ function Formulaire({
         />
       ) : null}
 
-      {/* Outline, not the filled variant: on the aperçu screen the action of
-          the page is «Enregistrer ce dossier», and this one must not compete
-          with it. Full height either way — the audience needs the target. */}
       <Button
         type="submit"
         size="touch"
@@ -348,6 +349,10 @@ function Formulaire({
           ? fr.dossier.formulaire.preciser.submit
           : fr.dossier.formulaire.submit}
       </Button>
+      <p role="status" className="text-lg text-destructive">
+        {inchange && refuse ? fr.dossier.formulaire.inchange.refuse : null}
+        {inchange && !refuse ? fr.dossier.formulaire.inchange.preciser : null}
+      </p>
     </form>
   );
 }

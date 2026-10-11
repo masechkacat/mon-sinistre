@@ -6,7 +6,7 @@ import {
 import { DeadlineBadge } from '@/components/deadline-badge';
 import { Button } from '@/components/ui/button';
 import { fr } from '@/i18n/fr';
-import { deadlineBadgeState } from '@/lib/deadline-badge';
+import { DeadlineBadgeState, deadlineBadgeState } from '@/lib/deadline-badge';
 import { conteneurLabel } from '@/lib/plan-conteneur';
 import type { StepMark } from '@/lib/api/sinistres';
 import { SourceNote } from './source-note';
@@ -26,14 +26,17 @@ export function PlanStepItem({
   isNext = false,
   itemRef,
   onMark,
+  apercu = false,
 }: {
   step: PlanStep;
   isNext?: boolean;
   itemRef?: (node: HTMLLIElement | null) => void;
   onMark?: (mark: StepMark) => void;
+  apercu?: boolean;
 }) {
   const copy = fr.sinistres.detail;
   const conteneur = conteneurLabel(step.kind);
+  const state = deadlineBadgeState(step);
   const isClosed =
     step.status === StepStatus.FAIT ||
     step.status === StepStatus.NON_APPLICABLE;
@@ -58,9 +61,13 @@ export function PlanStepItem({
       ) : null}
       <DeadlineBadge
         form="row"
-        state={deadlineBadgeState(step)}
+        state={state}
         date={step.plannedDate}
-        daysLeft={step.daysLeft}
+        daysLeft={
+          apercu && state === DeadlineBadgeState.enRetard
+            ? null
+            : step.daysLeft
+        }
         completedAt={step.completedAt}
         delay={step.delay}
         anchor={step.anchor}

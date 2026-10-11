@@ -561,6 +561,12 @@ export const fr = {
         titre: 'Préciser la date de l’événement',
         submit: 'Mettre à jour la date',
       },
+      inchange: {
+        refuse:
+          'Ce sont les informations qui n’ont pas pu être utilisées : modifiez la commune, le risque ou la date.',
+        preciser:
+          'C’est déjà la date de ce dossier : choisissez-en une autre dans la période pour mettre le plan à jour.',
+      },
     },
     conteneur: {
       [StepKind.PHOTOS]: conteneurVide('Photos et vidéos des dégâts'),
