@@ -12,19 +12,17 @@ import {
 } from '@mon-sinistre/contracts';
 import { formatDateFr, formatDateShortFr } from '../../src/i18n/date';
 import { fr } from '../../src/i18n/fr';
-import { dossierSearch } from '../../src/lib/dossier-params';
+import { dossierPath } from '../../src/lib/dossier-params';
+import { loginPathWithNext } from '../../src/lib/api/session';
 import { dossierTitle } from '../../src/lib/dossier-title';
 import { RISQUES } from '../../src/lib/risques';
 import { expectNoAxeViolations } from '../support/a11y';
-import {
-  NIMES,
-  mockCommuneSearch,
-  selectNimes,
-} from '../support/communes';
+import { NIMES, mockCommuneSearch, selectNimes } from '../support/communes';
 import {
   APERCU_PARAMS,
   APERCU_STEPS,
   ARRETE,
+  AUTRE_DATE_EVENEMENT,
   DEADLINE,
   DOSSIER_FORM_PATH,
   DOSSIER_PATH,
@@ -33,7 +31,15 @@ import {
 } from '../support/dossier';
 import { testApiBaseUrl } from '../support/env';
 import { expectErrorTiedTo } from '../support/form';
-import { SOURCE } from '../support/sinistres';
+import { mockNoSession, mockSession } from '../support/session-mock';
+import {
+  SINISTRE_ID_1,
+  SINISTRE_ID_2,
+  SOURCE,
+  conflictReply,
+  createdReply,
+  mockCreateSinistre,
+} from '../support/sinistres';
 
 const copy = fr.sinistres.detail;
 const badgeCopy = fr.deadlineBadge;
@@ -199,14 +205,127 @@ test('the containers are shown empty, and the page carries one single action', a
   ).toBeVisible();
 });
 
-test('saving the dossier carries its three parameters to the registration page', async ({
+test('with no session, saving the dossier carries its three parameters to the registration page', async ({
   page,
 }) => {
+  await mockNoSession(page);
   await openDossier(page, apercuFixture());
 
   await page.getByRole('button', { name: fr.dossier.enregistrer }).click();
 
-  await expect(page).toHaveURL(`/inscription${dossierSearch(APERCU_PARAMS)}`);
+  await expect(page).toHaveURL(dossierPath('/inscription', APERCU_PARAMS));
+});
+
+test('a refresh that gets no answer reports a failure rather than asking to register', async ({
+  page,
+}) => {
+  // The cookie may well be valid: only the API's own 401 says it is not.
+  await page.route(`${testApiBaseUrl}/auth/refresh`, (route) =>
+    route.fulfill({ status: 503, contentType: 'application/json', body: '{}' }),
+  );
+  await openDossier(page, apercuFixture());
+
+  await page.getByRole('button', { name: fr.dossier.enregistrer }).click();
+
+  await expect(page.getByTestId('request-error')).toBeVisible();
+  await expect(page).toHaveURL(DOSSIER_PATH);
+});
+
+test('with a session, the same button saves the dossier and opens it as a sinistre', async ({
+  page,
+}) => {
+  await mockSession(page).install();
+  const sent = await mockCreateSinistre(page, [
+    createdReply(SINISTRE_ID_1, 201),
+  ]);
+  await openDossier(page, apercuFixture());
+
+  await page.getByRole('button', { name: fr.dossier.enregistrer }).click();
+
+  await expect(page).toHaveURL(`/sinistres/${SINISTRE_ID_1}`);
+  expect(sent).toEqual([
+    {
+      codeInsee: APERCU_PARAMS.commune,
+      risque: APERCU_PARAMS.risque,
+      eventDate: APERCU_PARAMS.date,
+    },
+  ]);
+});
+
+test('a dossier already open for the commune is asked about instead of being doubled', async ({
+  page,
+}) => {
+  await mockSession(page).install();
+  await mockCreateSinistre(page, [
+    conflictReply(SINISTRE_ID_2, AUTRE_DATE_EVENEMENT),
+  ]);
+  await openDossier(page, apercuFixture());
+
+  await page.getByRole('button', { name: fr.dossier.enregistrer }).click();
+
+  await expect(
+    page.getByRole('link', { name: fr.sinistres.doublon.ouvrir }),
+  ).toHaveAttribute('href', `/sinistres/${SINISTRE_ID_2}`);
+  await expect(
+    page.getByRole('list', { name: copy.timelineLabel }),
+  ).toHaveCount(0);
+});
+
+test('“revenir et corriger” gives the aperçu back with its save button focused', async ({
+  page,
+}) => {
+  await mockSession(page).install();
+  await mockCreateSinistre(page, [
+    conflictReply(SINISTRE_ID_2, AUTRE_DATE_EVENEMENT),
+  ]);
+  await openDossier(page, apercuFixture());
+
+  await page.getByRole('button', { name: fr.dossier.enregistrer }).click();
+  await page
+    .getByRole('button', { name: fr.sinistres.doublon.corriger })
+    .click();
+
+  await expect(
+    page.getByRole('button', { name: fr.dossier.enregistrer }),
+  ).toBeFocused();
+  await expect(page.getByTestId('dossier-existant')).toHaveCount(0);
+});
+
+test('a session lost on saving sends to the login on the way back to this dossier', async ({
+  page,
+}) => {
+  await mockSession(page).install();
+  await page.route(`${testApiBaseUrl}/sinistres`, (route) =>
+    route.fulfill({ status: 401, contentType: 'application/json', body: '{}' }),
+  );
+  await openDossier(page, apercuFixture());
+
+  await page.getByRole('button', { name: fr.dossier.enregistrer }).click();
+
+  await expect(page).toHaveURL(loginPathWithNext(DOSSIER_PATH));
+});
+
+test('a save that failed stops being reported once the date is refined', async ({
+  page,
+}) => {
+  await mockSession(page).install();
+  await mockCreateSinistre(page, [
+    { status: 500, contentType: 'application/json', body: '{}' },
+  ]);
+  await openDossier(page, apercuPublie());
+
+  await page.getByRole('button', { name: fr.dossier.enregistrer }).click();
+  await expect(page.getByTestId('request-error')).toBeVisible();
+
+  await dateField(page).fill(ARRETE.eventEnd);
+  await page
+    .getByRole('button', { name: fr.dossier.formulaire.preciser.submit })
+    .click();
+
+  await expect(page).toHaveURL(
+    dossierPath('/dossier', { ...APERCU_PARAMS, date: ARRETE.eventEnd }),
+  );
+  await expect(page.getByTestId('request-error')).toHaveCount(0);
 });
 
 const communeField = (page: Page) =>
@@ -357,7 +476,7 @@ test('with an arrêté the date is refined inside its period, and nowhere outsid
   await preciser.click();
 
   await expect(page).toHaveURL(
-    `/dossier${dossierSearch({ ...APERCU_PARAMS, date: ARRETE.eventEnd })}`,
+    dossierPath('/dossier', { ...APERCU_PARAMS, date: ARRETE.eventEnd }),
   );
   await expect(preciser).toBeFocused();
 });

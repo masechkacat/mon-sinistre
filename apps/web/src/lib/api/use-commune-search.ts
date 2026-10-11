@@ -4,7 +4,7 @@ import {
   COMMUNE_SEARCH_MIN_QUERY_LENGTH,
   type Commune,
 } from '@mon-sinistre/contracts';
-import { apiFetch } from '@/lib/api/client';
+import { fetchCommunes } from '@/lib/api/communes';
 import { queryKeys } from '@/lib/api/keys';
 
 // Declared once so `items` keeps its identity between renders with no results.
@@ -55,8 +55,7 @@ export function useCommuneSearch({
 
   const { data, isFetching } = useQuery({
     queryKey: queryKeys.communes(query),
-    queryFn: () =>
-      apiFetch<Commune[]>(`/communes?q=${encodeURIComponent(query)}`),
+    queryFn: () => fetchCommunes(query),
     enabled: searchEnabled,
     placeholderData: keepPreviousData,
     // The referential is near-static; without this every window refocus and

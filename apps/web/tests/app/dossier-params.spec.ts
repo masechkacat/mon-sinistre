@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { RisqueCatnat, toIsoDate } from '@mon-sinistre/contracts';
 import {
+  dossierPath,
   dossierSearch,
   parseDossierParams,
   parseRisqueOptions,
@@ -83,4 +84,11 @@ test('serialising and parsing are mutually inverse', () => {
   expect(parseDossierParams(new URLSearchParams(dossierSearch({})))).toEqual(
     EMPTY,
   );
+});
+
+test('every page of the dossier gets the same query, and none when there is nothing to carry', () => {
+  expect(dossierPath('/inscription', PARAMS)).toBe(
+    '/inscription?commune=30189&risque=INONDATION&date=2026-09-13',
+  );
+  expect(dossierPath('/connexion', {})).toBe('/connexion');
 });

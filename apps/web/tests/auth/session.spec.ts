@@ -3,7 +3,12 @@ import { fr } from '../../src/i18n/fr';
 import { expectNoAxeViolations } from '../support/a11y';
 import { testApiBaseUrl } from '../support/env';
 import { VALID_PASSWORD as PASSWORD } from '../support/form';
-import { ACCESS_TOKEN, mockSession } from '../support/session-mock';
+import { loginPathWithNext } from '../../src/lib/api/session';
+import {
+  ACCESS_TOKEN,
+  mockNoSession,
+  mockSession,
+} from '../support/session-mock';
 
 const EMAIL = 'sinistre@example.fr';
 const REFRESH_COOKIE = 'refresh_token=jeton-refresh-test';
@@ -25,13 +30,11 @@ test('a session with a valid refresh cookie survives a page reload', async ({
 test('no session redirects to the login page instead of showing protected content', async ({
   page,
 }) => {
-  await page.route(`${testApiBaseUrl}/auth/refresh`, (route) =>
-    route.fulfill({ status: 401, contentType: 'application/json', body: '{}' }),
-  );
+  await mockNoSession(page);
 
   await page.goto('/espace-personnel');
 
-  await expect(page).toHaveURL(/\/connexion$/);
+  await expect(page).toHaveURL(loginPathWithNext('/espace-personnel'));
   await expect(page.getByTestId('espace-personnel-content')).toHaveCount(0);
 });
 

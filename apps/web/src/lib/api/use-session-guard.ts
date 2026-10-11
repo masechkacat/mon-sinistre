@@ -33,9 +33,9 @@ export function useSessionGuard(): SessionGuardStatus {
         return;
       }
       setStatus('checking');
-      const ok = await refreshSession();
+      const outcome = await refreshSession();
       if (cancelled) return;
-      if (ok) {
+      if (outcome === 'open') {
         setStatus('authenticated');
       } else {
         redirectToLogin();

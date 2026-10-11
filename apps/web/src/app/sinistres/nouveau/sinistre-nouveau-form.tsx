@@ -1,8 +1,5 @@
 'use client';
 
-import { useMutation } from '@tanstack/react-query';
-import type { Route } from 'next';
-import { useRouter } from 'next/navigation';
 import { useRef, useState, type FormEvent } from 'react';
 import {
   isIsoDate,
@@ -12,6 +9,7 @@ import {
 import { CommuneSelect } from '@/components/commune-select';
 import { PageContainer } from '@/components/page-container';
 import { PageTitle } from '@/components/page-title';
+import { DossierExistant } from '@/components/plan/dossier-existant';
 import { RequestError } from '@/components/request-error';
 import {
   EventDateField,
@@ -21,13 +19,12 @@ import {
 } from '@/components/sinistre-fields';
 import { Button } from '@/components/ui/button';
 import { ApiError } from '@/lib/api/client';
-import { createSinistre } from '@/lib/api/sinistres';
+import { useCreateSinistre } from '@/lib/api/use-create-sinistre';
 import { useSessionGuard } from '@/lib/api/use-session-guard';
 import { fr } from '@/i18n/fr';
 
 export function SinistreNouveauForm() {
   const status = useSessionGuard();
-  const router = useRouter();
   const [commune, setCommune] = useState<Commune | null>(null);
   const [risque, setRisque] = useState<RisqueCatnat | null>(null);
   const [eventDate, setEventDate] = useState('');
@@ -36,16 +33,8 @@ export function SinistreNouveauForm() {
   const [eventDateError, setEventDateError] = useState<string>();
   const formRef = useRef<HTMLFormElement>(null);
 
-  const mutation = useMutation({
-    mutationFn: createSinistre,
-    onSuccess: (sinistre) => {
-      // The timeline screen (docs/plan/sinistre-plan.md, Фаза 7) does not
-      // exist yet, so typedRoutes cannot verify this path — same escape
-      // hatch as tests/support/pages.ts uses for a URL it cannot statically
-      // know either. Runtime 404 until that phase ships is expected.
-      router.push(`/sinistres/${sinistre.id}` as Route);
-    },
-  });
+  const { mutation, conflict, failed, confirmNew, dismissConflict } =
+    useCreateSinistre();
 
   // The date's own future-date rule lives once, in the API's DTO validator
   // (IsNotFutureIsoDate) — this reads its French answer back rather than
@@ -63,7 +52,7 @@ export function SinistreNouveauForm() {
       ? mutation.error.detail
       : undefined;
   const eventDateFieldError = eventDateError ?? apiEventDateError;
-  const requestFailed = mutation.isError && !apiEventDateError;
+  const requestFailed = failed && !apiEventDateError;
 
   // A failed request describes the form as it was sent, so the first edit to
   // any field makes that answer stale — the banner cannot outlive the state
@@ -116,60 +105,73 @@ export function SinistreNouveauForm() {
   }
 
   return (
-    <PageContainer className="space-y-8">
-      <section className="space-y-4">
-        <PageTitle>{fr.sinistres.nouveau.page.title}</PageTitle>
-        <p className="text-lg text-muted-foreground">
-          {fr.sinistres.nouveau.lead}
-        </p>
-      </section>
+    <DossierExistant
+      conflict={conflict}
+      onConfirmNew={confirmNew}
+      onCorriger={() => {
+        dismissConflict();
+        focusFirstFieldError(formRef.current, {});
+      }}
+      pending={mutation.isPending}
+      // Any failure, the date's own included: the field it would be tied to
+      // is behind this screen.
+      failed={failed}
+    >
+      <PageContainer className="space-y-8">
+        <section className="space-y-4">
+          <PageTitle>{fr.sinistres.nouveau.page.title}</PageTitle>
+          <p className="text-lg text-muted-foreground">
+            {fr.sinistres.nouveau.lead}
+          </p>
+        </section>
 
-      <form
-        ref={formRef}
-        className="space-y-6"
-        onSubmit={handleSubmit}
-        noValidate
-        aria-busy={mutation.isPending}
-      >
-        <CommuneSelect
-          value={commune}
-          onValueChange={(next) => {
-            setCommune(next);
-            if (next) setCommuneError(undefined);
-            dismissRequestError();
-          }}
-          label={fr.sinistres.nouveau.communeLabel}
-          error={communeError}
-        />
+        <form
+          ref={formRef}
+          className="space-y-6"
+          onSubmit={handleSubmit}
+          noValidate
+          aria-busy={mutation.isPending}
+        >
+          <CommuneSelect
+            value={commune}
+            onValueChange={(next) => {
+              setCommune(next);
+              if (next) setCommuneError(undefined);
+              dismissRequestError();
+            }}
+            label={fr.sinistres.nouveau.communeLabel}
+            error={communeError}
+          />
 
-        <RisqueField
-          value={risque}
-          onValueChange={(next) => {
-            setRisque(next);
-            setRisqueError(undefined);
-            dismissRequestError();
-          }}
-          error={risqueError}
-        />
+          <RisqueField
+            value={risque}
+            onValueChange={(next) => {
+              setRisque(next);
+              setRisqueError(undefined);
+              dismissRequestError();
+            }}
+            error={risqueError}
+          />
 
-        <EventDateField
-          value={eventDate}
-          onValueChange={(next) => {
-            setEventDate(next);
-            setEventDateError(undefined);
-            dismissRequestError();
-          }}
-          error={eventDateFieldError}
-        />
+          <EventDateField
+            value={eventDate}
+            onValueChange={(next) => {
+              setEventDate(next);
+              setEventDateError(undefined);
+              dismissRequestError();
+            }}
+            error={eventDateFieldError}
+          />
 
-        <Button type="submit" size="touch" disabled={mutation.isPending}>
-          {mutation.isPending
-            ? fr.sinistres.nouveau.submitting
-            : fr.sinistres.nouveau.submit}
-        </Button>
+          <Button type="submit" size="touch" disabled={mutation.isPending}>
+            {mutation.isPending
+              ? fr.sinistres.nouveau.submitting
+              : fr.sinistres.nouveau.submit}
+          </Button>
 
-        {requestFailed ? <RequestError /> : null}
-      </form>
-    </PageContainer>
+          {requestFailed ? <RequestError /> : null}
+        </form>
+      </PageContainer>
+    </DossierExistant>
   );
 }

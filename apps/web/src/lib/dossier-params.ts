@@ -1,5 +1,7 @@
+import type { Route } from 'next';
 import {
   isIsoDate,
+  type DossierInput,
   type IsoDate,
   type RisqueCatnat,
 } from '@mon-sinistre/contracts';
@@ -10,6 +12,20 @@ export interface DossierParams {
   commune?: string;
   risque?: RisqueCatnat;
   date?: IsoDate;
+}
+
+/**
+ * `undefined` while any of the three is missing: an incomplete address is not
+ * a dossier yet. The overload spares a page that already holds all three a
+ * check that cannot fail.
+ */
+export function dossierInput(params: Required<DossierParams>): DossierInput;
+export function dossierInput(params: DossierParams): DossierInput | undefined;
+export function dossierInput(params: DossierParams): DossierInput | undefined {
+  const { commune, risque, date } = params;
+  return commune && risque && date
+    ? { codeInsee: commune, risque, eventDate: date }
+    : undefined;
 }
 
 export function parseDossierParams(
@@ -57,4 +73,12 @@ export function dossierSearch(params: DossierParams): string {
 
   const query = searchParams.toString();
   return query === '' ? '' : `?${query}`;
+}
+
+export type DossierPage = '/dossier' | '/inscription' | '/connexion';
+
+/** The pages a dossier travels between, each one carrying it in the address. */
+export function dossierPath(page: DossierPage, params: DossierParams): Route {
+  // typedRoutes cannot check a query built at runtime.
+  return `${page}${dossierSearch(params)}` as Route;
 }

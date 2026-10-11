@@ -1,3 +1,4 @@
+import type { Route } from 'next';
 import type { LoginResponse } from '@mon-sinistre/contracts';
 import { apiBaseUrl } from './config';
 
@@ -7,6 +8,51 @@ import { apiBaseUrl } from './config';
  * the client links to it (`src/app/connexion/`).
  */
 export const LOGIN_PATH = '/connexion';
+
+export const LOGIN_NEXT_PARAM = 'suivant';
+
+/** The login address that comes back to `path` once the session is open. */
+export function loginPathWithNext(path: string): Route {
+  const search = new URLSearchParams({ [LOGIN_NEXT_PARAM]: path });
+  return `${LOGIN_PATH}?${search}` as Route;
+}
+
+export function loginPathToSinistre(sinistreId: string | undefined): Route {
+  return sinistreId
+    ? loginPathWithNext(`/sinistres/${sinistreId}`)
+    : LOGIN_PATH;
+}
+
+/** Any origin will do, as long as resolving against it is the only way to
+ * reach it: `.invalid` is reserved and resolves nowhere. */
+const SAME_ORIGIN = 'https://interne.invalid';
+
+/**
+ * Where the address asks to go after the login — a path inside the app, or
+ * `null` for anything else. The value is read by the very parser that would
+ * carry the navigation rather than matched as text: `//evil.example` is a
+ * protocol-relative URL, `/\evil.example` is one too (`\` reads as `/` in an
+ * http address), and `/%09/evil.example` becomes one once the tab is dropped
+ * — three spellings of another host that all look like a path. What comes
+ * back is the parser's own reading of the value, so that what was checked is
+ * what gets navigated to.
+ */
+export function loginNextPath(searchParams: URLSearchParams): Route | null {
+  const next = searchParams.get(LOGIN_NEXT_PARAM) ?? '';
+  if (!next.startsWith('/')) return null;
+  try {
+    const url = new URL(next, SAME_ORIGIN);
+    const path = `${url.pathname}${url.search}${url.hash}`;
+    // The reading is checked again after it was read: `/..//evil.example`
+    // resolves inside the origin, and its dot segment leaves a path that is
+    // protocol-relative all over again.
+    return url.origin === SAME_ORIGIN && !path.startsWith('//')
+      ? (path as Route)
+      : null;
+  } catch {
+    return null;
+  }
+}
 
 const REFRESH_PATH = '/auth/refresh';
 const LOGOUT_PATH = '/auth/logout';
@@ -33,24 +79,31 @@ export function clearAccessToken(): void {
   accessToken = null;
 }
 
-let refreshInFlight: Promise<boolean> | null = null;
+/**
+ * What a silent refresh found: a session, none (the API refused the cookie),
+ * or no answer at all — a request that failed says nothing about the cookie,
+ * and a person holding a valid one must not be taken for a stranger.
+ */
+export type RefreshOutcome = 'open' | 'none' | 'failed';
 
-async function requestRefresh(): Promise<boolean> {
+let refreshInFlight: Promise<RefreshOutcome> | null = null;
+
+async function requestRefresh(): Promise<RefreshOutcome> {
   try {
     const response = await fetch(`${apiBaseUrl}${REFRESH_PATH}`, {
       method: 'POST',
       credentials: 'include',
     });
-    if (!response.ok) {
-      clearAccessToken();
-      return false;
+    if (response.ok) {
+      const body = (await response.json()) as LoginResponse;
+      setAccessToken(body.accessToken);
+      return 'open';
     }
-    const body = (await response.json()) as LoginResponse;
-    setAccessToken(body.accessToken);
-    return true;
+    clearAccessToken();
+    return response.status === 401 ? 'none' : 'failed';
   } catch {
     clearAccessToken();
-    return false;
+    return 'failed';
   }
 }
 
@@ -65,7 +118,7 @@ async function requestRefresh(): Promise<boolean> {
  * instead of each rotating the cookie themselves — only one of several
  * racing rotations would still be valid afterwards.
  */
-export function refreshSession(): Promise<boolean> {
+export function refreshSession(): Promise<RefreshOutcome> {
   if (!refreshInFlight) {
     refreshInFlight = requestRefresh().finally(() => {
       refreshInFlight = null;
@@ -92,17 +145,24 @@ export function clearSessionAndNavigate(path: string): void {
 
 /**
  * A session confirmed lost — a failed silent refresh, or an authenticated
- * request's 401 that a refresh could not recover.
+ * request's 401 that a refresh could not recover. The login comes back to the
+ * page that lost it.
  */
 export function redirectToLogin(): void {
-  clearSessionAndNavigate(LOGIN_PATH);
+  const { pathname, search } = window.location;
+  // The login page loses a session too — saving the dossier of its address
+  // once logged in — and that address already says where to go next.
+  clearSessionAndNavigate(
+    pathname === LOGIN_PATH
+      ? `${pathname}${search}`
+      : loginPathWithNext(`${pathname}${search}`),
+  );
 }
 
 /**
  * Ends the session everywhere: revokes the refresh cookie server-side (best
  * effort — a network failure here must not strand the person on a screen
- * that still looks logged in) before falling back to the same redirect as
- * an ordinary lost session.
+ * that still looks logged in) before leaving for the login page.
  */
 export async function endSession(): Promise<void> {
   try {
@@ -113,5 +173,5 @@ export async function endSession(): Promise<void> {
   } catch {
     // Best effort — see docblock above.
   }
-  redirectToLogin();
+  clearSessionAndNavigate(LOGIN_PATH);
 }

@@ -111,8 +111,7 @@ export interface VeilleChangeResponse {
 export interface RegisterInput {
   email: string;
   password: string;
-  /** `confirmNew` is excluded: a brand-new account has no sinistre to collide with. */
-  dossier?: Omit<CreateSinistreInput, 'confirmNew'>;
+  dossier?: DossierInput;
 }
 
 /** Response body of the account confirmation endpoint (`POST`). */
@@ -302,6 +301,10 @@ export interface CreateSinistreInput {
   /** Answer to a `SinistreConflict`; omitted on a first attempt. */
   confirmNew?: boolean;
 }
+
+/** The three parameters alone — a dossier carried through a registration. A
+ * brand-new account has no sinistre to collide with, hence no `confirmNew`. */
+export type DossierInput = Omit<CreateSinistreInput, 'confirmNew'>;
 
 /**
  * Body of the `409` from `POST /sinistres`: the user already has a dossier for

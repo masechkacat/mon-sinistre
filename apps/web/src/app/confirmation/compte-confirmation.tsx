@@ -13,6 +13,7 @@ import { PageTitle } from '@/components/page-title';
 import { RequestError } from '@/components/request-error';
 import { Button } from '@/components/ui/button';
 import { apiFetch } from '@/lib/api/client';
+import { loginPathToSinistre } from '@/lib/api/session';
 import { fr } from '@/i18n/fr';
 
 // Unlike veille's confirmation page, there is no GET status endpoint here
@@ -52,7 +53,7 @@ export function CompteConfirmation() {
       resultAction={
         status === 'confirmed' ? (
           <Link
-            href="/connexion"
+            href={loginPathToSinistre(confirmMutation.data?.sinistreId)}
             className="underline underline-offset-4"
             data-testid="compte-confirmation-login-link"
           >

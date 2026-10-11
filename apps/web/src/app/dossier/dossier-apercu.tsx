@@ -1,7 +1,6 @@
 'use client';
 
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import type { Route } from 'next';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useRef, useState, type FormEvent } from 'react';
 import {
@@ -16,6 +15,7 @@ import { PageContainer } from '@/components/page-container';
 import { PageTitle } from '@/components/page-title';
 import { DeclarationDeadlineBlock } from '@/components/plan/declaration-deadline-block';
 import { DossierEntete } from '@/components/plan/dossier-entete';
+import { DossierExistant } from '@/components/plan/dossier-existant';
 import { PlanList } from '@/components/plan/plan-list';
 import { RequestError } from '@/components/request-error';
 import { SectionHeading } from '@/components/section-heading';
@@ -33,7 +33,11 @@ import { fr } from '@/i18n/fr';
 import { ApiError } from '@/lib/api/client';
 import { fetchDossierApercu } from '@/lib/api/dossier';
 import { queryKeys } from '@/lib/api/keys';
+import { getAccessToken, refreshSession } from '@/lib/api/session';
+import { useCreateSinistre } from '@/lib/api/use-create-sinistre';
 import {
+  dossierInput,
+  dossierPath,
   dossierSearch,
   parseDossierParams,
   parseRisqueOptions,
@@ -74,6 +78,15 @@ function Apercu({
   risqueOptions: readonly RisqueCatnat[];
 }) {
   const router = useRouter();
+  const { mutation, conflict, failed, confirmNew, dismissConflict } =
+    useCreateSinistre(dossierInput(params));
+  const [enregistrement, setEnregistrement] = useState(false);
+  // Keyed on the address like the hook's own answers: `Apercu` outlives a
+  // change of it (`keepPreviousData`), and a failure must not outlive the
+  // dossier it was about.
+  const [sessionEchecPour, setSessionEchecPour] = useState<string>();
+  const sessionEchec = sessionEchecPour === dossierSearch(params);
+  const ecranRef = useRef<HTMLDivElement>(null);
   const query = useQuery({
     queryKey: queryKeys.dossierApercu(
       params.commune,
@@ -92,92 +105,125 @@ function Apercu({
   // "try again later" of a failed request.
   const refuse = query.error instanceof ApiError && query.error.status === 400;
 
+  const enregistrer = async () => {
+    setEnregistrement(true);
+    setSessionEchecPour(undefined);
+    try {
+      const session = getAccessToken() ? 'open' : await refreshSession();
+      if (session === 'open') {
+        await mutation.mutateAsync(dossierInput(params));
+      } else if (session === 'none') {
+        router.push(dossierPath('/inscription', params));
+      } else {
+        setSessionEchecPour(dossierSearch(params));
+      }
+    } catch {
+      // Answered on screen by the hook: the conflict around this page, any
+      // other failure under the button.
+    } finally {
+      setEnregistrement(false);
+    }
+  };
+
   return (
-    <PageContainer className="space-y-8">
-      {/* The whole screen comes from the request, so until it answers there
+    <DossierExistant
+      conflict={conflict}
+      onConfirmNew={confirmNew}
+      onCorriger={() => {
+        dismissConflict();
+        ecranRef.current
+          ?.querySelector<HTMLElement>('input[type="date"], [data-enregistrer]')
+          ?.focus();
+      }}
+      pending={mutation.isPending}
+      failed={failed}
+    >
+      <PageContainer ref={ecranRef} className="space-y-8">
+        {/* The whole screen comes from the request, so until it answers there
           is nothing else on the page to read. Mounted before the answer and
           only ever changing text: the refusal below is announced that way
           (apps/web/CLAUDE.md, live-регионы). */}
-      <p
-        role="status"
-        className={cn(
-          'min-h-7 text-lg',
-          refuse ? 'text-destructive' : 'text-muted-foreground',
-        )}
-      >
-        {query.isPending || query.isPlaceholderData
-          ? fr.dossier.chargement
-          : null}
-        {refuse ? fr.dossier.formulaire.parametresRefuses : null}
-      </p>
+        <p
+          role="status"
+          className={cn(
+            'min-h-7 text-lg',
+            refuse ? 'text-destructive' : 'text-muted-foreground',
+          )}
+        >
+          {query.isPending || query.isPlaceholderData
+            ? fr.dossier.chargement
+            : null}
+          {refuse ? fr.dossier.formulaire.parametresRefuses : null}
+        </p>
 
-      {query.isError && !refuse ? <RequestError /> : null}
+        {query.isError && !refuse ? <RequestError /> : null}
 
-      {refuse ? (
-        <>
-          <FormulaireEntete />
-          <Formulaire
-            params={params}
-            risqueOptions={risqueOptions}
-            refuse
-          />
-        </>
-      ) : null}
+        {refuse ? (
+          <>
+            <FormulaireEntete />
+            <Formulaire params={params} risqueOptions={risqueOptions} refuse />
+          </>
+        ) : null}
 
-      {apercu ? (
-        <>
-          <DossierEntete
-            title={dossierTitle(apercu)}
-            statut={fr.sinistres.statut[apercu.status]}
-          >
-            <p>
-              {fr.sinistres.liste.eventDate(formatDateFr(apercu.eventDate))}
-            </p>
-            {apercu.arrete ? <ArreteLignes arrete={apercu.arrete} /> : null}
-          </DossierEntete>
+        {apercu ? (
+          <>
+            <DossierEntete
+              title={dossierTitle(apercu)}
+              statut={fr.sinistres.statut[apercu.status]}
+            >
+              <p>
+                {fr.sinistres.liste.eventDate(formatDateFr(apercu.eventDate))}
+              </p>
+              {apercu.arrete ? <ArreteLignes arrete={apercu.arrete} /> : null}
+            </DossierEntete>
 
-          {/* With a recognised arrêté the event date is no longer asked but
+            {/* With a recognised arrêté the event date is no longer asked but
               refined: the visitor arrived from the commune answer with the
               first day of the period, and only the days it covers can anchor
               the plan (PRD, «Ouvrir mon dossier»). */}
-          {apercu.arrete?.outcome === ArreteEntryOutcome.RECONNU ? (
-            <section className="space-y-4">
-              <SectionHeading>
-                {fr.dossier.formulaire.preciser.titre}
-              </SectionHeading>
-              <Formulaire
-                params={params}
-                risqueOptions={risqueOptions}
-                periode={{
-                  min: apercu.arrete.eventStart,
-                  max: apercu.arrete.eventEnd,
-                }}
+            {apercu.arrete?.outcome === ArreteEntryOutcome.RECONNU ? (
+              <section className="space-y-4">
+                <SectionHeading>
+                  {fr.dossier.formulaire.preciser.titre}
+                </SectionHeading>
+                <Formulaire
+                  params={params}
+                  risqueOptions={risqueOptions}
+                  periode={{
+                    min: apercu.arrete.eventStart,
+                    max: apercu.arrete.eventEnd,
+                  }}
+                />
+              </section>
+            ) : null}
+
+            {apercu.declarationDeadline ? (
+              <DeclarationDeadlineBlock
+                deadline={apercu.declarationDeadline}
+                apercu
               />
-            </section>
-          ) : null}
+            ) : null}
 
-          {apercu.declarationDeadline ? (
-            <DeclarationDeadlineBlock
-              deadline={apercu.declarationDeadline}
-              apercu
-            />
-          ) : null}
-
-          {/* No onMark: nothing is stored to be marked until the dossier is
+            {/* No onMark: nothing is stored to be marked until the dossier is
               saved, so the plan is read-only here. */}
-          <PlanList steps={apercu.steps} apercu />
+            <PlanList steps={apercu.steps} apercu />
 
-          <Button
-            size="touch"
-            onClick={() =>
-              router.push(`/inscription${dossierSearch(params)}` as Route)
-            }
-          >
-            {fr.dossier.enregistrer}
-          </Button>
-        </>
-      ) : null}
-    </PageContainer>
+            <Button
+              size="touch"
+              onClick={() => enregistrer()}
+              disabled={enregistrement}
+              data-enregistrer
+            >
+              {enregistrement
+                ? fr.dossier.enregistrement
+                : fr.dossier.enregistrer}
+            </Button>
+
+            {failed || sessionEchec ? <RequestError /> : null}
+          </>
+        ) : null}
+      </PageContainer>
+    </DossierExistant>
   );
 }
 
@@ -294,7 +340,7 @@ function Formulaire({
     // answered, and the back button belongs to the page the visitor came
     // from. `risques`, the hint of a multi-risk arrêté, has done its job and
     // is left behind.
-    router.replace(`/dossier${dossierSearch(reponse)}` as Route);
+    router.replace(dossierPath('/dossier', reponse));
   };
 
   return (

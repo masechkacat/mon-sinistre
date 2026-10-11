@@ -2,6 +2,8 @@ import { expect, test } from '@playwright/test';
 import { fr } from '../../src/i18n/fr';
 import { expectNoAxeViolations } from '../support/a11y';
 import { testApiBaseUrl } from '../support/env';
+import { loginPathToSinistre } from '../../src/lib/api/session';
+import { SINISTRE_ID_1 } from '../support/sinistres';
 import {
   expectErrorTiedTo,
   fulfillStatus,
@@ -190,3 +192,25 @@ for (const colorScheme of ['light', 'dark'] as const) {
     await expectNoAxeViolations(page);
   });
 }
+
+test('a reset that confirms the account and saves its dossier logs in on the way to that dossier', async ({
+  page,
+}) => {
+  await page.route(`${testApiBaseUrl}/auth/password-reset/confirm`, (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ status: 'reset', sinistreId: SINISTRE_ID_1 }),
+    }),
+  );
+
+  await page.goto(`/reinitialisation?token=${RESET_TOKEN}`);
+  await page
+    .getByLabel(fr.compte.reinitialisation.passwordLabel)
+    .fill(VALID_PASSWORD);
+  await page
+    .getByRole('button', { name: fr.compte.reinitialisation.submit })
+    .click();
+
+  await expect(page).toHaveURL(loginPathToSinistre(SINISTRE_ID_1));
+});

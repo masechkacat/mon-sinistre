@@ -16,6 +16,10 @@ export class ApiError extends Error {
      * a caller trust that `detail` is about the field it validated,
      * instead of an unrelated business error it would otherwise mislabel. */
     public readonly detailIsFieldError: boolean = false,
+    /** The parsed JSON body, when the API sent one. An error can carry data
+     * the caller has to act on and not only a sentence to show — the dossier
+     * a `409` names (`sinistreConflictOf`). */
+    public readonly body?: unknown,
   ) {
     super(`API error ${status} on ${path}`);
     this.name = 'ApiError';
@@ -23,6 +27,7 @@ export class ApiError extends Error {
 }
 
 interface ErrorDetail {
+  body?: unknown;
   detail?: string;
   detailIsFieldError: boolean;
 }
@@ -32,12 +37,12 @@ async function readErrorDetail(response: Response): Promise<ErrorDetail> {
     const body: unknown = await response.json();
     const message = (body as { message?: unknown } | null)?.message;
     if (typeof message === 'string') {
-      return { detail: message, detailIsFieldError: false };
+      return { body, detail: message, detailIsFieldError: false };
     }
     if (Array.isArray(message) && typeof message[0] === 'string') {
-      return { detail: message[0], detailIsFieldError: true };
+      return { body, detail: message[0], detailIsFieldError: true };
     }
-    return { detailIsFieldError: false };
+    return { body, detailIsFieldError: false };
   } catch {
     return { detailIsFieldError: false };
   }
@@ -80,8 +85,7 @@ async function performFetch<T>(
     // token itself already invalid) has no second refresh to fall back on
     // and must redirect exactly like an outright failed one.
     if (retryOn401) {
-      const refreshed = await refreshSession();
-      if (refreshed) {
+      if ((await refreshSession()) === 'open') {
         return performFetch<T>(path, init, true, false);
       }
     }
@@ -90,8 +94,9 @@ async function performFetch<T>(
   }
 
   if (!response.ok) {
-    const { detail, detailIsFieldError } = await readErrorDetail(response);
-    throw new ApiError(response.status, path, detail, detailIsFieldError);
+    const { body, detail, detailIsFieldError } =
+      await readErrorDetail(response);
+    throw new ApiError(response.status, path, detail, detailIsFieldError, body);
   }
   // A bodyless success (204/205 — deletions, unsubscribes) is still a success:
   // response.json() would reject on the empty body and surface as an error.
