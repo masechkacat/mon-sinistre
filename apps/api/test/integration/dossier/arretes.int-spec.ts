@@ -76,13 +76,19 @@ describe('DossierController GET /dossier/arretes (integration)', () => {
 
   async function createEntry(overrides: {
     publishedAt: IsoDate;
+    nor?: string;
     codeInsee?: string;
     outcome?: 'RECONNU' | 'REFUSE';
     risque?: string;
-  }): Promise<{ nor: string; legifranceUrl: string; entryId: string }> {
+  }): Promise<{
+    id: string;
+    nor: string;
+    legifranceUrl: string;
+    entryId: string;
+  }> {
     const arrete = await prisma.arrete.create({
       data: {
-        ...arreteData(),
+        ...arreteData({ nor: overrides.nor }),
         publishedAt: isoDateToDate(overrides.publishedAt),
         entries: {
           create: [
@@ -100,6 +106,7 @@ describe('DossierController GET /dossier/arretes (integration)', () => {
       throw new Error('fixture created an arrêté without its entry');
     }
     return {
+      id: arrete.id,
       nor: arrete.nor,
       legifranceUrl: arrete.legifranceUrl,
       entryId: entry.id,
@@ -191,6 +198,28 @@ describe('DossierController GET /dossier/arretes (integration)', () => {
     ).toEqual([
       resolveDeadline(newer, rule.duration, rule.unit),
       resolveDeadline(older, rule.duration, rule.unit),
+    ]);
+  });
+
+  it('keeps the lines of one arrêté together when another arrêté shares its publication date', async () => {
+    const publishedAt = daysAgo(10);
+    const first = await createEntry({ publishedAt, nor: 'INTE2600001A' });
+    await createEntry({ publishedAt, nor: 'INTE2600002A' });
+    // A rectificatif's line lands later than the other arrêté's: its `id`
+    // is newer, and order by `id` alone would split the first arrêté.
+    await prisma.arreteEntry.create({
+      data: {
+        arreteId: first.id,
+        ...arreteEntryData('30189', { risque: 'Sécheresse' }),
+      },
+    });
+
+    const body = await arretesBody();
+
+    expect(body.arretes.map((entry) => entry.nor)).toEqual([
+      'INTE2600001A',
+      'INTE2600001A',
+      'INTE2600002A',
     ]);
   });
 

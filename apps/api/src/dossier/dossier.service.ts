@@ -93,9 +93,14 @@ export class DossierService {
           select: { nor: true, publishedAt: true, legifranceUrl: true },
         },
       },
-      // `id` only keeps the lines of one arrêté in a stable order: they share
-      // its publication date.
-      orderBy: [{ arrete: { publishedAt: 'desc' } }, { id: 'asc' }],
+      // `nor` keeps the lines of one arrêté together when two arrêtés share
+      // a publication date — a rectificatif's line gets a newer `id` than
+      // the other arrêté's — and `id` keeps those lines in a stable order.
+      orderBy: [
+        { arrete: { publishedAt: 'desc' } },
+        { arrete: { nor: 'asc' } },
+        { id: 'asc' },
+      ],
     });
 
     const ruleByPublishedAt = await this.deadlineRules.resolveDeclarationByDate(
