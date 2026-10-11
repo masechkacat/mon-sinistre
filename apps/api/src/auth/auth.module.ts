@@ -5,6 +5,7 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtStrategy } from './passport/jwt.strategy';
 import { LocalStrategy } from './passport/local.strategy';
+import { SinistresModule } from 'src/sinistres/sinistres.module';
 
 /**
  * `JwtModule.register({})` only makes `JwtService` injectable — access and
@@ -14,7 +15,7 @@ import { LocalStrategy } from './passport/local.strategy';
  * override.
  */
 @Module({
-  imports: [PassportModule, JwtModule.register({})],
+  imports: [PassportModule, JwtModule.register({}), SinistresModule],
   controllers: [AuthController],
   providers: [AuthService, LocalStrategy, JwtStrategy],
 })

@@ -22,7 +22,7 @@ import {
 } from 'src/deadline-rules/resolve-deadline';
 import { fr } from 'src/i18n/fr';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { withAdvisoryLock } from 'src/common/advisory-lock';
+import { withAdvisoryLock, withAdvisoryLockIn } from 'src/common/advisory-lock';
 import { todayInParis } from 'src/common/time/today-in-paris';
 import { codesMergedInto } from 'src/communes/codes-merged-into';
 import type { CreateSinistreDto } from './dto/create-sinistre.dto';
@@ -81,33 +81,34 @@ export class SinistresService {
    * Recognises a dossier the caller already has for this risk and commune,
    * merged communes included — docs/research/dossier-preliminaire.md,
    * «Создание с защитой от двойника». The second check under the lock is not
-   * redundant: the plan is built outside any transaction, and a concurrent
+   * redundant: the plan is built before the lock is taken, and a concurrent
    * POST can land meanwhile.
+   *
+   * `outer` is the caller's own transaction, which everything then runs in —
+   * why `AuthService.drainPendingDossier` needs that is in its docblock.
    */
   async create(
     userId: string,
     dto: CreateSinistreDto,
+    outer?: Prisma.TransactionClient,
   ): Promise<CreatedSinistre> {
-    const codes = await codesMergedInto(this.prisma, dto.codeInsee);
-    const twin = await this.findTwin(
-      this.prisma,
-      userId,
-      dto,
-      codes,
-      todayInParis(),
-    );
+    const db = outer ?? this.prisma;
+    const codes = await codesMergedInto(db, dto.codeInsee);
+    const twin = await this.findTwin(db, userId, dto, codes, todayInParis());
     if (twin) {
       return { sinistre: twin, created: false };
     }
 
     const { today, match, plan, status } = await planDossier(
-      this.prisma,
+      db,
       this.deadlineRules,
       dto,
       this.logger,
     );
 
-    return withAdvisoryLock(this.prisma, `sinistre:${userId}`, async (tx) => {
+    const write = async (
+      tx: Prisma.TransactionClient,
+    ): Promise<CreatedSinistre> => {
       const raced = await this.findTwin(tx, userId, dto, codes, today);
       if (raced) {
         return { sinistre: raced, created: false };
@@ -131,7 +132,12 @@ export class SinistresService {
         sinistre: toSinistreDetail(sinistre, sinistre.steps, today),
         created: true,
       };
-    });
+    };
+
+    const key = `sinistre:${userId}`;
+    return outer
+      ? withAdvisoryLockIn(outer, key, write)
+      : withAdvisoryLock(this.prisma, key, write);
   }
 
   /**

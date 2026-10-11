@@ -44,23 +44,23 @@ CNIL, bcrypt, JWT-сессии с ротацией, глобальный guard, 
 Второй реализации не заводить — нужно тому, кто пишет **новый** модуль и в чужой
 `CLAUDE.md` не заглядывает. Устройство и оговорки — в модуле:
 
-| Задача                                     | Только через                                                     |
-| ------------------------------------------ | ---------------------------------------------------------------- |
-| отправка письма                            | `MailService.send()` (`src/mail/`)                               |
-| алерт `MonitorAlert` и письмо о нём        | `AdminAlertService` (`src/jorf/alerts/`)                         |
-| экранирование LIKE                         | `escapeLikePattern` (`src/prisma/`)                              |
-| нормализация названия (коммуна, phénomène) | `normalizeCommuneName` (`src/communes/`)                         |
-| выборка коммуны в ответ                    | `communeFields` (`src/communes/`)                                |
-| коммуна по коду из запроса (или `400`)     | `requireActiveCommune` (`src/communes/`)                         |
-| одноразовый токен ссылки                   | `generateSecureToken`/`hashSecureToken` (`src/common/security/`) |
-| HMAC-хеш адреса для счётчика               | `hashEmail` (`src/common/security/`)                             |
-| чтение-и-запись без строки для блокировки  | `withAdvisoryLock` (`src/common/advisory-lock.ts`)               |
-| резолв действующего `DeadlineRule`         | `DeadlineRuleService` (`src/deadline-rules/`)                    |
-| описание ошибки в логе                     | `errorSummary`/`stackOf` (`src/common/`)                         |
-| изоляция шага фонового прогона             | `runGuarded` (`src/common/scheduled-cleanup.ts`)                 |
-| строки для пользователя                    | `src/i18n/fr.ts`                                                 |
-| чтение окружения                           | `ConfigService<EnvironmentVariables, true>`                      |
-| пометить эндпоинт публичным                | `@Public()` (`src/auth/public.decorator.ts`)                     |
+| Задача                                     | Только через                                                                                     |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------ |
+| отправка письма                            | `MailService.send()` (`src/mail/`)                                                               |
+| алерт `MonitorAlert` и письмо о нём        | `AdminAlertService` (`src/jorf/alerts/`)                                                         |
+| экранирование LIKE                         | `escapeLikePattern` (`src/prisma/`)                                                              |
+| нормализация названия (коммуна, phénomène) | `normalizeCommuneName` (`src/communes/`)                                                         |
+| выборка коммуны в ответ                    | `communeFields` (`src/communes/`)                                                                |
+| коммуна по коду из запроса (или `400`)     | `requireActiveCommune` (`src/communes/`)                                                         |
+| одноразовый токен ссылки                   | `generateSecureToken`/`hashSecureToken` (`src/common/security/`)                                 |
+| HMAC-хеш адреса для счётчика               | `hashEmail` (`src/common/security/`)                                                             |
+| чтение-и-запись без строки для блокировки  | `withAdvisoryLock`, в открытой транзакции — `withAdvisoryLockIn` (`src/common/advisory-lock.ts`) |
+| резолв действующего `DeadlineRule`         | `DeadlineRuleService` (`src/deadline-rules/`)                                                    |
+| описание ошибки в логе                     | `errorSummary`/`stackOf` (`src/common/`)                                                         |
+| изоляция шага фонового прогона             | `runGuarded` (`src/common/scheduled-cleanup.ts`)                                                 |
+| строки для пользователя                    | `src/i18n/fr.ts`                                                                                 |
+| чтение окружения                           | `ConfigService<EnvironmentVariables, true>`                                                      |
+| пометить эндпоинт публичным                | `@Public()` (`src/auth/public.decorator.ts`)                                                     |
 
 `src/common/` разложен по назначению: `http/` (фильтр, guard, декоратор, DTO —
 всё, что живёт в конвейере Nest), `security/` (токены, хеши, пароль), `time/`

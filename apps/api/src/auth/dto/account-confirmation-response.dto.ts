@@ -12,4 +12,8 @@ import {
 export class AccountConfirmationResponseDto implements AccountConfirmationResponse {
   @ApiProperty({ enum: ACCOUNT_CONFIRMATION_STATUSES })
   status: AccountConfirmationStatus;
+
+  /** The sinistre created from the dossier the registration carried. */
+  @ApiProperty({ required: false, format: 'uuid' })
+  sinistreId?: string;
 }

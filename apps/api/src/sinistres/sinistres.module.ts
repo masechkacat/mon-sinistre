@@ -5,5 +5,6 @@ import { SinistresService } from './sinistres.service';
 @Module({
   controllers: [SinistresController],
   providers: [SinistresService],
+  exports: [SinistresService],
 })
 export class SinistresModule {}

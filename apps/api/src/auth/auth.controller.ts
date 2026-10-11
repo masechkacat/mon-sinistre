@@ -141,7 +141,7 @@ export class AuthController {
   async confirm(
     @Body() body: AccountTokenDto,
   ): Promise<AccountConfirmationResponse> {
-    return { status: await this.auth.confirm(body.token) };
+    return this.auth.confirm(body.token);
   }
 
   @Public()
