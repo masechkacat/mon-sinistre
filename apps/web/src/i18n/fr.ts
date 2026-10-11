@@ -448,6 +448,13 @@ export const fr = {
       submit: 'Créer mon dossier',
       submitting: 'Création en cours…',
     },
+    doublon: {
+      titre: 'Vous avez déjà un dossier pour cette commune',
+      texte: (date: string) =>
+        `Un dossier est déjà ouvert pour cette commune et ce type de risque, pour un événement du ${date}. Vous pouvez l’ouvrir, ou créer un second dossier s’il s’agit d’un autre événement.`,
+      ouvrir: 'Ouvrir ce dossier',
+      creer: 'Créer un second dossier',
+    },
     // Values are the letter of SinistreStatus (root CLAUDE.md, «Не
     // дублировать»); labels are the only French text a status carries — the
     // list screen shows the status in words, not only via colour (WCAG 2.1

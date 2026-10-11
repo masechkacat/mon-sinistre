@@ -23,6 +23,7 @@ import { mockSession } from '../support/session-mock';
 import {
   SINISTRE_ID_1,
   SOURCE,
+  sinistreDetailFixture,
   sinistreFixture,
   stepFixture as step,
 } from '../support/sinistres';
@@ -95,7 +96,7 @@ const BADGE_TEXTS: Record<string, string[]> = {
 
 function sinistreDetail(overrides: Partial<Record<string, unknown>> = {}) {
   return {
-    ...sinistreFixture({ status: SinistreStatus.DECLARE }),
+    ...sinistreDetailFixture({ status: SinistreStatus.DECLARE }),
     steps: STEPS,
     declarationDeadline: {
       date: '2026-10-27',

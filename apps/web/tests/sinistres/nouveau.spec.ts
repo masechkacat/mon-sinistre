@@ -5,23 +5,7 @@ import { NIMES, mockCommuneSearch, selectNimes } from '../support/communes';
 import { testApiBaseUrl } from '../support/env';
 import { describedByIds, expectErrorTiedTo } from '../support/form';
 import { mockSession } from '../support/session-mock';
-
-const SINISTRE_ID = '11111111-1111-1111-1111-111111111111';
-
-function sinistreDetail(overrides: Partial<Record<string, unknown>> = {}) {
-  return {
-    id: SINISTRE_ID,
-    commune: NIMES,
-    risque: 'INONDATION',
-    eventDate: '2026-06-15',
-    arreteEntryId: null,
-    declarationDate: null,
-    status: 'AVANT_ARRETE',
-    createdAt: '2026-06-16T08:00:00.000Z',
-    steps: [],
-    ...overrides,
-  };
-}
+import { SINISTRE_ID_1, sinistreDetailFixture } from '../support/sinistres';
 
 async function selectCommuneAndRisque(page: import('@playwright/test').Page) {
   await selectNimes(page, fr.sinistres.nouveau.communeLabel);
@@ -225,7 +209,7 @@ test('a successful submission leads to the sinistre screen', async ({
     return route.fulfill({
       status: 201,
       contentType: 'application/json',
-      body: JSON.stringify(sinistreDetail()),
+      body: JSON.stringify(sinistreDetailFixture()),
     });
   });
   await mockSession(page).install();
@@ -235,7 +219,7 @@ test('a successful submission leads to the sinistre screen', async ({
   await page.getByLabel(fr.sinistres.nouveau.eventDateLabel).fill('2026-06-15');
   await page.getByRole('button', { name: fr.sinistres.nouveau.submit }).click();
 
-  await expect(page).toHaveURL(`/sinistres/${SINISTRE_ID}`);
+  await expect(page).toHaveURL(`/sinistres/${SINISTRE_ID_1}`);
 });
 
 test('the whole form is operable with the keyboard alone', async ({ page }) => {
@@ -244,7 +228,7 @@ test('the whole form is operable with the keyboard alone', async ({ page }) => {
     route.fulfill({
       status: 201,
       contentType: 'application/json',
-      body: JSON.stringify(sinistreDetail()),
+      body: JSON.stringify(sinistreDetailFixture()),
     }),
   );
   await mockSession(page).install();
@@ -287,7 +271,7 @@ test('the whole form is operable with the keyboard alone', async ({ page }) => {
   await page.getByRole('button', { name: fr.sinistres.nouveau.submit }).focus();
   await page.keyboard.press('Enter');
 
-  await expect(page).toHaveURL(`/sinistres/${SINISTRE_ID}`);
+  await expect(page).toHaveURL(`/sinistres/${SINISTRE_ID_1}`);
 });
 
 for (const colorScheme of ['light', 'dark'] as const) {

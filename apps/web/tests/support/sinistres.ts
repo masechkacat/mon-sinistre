@@ -5,6 +5,7 @@ import {
   StepStatus,
   toIsoDate,
   type Sinistre,
+  type SinistreDetail,
   type Step,
   type StepView,
 } from '@mon-sinistre/contracts';
@@ -55,6 +56,19 @@ export function sinistreFixture(overrides: Partial<Sinistre> = {}): Sinistre {
     declarationDate: null,
     status: SinistreStatus.AVANT_ARRETE,
     createdAt: '2026-06-16T08:00:00.000Z',
+    ...overrides,
+  };
+}
+
+/** The same sinistre as `POST /sinistres` answers it: with its plan, empty
+ * here — the specs that care about the plan build their own steps. */
+export function sinistreDetailFixture(
+  overrides: Partial<SinistreDetail> = {},
+): SinistreDetail {
+  return {
+    ...sinistreFixture(),
+    steps: [],
+    declarationDeadline: null,
     ...overrides,
   };
 }
