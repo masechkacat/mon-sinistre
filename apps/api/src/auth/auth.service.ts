@@ -24,6 +24,8 @@ import {
   type PasswordResetStatus,
 } from '@mon-sinistre/contracts';
 import { withAdvisoryLock } from 'src/common/advisory-lock';
+import { requireActiveCommune } from 'src/communes/active-commune';
+import { isoDateToDate } from 'src/deadline-rules/resolve-deadline';
 import {
   awaitingConfirmation,
   expiredUnconfirmed,
@@ -49,7 +51,7 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { remindersEnabled } from 'src/reminders/reminders-preference';
 import { alreadyRegisteredMailFor } from './mails/account-already-registered-mail';
 import { confirmationMailFor } from './mails/account-confirmation-mail';
-import type { RegisterDto } from './dto/register.dto';
+import type { PendingDossierDto, RegisterDto } from './dto/register.dto';
 import { passwordResetMailFor } from './mails/password-reset-mail';
 
 const nextConfirmExpiresAt = (): Date => addDays(ACCOUNT_CONFIRM_TTL_DAYS);
@@ -247,8 +249,18 @@ export class AuthService {
    * create can still meet is one lost race against a concurrent submission
    * for the same brand-new address; that caller keeps its 204 and gets no
    * mail, the same acceptance as before this issue.
+   *
+   * A `dossier` in the body rides along until the confirmation turns it into
+   * a `Sinistre` — the three branches it takes are
+   * docs/research/dossier-preliminaire.md, «Три параметра до подтверждения».
+   * A body without one is not the same as an empty one: it leaves a stored
+   * dossier alone rather than clearing it, the person reaching the plain
+   * registration form having none in hand to replace it with.
    */
   async register(dto: RegisterDto): Promise<void> {
+    const pending = dto.dossier
+      ? await this.pendingDossierFor(dto.dossier)
+      : undefined;
     const passwordHash = await bcrypt.hash(dto.password, this.saltRounds);
     const claim = await this.claimUnconfirmedAccount(dto.email, passwordHash);
     if (claim === 'confirmed') {
@@ -260,6 +272,7 @@ export class AuthService {
       return;
     }
     if (claim === 'rewritten') {
+      if (pending) await this.savePendingDossier(dto.email, pending);
       await this.sendAccountMail(
         dto.email,
         ACCOUNT_REGISTRATION_MAIL_LIMIT,
@@ -287,6 +300,7 @@ export class AuthService {
           passwordHash,
           confirmTokenHash: confirm.hash,
           confirmExpiresAt: nextConfirmExpiresAt(),
+          dossierEnAttente: pending ? { create: pending } : undefined,
         },
       });
     } catch (error) {
@@ -333,6 +347,55 @@ export class AuthService {
       select: { confirmedAt: true },
     });
     return existing?.confirmedAt ? 'confirmed' : 'absent';
+  }
+
+  /**
+   * The `DossierEnAttente` row the body asks for, with its commune resolved
+   * against the referential first: the column is a `Restrict` foreign key, so
+   * a code the referential does not know would otherwise reach Postgres and
+   * come back a 500 instead of the 400 every other endpoint taking a commune
+   * code answers with.
+   */
+  private async pendingDossierFor(
+    dossier: PendingDossierDto,
+  ): Promise<Prisma.DossierEnAttenteUncheckedCreateWithoutUserInput> {
+    await requireActiveCommune(this.prisma, dossier.codeInsee);
+    return {
+      codeInsee: dossier.codeInsee,
+      risque: dossier.risque,
+      eventDate: isoDateToDate(dossier.eventDate),
+    };
+  }
+
+  /**
+   * The id the claim's `updateMany` cannot return, read back under the claim's
+   * own condition: a dossier stored on an account confirmed in between is
+   * stored for nobody — the confirmation that turns it into a `Sinistre` has
+   * run, and the hourly cleanup only sweeps unconfirmed accounts. The read
+   * narrows that window rather than closing it, and the accepted cost is the
+   * three fields re-entered on `POST /sinistres`. `P2003` — same race lost to
+   * a deletion — answers like `requestPasswordReset`'s own.
+   */
+  private async savePendingDossier(
+    email: string,
+    dossier: Prisma.DossierEnAttenteUncheckedCreateWithoutUserInput,
+  ): Promise<void> {
+    const user = await this.prisma.user.findFirst({
+      where: { email, confirmedAt: null },
+      select: { id: true },
+    });
+    if (!user) return;
+
+    try {
+      await this.prisma.dossierEnAttente.upsert({
+        where: { userId: user.id },
+        create: { ...dossier, userId: user.id },
+        update: dossier,
+      });
+    } catch (error) {
+      if (isForeignKeyViolation(error)) return;
+      throw error;
+    }
   }
 
   /**

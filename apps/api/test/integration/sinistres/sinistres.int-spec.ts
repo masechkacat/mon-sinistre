@@ -13,6 +13,7 @@ import { seedStepTemplates } from 'src/step-templates/step-template.seed';
 import { createIntTestApp } from 'test/helpers/app';
 import { arreteData, arreteEntryData } from 'test/helpers/arrete';
 import { commune } from 'test/helpers/commune';
+import { tomorrowInParis } from 'test/helpers/dates';
 import { createUser, headersForEmail, withBearer } from 'test/helpers/session';
 
 interface SinistreWithSteps {
@@ -158,10 +159,7 @@ describe('SinistresController (integration)', () => {
   it('rejects an eventDate in the future with a French message', async () => {
     const email = await createUser(prisma);
     const headers = await bearerFor(email);
-    // Tomorrow in Europe/Paris, the timezone the validator compares against:
-    // a UTC "tomorrow" is already today in Paris between 22:00 and midnight
-    // UTC, and the request would be accepted.
-    const tomorrow = resolveDeadline(todayInParis(), 1, 'DAYS');
+    const tomorrow = tomorrowInParis();
 
     const res = await app.inject({
       method: 'POST',
@@ -899,7 +897,7 @@ describe('SinistresController (integration)', () => {
       const email = await createUser(prisma);
       const headers = await bearerFor(email);
       const sinistre = await createSinistre(headers);
-      const tomorrow = resolveDeadline(todayInParis(), 1, 'DAYS');
+      const tomorrow = tomorrowInParis();
 
       const res = await app.inject({
         method: 'PATCH',
