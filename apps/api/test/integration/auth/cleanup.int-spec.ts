@@ -1,10 +1,14 @@
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
+import { RisqueCatnat } from '@mon-sinistre/contracts';
 import { createIntTestApp } from 'test/helpers/app';
 import { DAY_MS, HOUR_MS } from 'src/common/time/time';
 import { captureLogs } from 'test/helpers/mail-log';
+import { commune } from 'test/helpers/commune';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { AuthService } from 'src/auth/auth.service';
 import { createUser } from 'test/helpers/session';
+
+const CODE_INSEE = '30189';
 
 describe('AuthService.cleanupExpired (integration)', () => {
   let app: NestFastifyApplication;
@@ -23,11 +27,26 @@ describe('AuthService.cleanupExpired (integration)', () => {
   });
 
   beforeEach(async () => {
-    await prisma.$executeRaw`TRUNCATE TABLE "User", "RefreshToken", "PasswordReset", "AccountFormEmail", "LoginAttempt" CASCADE`;
+    await prisma.$executeRaw`TRUNCATE TABLE "User", "RefreshToken", "PasswordReset", "AccountFormEmail", "LoginAttempt", "Commune" CASCADE`;
+    await prisma.commune.create({
+      data: commune(CODE_INSEE, 'Nîmes', '30', 'Gard'),
+    });
   });
 
+  /** The dossier a registration left waiting on the address — the row the
+   * cascade has to carry away with an account that never confirmed. */
+  const addDossier = (userId: string) =>
+    prisma.dossierEnAttente.create({
+      data: {
+        userId,
+        codeInsee: CODE_INSEE,
+        risque: RisqueCatnat.INONDATION,
+        eventDate: new Date('2026-10-05'),
+      },
+    });
+
   describe('deleteExpiredUnconfirmedUsers', () => {
-    it('deletes an unconfirmed User past its confirmExpiresAt, cascading its RefreshToken', async () => {
+    it('deletes an unconfirmed User past its confirmExpiresAt, cascading its RefreshToken and its pending dossier', async () => {
       const email = await createUser(prisma, {
         confirmedAt: null,
         confirmExpiresAt: new Date(Date.now() - 8 * DAY_MS),
@@ -40,11 +59,13 @@ describe('AuthService.cleanupExpired (integration)', () => {
           expiresAt: new Date(Date.now() + 30 * DAY_MS),
         },
       });
+      await addDossier(user.id);
 
       await auth.deleteExpiredUnconfirmedUsers();
 
       expect(await prisma.user.findFirst()).toBeNull();
       expect(await prisma.refreshToken.findFirst()).toBeNull();
+      expect(await prisma.dossierEnAttente.findFirst()).toBeNull();
     });
 
     it('keeps a confirmed User past its confirmExpiresAt', async () => {
@@ -58,12 +79,15 @@ describe('AuthService.cleanupExpired (integration)', () => {
       expect(await prisma.user.findUnique({ where: { email } })).not.toBeNull();
     });
 
-    it('keeps an unconfirmed User whose deadline has not passed', async () => {
+    it('keeps an unconfirmed User whose deadline has not passed, dossier and all', async () => {
       const email = await createUser(prisma, { confirmedAt: null });
+      const user = await prisma.user.findUniqueOrThrow({ where: { email } });
+      await addDossier(user.id);
 
       await auth.deleteExpiredUnconfirmedUsers();
 
       expect(await prisma.user.findUnique({ where: { email } })).not.toBeNull();
+      expect(await prisma.dossierEnAttente.findFirst()).not.toBeNull();
     });
   });
 
