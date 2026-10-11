@@ -2,7 +2,6 @@ import { ApiProperty } from '@nestjs/swagger';
 import type { IsoDate, SinistreConflict } from '@mon-sinistre/contracts';
 
 class ExistingDossierDto {
-  @ApiProperty()
   id: string;
 
   @ApiProperty({ type: String, format: 'date' })

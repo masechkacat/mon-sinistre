@@ -22,7 +22,9 @@ import {
 } from 'src/deadline-rules/resolve-deadline';
 import { fr } from 'src/i18n/fr';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { withAdvisoryLock } from 'src/common/advisory-lock';
 import { todayInParis } from 'src/common/time/today-in-paris';
+import { codesMergedInto } from 'src/communes/codes-merged-into';
 import type { CreateSinistreDto } from './dto/create-sinistre.dto';
 import { recomputeDeclarationSteps } from './recompute-declaration-steps';
 import { sinistreStatus } from './sinistre-status';
@@ -76,17 +78,28 @@ export class SinistresService {
    * `arreteEntryId` and the status — no déclaration deadline exists to
    * date (critère PRD № 6).
    *
-   * Recognises a dossier the caller already has for this commune and risk —
-   * docs/research/dossier-preliminaire.md, «Создание с защитой от двойника».
-   * The plan is built before the transaction opens, never inside it: resolving
-   * a `DeadlineRule` is a query of its own on another connection, and holding
-   * the transaction's while it runs is what `declarationRulesFor`'s docblock
-   * warns against.
+   * Recognises a dossier the caller already has for this risk and commune,
+   * merged communes included — docs/research/dossier-preliminaire.md,
+   * «Создание с защитой от двойника». The second check under the lock is not
+   * redundant: the plan is built outside any transaction, and a concurrent
+   * POST can land meanwhile.
    */
   async create(
     userId: string,
     dto: CreateSinistreDto,
   ): Promise<CreatedSinistre> {
+    const codes = await codesMergedInto(this.prisma, dto.codeInsee);
+    const twin = await this.findTwin(
+      this.prisma,
+      userId,
+      dto,
+      codes,
+      todayInParis(),
+    );
+    if (twin) {
+      return { sinistre: twin, created: false };
+    }
+
     const { today, match, plan, status } = await planDossier(
       this.prisma,
       this.deadlineRules,
@@ -94,17 +107,11 @@ export class SinistresService {
       this.logger,
     );
 
-    return this.prisma.$transaction(async (tx) => {
-      const twin = await this.readDetail(tx, {
-        userId,
-        codeInsee: dto.codeInsee,
-        risque: dto.risque,
-        eventDate: isoDateToDate(dto.eventDate),
-      });
-      if (twin) {
-        return { sinistre: twin, created: false };
+    return withAdvisoryLock(this.prisma, `sinistre:${userId}`, async (tx) => {
+      const raced = await this.findTwin(tx, userId, dto, codes, today);
+      if (raced) {
+        return { sinistre: raced, created: false };
       }
-      await this.refuseSecondDate(tx, userId, dto);
 
       const sinistre = await tx.sinistre.create({
         data: {
@@ -128,57 +135,68 @@ export class SinistresService {
   }
 
   /**
-   * Asks the caller to confirm a second dossier of this commune and risk
-   * under another date, or lets the creation through. Two such dossiers are
-   * legitimate (a second home, a second event), so the answer is a question
-   * rather than a refusal.
+   * The caller's dossier with all three parameters, or `null` when none
+   * stands in the way of a new one. Another date of the same commune and risk
+   * asks the caller to confirm a second dossier rather than refusing it — two
+   * are legitimate (a second home, a second event) — and names the one opened
+   * last.
    */
-  private async refuseSecondDate(
+  private async findTwin(
     tx: Prisma.TransactionClient,
     userId: string,
     dto: CreateSinistreDto,
-  ): Promise<void> {
-    if (dto.confirmNew === true) {
-      return;
-    }
-    // Freshest of them: the dossier opened last is the one the question is
-    // most likely to be about.
-    const other = await tx.sinistre.findFirst({
-      where: { userId, codeInsee: dto.codeInsee, risque: dto.risque },
+    codes: string[],
+    today: IsoDate,
+  ): Promise<SinistreDetail | null> {
+    const others = await tx.sinistre.findMany({
+      where: { userId, codeInsee: { in: codes }, risque: dto.risque },
       orderBy: { createdAt: 'desc' },
       select: { id: true, eventDate: true },
     });
-    if (other) {
+    const twin = others.find(
+      ({ eventDate }) => dateToIsoDate(eventDate) === dto.eventDate,
+    );
+    if (twin) {
+      return this.readDetail(tx, { id: twin.id }, today);
+    }
+    const [latest] = others;
+    if (latest && dto.confirmNew !== true) {
       throw new ConflictException({
         code: 'DOSSIER_EXISTANT',
-        existing: { id: other.id, eventDate: dateToIsoDate(other.eventDate) },
+        existing: {
+          id: latest.id,
+          eventDate: dateToIsoDate(latest.eventDate),
+        },
       } satisfies SinistreConflict);
     }
+    return null;
   }
 
   /** Ownership is part of the `where`, not checked after the fact — a chosen
    * and a nonexistent sinistre answer the same 404 (`apps/api/CLAUDE.md`). */
   async findOne(userId: string, id: string): Promise<SinistreDetail> {
-    const sinistre = await this.readDetail(this.prisma, { id, userId });
+    const sinistre = await this.readDetail(
+      this.prisma,
+      { id, userId },
+      todayInParis(),
+    );
     if (!sinistre) {
       throw new NotFoundException();
     }
     return sinistre;
   }
 
-  /** The one read behind every stored `SinistreDetail` this service answers
-   * with; `where` carries the ownership condition of its caller. */
+  /** `where` carries the ownership condition of its caller. */
   private async readDetail(
     tx: Prisma.TransactionClient,
     where: Prisma.SinistreWhereInput,
+    today: IsoDate,
   ): Promise<SinistreDetail | null> {
     const sinistre = await tx.sinistre.findFirst({
       where,
       include: detailInclude,
     });
-    return (
-      sinistre && toSinistreDetail(sinistre, sinistre.steps, todayInParis())
-    );
+    return sinistre && toSinistreDetail(sinistre, sinistre.steps, today);
   }
 
   /** Freshest first — a returning user's most recent dossier is what they

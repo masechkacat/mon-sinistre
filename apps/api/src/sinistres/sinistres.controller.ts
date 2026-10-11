@@ -68,8 +68,6 @@ export class SinistresController {
   async create(
     @Req() req: RequestWithJwtUser,
     @Body() dto: CreateSinistreDto,
-    // The status is decided by what the service did, so it cannot be a
-    // `@HttpCode`: an existing dossier is not a creation.
     @Res({ passthrough: true }) reply: FastifyReply,
   ): Promise<SinistreDetail> {
     const { sinistre, created } = await this.sinistres.create(req.user.id, dto);

@@ -54,7 +54,7 @@ CNIL, bcrypt, JWT-сессии с ротацией, глобальный guard, 
 | коммуна по коду из запроса (или `400`)     | `requireActiveCommune` (`src/communes/`)                         |
 | одноразовый токен ссылки                   | `generateSecureToken`/`hashSecureToken` (`src/common/security/`) |
 | HMAC-хеш адреса для счётчика               | `hashEmail` (`src/common/security/`)                             |
-| атомарный счётчик по адресу                | `withAddressLock` (`src/common/address-lock.ts`)                 |
+| чтение-и-запись без строки для блокировки  | `withAdvisoryLock` (`src/common/advisory-lock.ts`)               |
 | резолв действующего `DeadlineRule`         | `DeadlineRuleService` (`src/deadline-rules/`)                    |
 | описание ошибки в логе                     | `errorSummary`/`stackOf` (`src/common/`)                         |
 | изоляция шага фонового прогона             | `runGuarded` (`src/common/scheduled-cleanup.ts`)                 |

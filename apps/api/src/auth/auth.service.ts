@@ -23,7 +23,7 @@ import {
   type LoginResponse,
   type PasswordResetStatus,
 } from '@mon-sinistre/contracts';
-import { withAddressLock } from 'src/common/address-lock';
+import { withAdvisoryLock } from 'src/common/advisory-lock';
 import {
   awaitingConfirmation,
   expiredUnconfirmed,
@@ -180,7 +180,7 @@ export class AuthService {
     ) => ComposeMailInput | null | Promise<ComposeMailInput | null>,
   ): Promise<void> {
     const emailHash = hashEmail(email, this.emailHashSecret);
-    const charged = await withAddressLock(
+    const charged = await withAdvisoryLock(
       this.prisma,
       emailHash,
       async (tx) => {
@@ -497,8 +497,8 @@ export class AuthService {
 
   /**
    * Counts one failure and refuses everything past the limit. The count and
-   * the insert share one transaction and one address lock (`withAddressLock`,
-   * `src/common/address-lock.ts`) — unlocked, a pipelined burst all reads the
+   * the insert share one transaction and one address lock (`withAdvisoryLock`,
+   * `src/common/advisory-lock.ts`) — unlocked, a pipelined burst all reads the
    * same pre-limit count and buys itself that many extra guesses. A request
    * already over the limit is not recorded: the window has to be able to roll
    * off while an attacker keeps knocking, or the lockout never ends. The 429
@@ -506,7 +506,7 @@ export class AuthService {
    * anything.
    */
   private async chargeFailedLogin(emailHash: string): Promise<void> {
-    const overLimit = await withAddressLock(
+    const overLimit = await withAdvisoryLock(
       this.prisma,
       emailHash,
       async (tx) => {

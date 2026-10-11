@@ -106,7 +106,7 @@
   проходит и счётчик обнуляет (как и завершённый сброс пароля в
   `resetPassword`) — иначе десять чужих неудач в час держали бы владельца
   снаружи бесконечно; «почему» целиком — в докблоке `validateCredentials`.
-  Счёт и вставка — под `withAddressLock` (`src/common/address-lock.ts`), общей
+  Счёт и вставка — под `withAdvisoryLock` (`src/common/advisory-lock.ts`), общей
   обвязкой атомарности счётчиков по адресу. `AUTH_FORM_RATE_LIMIT`
   (`auth.controller.ts`) — жёсткий `@Throttle` по IP поверх на публичных
   эндпоинтах, которые никому не пишут, `AUTH_MAIL_RATE_LIMIT` — вшестеро

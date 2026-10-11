@@ -138,6 +138,71 @@ describe('POST /sinistres duplicate protection (integration)', () => {
     expect(await prisma.sinistre.count()).toBe(2);
   });
 
+  it('opens one dossier for two identical requests in flight together', async () => {
+    const headers = await bearer();
+
+    const responses = await Promise.all([
+      post(headers, dossier()),
+      post(headers, dossier()),
+    ]);
+
+    expect(responses.map((res) => res.statusCode).sort()).toEqual([200, 201]);
+    expect(await prisma.sinistre.count()).toBe(1);
+  });
+
+  describe('once the commune is merged into another', () => {
+    /** The dossier opened under 30188, which then merges into 30189. */
+    async function dossierOfMergedCommune(
+      headers: Headers,
+    ): Promise<SinistreDetail> {
+      await prisma.commune.create({
+        data: commune('30188', 'Vieux-Nîmes', '30', 'Gard'),
+      });
+      const res = await post(headers, dossier({ codeInsee: '30188' }));
+      expect(res.statusCode).toBe(201);
+      await prisma.commune.update({
+        where: { codeInsee: '30188' },
+        data: {
+          effectiveTo: new Date('2026-09-01'),
+          successorCodeInsee: '30189',
+        },
+      });
+      return JSON.parse(res.payload) as SinistreDetail;
+    }
+
+    it('recognises the dossier under the successor code', async () => {
+      const headers = await bearer();
+      const first = await dossierOfMergedCommune(headers);
+
+      const res = await post(headers, dossier());
+
+      expect(res.statusCode).toBe(200);
+      expect((JSON.parse(res.payload) as SinistreDetail).id).toBe(first.id);
+    });
+
+    it('asks to confirm another date under the successor code', async () => {
+      const headers = await bearer();
+      const first = await dossierOfMergedCommune(headers);
+
+      const res = await post(headers, dossier({ eventDate: OTHER_DATE }));
+
+      expect(res.statusCode).toBe(409);
+      expect((JSON.parse(res.payload) as SinistreConflict).existing.id).toBe(
+        first.id,
+      );
+    });
+
+    it('still answers the old code with the dossier rather than a 400', async () => {
+      const headers = await bearer();
+      const first = await dossierOfMergedCommune(headers);
+
+      const res = await post(headers, dossier({ codeInsee: '30188' }));
+
+      expect(res.statusCode).toBe(200);
+      expect((JSON.parse(res.payload) as SinistreDetail).id).toBe(first.id);
+    });
+  });
+
   it('rejects a confirmNew that is not a boolean', async () => {
     const res = await post(await bearer(), dossier({ confirmNew: 'oui' }));
 
