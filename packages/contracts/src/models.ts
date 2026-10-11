@@ -257,7 +257,9 @@ export interface DossierApercu {
 export interface CommuneArrete extends ArreteCoverage, Pick<Arrete, 'nor'> {
   arreteEntryId: string;
   risqueLabel: ArreteEntry['risque'];
-  /** Categories `risqueLabel` classifies to; usually one. */
+  /** Categories `risqueLabel` classifies to; usually one. Empty when the JO
+   * printed a wording the classifier does not know yet: the label is still
+   * shown, and the dossier form asks the user to pick from every category. */
   risques: RisqueCatnat[];
   /** Only for a RECONNU entry; null also when no active rule resolved. */
   declarationDeadline: DeclarationDeadline | null;

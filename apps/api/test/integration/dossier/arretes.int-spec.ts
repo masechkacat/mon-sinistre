@@ -211,6 +211,22 @@ describe('DossierController GET /dossier/arretes (integration)', () => {
     );
   });
 
+  it('keeps an entry whose wording it cannot classify, with the label and no category', async () => {
+    await createEntry({
+      publishedAt: daysAgo(10),
+      risque: 'Chocs mécaniques liés à l’action des vagues',
+    });
+
+    const body = await arretesBody();
+
+    const entry = onlyArrete(body);
+    expect(entry.risqueLabel).toBe(
+      'Chocs mécaniques liés à l’action des vagues',
+    );
+    expect(entry.risques).toEqual([]);
+    expect(entry.declarationDeadline).not.toBeNull();
+  });
+
   it('includes a publication exactly twelve months old and excludes the day before it', async () => {
     const edge = windowStart();
     await createEntry({ publishedAt: edge });
