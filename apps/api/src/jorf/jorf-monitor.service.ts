@@ -1432,7 +1432,7 @@ export class JorfMonitorService {
       ({ entry }) => (entry.outcome as string) === 'RECONNU',
     )
       ? await this.deadlineRules.resolveDeclarationOrNull(
-          isoDateToDate(parsed.publishedAt),
+          publishedAt,
           this.logger,
           'the linked sinistres left without a déclaration date',
         )
