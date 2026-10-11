@@ -248,6 +248,26 @@ describe('DossierController GET /dossier/arretes (integration)', () => {
     expect(body.commune.codeInsee).toBe('30189');
   });
 
+  it('lists nothing of another commune, nor of a commune merged into that other one', async () => {
+    await prisma.commune.create({
+      data: commune('30007', 'Alès', '30', 'Gard'),
+    });
+    await prisma.commune.create({
+      data: {
+        ...commune('30006', 'Vieux-Alès', '30', 'Gard', '2026-01-01'),
+        successorCodeInsee: '30007',
+      },
+    });
+    const own = daysAgo(10);
+    await createEntry({ publishedAt: own });
+    await createEntry({ publishedAt: daysAgo(5), codeInsee: '30007' });
+    await createEntry({ publishedAt: daysAgo(3), codeInsee: '30006' });
+
+    const body = await arretesBody();
+
+    expect(body.arretes.map((entry) => entry.publishedAt)).toEqual([own]);
+  });
+
   it('rejects an unknown commune and a code of the wrong length', async () => {
     const [unknown, tooShort] = await Promise.all([
       arretes('99999'),
