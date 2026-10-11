@@ -3,7 +3,9 @@ import { RisqueCatnat, toIsoDate } from '@mon-sinistre/contracts';
 import {
   dossierSearch,
   parseDossierParams,
+  parseRisqueOptions,
 } from '../../src/lib/dossier-params';
+import { RISQUES } from '../../src/lib/risques';
 
 const PARAMS = {
   commune: '30189',
@@ -38,6 +40,24 @@ test('a risk outside the referential and a date that is not one are dropped, the
     ...EMPTY,
     commune: '30189',
   });
+});
+
+test('an arrêté naming several risks offers exactly those, in the order given', () => {
+  expect(
+    parseRisqueOptions(
+      new URLSearchParams({ risques: 'INONDATION,MOUVEMENT_TERRAIN' }),
+    ),
+  ).toEqual([RisqueCatnat.INONDATION, RisqueCatnat.MOUVEMENT_TERRAIN]);
+});
+
+test('a wording the classifier does not know leaves every category open', () => {
+  expect(parseRisqueOptions(new URLSearchParams())).toEqual(RISQUES);
+  expect(parseRisqueOptions(new URLSearchParams({ risques: '' }))).toEqual(
+    RISQUES,
+  );
+  expect(parseRisqueOptions(new URLSearchParams({ risques: 'FEU' }))).toEqual(
+    RISQUES,
+  );
 });
 
 test('the query is prefixed like location.search, so it appends to a path', () => {

@@ -26,6 +26,9 @@ export const APERCU_PARAMS = {
 
 export const DOSSIER_PATH = `/dossier${dossierSearch(APERCU_PARAMS)}` as Route;
 
+/** The same page with an empty address: it asks for the three parameters. */
+export const DOSSIER_FORM_PATH = '/dossier' satisfies Route;
+
 /** An arrêté whose event period covers the date of APERCU_PARAMS. */
 export const ARRETE: ArreteCoverage = {
   publishedAt: toIsoDate('2026-09-20'),

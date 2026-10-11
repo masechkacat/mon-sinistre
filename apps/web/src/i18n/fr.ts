@@ -15,6 +15,9 @@ import {
 const A_VERIFIER_AVEC_CONTRAT =
   'à vérifier avec votre contrat et votre assurance';
 
+const EVENT_DATE_HINT =
+  'Le jour où les dégâts se sont produits : jour, mois, puis année. Par exemple 05/09/2026 pour le 5 septembre 2026.';
+
 // Shared across veille.confirmation and veille.change below: same fact
 // (link being checked, link no longer usable, alert reaches the watched
 // communes), same wording — one string, not a fact stated twice.
@@ -432,11 +435,16 @@ export const fr = {
       communeLabel: 'Commune concernée',
       communeRequiredError: 'Choisissez la commune concernée.',
       eventDateLabel: 'Date de l’événement',
-      eventDateHint:
-        'Le jour où les dégâts se sont produits : jour, mois, puis année. Par exemple 05/09/2026 pour le 5 septembre 2026.',
+      eventDateHint: EVENT_DATE_HINT,
       eventDateRequiredError: 'Indiquez la date de l’événement.',
       eventDateInvalidError:
         'Vérifiez l’année : elle doit comporter quatre chiffres.',
+      // Replaces the hint above instead of adding to it: the field carries a
+      // single description, and the order of the fields belongs in both.
+      eventDatePeriodeHint: (debut: string, fin: string) =>
+        `${EVENT_DATE_HINT} L’arrêté couvre les événements du ${debut} au ${fin} : indiquez le jour exact dans cette période.`,
+      eventDatePeriodeError: (debut: string, fin: string) =>
+        `Indiquez une date entre le ${debut} et le ${fin}.`,
       submit: 'Créer mon dossier',
       submitting: 'Création en cours…',
     },
@@ -543,6 +551,17 @@ export const fr = {
     legifranceLink: 'Consulter l’arrêté sur Légifrance',
     delaiExpire: 'Délai expiré',
     enregistrer: 'Enregistrer ce dossier',
+    formulaire: {
+      titre: 'Préparer mon dossier',
+      lead: 'Indiquez ce qui manque : votre plan d’actions s’affiche aussitôt, sans compte ni inscription.',
+      submit: 'Voir mon plan d’actions',
+      parametresRefuses:
+        'Ces informations n’ont pas pu être utilisées. Vérifiez la commune, le risque et la date de l’événement, puis réessayez.',
+      preciser: {
+        titre: 'Préciser la date de l’événement',
+        submit: 'Mettre à jour la date',
+      },
+    },
     conteneur: {
       [StepKind.PHOTOS]: conteneurVide('Photos et vidéos des dégâts'),
       [StepKind.JUSTIFICATIFS]: conteneurVide(

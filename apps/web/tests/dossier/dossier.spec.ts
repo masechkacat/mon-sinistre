@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import {
   ArreteEntryOutcome,
+  RisqueCatnat,
   SinistreStatus,
   StepKind,
   StepStatus,
@@ -13,16 +14,21 @@ import { formatDateFr, formatDateShortFr } from '../../src/i18n/date';
 import { fr } from '../../src/i18n/fr';
 import { dossierSearch } from '../../src/lib/dossier-params';
 import { dossierTitle } from '../../src/lib/dossier-title';
+import { RISQUES } from '../../src/lib/risques';
 import { expectNoAxeViolations } from '../support/a11y';
+import { NIMES, mockCommuneSearch } from '../support/communes';
 import {
   APERCU_PARAMS,
   APERCU_STEPS,
   ARRETE,
   DEADLINE,
+  DOSSIER_FORM_PATH,
   DOSSIER_PATH,
   apercuFixture,
   mockApercu,
 } from '../support/dossier';
+import { testApiBaseUrl } from '../support/env';
+import { expectErrorTiedTo } from '../support/form';
 import { SOURCE } from '../support/sinistres';
 
 const copy = fr.sinistres.detail;
@@ -193,6 +199,209 @@ test('saving the dossier carries its three parameters to the registration page',
   await expect(page).toHaveURL(`/inscription${dossierSearch(APERCU_PARAMS)}`);
 });
 
+const communeField = (page: Page) =>
+  page.getByLabel(fr.sinistres.nouveau.communeLabel);
+const dateField = (page: Page) =>
+  page.getByLabel(fr.sinistres.nouveau.eventDateLabel);
+const formSubmit = (page: Page) =>
+  page.getByRole('button', { name: fr.dossier.formulaire.submit });
+
+test('an empty address asks for the three parameters and sends no request', async ({
+  page,
+}) => {
+  let apercuCalled = false;
+  await page.route(`${testApiBaseUrl}/dossier/apercu**`, (route) => {
+    apercuCalled = true;
+    return route.fulfill({ status: 200, body: '{}' });
+  });
+  await page.route(`${testApiBaseUrl}/communes**`, mockCommuneSearch);
+
+  await page.goto(DOSSIER_FORM_PATH);
+
+  await expect(
+    page.getByRole('heading', { level: 1, name: fr.dossier.formulaire.titre }),
+  ).toBeVisible();
+  await expect(communeField(page)).toBeVisible();
+  await expect(page.getByRole('radiogroup')).toBeVisible();
+  await expect(dateField(page)).toBeVisible();
+  // Nothing to preview: with no parameter the request would be the API's own
+  // 400, and the page already knows what it has to ask for.
+  expect(apercuCalled).toBe(false);
+});
+
+test('the commune alone leaves the risk and the date to ask, and the answer lands in the address', async ({
+  page,
+}) => {
+  await page.route(`${testApiBaseUrl}/communes**`, mockCommuneSearch);
+  await mockApercu(page, apercuFixture());
+
+  await page.goto(`/dossier?commune=${NIMES.codeInsee}`);
+
+  await expect(communeField(page)).toHaveCount(0);
+  await page
+    .getByRole('radio', { name: fr.sinistres.risque.options.INONDATION.label })
+    .click();
+  await dateField(page).fill(APERCU_PARAMS.date);
+  await formSubmit(page).click();
+
+  await expect(page).toHaveURL(DOSSIER_PATH);
+  await expect(
+    page.getByRole('list', { name: copy.timelineLabel }),
+  ).toBeVisible();
+});
+
+test('an empty form reports what is missing, field by field, and stays on the address', async ({
+  page,
+}) => {
+  await page.route(`${testApiBaseUrl}/communes**`, mockCommuneSearch);
+
+  await page.goto(DOSSIER_FORM_PATH);
+  await formSubmit(page).click();
+
+  await expectErrorTiedTo(
+    communeField(page),
+    page.getByText(fr.sinistres.nouveau.communeRequiredError),
+  );
+  await expectErrorTiedTo(
+    page.getByRole('radiogroup'),
+    page.getByText(fr.sinistres.risque.requiredError),
+  );
+  await expectErrorTiedTo(
+    dateField(page),
+    page.getByText(fr.sinistres.nouveau.eventDateRequiredError),
+  );
+  await expect(page).toHaveURL(DOSSIER_FORM_PATH);
+});
+
+test('an arrêté naming several risks limits the choice to those it names', async ({
+  page,
+}) => {
+  await page.route(`${testApiBaseUrl}/communes**`, mockCommuneSearch);
+  await mockApercu(page, apercuFixture());
+
+  await page.goto(
+    `/dossier?commune=${NIMES.codeInsee}&risques=INONDATION,MOUVEMENT_TERRAIN&date=${APERCU_PARAMS.date}`,
+  );
+
+  await expect(page.getByRole('radio')).toHaveCount(2);
+  for (const risque of [
+    RisqueCatnat.INONDATION,
+    RisqueCatnat.MOUVEMENT_TERRAIN,
+  ]) {
+    await expect(
+      page.getByRole('radio', {
+        name: fr.sinistres.risque.options[risque].label,
+      }),
+    ).toBeVisible();
+  }
+  // Only the date is already answered, so the radio is the whole form here.
+  await expect(dateField(page)).toHaveCount(0);
+
+  await page
+    .getByRole('radio', { name: fr.sinistres.risque.options.INONDATION.label })
+    .click();
+  await formSubmit(page).click();
+
+  // The hint from the commune answer has done its job and leaves the address.
+  await expect(page).toHaveURL(DOSSIER_PATH);
+});
+
+test('with no hint in the address every category stays open', async ({
+  page,
+}) => {
+  await page.route(`${testApiBaseUrl}/communes**`, mockCommuneSearch);
+
+  await page.goto(DOSSIER_FORM_PATH);
+
+  await expect(page.getByRole('radio')).toHaveCount(RISQUES.length);
+});
+
+test('with an arrêté the date is refined inside its period, and nowhere outside it', async ({
+  page,
+}) => {
+  await openDossier(page, apercuPublie());
+
+  const date = dateField(page);
+  await expect(date).toHaveValue(APERCU_PARAMS.date);
+  await expect(date).toHaveAttribute('min', ARRETE.eventStart);
+  await expect(date).toHaveAttribute('max', ARRETE.eventEnd);
+  const preciser = page.getByRole('button', {
+    name: fr.dossier.formulaire.preciser.submit,
+  });
+
+  await date.fill('2026-09-30');
+  await preciser.click();
+
+  await expectErrorTiedTo(
+    date,
+    page.getByText(
+      fr.sinistres.nouveau.eventDatePeriodeError(
+        formatDateFr(ARRETE.eventStart),
+        formatDateFr(ARRETE.eventEnd),
+      ),
+    ),
+  );
+  await expect(page).toHaveURL(DOSSIER_PATH);
+
+  await date.fill(ARRETE.eventEnd);
+  await preciser.click();
+
+  await expect(page).toHaveURL(
+    `/dossier${dossierSearch({ ...APERCU_PARAMS, date: ARRETE.eventEnd })}`,
+  );
+});
+
+test('parameters the API refuses come back as the form, with an explanation instead of a server error', async ({
+  page,
+}) => {
+  await page.route(`${testApiBaseUrl}/communes**`, mockCommuneSearch);
+  await page.route(`${testApiBaseUrl}/dossier/apercu**`, (route) =>
+    route.fulfill({
+      status: 400,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        statusCode: 400,
+        message: ['La date de l’événement ne peut pas être dans le futur.'],
+        error: 'Bad Request',
+      }),
+    }),
+  );
+
+  await page.goto(DOSSIER_PATH);
+
+  await expect(
+    page.getByText(fr.dossier.formulaire.parametresRefuses),
+  ).toBeVisible();
+  await expect(page.getByTestId('request-error')).toHaveCount(0);
+  // The refusal does not say which of the three it could not use, so all
+  // three are asked again — the risk and the date keeping what the address
+  // said, the commune asked anew since only its code travelled.
+  await expect(communeField(page)).toBeVisible();
+  await expect(
+    page.getByRole('radio', {
+      name: fr.sinistres.risque.options.INONDATION.label,
+    }),
+  ).toBeChecked();
+  await expect(dateField(page)).toHaveValue(APERCU_PARAMS.date);
+});
+
+test('the address alone opens the dossier in a browser that has never seen it', async ({
+  browser,
+}) => {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  const apercu = apercuPublie();
+  await openDossier(page, apercu);
+
+  await expect(
+    page.getByRole('heading', { level: 1, name: dossierTitle(apercu) }),
+  ).toBeVisible();
+  await expect(heroBadge(page)).toContainText(
+    badgeCopy.compteARebours(DEADLINE.daysLeft),
+  );
+  await context.close();
+});
+
 test('a failed request says so in French instead of showing an empty plan', async ({
   page,
 }) => {
@@ -214,6 +423,23 @@ for (const colorScheme of ['light', 'dark'] as const) {
     await page.setViewportSize({ width: 360, height: 720 });
     await page.emulateMedia({ colorScheme });
     await openDossier(page, apercuPublie());
+
+    await expectNoAxeViolations(page);
+  });
+
+  // The form state stays out of the shared page registry: every tab stop
+  // inside Chrome's segmented date input keeps `document.activeElement` on
+  // the input itself, which the registry's keyboard pass reads as a stop
+  // without visible focus. Hence axe here, on the state it cannot host.
+  test(`axe: the dossier form is clean at 360 px — theme ${colorScheme}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 360, height: 720 });
+    await page.emulateMedia({ colorScheme });
+    await page.route(`${testApiBaseUrl}/communes**`, mockCommuneSearch);
+
+    await page.goto(DOSSIER_FORM_PATH);
+    await expect(dateField(page)).toBeVisible();
 
     await expectNoAxeViolations(page);
   });
