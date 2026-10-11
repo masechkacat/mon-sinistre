@@ -129,7 +129,7 @@ describe('login attempt rate limit (LOGIN_ATTEMPT_LIMIT)', () => {
 
     // The invariant, not a reproduction of the race it guards against:
     // whatever the interleaving, the counter never passes the limit
-    // (`withAddressLock`, `src/common/address-lock.ts`).
+    // (`withAdvisoryLock`, `src/common/advisory-lock.ts`).
     expect(await prisma.loginAttempt.count()).toBe(LOGIN_ATTEMPT_LIMIT);
     expect(answers.filter((res) => res.statusCode === 429)).toHaveLength(
       burst - LOGIN_ATTEMPT_LIMIT,

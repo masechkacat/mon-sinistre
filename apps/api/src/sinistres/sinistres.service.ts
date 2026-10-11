@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   Logger,
   NotFoundException,
@@ -7,10 +8,12 @@ import {
 import {
   SinistreStatus,
   type IsoDate,
+  type SinistreConflict,
   type SinistreDetail,
   type SinistreSummary,
   type Step,
 } from '@mon-sinistre/contracts';
+import type { Prisma } from 'src/generated/prisma/client';
 import type { StepPersistedStatus } from 'src/generated/prisma/enums';
 import { DeadlineRuleService } from 'src/deadline-rules/deadline-rule.service';
 import {
@@ -19,7 +22,9 @@ import {
 } from 'src/deadline-rules/resolve-deadline';
 import { fr } from 'src/i18n/fr';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { withAdvisoryLock } from 'src/common/advisory-lock';
 import { todayInParis } from 'src/common/time/today-in-paris';
+import { codesMergedInto } from 'src/communes/codes-merged-into';
 import type { CreateSinistreDto } from './dto/create-sinistre.dto';
 import { recomputeDeclarationSteps } from './recompute-declaration-steps';
 import { sinistreStatus } from './sinistre-status';
@@ -40,6 +45,12 @@ const detailInclude = {
   commune: { select: communeFields },
   steps: { orderBy: { order: 'asc' }, include: stepInclude },
 } as const;
+
+/** The dossier three parameters name, and whether this call is what wrote it. */
+export interface CreatedSinistre {
+  sinistre: SinistreDetail;
+  created: boolean;
+}
 
 @Injectable()
 export class SinistresService {
@@ -66,11 +77,29 @@ export class SinistresService {
    * off the real publication date, not today's; a `REFUSE` match only sets
    * `arreteEntryId` and the status — no déclaration deadline exists to
    * date (critère PRD № 6).
+   *
+   * Recognises a dossier the caller already has for this risk and commune,
+   * merged communes included — docs/research/dossier-preliminaire.md,
+   * «Создание с защитой от двойника». The second check under the lock is not
+   * redundant: the plan is built outside any transaction, and a concurrent
+   * POST can land meanwhile.
    */
   async create(
     userId: string,
     dto: CreateSinistreDto,
-  ): Promise<SinistreDetail> {
+  ): Promise<CreatedSinistre> {
+    const codes = await codesMergedInto(this.prisma, dto.codeInsee);
+    const twin = await this.findTwin(
+      this.prisma,
+      userId,
+      dto,
+      codes,
+      todayInParis(),
+    );
+    if (twin) {
+      return { sinistre: twin, created: false };
+    }
+
     const { today, match, plan, status } = await planDossier(
       this.prisma,
       this.deadlineRules,
@@ -78,34 +107,96 @@ export class SinistresService {
       this.logger,
     );
 
-    const sinistre = await this.prisma.sinistre.create({
-      data: {
-        userId,
-        codeInsee: dto.codeInsee,
-        risque: dto.risque,
-        eventDate: isoDateToDate(dto.eventDate),
-        declarationDate: null,
-        arreteEntryId: match?.arreteEntryId ?? null,
-        status,
-        steps: { create: plan.map((step) => step.row) },
-      },
-      include: detailInclude,
-    });
+    return withAdvisoryLock(this.prisma, `sinistre:${userId}`, async (tx) => {
+      const raced = await this.findTwin(tx, userId, dto, codes, today);
+      if (raced) {
+        return { sinistre: raced, created: false };
+      }
 
-    return toSinistreDetail(sinistre, sinistre.steps, today);
+      const sinistre = await tx.sinistre.create({
+        data: {
+          userId,
+          codeInsee: dto.codeInsee,
+          risque: dto.risque,
+          eventDate: isoDateToDate(dto.eventDate),
+          declarationDate: null,
+          arreteEntryId: match?.arreteEntryId ?? null,
+          status,
+          steps: { create: plan.map((step) => step.row) },
+        },
+        include: detailInclude,
+      });
+
+      return {
+        sinistre: toSinistreDetail(sinistre, sinistre.steps, today),
+        created: true,
+      };
+    });
+  }
+
+  /**
+   * The caller's dossier with all three parameters, or `null` when none
+   * stands in the way of a new one. Another date of the same commune and risk
+   * asks the caller to confirm a second dossier rather than refusing it — two
+   * are legitimate (a second home, a second event) — and names the one opened
+   * last.
+   */
+  private async findTwin(
+    tx: Prisma.TransactionClient,
+    userId: string,
+    dto: CreateSinistreDto,
+    codes: string[],
+    today: IsoDate,
+  ): Promise<SinistreDetail | null> {
+    const others = await tx.sinistre.findMany({
+      where: { userId, codeInsee: { in: codes }, risque: dto.risque },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, eventDate: true },
+    });
+    const twin = others.find(
+      ({ eventDate }) => dateToIsoDate(eventDate) === dto.eventDate,
+    );
+    if (twin) {
+      return this.readDetail(tx, { id: twin.id }, today);
+    }
+    const [latest] = others;
+    if (latest && dto.confirmNew !== true) {
+      throw new ConflictException({
+        code: 'DOSSIER_EXISTANT',
+        existing: {
+          id: latest.id,
+          eventDate: dateToIsoDate(latest.eventDate),
+        },
+      } satisfies SinistreConflict);
+    }
+    return null;
   }
 
   /** Ownership is part of the `where`, not checked after the fact — a chosen
    * and a nonexistent sinistre answer the same 404 (`apps/api/CLAUDE.md`). */
   async findOne(userId: string, id: string): Promise<SinistreDetail> {
-    const sinistre = await this.prisma.sinistre.findFirst({
-      where: { id, userId },
-      include: detailInclude,
-    });
+    const sinistre = await this.readDetail(
+      this.prisma,
+      { id, userId },
+      todayInParis(),
+    );
     if (!sinistre) {
       throw new NotFoundException();
     }
-    return toSinistreDetail(sinistre, sinistre.steps, todayInParis());
+    return sinistre;
+  }
+
+  /** `where` carries the ownership condition of its caller. */
+  private async readDetail(
+    tx: Prisma.TransactionClient,
+    where: Prisma.SinistreWhereInput,
+    today: IsoDate,
+  ): Promise<SinistreDetail | null> {
+    const sinistre = await tx.sinistre.findFirst({
+      where,
+      include: detailInclude,
+    });
+    return sinistre && toSinistreDetail(sinistre, sinistre.steps, today);
   }
 
   /** Freshest first — a returning user's most recent dossier is what they
