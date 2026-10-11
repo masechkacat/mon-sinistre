@@ -6,6 +6,7 @@ export const queryKeys = {
   sinistre: (id: string) => ['sinistres', id] as const,
   dossierApercu: (commune: string, risque: string, date: string) =>
     ['dossier', 'apercu', commune, risque, date] as const,
+  communeArretes: (code: string) => ['dossier', 'arretes', code] as const,
   veilleConfirmation: (token: string) =>
     ['veille', 'confirmation', token] as const,
   veilleChange: (token: string) => ['veille', 'changement', token] as const,

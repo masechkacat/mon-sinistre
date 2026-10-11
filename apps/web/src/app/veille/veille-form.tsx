@@ -11,14 +11,9 @@ import { PageTitle } from '@/components/page-title';
 import { RequestError } from '@/components/request-error';
 import { EmailField } from '@/components/text-field';
 import { Button } from '@/components/ui/button';
-import { apiFetch } from '@/lib/api/client';
+import { subscribeVeille } from '@/lib/api/veille';
 import { validateEmail } from '@/lib/email-pattern';
 import { fr } from '@/i18n/fr';
-
-interface SubscribeInput {
-  email: string;
-  communeCodes: string[];
-}
 
 export function VeilleForm() {
   const [email, setEmail] = useState('');
@@ -27,12 +22,8 @@ export function VeilleForm() {
   const [communesError, setCommunesError] = useState<string>();
 
   const mutation = useMutation({
-    mutationFn: (input: SubscribeInput) =>
-      apiFetch<void>('/veille', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(input),
-      }),
+    mutationFn: (input: { email: string; communeCodes: string[] }) =>
+      subscribeVeille(input.email, input.communeCodes),
   });
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -50,7 +41,7 @@ export function VeilleForm() {
     if (nextEmailError || nextCommunesError) return;
 
     mutation.mutate({
-      email: trimmedEmail,
+      email,
       communeCodes: communes.map((commune) => commune.codeInsee),
     });
   };

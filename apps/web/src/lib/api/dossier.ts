@@ -1,5 +1,9 @@
 import { useQueryClient } from '@tanstack/react-query';
-import type { DossierApercu, DossierInput } from '@mon-sinistre/contracts';
+import type {
+  CommuneArretes,
+  DossierApercu,
+  DossierInput,
+} from '@mon-sinistre/contracts';
 import type { DossierParams } from '../dossier-params';
 import { apiFetch } from './client';
 import { useCommuneByCode } from './communes';
@@ -21,6 +25,11 @@ export function fetchDossierApercu({
     eventDate: date,
   });
   return apiFetch<DossierApercu>(`/dossier/apercu?${query.toString()}`);
+}
+
+export function fetchCommuneArretes(code: string) {
+  const query = new URLSearchParams({ codeInsee: code });
+  return apiFetch<CommuneArretes>(`/dossier/arretes?${query.toString()}`);
 }
 
 export function useDossierCommune(dossier: DossierInput) {

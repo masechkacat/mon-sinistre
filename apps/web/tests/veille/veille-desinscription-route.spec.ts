@@ -1,13 +1,11 @@
 import { expect, test } from '@playwright/test';
-import {
-  oneClickPost,
-  withMockUnsubscribeApi,
-} from '../support/unsubscribe-api';
+import { withMockApi } from '../support/mock-api';
+import { oneClickPost } from '../support/unsubscribe-api';
 
 test('POST unsubscribes without cookie or CSRF token and answers success without a redirect or HTML', async ({
   request,
 }) => {
-  await withMockUnsubscribeApi(async (received) => {
+  await withMockApi(async (received) => {
     const response = await oneClickPost(
       request,
       '/veille/desinscription?token=jeton-one-click',
@@ -28,7 +26,7 @@ test('POST unsubscribes without cookie or CSRF token and answers success without
 test('GET does not call the API and redirects to the button page', async ({
   request,
 }) => {
-  await withMockUnsubscribeApi(async (received) => {
+  await withMockApi(async (received) => {
     const response = await request.get(
       '/veille/desinscription?token=jeton-lien',
       { maxRedirects: 0 },
@@ -48,7 +46,7 @@ test('GET does not call the API and redirects to the button page', async ({
 test('an unknown token gives the client no error on either method', async ({
   request,
 }) => {
-  await withMockUnsubscribeApi(async () => {
+  await withMockApi(async () => {
     const postResponse = await oneClickPost(
       request,
       '/veille/desinscription?token=jeton-inconnu',
@@ -67,7 +65,7 @@ test('an unknown token gives the client no error on either method', async ({
 test('an API that refuses the deletion answers the mail client 502, not a false success', async ({
   request,
 }) => {
-  await withMockUnsubscribeApi(async (received) => {
+  await withMockApi(async (received) => {
     const response = await oneClickPost(
       request,
       '/veille/desinscription?token=jeton-refuse',
@@ -82,7 +80,7 @@ test('an API that refuses the deletion answers the mail client 502, not a false 
 test('an unreachable API answers 502 too, without an HTML error page', async ({
   request,
 }) => {
-  await withMockUnsubscribeApi(async () => {
+  await withMockApi(async () => {
     const response = await oneClickPost(
       request,
       '/veille/desinscription?token=jeton-injoignable',
