@@ -63,10 +63,11 @@ export class DossierService {
    * `COMMUNE_ARRETES_WINDOW_MONTHS` — research, «Ответ по коммуне» owns the
    * window, the entry-level unit and the predecessor codes. */
   async arretes(codeInsee: string): Promise<CommuneArretes> {
-    const [commune, successorOf] = await Promise.all([
-      requireActiveCommune(this.prisma, codeInsee),
-      loadSuccessorMap(this.prisma),
-    ]);
+    const commune = await requireActiveCommune(this.prisma, codeInsee);
+    // Sequential, not `Promise.all`: the endpoint is public, and a code the
+    // referential does not know must cost one indexed lookup, not the whole
+    // merged-communes table read before the 400.
+    const successorOf = await loadSuccessorMap(this.prisma);
     const today = todayInParis();
     const entries = await this.prisma.arreteEntry.findMany({
       where: {
