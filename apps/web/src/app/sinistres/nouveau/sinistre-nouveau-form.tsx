@@ -113,7 +113,9 @@ export function SinistreNouveauForm() {
         focusFirstFieldError(formRef.current, {});
       }}
       pending={mutation.isPending}
-      failed={requestFailed}
+      // Any failure, the date's own included: the field it would be tied to
+      // is behind this screen.
+      failed={failed}
     >
       <PageContainer className="space-y-8">
         <section className="space-y-4">

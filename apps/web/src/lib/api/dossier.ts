@@ -1,6 +1,9 @@
-import type { DossierApercu } from '@mon-sinistre/contracts';
+import { useQueryClient } from '@tanstack/react-query';
+import type { DossierApercu, DossierInput } from '@mon-sinistre/contracts';
 import type { DossierParams } from '../dossier-params';
 import { apiFetch } from './client';
+import { useCommuneByCode } from './communes';
+import { queryKeys } from './keys';
 
 /**
  * The plan the three parameters would get as a sinistre, computed and not
@@ -18,4 +21,15 @@ export function fetchDossierApercu({
     eventDate: date,
   });
   return apiFetch<DossierApercu>(`/dossier/apercu?${query.toString()}`);
+}
+
+export function useDossierCommune(dossier: DossierInput) {
+  const apercu = useQueryClient().getQueryData<DossierApercu>(
+    queryKeys.dossierApercu(
+      dossier.codeInsee,
+      dossier.risque,
+      dossier.eventDate,
+    ),
+  );
+  return useCommuneByCode(dossier.codeInsee, apercu?.commune);
 }

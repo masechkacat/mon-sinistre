@@ -79,24 +79,31 @@ export function clearAccessToken(): void {
   accessToken = null;
 }
 
-let refreshInFlight: Promise<boolean> | null = null;
+/**
+ * What a silent refresh found: a session, none (the API refused the cookie),
+ * or no answer at all — a request that failed says nothing about the cookie,
+ * and a person holding a valid one must not be taken for a stranger.
+ */
+export type RefreshOutcome = 'open' | 'none' | 'failed';
 
-async function requestRefresh(): Promise<boolean> {
+let refreshInFlight: Promise<RefreshOutcome> | null = null;
+
+async function requestRefresh(): Promise<RefreshOutcome> {
   try {
     const response = await fetch(`${apiBaseUrl}${REFRESH_PATH}`, {
       method: 'POST',
       credentials: 'include',
     });
-    if (!response.ok) {
-      clearAccessToken();
-      return false;
+    if (response.ok) {
+      const body = (await response.json()) as LoginResponse;
+      setAccessToken(body.accessToken);
+      return 'open';
     }
-    const body = (await response.json()) as LoginResponse;
-    setAccessToken(body.accessToken);
-    return true;
+    clearAccessToken();
+    return response.status === 401 ? 'none' : 'failed';
   } catch {
     clearAccessToken();
-    return false;
+    return 'failed';
   }
 }
 
@@ -111,7 +118,7 @@ async function requestRefresh(): Promise<boolean> {
  * instead of each rotating the cookie themselves — only one of several
  * racing rotations would still be valid afterwards.
  */
-export function refreshSession(): Promise<boolean> {
+export function refreshSession(): Promise<RefreshOutcome> {
   if (!refreshInFlight) {
     refreshInFlight = requestRefresh().finally(() => {
       refreshInFlight = null;
@@ -142,8 +149,13 @@ export function clearSessionAndNavigate(path: string): void {
  * page that lost it.
  */
 export function redirectToLogin(): void {
+  const { pathname, search } = window.location;
+  // The login page loses a session too — saving the dossier of its address
+  // once logged in — and that address already says where to go next.
   clearSessionAndNavigate(
-    loginPathWithNext(`${window.location.pathname}${window.location.search}`),
+    pathname === LOGIN_PATH
+      ? `${pathname}${search}`
+      : loginPathWithNext(`${pathname}${search}`),
   );
 }
 

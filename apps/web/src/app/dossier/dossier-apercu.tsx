@@ -1,14 +1,12 @@
 'use client';
 
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import type { Route } from 'next';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useRef, useState, type FormEvent } from 'react';
 import {
   ArreteEntryOutcome,
   isIsoDate,
   type Commune,
-  type CreateSinistreInput,
   type DossierApercu,
   type RisqueCatnat,
 } from '@mon-sinistre/contracts';
@@ -39,6 +37,7 @@ import { getAccessToken, refreshSession } from '@/lib/api/session';
 import { useCreateSinistre } from '@/lib/api/use-create-sinistre';
 import {
   dossierInput,
+  dossierPath,
   dossierSearch,
   parseDossierParams,
   parseRisqueOptions,
@@ -71,19 +70,6 @@ export function DossierApercuView() {
   );
 }
 
-// `Apercu` outlives a change of address (`keepPreviousData`), and with it the
-// answer to a save sent for the previous one.
-function pourCeDossier(
-  sent: CreateSinistreInput | undefined,
-  params: Required<DossierParams>,
-) {
-  return (
-    sent?.codeInsee === params.commune &&
-    sent.risque === params.risque &&
-    sent.eventDate === params.date
-  );
-}
-
 function Apercu({
   params,
   risqueOptions,
@@ -93,9 +79,13 @@ function Apercu({
 }) {
   const router = useRouter();
   const { mutation, conflict, failed, confirmNew, dismissConflict } =
-    useCreateSinistre();
-  const actuel = pourCeDossier(mutation.variables, params);
+    useCreateSinistre(dossierInput(params));
   const [enregistrement, setEnregistrement] = useState(false);
+  // Keyed on the address like the hook's own answers: `Apercu` outlives a
+  // change of it (`keepPreviousData`), and a failure must not outlive the
+  // dossier it was about.
+  const [sessionEchecPour, setSessionEchecPour] = useState<string>();
+  const sessionEchec = sessionEchecPour === dossierSearch(params);
   const ecranRef = useRef<HTMLDivElement>(null);
   const query = useQuery({
     queryKey: queryKeys.dossierApercu(
@@ -117,11 +107,15 @@ function Apercu({
 
   const enregistrer = async () => {
     setEnregistrement(true);
+    setSessionEchecPour(undefined);
     try {
-      if (getAccessToken() || (await refreshSession())) {
+      const session = getAccessToken() ? 'open' : await refreshSession();
+      if (session === 'open') {
         await mutation.mutateAsync(dossierInput(params));
+      } else if (session === 'none') {
+        router.push(dossierPath('/inscription', params));
       } else {
-        router.push(`/inscription${dossierSearch(params)}` as Route);
+        setSessionEchecPour(dossierSearch(params));
       }
     } catch {
       // Answered on screen by the hook: the conflict around this page, any
@@ -133,7 +127,7 @@ function Apercu({
 
   return (
     <DossierExistant
-      conflict={actuel ? conflict : null}
+      conflict={conflict}
       onConfirmNew={confirmNew}
       onCorriger={() => {
         dismissConflict();
@@ -142,7 +136,7 @@ function Apercu({
           ?.focus();
       }}
       pending={mutation.isPending}
-      failed={actuel && failed}
+      failed={failed}
     >
       <PageContainer ref={ecranRef} className="space-y-8">
         {/* The whole screen comes from the request, so until it answers there
@@ -225,7 +219,7 @@ function Apercu({
                 : fr.dossier.enregistrer}
             </Button>
 
-            {actuel && failed ? <RequestError /> : null}
+            {failed || sessionEchec ? <RequestError /> : null}
           </>
         ) : null}
       </PageContainer>
@@ -346,7 +340,7 @@ function Formulaire({
     // answered, and the back button belongs to the page the visitor came
     // from. `risques`, the hint of a multi-risk arrêté, has done its job and
     // is left behind.
-    router.replace(`/dossier${dossierSearch(reponse)}` as Route);
+    router.replace(dossierPath('/dossier', reponse));
   };
 
   return (

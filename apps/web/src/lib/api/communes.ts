@@ -3,7 +3,6 @@ import type { Commune } from '@mon-sinistre/contracts';
 import { apiFetch } from './client';
 import { queryKeys } from './keys';
 
-/** Public search over the commune referential: name prefix or INSEE code. */
 export function fetchCommunes(q: string) {
   return apiFetch<Commune[]>(`/communes?q=${encodeURIComponent(q)}`);
 }
@@ -14,11 +13,12 @@ export function fetchCommunes(q: string) {
  * code too, so the referential needs no second route; the code is matched
  * again in the answer because a commune name could start with those digits.
  */
-export function useCommuneByCode(code: string | undefined) {
+export function useCommuneByCode(code: string | undefined, known?: Commune) {
   const { data, isPending } = useQuery({
     queryKey: queryKeys.communes(code ?? ''),
     queryFn: () => fetchCommunes(code ?? ''),
     enabled: Boolean(code),
+    initialData: known && [known],
     staleTime: Infinity,
   });
 

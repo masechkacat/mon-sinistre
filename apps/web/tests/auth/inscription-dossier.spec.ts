@@ -2,20 +2,26 @@ import { expect, test, type Page } from '@playwright/test';
 import { formatDateFr } from '../../src/i18n/date';
 import { fr } from '../../src/i18n/fr';
 import { communeLabel } from '../../src/lib/commune-label';
-import { dossierSearch } from '../../src/lib/dossier-params';
+import { dossierPath } from '../../src/lib/dossier-params';
 import {
   NIMES,
   holdCommuneSearch,
   mockCommuneSearch,
 } from '../support/communes';
-import { APERCU_PARAMS } from '../support/dossier';
+import {
+  APERCU_PARAMS,
+  DOSSIER_PATH,
+  apercuFixture,
+  mockApercu,
+} from '../support/dossier';
 import { testApiBaseUrl } from '../support/env';
 import { VALID_PASSWORD } from '../support/form';
+import { mockNoSession } from '../support/session-mock';
 
 const EMAIL = 'sinistre@example.fr';
 
 /** The registration a visitor reaches from « Enregistrer ce dossier ». */
-const INSCRIPTION_DOSSIER_PATH = `/inscription${dossierSearch(APERCU_PARAMS)}`;
+const INSCRIPTION_DOSSIER_PATH = dossierPath('/inscription', APERCU_PARAMS);
 
 const RESUME = fr.dossier.resume([
   fr.sinistres.risque.options[APERCU_PARAMS.risque].label,
@@ -102,6 +108,26 @@ test('the summary is written once, when the name of the commune is known', async
   await expect(resume).toHaveText(RESUME);
 });
 
+test('coming from the dossier, the summary names the commune without asking the referential', async ({
+  page,
+}) => {
+  let searches = 0;
+  await page.route(`${testApiBaseUrl}/communes**`, (route) => {
+    searches += 1;
+    return mockCommuneSearch(route);
+  });
+  await mockNoSession(page);
+  await mockApercu(page, apercuFixture());
+  await page.goto(DOSSIER_PATH);
+
+  await page.getByRole('button', { name: fr.dossier.enregistrer }).click();
+
+  await expect(page).toHaveURL(INSCRIPTION_DOSSIER_PATH);
+  // The aperçu the person just left already named the commune.
+  await expect(page.getByTestId('dossier-resume')).toHaveText(RESUME);
+  expect(searches).toBe(0);
+});
+
 test('the link to the login page carries the same three parameters', async ({
   page,
 }) => {
@@ -109,5 +135,5 @@ test('the link to the login page carries the same three parameters', async ({
 
   await expect(
     page.getByRole('link', { name: fr.compte.inscription.loginLink }),
-  ).toHaveAttribute('href', `/connexion${dossierSearch(APERCU_PARAMS)}`);
+  ).toHaveAttribute('href', dossierPath('/connexion', APERCU_PARAMS));
 });

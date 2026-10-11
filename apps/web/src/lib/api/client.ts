@@ -85,8 +85,7 @@ async function performFetch<T>(
     // token itself already invalid) has no second refresh to fall back on
     // and must redirect exactly like an outright failed one.
     if (retryOn401) {
-      const refreshed = await refreshSession();
-      if (refreshed) {
+      if ((await refreshSession()) === 'open') {
         return performFetch<T>(path, init, true, false);
       }
     }

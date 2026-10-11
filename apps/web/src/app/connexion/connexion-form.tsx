@@ -3,7 +3,7 @@
 import { useMutation } from '@tanstack/react-query';
 import type { Route } from 'next';
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
 import type { LoginResponse } from '@mon-sinistre/contracts';
 import { Alert, AlertTitle } from '@/components/ui/alert';
@@ -14,12 +14,12 @@ import { RequestError } from '@/components/request-error';
 import { EmailField, PasswordField } from '@/components/text-field';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { ApiError, apiFetch } from '@/lib/api/client';
-import { loginNextPath, setAccessToken } from '@/lib/api/session';
+import { setAccessToken } from '@/lib/api/session';
 import { useCreateSinistre } from '@/lib/api/use-create-sinistre';
 import {
   dossierInput,
-  dossierSearch,
-  parseDossierParams,
+  dossierPath,
+  type DossierParams,
 } from '@/lib/dossier-params';
 import { validateEmail } from '@/lib/email-pattern';
 import { useFocusOnSuccess } from '@/lib/use-focus-on-success';
@@ -30,13 +30,16 @@ interface LoginInput {
   password: string;
 }
 
-export function ConnexionForm() {
+export function ConnexionForm({
+  params,
+  suivant,
+}: {
+  params: DossierParams;
+  suivant: Route | null;
+}) {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const params = parseDossierParams(searchParams);
   const dossier = dossierInput(params);
-  const dossierPath = `/dossier${dossierSearch(params)}` as Route;
-  const suivant = loginNextPath(searchParams);
+  const retourDossier = dossierPath('/dossier', params);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -97,7 +100,7 @@ export function ConnexionForm() {
     <DossierExistant
       conflict={enregistrement.conflict}
       onConfirmNew={enregistrement.confirmNew}
-      onCorriger={() => router.push(dossierPath)}
+      onCorriger={() => router.push(retourDossier)}
       pending={enregistrement.mutation.isPending}
       failed={enregistrement.failed}
     >
@@ -118,37 +121,33 @@ export function ConnexionForm() {
             : null}
         </p>
 
-        {connecte ? (
-          enregistrement.failed ? (
-            <div
-              ref={echecRef}
-              tabIndex={-1}
-              className="space-y-6 outline-none"
-            >
-              <p className="text-lg">{fr.dossier.echecApresConnexion}</p>
-              <RequestError />
-              <div className="flex flex-wrap gap-4">
-                {enregistrementRefuse ? null : (
-                  <Button
-                    size="touch"
-                    onClick={() => enregistrement.mutation.mutate(dossier)}
-                  >
-                    {fr.serverError.retry}
-                  </Button>
-                )}
-                <Link
-                  href={dossierPath}
-                  className={buttonVariants({
-                    size: 'touch',
-                    variant: enregistrementRefuse ? 'default' : 'outline',
-                  })}
+        {connecte && enregistrement.failed ? (
+          <div ref={echecRef} tabIndex={-1} className="space-y-6 outline-none">
+            <p className="text-lg">{fr.dossier.echecApresConnexion}</p>
+            <RequestError />
+            <div className="flex flex-wrap gap-4">
+              {enregistrementRefuse ? null : (
+                <Button
+                  size="touch"
+                  onClick={() => enregistrement.mutation.mutate(dossier)}
                 >
-                  {fr.dossier.revenir}
-                </Link>
-              </div>
+                  {fr.serverError.retry}
+                </Button>
+              )}
+              <Link
+                href={retourDossier}
+                className={buttonVariants({
+                  size: 'touch',
+                  variant: enregistrementRefuse ? 'default' : 'outline',
+                })}
+              >
+                {fr.dossier.revenir}
+              </Link>
             </div>
-          ) : null
-        ) : (
+          </div>
+        ) : null}
+
+        {connecte ? null : (
           <form
             className="space-y-6"
             onSubmit={handleSubmit}
@@ -186,7 +185,7 @@ export function ConnexionForm() {
               </Link>
             </p>
 
-            <Button type="submit" disabled={mutation.isPending}>
+            <Button type="submit" size="touch" disabled={mutation.isPending}>
               {mutation.isPending
                 ? fr.compte.connexion.submitting
                 : fr.compte.connexion.submit}
@@ -195,7 +194,7 @@ export function ConnexionForm() {
             <p className="text-sm">
               {fr.compte.connexion.noAccount}{' '}
               <Link
-                href={`/inscription${dossierSearch(params)}` as Route}
+                href={dossierPath('/inscription', params)}
                 className="underline underline-offset-4"
               >
                 {fr.compte.connexion.registerLink}

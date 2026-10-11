@@ -12,7 +12,7 @@ import {
   type DeclarationDeadline,
   type DossierApercu,
 } from '@mon-sinistre/contracts';
-import { dossierSearch } from '../../src/lib/dossier-params';
+import { dossierPath } from '../../src/lib/dossier-params';
 import { NIMES } from './communes';
 import { testApiBaseUrl } from './env';
 import { SOURCE, stepViewFixture } from './sinistres';
@@ -24,7 +24,7 @@ export const APERCU_PARAMS = {
   date: toIsoDate('2026-09-13'),
 };
 
-export const DOSSIER_PATH = `/dossier${dossierSearch(APERCU_PARAMS)}` as Route;
+export const DOSSIER_PATH = dossierPath('/dossier', APERCU_PARAMS);
 
 /** The event date of a dossier the visitor already has for this commune. */
 export const AUTRE_DATE_EVENEMENT = toIsoDate('2026-07-04');

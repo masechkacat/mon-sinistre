@@ -12,10 +12,9 @@ import { fr } from '@/i18n/fr';
 import { cn } from '@/lib/utils';
 
 /**
- * The question a `409` from `POST /sinistres` raises: a dossier for this
- * commune and risque is already open under another date. Replaces `children`
- * — the form or the aperçu the attempt came from — so that the controls which
- * asked are gone and the two answers are what is left.
+ * Replaces `children` — the form or the aperçu the attempt came from — rather
+ * than sitting above them: the question must not be left unread above a
+ * button that would only ask it again.
  */
 export function DossierExistant({
   conflict,

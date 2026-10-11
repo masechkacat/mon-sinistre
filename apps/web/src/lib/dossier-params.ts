@@ -1,3 +1,4 @@
+import type { Route } from 'next';
 import {
   isIsoDate,
   type DossierInput,
@@ -14,11 +15,9 @@ export interface DossierParams {
 }
 
 /**
- * The same three as the API takes them — to save the dossier
- * (`POST /sinistres`) or to carry it through a registration
- * (`POST /auth/register`). `undefined` while any of the three is missing: an
- * incomplete address is not a dossier yet, and a page that already has all
- * three (`Required<DossierParams>`) is answered without that `undefined`.
+ * `undefined` while any of the three is missing: an incomplete address is not
+ * a dossier yet. The overload spares a page that already holds all three a
+ * check that cannot fail.
  */
 export function dossierInput(params: Required<DossierParams>): DossierInput;
 export function dossierInput(params: DossierParams): DossierInput | undefined;
@@ -74,4 +73,12 @@ export function dossierSearch(params: DossierParams): string {
 
   const query = searchParams.toString();
   return query === '' ? '' : `?${query}`;
+}
+
+export type DossierPage = '/dossier' | '/inscription' | '/connexion';
+
+/** The pages a dossier travels between, each one carrying it in the address. */
+export function dossierPath(page: DossierPage, params: DossierParams): Route {
+  // typedRoutes cannot check a query built at runtime.
+  return `${page}${dossierSearch(params)}` as Route;
 }

@@ -120,6 +120,23 @@ test('a confirmation that fails says so and leaves the existing dossier reachabl
   expect(sent).toHaveLength(2);
 });
 
+test('a confirmation the API refuses is reported on the question, not on the date field behind it', async ({
+  page,
+}) => {
+  await openConflict(page, {
+    status: 400,
+    contentType: 'application/json',
+    body: JSON.stringify({ message: ['La date ne peut pas être future'] }),
+  });
+
+  await page.getByRole('button', { name: fr.sinistres.doublon.creer }).click();
+
+  await expect(page.getByTestId('request-error')).toBeVisible();
+  await expect(
+    page.getByRole('link', { name: fr.sinistres.doublon.ouvrir }),
+  ).toBeVisible();
+});
+
 test('while the second dossier is being created, the link to the existing one does not fire', async ({
   page,
 }) => {

@@ -12,7 +12,7 @@ import {
 } from '@mon-sinistre/contracts';
 import { formatDateFr, formatDateShortFr } from '../../src/i18n/date';
 import { fr } from '../../src/i18n/fr';
-import { dossierSearch } from '../../src/lib/dossier-params';
+import { dossierPath } from '../../src/lib/dossier-params';
 import { loginPathWithNext } from '../../src/lib/api/session';
 import { dossierTitle } from '../../src/lib/dossier-title';
 import { RISQUES } from '../../src/lib/risques';
@@ -213,7 +213,22 @@ test('with no session, saving the dossier carries its three parameters to the re
 
   await page.getByRole('button', { name: fr.dossier.enregistrer }).click();
 
-  await expect(page).toHaveURL(`/inscription${dossierSearch(APERCU_PARAMS)}`);
+  await expect(page).toHaveURL(dossierPath('/inscription', APERCU_PARAMS));
+});
+
+test('a refresh that gets no answer reports a failure rather than asking to register', async ({
+  page,
+}) => {
+  // The cookie may well be valid: only the API's own 401 says it is not.
+  await page.route(`${testApiBaseUrl}/auth/refresh`, (route) =>
+    route.fulfill({ status: 503, contentType: 'application/json', body: '{}' }),
+  );
+  await openDossier(page, apercuFixture());
+
+  await page.getByRole('button', { name: fr.dossier.enregistrer }).click();
+
+  await expect(page.getByTestId('request-error')).toBeVisible();
+  await expect(page).toHaveURL(DOSSIER_PATH);
 });
 
 test('with a session, the same button saves the dossier and opens it as a sinistre', async ({
@@ -308,7 +323,7 @@ test('a save that failed stops being reported once the date is refined', async (
     .click();
 
   await expect(page).toHaveURL(
-    `/dossier${dossierSearch({ ...APERCU_PARAMS, date: ARRETE.eventEnd })}`,
+    dossierPath('/dossier', { ...APERCU_PARAMS, date: ARRETE.eventEnd }),
   );
   await expect(page.getByTestId('request-error')).toHaveCount(0);
 });
@@ -461,7 +476,7 @@ test('with an arrêté the date is refined inside its period, and nowhere outsid
   await preciser.click();
 
   await expect(page).toHaveURL(
-    `/dossier${dossierSearch({ ...APERCU_PARAMS, date: ARRETE.eventEnd })}`,
+    dossierPath('/dossier', { ...APERCU_PARAMS, date: ARRETE.eventEnd }),
   );
   await expect(preciser).toBeFocused();
 });

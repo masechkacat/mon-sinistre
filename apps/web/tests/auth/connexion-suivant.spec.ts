@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { fr } from '../../src/i18n/fr';
 import { LOGIN_NEXT_PARAM } from '../../src/lib/api/session';
-import { dossierSearch } from '../../src/lib/dossier-params';
+import { dossierPath } from '../../src/lib/dossier-params';
 import { LOGIN_EMAIL, fillLoginForm, mockLogin } from '../support/connexion';
 import {
   APERCU_PARAMS,
@@ -10,7 +10,9 @@ import {
   apercuFixture,
   mockApercu,
 } from '../support/dossier';
+import { testApiBaseUrl } from '../support/env';
 import { VALID_PASSWORD } from '../support/form';
+import { mockNoSession } from '../support/session-mock';
 import {
   SINISTRE_ID_1,
   SINISTRE_ID_2,
@@ -20,7 +22,7 @@ import {
 } from '../support/sinistres';
 
 /** The login a visitor reaches from the dossier they prepared without an account. */
-const CONNEXION_DOSSIER_PATH = `/connexion${dossierSearch(APERCU_PARAMS)}`;
+const CONNEXION_DOSSIER_PATH = dossierPath('/connexion', APERCU_PARAMS);
 
 /** The address the confirmation page builds once the dossier is already saved. */
 const CONNEXION_SUIVANT_PATH = `/connexion?${LOGIN_NEXT_PARAM}=/sinistres/${SINISTRE_ID_1}`;
@@ -169,5 +171,27 @@ test('the link to the registration carries the dossier of the address', async ({
 
   await expect(
     page.getByRole('link', { name: fr.compte.connexion.registerLink }),
-  ).toHaveAttribute('href', `/inscription${dossierSearch(APERCU_PARAMS)}`);
+  ).toHaveAttribute('href', dossierPath('/inscription', APERCU_PARAMS));
+});
+
+test('a session lost while saving after the login comes back to this same login, dossier kept', async ({
+  page,
+}) => {
+  await mockLogin(page);
+  await mockNoSession(page);
+  await page.route(`${testApiBaseUrl}/sinistres`, (route) =>
+    route.fulfill({ status: 401, contentType: 'application/json', body: '{}' }),
+  );
+
+  await page.goto(CONNEXION_DOSSIER_PATH);
+  // The lost session leaves the page outright (`window.location.assign`):
+  // the form that had gone after the login is back from a fresh load.
+  const reloaded = page.waitForEvent('framenavigated');
+  await fillLoginForm(page, { email: LOGIN_EMAIL, password: VALID_PASSWORD });
+  await reloaded;
+
+  // Not `/connexion?suivant=/connexion?commune=…`: nested there, the dossier
+  // would be invisible to the login that follows.
+  await expect(page).toHaveURL(CONNEXION_DOSSIER_PATH);
+  await expect(page.getByLabel(fr.compte.connexion.passwordLabel)).toBeVisible();
 });

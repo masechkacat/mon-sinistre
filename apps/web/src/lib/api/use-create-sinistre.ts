@@ -5,7 +5,10 @@ import type { Route } from 'next';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { flushSync } from 'react-dom';
-import type { SinistreConflict } from '@mon-sinistre/contracts';
+import type {
+  CreateSinistreInput,
+  SinistreConflict,
+} from '@mon-sinistre/contracts';
 import { createSinistre, sinistreConflictOf } from './sinistres';
 
 /**
@@ -18,8 +21,12 @@ import { createSinistre, sinistreConflictOf } from './sinistres';
  * screen asking the question must not blink back to the one it replaced —
  * nor disappear if that request then fails, since it holds the only link to
  * the dossier already there.
+ *
+ * `current` is the dossier on screen, for a screen that can move on to
+ * another one while the answer to the one sent is still held
+ * (`keepPreviousData` on `/dossier`): that answer is then withheld.
  */
-export function useCreateSinistre() {
+export function useCreateSinistre(current?: CreateSinistreInput) {
   const router = useRouter();
   const [conflict, setConflict] = useState<SinistreConflict | null>(null);
 
@@ -38,11 +45,22 @@ export function useCreateSinistre() {
     },
   });
 
+  const sent = mutation.variables;
+  const stale =
+    current !== undefined &&
+    sent !== undefined &&
+    (sent.codeInsee !== current.codeInsee ||
+      sent.risque !== current.risque ||
+      sent.eventDate !== current.eventDate);
+
   return {
     mutation,
-    conflict,
+    conflict: stale ? null : conflict,
     /** The request failed for a reason the screen can only report, not act on. */
-    failed: mutation.isError && sinistreConflictOf(mutation.error) === null,
+    failed:
+      !stale &&
+      mutation.isError &&
+      sinistreConflictOf(mutation.error) === null,
     confirmNew: () => {
       const sent = mutation.variables;
       if (sent) mutation.mutate({ ...sent, confirmNew: true });

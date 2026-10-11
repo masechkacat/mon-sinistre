@@ -1,9 +1,7 @@
 'use client';
 
 import { useMutation } from '@tanstack/react-query';
-import type { Route } from 'next';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
 import type { DossierInput, RegisterInput } from '@mon-sinistre/contracts';
 import { AnnouncedResult } from '@/components/announced-result';
@@ -13,12 +11,12 @@ import { RequestError } from '@/components/request-error';
 import { EmailField, PasswordField } from '@/components/text-field';
 import { Button } from '@/components/ui/button';
 import { apiFetch } from '@/lib/api/client';
-import { useCommuneByCode } from '@/lib/api/communes';
+import { useDossierCommune } from '@/lib/api/dossier';
 import { communeLabel } from '@/lib/commune-label';
 import {
   dossierInput,
-  dossierSearch,
-  parseDossierParams,
+  dossierPath,
+  type DossierParams,
 } from '@/lib/dossier-params';
 import { validateEmail } from '@/lib/email-pattern';
 import { validatePassword } from '@/lib/password-pattern';
@@ -32,7 +30,7 @@ function DossierResume({ dossier }: { dossier: DossierInput }) {
   // text appended to a line a screen reader has already read goes unannounced
   // (apps/web/CLAUDE.md, доступность). The height is held meanwhile, and a
   // failed lookup leaves the line without the commune.
-  const { commune, settled } = useCommuneByCode(dossier.codeInsee);
+  const { commune, settled } = useDossierCommune(dossier);
 
   return (
     <p className="min-h-7 text-lg" data-testid="dossier-resume">
@@ -47,9 +45,7 @@ function DossierResume({ dossier }: { dossier: DossierInput }) {
   );
 }
 
-export function InscriptionForm() {
-  const searchParams = useSearchParams();
-  const params = parseDossierParams(searchParams);
+export function InscriptionForm({ params }: { params: DossierParams }) {
   const dossier = dossierInput(params);
 
   const [email, setEmail] = useState('');
@@ -140,7 +136,7 @@ export function InscriptionForm() {
             </Link>
           </p>
 
-          <Button type="submit" disabled={mutation.isPending}>
+          <Button type="submit" size="touch" disabled={mutation.isPending}>
             {mutation.isPending
               ? fr.compte.inscription.submitting
               : fr.compte.inscription.submit}
@@ -149,7 +145,7 @@ export function InscriptionForm() {
           <p className="text-sm">
             {fr.compte.inscription.alreadyRegistered}{' '}
             <Link
-              href={`/connexion${dossierSearch(params)}` as Route}
+              href={dossierPath('/connexion', params)}
               className="underline underline-offset-4"
             >
               {fr.compte.inscription.loginLink}
