@@ -6,6 +6,7 @@ import {
   RisqueCatnat,
   SinistreStatus,
   StepAnchor,
+  StepKind,
 } from '@mon-sinistre/contracts';
 
 // The space before ":" and "?" is a literal U+00A0, not a typo — same
@@ -13,6 +14,9 @@ import {
 
 const A_VERIFIER_AVEC_CONTRAT =
   'à vérifier avec votre contrat et votre assurance';
+
+const EVENT_DATE_HINT =
+  'Le jour où les dégâts se sont produits : jour, mois, puis année. Par exemple 05/09/2026 pour le 5 septembre 2026.';
 
 // Shared across veille.confirmation and veille.change below: same fact
 // (link being checked, link no longer usable, alert reaches the watched
@@ -84,6 +88,9 @@ const RAPPELS_DESACTIVER = 'Désactiver les rappels';
 // as the text on screen, and inside the longer name a screen reader gets.
 const VOIR_MON_DOSSIER = 'Voir mon dossier';
 const FAIT = 'Fait';
+
+const conteneurVide = (contenu: string) =>
+  `${contenu} : cet espace s’ouvrira une fois votre dossier enregistré.`;
 
 const apresAncre: Record<StepAnchor, string> = {
   [StepAnchor.DATE_SINISTRE]: 'après le sinistre',
@@ -428,11 +435,16 @@ export const fr = {
       communeLabel: 'Commune concernée',
       communeRequiredError: 'Choisissez la commune concernée.',
       eventDateLabel: 'Date de l’événement',
-      eventDateHint:
-        'Le jour où les dégâts se sont produits : jour, mois, puis année. Par exemple 05/09/2026 pour le 5 septembre 2026.',
+      eventDateHint: EVENT_DATE_HINT,
       eventDateRequiredError: 'Indiquez la date de l’événement.',
       eventDateInvalidError:
         'Vérifiez l’année : elle doit comporter quatre chiffres.',
+      // Replaces the hint above instead of adding to it: the field carries a
+      // single description, and the order of the fields belongs in both.
+      eventDatePeriodeHint: (debut: string, fin: string) =>
+        `${EVENT_DATE_HINT} L’arrêté couvre les événements du ${debut} au ${fin} : indiquez le jour exact dans cette période.`,
+      eventDatePeriodeError: (debut: string, fin: string) =>
+        `Indiquez une date entre le ${debut} et le ${fin}.`,
       submit: 'Créer mon dossier',
       submitting: 'Création en cours…',
     },
@@ -529,6 +541,44 @@ export const fr = {
           `Source non revérifiée depuis plus de ${months} mois : la date peut avoir changé.`,
         indicative: `Date indicative, ${A_VERIFIER_AVEC_CONTRAT}.`,
       },
+    },
+  },
+  dossier: {
+    page: { title: 'Aperçu de mon dossier' },
+    testPage: 'Plan du dossier',
+    chargement: 'Chargement de votre dossier…',
+    publieLe: (date: string) => `Publié au Journal officiel le ${date}`,
+    legifranceLink: 'Consulter l’arrêté sur Légifrance',
+    delaiExpire: 'Délai expiré',
+    enregistrer: 'Enregistrer ce dossier',
+    formulaire: {
+      titre: 'Préparer mon dossier',
+      lead: 'Indiquez ce qui manque : votre plan d’actions s’affiche aussitôt, sans compte ni inscription.',
+      submit: 'Voir mon plan d’actions',
+      parametresRefuses:
+        'Ces informations n’ont pas pu être utilisées. Vérifiez la commune, le risque et la date de l’événement, puis réessayez.',
+      preciser: {
+        titre: 'Préciser la date de l’événement',
+        submit: 'Mettre à jour la date',
+      },
+      inchange: {
+        refuse:
+          'Ce sont les informations qui n’ont pas pu être utilisées : modifiez la commune, le risque ou la date.',
+        preciser:
+          'C’est déjà la date de ce dossier : choisissez-en une autre dans la période pour mettre le plan à jour.',
+      },
+    },
+    conteneur: {
+      [StepKind.PHOTOS]: conteneurVide('Photos et vidéos des dégâts'),
+      [StepKind.JUSTIFICATIFS]: conteneurVide(
+        'Factures, devis et autres justificatifs',
+      ),
+      [StepKind.OBJETS]: conteneurVide(
+        'Liste des objets endommagés et de leur valeur',
+      ),
+      [StepKind.DECLARATION]: conteneurVide(
+        'Date de votre déclaration à l’assureur',
+      ),
     },
   },
   session: {

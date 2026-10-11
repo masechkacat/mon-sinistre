@@ -6,26 +6,37 @@ import {
   toIsoDate,
   type Sinistre,
   type Step,
+  type StepView,
 } from '@mon-sinistre/contracts';
 import { NIMES } from './communes';
 
-/** A plan step; overrides set what a test cares about. */
-export function stepFixture(overrides: Partial<Step> = {}): Step {
+export { SOURCE } from '../../src/app/test-plan/cases';
+
+/** A step as an aperçu answers it: no identity and no mark to carry. */
+export function stepViewFixture(overrides: Partial<StepView> = {}): StepView {
   return {
-    id: 'step',
-    sinistreId: SINISTRE_ID_1,
     name: 'Étape',
     description: '',
     kind: StepKind.ACTION,
     plannedDate: null,
     status: StepStatus.A_VENIR,
-    completedAt: null,
-    fromTemplate: true,
     anchor: null,
     source: null,
     daysLeft: null,
     delay: null,
     order: 1,
+    ...overrides,
+  };
+}
+
+/** The same step stored in a sinistre; overrides set what a test cares about. */
+export function stepFixture(overrides: Partial<Step> = {}): Step {
+  return {
+    ...stepViewFixture(),
+    id: 'step',
+    sinistreId: SINISTRE_ID_1,
+    completedAt: null,
+    fromTemplate: true,
     ...overrides,
   };
 }
