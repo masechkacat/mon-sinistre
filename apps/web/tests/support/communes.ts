@@ -1,6 +1,5 @@
 import { expect, type Page, type Route } from '@playwright/test';
 import type { Commune } from '@mon-sinistre/contracts';
-import { fr } from '../../src/i18n/fr';
 import { deferred } from './deferred';
 import { testApiBaseUrl } from './env';
 
@@ -48,8 +47,7 @@ export async function mockCommuneSearch(route: Route) {
  * Installs the commune search mock with the answer to one query held back
  * until the returned `release` is called: the window in which the popup shows
  * the previous query's results is then deterministic instead of depending on
- * timing. Shared by both combobox specs — each one asserts that a stale list
- * cannot be committed.
+ * timing: the combobox spec asserts that a stale list cannot be committed.
  */
 export async function holdCommuneSearch(page: Page, heldQuery: string) {
   const held = deferred();
@@ -61,14 +59,21 @@ export async function holdCommuneSearch(page: Page, heldQuery: string) {
   return held;
 }
 
-export async function selectNimes(
+/** Types `typed` into the combobox under `label` and commits the option
+ * `name` — over a commune already chosen as well. */
+export async function selectCommune(
   page: Page,
-  label: string = fr.veille.form.communesLabel,
+  label: string,
+  typed: string,
+  name: RegExp,
 ) {
-  const input = page.getByLabel(label);
-  await input.focus();
-  await page.keyboard.type('Nimes');
-  await expect(page.getByRole('option', { name: /Nîmes/ })).toBeVisible();
+  await page.getByLabel(label).focus();
+  await page.keyboard.press('Control+a');
+  await page.keyboard.type(typed);
+  await expect(page.getByRole('option', { name })).toBeVisible();
   await page.keyboard.press('ArrowDown');
   await page.keyboard.press('Enter');
 }
+
+export const selectNimes = (page: Page, label: string) =>
+  selectCommune(page, label, 'Nimes', /Nîmes/);

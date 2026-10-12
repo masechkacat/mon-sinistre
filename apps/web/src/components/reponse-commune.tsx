@@ -1,6 +1,6 @@
 'use client';
 
-import { skipToken, useQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import {
   ArreteEntryOutcome,
@@ -13,7 +13,13 @@ import { ArretePublication } from '@/components/plan/arrete-publication';
 import { DeclarationDeadlineValue } from '@/components/plan/declaration-deadline-block';
 import { RequestError } from '@/components/request-error';
 import { buttonVariants } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 import { VeilleInlineForm } from '@/components/veille-inline-form';
 import { formatDateFr } from '@/i18n/date';
 import { fr } from '@/i18n/fr';
@@ -29,16 +35,26 @@ const copy = fr.reponseCommune;
  * the commune instead of reading it from the page, so the map popup can ask
  * the same question later (docs/research/dossier-preliminaire.md).
  *
- * `null` is the screen before a commune is chosen: the component is mounted
- * from the first paint and asks nothing until then, so that its live region
- * exists before it has an answer to announce. Mounting it with the choice
- * would leave the answer unread whenever it comes from the cache — the second
- * look at a commune already seen.
+ * `null` is the screen before a commune is chosen: the live region is mounted
+ * from the first paint, so that it exists before it has an answer to announce.
+ * Mounting it with the choice would leave the answer unread whenever it comes
+ * from the cache — the second look at a commune already seen.
  */
 export function ReponseCommune({ commune }: { commune: Commune | null }) {
+  if (!commune) {
+    return (
+      <section data-testid="reponse-arretes">
+        <p role="status" className="min-h-7 text-lg" />
+      </section>
+    );
+  }
+  return <ReponseCommuneChoisie commune={commune} />;
+}
+
+function ReponseCommuneChoisie({ commune }: { commune: Commune }) {
   const query = useQuery({
-    queryKey: queryKeys.communeArretes(commune?.codeInsee ?? ''),
-    queryFn: commune ? () => fetchCommuneArretes(commune.codeInsee) : skipToken,
+    queryKey: queryKeys.communeArretes(commune.codeInsee),
+    queryFn: () => fetchCommuneArretes(commune.codeInsee),
   });
   const arretes = query.data?.arretes;
 
@@ -46,12 +62,12 @@ export function ReponseCommune({ commune }: { commune: Commune | null }) {
     <div className="space-y-8">
       <section data-testid="reponse-arretes" className="space-y-4">
         <p role="status" className="min-h-7 text-lg">
-          {commune ? annonce(commune, query) : null}
+          {annonce(commune, query)}
         </p>
 
         {query.isError ? <RequestError /> : null}
 
-        {commune && arretes?.length ? (
+        {arretes?.length ? (
           <ul className="space-y-4">
             {arretes.map((arrete) => (
               <li
@@ -64,7 +80,7 @@ export function ReponseCommune({ commune }: { commune: Commune | null }) {
           </ul>
         ) : null}
 
-        {commune && arretes?.length === 0 ? (
+        {arretes?.length === 0 ? (
           <div className="space-y-4">
             <p>{copy.aucunSuite(COMMUNE_ARRETES_WINDOW_MONTHS)}</p>
             <Link
@@ -78,12 +94,8 @@ export function ReponseCommune({ commune }: { commune: Commune | null }) {
       </section>
 
       {/* Offered whatever the answer is, and before it arrives: an arrêté can
-          appear weeks after the event. Keyed on the commune so a subscription
-          confirmed for one does not stay on screen as the answer for the
-          next. */}
-      {commune ? (
-        <VeilleInlineForm key={commune.codeInsee} commune={commune} />
-      ) : null}
+          appear weeks after the event. */}
+      <VeilleInlineForm commune={commune} />
     </div>
   );
 }
@@ -94,8 +106,10 @@ function annonce(
 ) {
   if (query.isPending) return copy.chargement;
   if (!query.data) return null;
-  const { length } = query.data.arretes;
-  return length ? copy.trouves(length, commune.name) : copy.aucun(commune.name);
+  // One arrêté names the commune once per risk and period (`CommuneArrete`):
+  // the visitor is told how many texts there are, not how many lines.
+  const nombre = new Set(query.data.arretes.map((a) => a.nor)).size;
+  return nombre ? copy.trouves(nombre, commune.name) : copy.aucun(commune.name);
 }
 
 function CarteArrete({
@@ -110,12 +124,10 @@ function CarteArrete({
   return (
     <Card>
       <CardHeader>
-        {/* The wording of the Journal officiel, as a hint beside the
-            categories it was classified to — and the title itself when the
-            classifier knows none of them yet. */}
-        <CardTitle as="h2" title={arrete.risqueLabel}>
-          {titre}
-        </CardTitle>
+        <CardTitle as="h2">{titre}</CardTitle>
+        {titre === arrete.risqueLabel ? null : (
+          <CardDescription>{arrete.risqueLabel}</CardDescription>
+        )}
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="space-y-1 text-sm">
@@ -157,6 +169,11 @@ function CarteArrete({
   );
 }
 
+/**
+ * The categories the arrêté was classified to, with the wording of the Journal
+ * officiel as the line under them — and as the title itself when the
+ * classifier knows none of them yet.
+ */
 function risquesTitre({ risqueLabel, risques }: CommuneArrete): string {
   return risques.length === 0
     ? risqueLabel

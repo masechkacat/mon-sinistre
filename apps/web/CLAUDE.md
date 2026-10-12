@@ -37,7 +37,7 @@ handler и экран подтверждения по токену, перекл
 ## Тесты
 
 `tests/` разложен по предмету: `support/` — общие хелперы (`a11y`, `pages`,
-`form`, `communes`, `session-mock`, `env`, `strings`,
+`form`, `communes`, `session-mock`, `env`, `strings`, `unsubscribe-api`,
 `mock-api`, `deferred`, `sources` — обход `src/**` для правил по исходникам), остальные
 каталоги —
 спеки по фичам (`auth/`, `veille/`, `home/`, `compte/`, `components/`) и по сквозным

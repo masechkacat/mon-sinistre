@@ -89,12 +89,8 @@ const RAPPELS_DESACTIVER = 'Désactiver les rappels';
 const VOIR_MON_DOSSIER = 'Voir mon dossier';
 const FAIT = 'Fait';
 
-// The button of the commune answer names the page it leads to (dossier.formulaire).
 const PREPARER_MON_DOSSIER = 'Préparer mon dossier';
-// Read twice like VOIR_MON_DOSSIER above (reponseCommune below).
 const OUVRIR_MON_DOSSIER = 'Ouvrir mon dossier';
-// Dates a saved dossier and the period of an arrêté alike (sinistres.liste,
-// reponseCommune below).
 const EVENEMENT_DU = (date: string) => `Événement du ${date}`;
 
 const conteneurVide = (contenu: string) =>
@@ -166,7 +162,7 @@ export const fr = {
     periode: (debut: string, fin: string) =>
       debut === fin ? EVENEMENT_DU(debut) : `${EVENEMENT_DU(debut)} au ${fin}`,
     refus:
-      'Reconnaissance refusée : l’État n’a pas reconnu cet événement comme catastrophe naturelle pour cette commune. Votre assurance ne peut donc pas indemniser ces dégâts au titre de la garantie catastrophe naturelle.',
+      'Reconnaissance refusée : l’État n’a pas reconnu cet événement comme catastrophe naturelle pour cette commune.',
     ouvrir: OUVRIR_MON_DOSSIER,
     ouvrirPour: (arrete: string) => `${OUVRIR_MON_DOSSIER} : ${arrete}`,
   },
@@ -198,13 +194,6 @@ export const fr = {
   },
   veille: {
     form: {
-      communesLabel: 'Communes à surveiller',
-      communesPlaceholder: COMMUNE_SEARCH_PLACEHOLDER,
-      removeCommune: (name: string) => `Retirer ${name}`,
-      communesFound: (count: number) =>
-        count === 1 ? '1 commune trouvée' : `${count} communes trouvées`,
-      maxCommunesReached: (max: number) =>
-        `Nombre maximal de ${max} communes atteint`,
       emailLabel: EMAIL_LABEL,
       emailPlaceholder: EMAIL_PLACEHOLDER,
       emailRequiredError: EMAIL_REQUIRED_ERROR,

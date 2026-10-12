@@ -1,7 +1,7 @@
 'use client';
 
 import { useMutation } from '@tanstack/react-query';
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import type { Commune } from '@mon-sinistre/contracts';
 import { AnnouncedResult } from '@/components/announced-result';
 import { PrivacyNote } from '@/components/privacy-note';
@@ -22,6 +22,11 @@ export function VeilleInlineForm({ commune }: { commune: Commune }) {
   const mutation = useMutation({
     mutationFn: (value: string) => subscribeVeille(value, [commune.codeInsee]),
   });
+  // A subscription confirmed for one commune must not stay on screen as the
+  // answer for the next; the address typed is kept, the visitor is still
+  // the same.
+  const { reset } = mutation;
+  useEffect(() => reset(), [commune.codeInsee, reset]);
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();

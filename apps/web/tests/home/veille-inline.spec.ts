@@ -1,9 +1,17 @@
 import { expect, test, type Page } from '@playwright/test';
 import { fr } from '../../src/i18n/fr';
 import { expectNoAxeViolations } from '../support/a11y';
-import { NIMES } from '../support/communes';
+import {
+  CHATEAU,
+  NIMES,
+  mockCommuneSearch,
+  selectCommune,
+  selectNimes,
+} from '../support/communes';
 import { mockCommuneArretes, reponseCommunePath } from '../support/dossier';
+import { testApiBaseUrl } from '../support/env';
 import { expectErrorTiedTo } from '../support/form';
+import { gotoPage, home } from '../support/pages';
 import { mockSubscribe } from '../support/veille';
 
 const copy = fr.veille;
@@ -41,6 +49,33 @@ test('the subscription goes out for the commune on screen, and the success scree
   await expect(annonce).toContainText(copy.confirmationSent.description);
   expect(bodies).toEqual([{ email: adresse, communeCodes: [NIMES.codeInsee] }]);
   await expectNoAxeViolations(page);
+});
+
+test('correcting the commune clears a confirmation, and keeps the address typed', async ({
+  page,
+}) => {
+  await page.route(`${testApiBaseUrl}/communes**`, mockCommuneSearch);
+  await mockCommuneArretes(page, []);
+  const bodies = await mockSubscribe(page);
+  await gotoPage(page, home);
+  await selectNimes(page, fr.home.communeLabel);
+  await champ(page).fill(adresse);
+  await bouton(page).click();
+  await expect(page.getByTestId('veille-inline-confirmation')).toContainText(
+    copy.confirmationSent.title,
+  );
+
+  await selectCommune(page, fr.home.communeLabel, 'Chateau', /Château-Thierry/);
+
+  await expect(
+    page.getByRole('heading', { name: copy.inline.heading(CHATEAU.name) }),
+  ).toBeVisible();
+  await expect(page.getByText(copy.confirmationSent.title)).toHaveCount(0);
+  await expect(champ(page)).toHaveValue(adresse);
+  await bouton(page).click();
+  expect(bodies.map((b) => (b as { communeCodes: string[] }).communeCodes)).toEqual(
+    [[NIMES.codeInsee], [CHATEAU.codeInsee]],
+  );
 });
 
 test('an empty address reports an error tied to the field, and does not send the request', async ({

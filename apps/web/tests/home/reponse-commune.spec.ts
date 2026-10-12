@@ -58,10 +58,11 @@ test('a recognised arrêté is shown with its deadline and opens its own dossier
 
   const carte = cartes(page);
   await expect(carte).toHaveCount(1);
-  // The wording of the JO stays reachable beside the category it classifies to.
+  // The wording of the JO is read beside the category it classifies to.
   await expect(
     page.getByRole('heading', { name: risqueLabel(RisqueCatnat.INONDATION) }),
-  ).toHaveAttribute('title', arrete.risqueLabel);
+  ).toBeVisible();
+  await expect(carte).toContainText(arrete.risqueLabel);
   await expect(carte).toContainText(
     copy.periode(
       formatDateFr(ARRETE.eventStart),
@@ -167,9 +168,17 @@ test('the number of arrêtés is announced in a region mounted before the answer
   page,
 }) => {
   const held = deferred();
+  // Three lines of the answer, two texts: one arrêté names the commune twice.
   await mockCommuneArretes(
     page,
-    [communeArreteFixture(), communeArreteFixture({ arreteEntryId: 'autre' })],
+    [
+      communeArreteFixture(),
+      communeArreteFixture({
+        arreteEntryId: 'meme-arrete',
+        risques: [RisqueCatnat.MOUVEMENT_TERRAIN],
+      }),
+      communeArreteFixture({ arreteEntryId: 'autre', nor: 'INTE2620002A' }),
+    ],
     held,
   );
   await page.goto(reponseCommunePath());
