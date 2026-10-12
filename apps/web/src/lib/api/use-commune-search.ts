@@ -30,10 +30,9 @@ export interface UseCommuneSearchResult {
 }
 
 /**
- * Search over the commune referential, shared by CommuneMultiSelect and
- * CommuneSelect (docs/research/sinistre-plan.md, «Выбор коммуны»): debounce,
- * server-side filtering and `keepPreviousData` live here once so the two
- * components can't drift into two copies of the same request.
+ * Search over the commune referential behind CommuneSelect
+ * (docs/research/sinistre-plan.md, «Выбор коммуны»): debounce, server-side
+ * filtering and `keepPreviousData` live here, apart from the combobox.
  *
  * Each caller still passes `autoHighlight` to its own `Combobox.Root`:
  * without it Base UI clears the highlight every time `items` is replaced, so

@@ -38,9 +38,9 @@ handler и экран подтверждения по токену, перекл
 
 `tests/` разложен по предмету: `support/` — общие хелперы (`a11y`, `pages`,
 `form`, `communes`, `session-mock`, `env`, `strings`, `unsubscribe-api`,
-`deferred`, `sources` — обход `src/**` для правил по исходникам), остальные
+`mock-api`, `deferred`, `sources` — обход `src/**` для правил по исходникам), остальные
 каталоги —
-спеки по фичам (`auth/`, `veille/`, `compte/`, `components/`) и по сквозным
+спеки по фичам (`auth/`, `veille/`, `home/`, `compte/`, `components/`) и по сквозным
 свойствам (`a11y/` — axe, reflow, reduced-motion, i18n, шрифты; `pages/` — публичные
 страницы; `app/` — слой запросов). Новый спек кладётся в существующую группу,
 хелпер — только в `support/`, и оттуда же переиспользуется, а не копируется в

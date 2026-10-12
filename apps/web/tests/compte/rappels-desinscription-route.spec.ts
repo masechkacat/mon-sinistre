@@ -1,9 +1,7 @@
 import { REMINDER_UNSUBSCRIBE_PATH } from '@mon-sinistre/contracts';
 import { expect, test } from '@playwright/test';
-import {
-  oneClickPost,
-  withMockUnsubscribeApi,
-} from '../support/unsubscribe-api';
+import { withMockApi } from '../support/mock-api';
+import { oneClickPost } from '../support/unsubscribe-api';
 
 // The handlers themselves are covered in tests/app/one-click-unsubscribe.spec.ts;
 // here it is the mounting that is under test — that the link carried by the
@@ -13,7 +11,7 @@ import {
 test('POST unsubscribes the token of the link and answers success', async ({
   request,
 }) => {
-  await withMockUnsubscribeApi(async (received) => {
+  await withMockApi(async (received) => {
     const response = await oneClickPost(
       request,
       `${REMINDER_UNSUBSCRIBE_PATH}?token=jeton-one-click`,
@@ -31,7 +29,7 @@ test('POST unsubscribes the token of the link and answers success', async ({
 });
 
 test('POST does not answer 200 when the API refuses', async ({ request }) => {
-  await withMockUnsubscribeApi(async (received) => {
+  await withMockApi(async (received) => {
     const response = await oneClickPost(
       request,
       `${REMINDER_UNSUBSCRIBE_PATH}?token=jeton-refuse`,
@@ -46,7 +44,7 @@ test('POST does not answer 200 when the API refuses', async ({ request }) => {
 test('GET redirects to the confirm page with the same token and leaves the API alone', async ({
   request,
 }) => {
-  await withMockUnsubscribeApi(async (received) => {
+  await withMockApi(async (received) => {
     const response = await request.get(
       `${REMINDER_UNSUBSCRIBE_PATH}?token=jeton lien`,
       { maxRedirects: 0 },

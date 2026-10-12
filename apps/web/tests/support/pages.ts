@@ -42,7 +42,6 @@ export const dossier = {
   status: 200,
   mockApi: (page: Page) => mockApercu(page, apercuFixture()),
 } as const;
-export const veille = { path: '/veille' satisfies Route, status: 200 } as const;
 // The token is deliberately unknown, and the status GET is mocked to a real
 // domain "invalid" response: nothing listens on testApiBaseUrl during
 // `npm run test:web` (env.ts), so without a mock the request would fail to
@@ -141,7 +140,6 @@ export const pages = [
   testBejdz,
   testPlan,
   dossier,
-  veille,
   veilleConfirmation,
   veilleDesinscriptionConfirmer,
   rappelsDesinscriptionConfirmer,

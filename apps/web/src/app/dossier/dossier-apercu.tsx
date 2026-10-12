@@ -7,12 +7,12 @@ import {
   ArreteEntryOutcome,
   isIsoDate,
   type Commune,
-  type DossierApercu,
   type RisqueCatnat,
 } from '@mon-sinistre/contracts';
 import { CommuneSelect } from '@/components/commune-select';
 import { PageContainer } from '@/components/page-container';
 import { PageTitle } from '@/components/page-title';
+import { ArretePublication } from '@/components/plan/arrete-publication';
 import { DeclarationDeadlineBlock } from '@/components/plan/declaration-deadline-block';
 import { DossierEntete } from '@/components/plan/dossier-entete';
 import { DossierExistant } from '@/components/plan/dossier-existant';
@@ -174,7 +174,9 @@ function Apercu({
               <p>
                 {fr.sinistres.liste.eventDate(formatDateFr(apercu.eventDate))}
               </p>
-              {apercu.arrete ? <ArreteLignes arrete={apercu.arrete} /> : null}
+              {apercu.arrete ? (
+                <ArretePublication arrete={apercu.arrete} />
+              ) : null}
             </DossierEntete>
 
             {/* With a recognised arrêté the event date is no longer asked but
@@ -224,23 +226,6 @@ function Apercu({
         ) : null}
       </PageContainer>
     </DossierExistant>
-  );
-}
-
-function ArreteLignes({
-  arrete,
-}: {
-  arrete: NonNullable<DossierApercu['arrete']>;
-}) {
-  return (
-    <>
-      <p>{fr.dossier.publieLe(formatDateFr(arrete.publishedAt))}</p>
-      <p>
-        <a href={arrete.legifranceUrl} className="underline underline-offset-4">
-          {fr.dossier.legifranceLink}
-        </a>
-      </p>
-    </>
   );
 }
 

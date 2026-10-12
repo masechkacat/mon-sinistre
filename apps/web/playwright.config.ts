@@ -1,6 +1,10 @@
 import { defineConfig, devices } from '@playwright/test';
 import { testApiBaseUrl, webBaseUrl, webPort } from './tests/support/env';
 
+// Set here too, not only for the web server below: a spec calling
+// src/lib/api/ from the test process reads it there (tests/app/veille-api).
+process.env.NEXT_PUBLIC_API_URL = testApiBaseUrl;
+
 export default defineConfig({
   testDir: './tests',
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],

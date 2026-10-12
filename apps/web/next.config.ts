@@ -6,6 +6,11 @@ const nextConfig: NextConfig = {
   // it watched in dev: a contracts rebuild is picked up without a restart.
   transpilePackages: ['@mon-sinistre/contracts'],
   typedRoutes: true,
+  // Only the exact address, deliberately: the subpages below it are the
+  // targets the mails link to.
+  redirects: async () => [
+    { source: '/veille', destination: '/', permanent: true },
+  ],
   // Otherwise `next dev` appends its own block to CLAUDE.md on every start.
   agentRules: false,
 };

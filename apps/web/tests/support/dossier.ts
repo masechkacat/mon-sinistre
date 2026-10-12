@@ -9,6 +9,8 @@ import {
   StepStatus,
   toIsoDate,
   type ArreteCoverage,
+  type CommuneArrete,
+  type CommuneArretes,
   type DeclarationDeadline,
   type DossierApercu,
 } from '@mon-sinistre/contracts';
@@ -109,4 +111,52 @@ export function mockApercu(page: Page, apercu: DossierApercu) {
       body: JSON.stringify(apercu),
     }),
   );
+}
+
+/** One recognised entry of the commune answer, built on the arrêté above. */
+export function communeArreteFixture(
+  overrides: Partial<CommuneArrete> = {},
+): CommuneArrete {
+  return {
+    ...ARRETE,
+    arreteEntryId: 'entry-inondation',
+    nor: 'INTE2620001A',
+    risqueLabel: 'Inondations et coulées de boue',
+    risques: [RisqueCatnat.INONDATION],
+    declarationDeadline: DEADLINE,
+    ...overrides,
+  };
+}
+
+/**
+ * The commune answer of the home page: `GET /dossier/arretes`. With `held` the
+ * answer waits for the test, which is where the announcement of the pending
+ * search can be read.
+ */
+export function mockCommuneArretes(
+  page: Page,
+  arretes: CommuneArrete[],
+  held?: { promise: Promise<void> },
+) {
+  return page.route(`${testApiBaseUrl}/dossier/arretes**`, async (route) => {
+    await held?.promise;
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        commune: NIMES,
+        arretes,
+      } satisfies CommuneArretes),
+    });
+  });
+}
+
+/**
+ * The test route mounting `ReponseCommune` alone. The commune travels as JSON
+ * so the fixture above stays the single one: a copy of it in `src/` would be a
+ * second commune to keep in step with the mocked answer.
+ */
+export function reponseCommunePath(): Route {
+  const commune = encodeURIComponent(JSON.stringify(NIMES));
+  return `/test-reponse-commune?commune=${commune}` as Route;
 }

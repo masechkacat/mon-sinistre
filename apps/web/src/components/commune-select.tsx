@@ -24,10 +24,7 @@ export interface CommuneSelectProps {
   error?: string;
 }
 
-/**
- * Single-selection counterpart to CommuneMultiSelect. Search behaviour is
- * `useCommuneSearch`.
- */
+/** Search behaviour is `useCommuneSearch`. */
 export function CommuneSelect({
   value,
   onValueChange,
@@ -37,8 +34,7 @@ export function CommuneSelect({
 }: CommuneSelectProps) {
   const { inputValue, onInputValueChange, items, searchSettled } =
     useCommuneSearch({ selectedLabel: value && communeLabel(value) });
-  // The popup anchors to the whole input group, mirroring
-  // CommuneMultiSelect's chips container.
+  // The popup anchors to the whole input group.
   const fieldRef = useRef<HTMLDivElement>(null);
 
   // A stale list must not be committable (`searchSettled` in

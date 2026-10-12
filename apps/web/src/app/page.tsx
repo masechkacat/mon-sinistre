@@ -3,13 +3,15 @@ import { PageTitle } from '@/components/page-title';
 import { SectionHeading } from '@/components/section-heading';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { fr } from '@/i18n/fr';
+import { CommuneReponse } from './commune-reponse';
 
 export default function Home() {
   return (
     <PageContainer className="space-y-12">
-      <section className="space-y-4">
+      <section className="space-y-6">
         <PageTitle>{fr.home.title}</PageTitle>
         <p className="text-lg text-muted-foreground">{fr.home.lead}</p>
+        <CommuneReponse />
       </section>
 
       <section className="space-y-4">
@@ -44,15 +46,6 @@ export default function Home() {
             </ul>
           </CardContent>
         </Card>
-      </section>
-
-      <section className="space-y-4">
-        <SectionHeading>{fr.home.next.heading}</SectionHeading>
-        <ol className="list-decimal space-y-2 pl-5">
-          {fr.home.next.steps.map((step) => (
-            <li key={step}>{step}</li>
-          ))}
-        </ol>
       </section>
     </PageContainer>
   );

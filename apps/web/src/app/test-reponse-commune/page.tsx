@@ -1,14 +1,14 @@
 import { Suspense } from 'react';
 import { requireTestRoute } from '@/lib/test-routes';
-import { TestCommunes } from './test-communes';
+import { TestReponseCommune } from './test-reponse-commune';
 
 export const dynamic = 'force-dynamic';
 
-export default function TestCommunesPage() {
+export default function TestReponseCommunePage() {
   requireTestRoute();
   return (
     <Suspense>
-      <TestCommunes />
+      <TestReponseCommune />
     </Suspense>
   );
 }

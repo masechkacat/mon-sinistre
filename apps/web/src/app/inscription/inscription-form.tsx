@@ -7,6 +7,7 @@ import type { DossierInput, RegisterInput } from '@mon-sinistre/contracts';
 import { AnnouncedResult } from '@/components/announced-result';
 import { PageContainer } from '@/components/page-container';
 import { PageTitle } from '@/components/page-title';
+import { PrivacyNote } from '@/components/privacy-note';
 import { RequestError } from '@/components/request-error';
 import { EmailField, PasswordField } from '@/components/text-field';
 import { Button } from '@/components/ui/button';
@@ -126,15 +127,10 @@ export function InscriptionForm({ params }: { params: DossierParams }) {
             error={passwordError}
           />
 
-          <p className="text-sm text-muted-foreground">
-            {fr.compte.inscription.purpose}{' '}
-            <Link
-              href="/politique-de-confidentialite"
-              className="underline underline-offset-4"
-            >
-              {fr.compte.inscription.privacyPolicyLink}
-            </Link>
-          </p>
+          <PrivacyNote
+            purpose={fr.compte.inscription.purpose}
+            linkLabel={fr.compte.inscription.privacyPolicyLink}
+          />
 
           <Button type="submit" size="touch" disabled={mutation.isPending}>
             {mutation.isPending

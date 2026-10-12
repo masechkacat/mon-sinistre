@@ -340,6 +340,9 @@ handler.
   «Se désinscrire»; по нажатию `useMutation` → «désinscription effectuée»
   (повторные нажатия и заходы безошибочны, потому что API идемпотентен).
 
+> **Исправлено при реализации (фаза 7 dossier-preliminaire, issue 272).**
+> Страницы `/veille` больше нет — `docs/research/dossier-preliminaire.md`.
+
 Обе страницы с токеном читают его `useSearchParams()` и потому обязаны быть
 обёрнуты в `<Suspense>`: без границы `next build` падает на пререндере
 статической страницы. В `tests/pages.ts` они попадают с заведомо невалидным

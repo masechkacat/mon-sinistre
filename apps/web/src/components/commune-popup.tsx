@@ -18,8 +18,8 @@ export interface CommunePopupProps {
 }
 
 /**
- * The list under a commune combobox, shared by CommuneSelect and
- * CommuneMultiSelect; `items` and `searchSettled` come from `useCommuneSearch`.
+ * The list under the commune combobox (CommuneSelect); `items` and
+ * `searchSettled` come from `useCommuneSearch`.
  */
 export function CommunePopup({
   anchor,

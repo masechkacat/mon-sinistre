@@ -89,6 +89,10 @@ const RAPPELS_DESACTIVER = 'Désactiver les rappels';
 const VOIR_MON_DOSSIER = 'Voir mon dossier';
 const FAIT = 'Fait';
 
+const PREPARER_MON_DOSSIER = 'Préparer mon dossier';
+const OUVRIR_MON_DOSSIER = 'Ouvrir mon dossier';
+const EVENEMENT_DU = (date: string) => `Événement du ${date}`;
+
 const conteneurVide = (contenu: string) =>
   `${contenu} : cet espace s’ouvrira une fois votre dossier enregistré.`;
 
@@ -113,6 +117,7 @@ export const fr = {
   home: {
     title: 'Après une catastrophe naturelle, chaque jour compte',
     lead: 'Mon Sinistre vous prévient dès que l’État reconnaît la catastrophe dans votre commune, puis vous aide à faire vos démarches auprès de votre assurance sans manquer aucun délai.',
+    communeLabel: 'Quelle est votre commune ?',
     catnat: {
       heading: 'L’arrêté de catastrophe naturelle, expliqué simplement',
       event:
@@ -138,20 +143,28 @@ export const fr = {
         'N’écrit jamais à votre assurance à votre place : vous gardez la main sur toutes vos démarches.',
       ],
     },
-    next: {
-      heading: 'Et ensuite ?',
-      steps: [
-        'Vous choisissez les communes à surveiller.',
-        'Dès qu’un arrêté qui les concerne paraît au Journal officiel, vous recevez un message.',
-        'Si vous subissez des dégâts, Mon Sinistre vous guide pas à pas : déclaration dans les délais, suivi des échéances, inventaire des dégâts.',
-      ],
-    },
   },
   commune: {
     searchPlaceholder: COMMUNE_SEARCH_PLACEHOLDER,
     noneFound: COMMUNE_NONE_FOUND,
     clearSelection: 'Effacer la commune sélectionnée',
     selected: (label: string) => `Commune sélectionnée : ${label}`,
+  },
+  reponseCommune: {
+    testPage: 'Arrêtés d’une commune',
+    chargement: 'Recherche des arrêtés…',
+    trouves: (nombre: number, commune: string) =>
+      `${nombre} arrêté${nombre > 1 ? 's' : ''} trouvé${nombre > 1 ? 's' : ''} pour ${commune}.`,
+    aucun: (commune: string) => `Aucun arrêté récent pour ${commune}.`,
+    aucunSuite: (mois: number) =>
+      `Aucune catastrophe naturelle n’a été reconnue pour cette commune depuis ${mois} mois. Un arrêté peut paraître plusieurs semaines après l’événement : si vous avez des dégâts, vous pouvez préparer votre dossier dès maintenant.`,
+    preparer: PREPARER_MON_DOSSIER,
+    periode: (debut: string, fin: string) =>
+      debut === fin ? EVENEMENT_DU(debut) : `${EVENEMENT_DU(debut)} au ${fin}`,
+    refus:
+      'Reconnaissance refusée : l’État n’a pas reconnu cet événement comme catastrophe naturelle pour cette commune.',
+    ouvrir: OUVRIR_MON_DOSSIER,
+    ouvrirPour: (arrete: string) => `${OUVRIR_MON_DOSSIER} : ${arrete}`,
   },
   deadlineBadge: {
     derniereSemaine: 'Dernière semaine',
@@ -180,19 +193,7 @@ export const fr = {
     testPage: 'Badge de délai',
   },
   veille: {
-    page: {
-      title: 'Être prévenu·e en cas de catastrophe naturelle',
-      lead: 'Indiquez votre adresse e-mail et les communes à surveiller. Vous recevrez un message le jour même de la publication d’un arrêté de catastrophe naturelle qui les concerne.',
-    },
     form: {
-      communesLabel: 'Communes à surveiller',
-      communesPlaceholder: COMMUNE_SEARCH_PLACEHOLDER,
-      removeCommune: (name: string) => `Retirer ${name}`,
-      communesFound: (count: number) =>
-        count === 1 ? '1 commune trouvée' : `${count} communes trouvées`,
-      maxCommunesReached: (max: number) =>
-        `Nombre maximal de ${max} communes atteint`,
-      communesRequiredError: 'Choisissez au moins une commune à surveiller.',
       emailLabel: EMAIL_LABEL,
       emailPlaceholder: EMAIL_PLACEHOLDER,
       emailRequiredError: EMAIL_REQUIRED_ERROR,
@@ -200,8 +201,12 @@ export const fr = {
       purpose:
         'Votre adresse e-mail sert uniquement à vous prévenir lorsqu’un arrêté de catastrophe naturelle concerne une commune surveillée.',
       privacyPolicyLink: PRIVACY_POLICY_LINK,
-      submit: 'S’inscrire à la veille',
       submitting: 'Inscription en cours…',
+    },
+    inline: {
+      heading: (commune: string) =>
+        `Être prévenu·e d’un prochain arrêté pour ${commune}`,
+      submit: 'Être prévenu·e',
     },
     confirmationSent: {
       title: VERIFIEZ_BOITE_EMAIL,
@@ -476,7 +481,7 @@ export const fr = {
         description:
           'Vous n’avez pas encore de dossier. Créez-en un pour recevoir votre plan d’actions après une catastrophe naturelle : démarches, délais et rappels.',
       },
-      eventDate: (date: string) => `Événement du ${date}`,
+      eventDate: EVENEMENT_DU,
       dossierLabel: (risque: string, commune: string) =>
         `${risque} — ${commune}`,
       viewLink: VOIR_MON_DOSSIER,
@@ -566,7 +571,7 @@ export const fr = {
     resume: (parts: readonly string[]) =>
       `Votre dossier : ${parts.join(' · ')}`,
     formulaire: {
-      titre: 'Préparer mon dossier',
+      titre: PREPARER_MON_DOSSIER,
       lead: 'Indiquez ce qui manque : votre plan d’actions s’affiche aussitôt, sans compte ni inscription.',
       submit: 'Voir mon plan d’actions',
       parametresRefuses:
