@@ -59,7 +59,7 @@ const LOGOUT_PATH = '/auth/logout';
 
 // Module-level, not React state (in-memory choice — docs/research/user-account.md,
 // «Web: сессия на клиенте»): every caller across the app — apiFetch's 401
-// handler, the page guard, a future header widget — reads and writes the
+// handler, the page guard, the session widgets (use-session.ts) — reads and writes the
 // same value without a provider. This module must never be imported for its
 // mutations from server-executed code (a Route Handler, a Server Component)
 // — Node keeps the module instance alive across requests, so a value set
@@ -67,16 +67,33 @@ const LOGOUT_PATH = '/auth/logout';
 // 'use client' code running in the browser.
 let accessToken: string | null = null;
 
+const accessTokenListeners = new Set<(token: string | null) => void>();
+
+export function subscribeAccessToken(
+  listener: (token: string | null) => void,
+): () => void {
+  accessTokenListeners.add(listener);
+  return () => {
+    accessTokenListeners.delete(listener);
+  };
+}
+
+function notifyAccessToken(): void {
+  for (const listener of accessTokenListeners) listener(accessToken);
+}
+
 export function getAccessToken(): string | null {
   return accessToken;
 }
 
 export function setAccessToken(token: string): void {
   accessToken = token;
+  notifyAccessToken();
 }
 
 export function clearAccessToken(): void {
   accessToken = null;
+  notifyAccessToken();
 }
 
 /**

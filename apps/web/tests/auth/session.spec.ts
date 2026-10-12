@@ -3,7 +3,15 @@ import { fr } from '../../src/i18n/fr';
 import { expectNoAxeViolations } from '../support/a11y';
 import { testApiBaseUrl } from '../support/env';
 import { VALID_PASSWORD as PASSWORD } from '../support/form';
-import { loginPathWithNext } from '../../src/lib/api/session';
+import {
+  LOGIN_PATH,
+  clearAccessToken,
+  endSession,
+  loginPathWithNext,
+  setAccessToken,
+  subscribeAccessToken,
+} from '../../src/lib/api/session';
+import { withMockApi } from '../support/mock-api';
 import {
   ACCESS_TOKEN,
   mockNoSession,
@@ -12,6 +20,9 @@ import {
 
 const EMAIL = 'sinistre@example.fr';
 const REFRESH_COOKIE = 'refresh_token=jeton-refresh-test';
+
+/** The test-only page mounting two `useSession` consumers side by side. */
+const TWO_CONSUMERS_PATH = '/test-session';
 
 test('a session with a valid refresh cookie survives a page reload', async ({
   page,
@@ -97,6 +108,81 @@ test('logging in stores the refresh cookie, and the silent refresh sends it back
   await page.reload();
   await expect(page.getByTestId('espace-personnel-content')).toBeVisible();
   expect(refreshRequestCookies).toContain(REFRESH_COOKIE);
+});
+
+/**
+ * `endSession` leaves the client app through `window.location` (session.ts),
+ * and the test process has no browser to leave: the departure is recorded
+ * instead, so the call runs to its end.
+ */
+function stubNavigation() {
+  const left: string[] = [];
+  Object.defineProperty(globalThis, 'window', {
+    value: { location: { assign: (path: string) => left.push(path) } },
+    configurable: true,
+  });
+  return { left, restore: () => Reflect.deleteProperty(globalThis, 'window') };
+}
+
+test('logging out revokes the session at the API and tells the subscribers the token is gone', async () => {
+  // No page: the token subscription is what a session widget renders from
+  // (use-session.ts), so the module is called from the test process and the
+  // logout is answered by a listener on the API address (support/mock-api.ts).
+  const heard: (string | null)[] = [];
+  const unsubscribe = subscribeAccessToken((token) => heard.push(token));
+  const navigation = stubNavigation();
+  try {
+    await withMockApi(async (received) => {
+      setAccessToken(ACCESS_TOKEN);
+      await endSession();
+      expect(received()?.url).toBe('/auth/logout');
+    });
+    expect(heard).toEqual([ACCESS_TOKEN, null]);
+    expect(navigation.left).toEqual([LOGIN_PATH]);
+
+    unsubscribe();
+    setAccessToken(ACCESS_TOKEN);
+    expect(heard).toEqual([ACCESS_TOKEN, null]);
+  } finally {
+    unsubscribe();
+    clearAccessToken();
+    navigation.restore();
+  }
+});
+
+test('one silent refresh answers every session consumer on the page', async ({
+  page,
+}) => {
+  await mockSession(page).install();
+  // Counted through the request event rather than a second page.route on the
+  // same address: the later handler wins, and it would be this counter
+  // instead of the mock answering the refresh.
+  let refreshRequests = 0;
+  page.on('request', (request) => {
+    if (request.url() === `${testApiBaseUrl}/auth/refresh`)
+      refreshRequests += 1;
+  });
+
+  await page.goto(TWO_CONSUMERS_PATH);
+
+  await expect(page.getByTestId('session-status-a')).toHaveText(
+    'authenticated',
+  );
+  await expect(page.getByTestId('session-status-b')).toHaveText(
+    'authenticated',
+  );
+  expect(refreshRequests).toBe(1);
+});
+
+test('a visitor without a session is told so instead of being left checking', async ({
+  page,
+}) => {
+  await mockNoSession(page);
+
+  await page.goto(TWO_CONSUMERS_PATH);
+
+  await expect(page.getByTestId('session-status-a')).toHaveText('anonymous');
+  await expect(page.getByTestId('session-status-b')).toHaveText('anonymous');
 });
 
 for (const colorScheme of ['light', 'dark'] as const) {
