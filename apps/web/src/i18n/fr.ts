@@ -37,8 +37,9 @@ const CONFIRMATION_EN_COURS = 'Confirmation en cours…';
 const VERIFIEZ_BOITE_EMAIL = 'Vérifiez votre boîte e-mail';
 
 // The two account entry points name each other, so each label is written
-// once and reused by the page it titles and by the link that leads there
-// (compte.inscription, compte.connexion, compte.confirmation below).
+// once and reused by the page it titles, by the link that leads there and by
+// the header (layout, compte.inscription, compte.connexion,
+// compte.confirmation below).
 const CREER_UN_COMPTE = 'Créer un compte';
 const SE_CONNECTER = 'Se connecter';
 
@@ -112,6 +113,9 @@ export const fr = {
     metaDescription:
       'Veille des arrêtés de catastrophe naturelle et suivi du sinistre',
     skipToContent: 'Aller au contenu principal',
+    mainNav: 'Navigation principale',
+    login: SE_CONNECTER,
+    espace: 'Mon espace',
     legalNav: 'Informations légales',
   },
   home: {

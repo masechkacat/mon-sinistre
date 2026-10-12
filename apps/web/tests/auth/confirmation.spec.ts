@@ -69,10 +69,12 @@ test('clicking the button activates the account, changes the screen, and announc
   await expect(
     page.getByRole('button', { name: fr.compte.confirmation.confirmButton }),
   ).toHaveCount(0);
-  // Activation is not the end of the road: the screen has to offer the way
-  // on, or the only route to the login page is typing its address.
+  // Activation is not the end of the road: the screen itself has to offer
+  // the way on, not leave it to the header's own login link.
   await expect(
-    page.getByRole('link', { name: fr.compte.confirmation.loginLink }),
+    page
+      .getByRole('main')
+      .getByRole('link', { name: fr.compte.confirmation.loginLink }),
   ).toHaveAttribute('href', '/connexion');
 });
 

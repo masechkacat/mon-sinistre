@@ -27,8 +27,12 @@ for (const entry of pages) {
     await expect(page.getByRole('banner')).toBeVisible();
     await expect(page.getByRole('main')).toBeVisible();
     await expect(page.getByRole('contentinfo')).toBeVisible();
-    // The accessible name is pinned here because axe accepts a single
-    // unlabeled nav: nothing else fails if the aria-label is dropped.
+    // The accessible names are pinned here because axe accepts a single
+    // unlabeled nav: nothing else fails if an aria-label is dropped, and
+    // landmark-unique only fires once two navs share a name.
+    await expect(
+      page.getByRole('navigation', { name: fr.layout.mainNav }),
+    ).toBeVisible();
     await expect(
       page.getByRole('navigation', { name: fr.layout.legalNav }),
     ).toBeVisible();

@@ -9,6 +9,8 @@ import { apiBaseUrl } from './config';
  */
 export const LOGIN_PATH = '/connexion';
 
+export const ESPACE_PERSONNEL_PATH = '/espace-personnel';
+
 export const LOGIN_NEXT_PARAM = 'suivant';
 
 /** The login address that comes back to `path` once the session is open. */
@@ -54,7 +56,8 @@ export function loginNextPath(searchParams: URLSearchParams): Route | null {
   }
 }
 
-const REFRESH_PATH = '/auth/refresh';
+/** Exported for the mocks that stand in for the API in `tests/support/`. */
+export const REFRESH_PATH = '/auth/refresh';
 const LOGOUT_PATH = '/auth/logout';
 
 // Module-level, not React state (in-memory choice — docs/research/user-account.md,
