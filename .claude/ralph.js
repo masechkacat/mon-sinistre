@@ -1,6 +1,4 @@
 #!/usr/bin/env node
-'use strict';
-
 /**
  * Ralph Loop — автономный прогон фазы плана.
  *
@@ -14,14 +12,14 @@
  * Правила для агента: .claude/ralph.md
  */
 
-const { execFileSync, spawnSync } = require('node:child_process');
-const { randomUUID } = require('node:crypto');
-const fs = require('node:fs');
-const path = require('node:path');
-const metrics = require('./metrics');
+import { execFileSync, spawnSync } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
+import * as metrics from './metrics.js';
 
-const ROOT = path.resolve(__dirname, '..');
-const CONFIG_PATH = path.join(__dirname, 'ralph.config.json');
+const ROOT = path.resolve(import.meta.dirname, '..');
+const CONFIG_PATH = path.join(import.meta.dirname, 'ralph.config.json');
 
 // Пределы выборок gh: при достижении цикл предупреждает, а не молча теряет хвост.
 const BOARD_LIMIT = 500;
@@ -915,7 +913,7 @@ function abort(e) {
   process.exit(1);
 }
 
-if (require.main === module) {
+if (import.meta.main) {
   try {
     main();
   } catch (e) {
@@ -925,7 +923,7 @@ if (require.main === module) {
 
 // Экспорт — только для тестов (`.claude/ralph.test.js`): наружу цикл остаётся
 // одним исполняемым файлом.
-module.exports = {
+export {
   RalphStop,
   branchName,
   buildPrompt,

@@ -1,5 +1,3 @@
-'use strict';
-
 /**
  * Тесты чистых функций Ralph Loop.
  *
@@ -10,10 +8,10 @@
  * `ralph.js` — обёртки над `git`/`gh`, они проверяются прогоном `--dry-run`.
  */
 
-const test = require('node:test');
-const assert = require('node:assert/strict');
+import test from 'node:test';
+import assert from 'node:assert/strict';
 
-const {
+import {
   RalphStop,
   branchName,
   buildPrompt,
@@ -28,7 +26,7 @@ const {
   pickMilestone,
   prTitle,
   validateConfig,
-} = require('./ralph.js');
+} from './ralph.js';
 
 const REPO = 'masechkacat/mon-sinistre';
 

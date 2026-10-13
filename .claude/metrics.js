@@ -1,6 +1,4 @@
 #!/usr/bin/env node
-'use strict';
-
 /**
  * Метрики цикла — три числа, по которым судят изменения харнеса: стоимость
  * итерации, доля PR с правками по ревью, строки тестов на строку кода.
@@ -11,12 +9,12 @@
  * Без флагов — только отношение тестов к коду.
  */
 
-const fs = require('node:fs');
-const os = require('node:os');
-const path = require('node:path');
-const { execFileSync } = require('node:child_process');
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 
-const ROOT = path.resolve(__dirname, '..');
+const ROOT = path.resolve(import.meta.dirname, '..');
 
 // ─── стоимость сессии ─────────────────────────────────────────────────────────
 
@@ -219,10 +217,10 @@ function report({ sessions = [], prs = 0, root = ROOT }) {
   });
 }
 
-if (require.main === module)
+if (import.meta.main)
   console.log(report(parseArgs(process.argv.slice(2))).join('\n'));
 
-module.exports = {
+export {
   averageUsage,
   classifyPaths,
   formatReport,

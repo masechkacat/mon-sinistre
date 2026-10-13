@@ -1,14 +1,13 @@
-'use strict';
-
 /**
  * Тесты чистых функций метрик цикла. Запуск: npm run test:tooling.
  */
 
-const test = require('node:test');
-const assert = require('node:assert/strict');
-const path = require('node:path');
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import os from 'node:os';
+import path from 'node:path';
 
-const {
+import {
   averageUsage,
   classifyPaths,
   formatReport,
@@ -16,7 +15,7 @@ const {
   reviewFixShare,
   transcriptsDir,
   usageOfTranscript,
-} = require('./metrics');
+} from './metrics.js';
 
 const line = (o) => JSON.stringify(o);
 
@@ -62,12 +61,7 @@ test('averageUsage округляет среднее и не делит на н�
 test('transcriptsDir строит слаг репозитория как Claude Code', () => {
   assert.equal(
     transcriptsDir('/home/marina/jalons'),
-    path.join(
-      require('node:os').homedir(),
-      '.claude',
-      'projects',
-      '-home-marina-jalons',
-    ),
+    path.join(os.homedir(), '.claude', 'projects', '-home-marina-jalons'),
   );
 });
 
