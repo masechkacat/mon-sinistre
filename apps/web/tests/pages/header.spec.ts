@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { fr } from '../../src/i18n/fr';
 import { ESPACE_PERSONNEL_PATH, LOGIN_PATH } from '../../src/lib/api/session';
-import { gotoPage, home } from '../support/pages';
+import { connexion, gotoPage, home, inscription } from '../support/pages';
 import { mockNoSession, mockSession } from '../support/session-mock';
 
 const copy = fr.layout;
@@ -17,6 +17,17 @@ test('without a session the header offers the login', async ({ page }) => {
     mainNav(page).getByRole('link', { name: copy.login }),
   ).toHaveAttribute('href', LOGIN_PATH);
 });
+
+for (const entry of [connexion, inscription]) {
+  test(`the header offers no second login beside the page's own: ${entry.path}`, async ({
+    page,
+  }) => {
+    await mockNoSession(page);
+    await gotoPage(page, entry);
+
+    await expect(mainNav(page)).toHaveCount(0);
+  });
+}
 
 test('with a session the header leads to the espace personnel in one click', async ({
   page,

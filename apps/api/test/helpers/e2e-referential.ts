@@ -36,25 +36,26 @@ async function seedE2eArrete(prisma: PrismaClient): Promise<void> {
     ),
   };
 
+  const entry = arreteEntryData(E2E_ARRETE.codeInsee, {
+    communeLabelRaw: E2E_ARRETE.communeLabelRaw,
+    departementRaw: E2E_ARRETE.departementRaw,
+    risque: E2E_ARRETE.risqueLabel,
+    eventStart: isoDateToDate(E2E_ARRETE.eventStart),
+    eventEnd: isoDateToDate(E2E_ARRETE.eventEnd),
+  });
+
+  // База сквозного теста живёт между прогонами, и на строку annexe уже может
+  // ссылаться синистр прошлого прогона: её не пересоздают, а сверяют с
+  // `E2E_ARRETE`, иначе правка фикстуры осталась бы в базе незамеченной.
   await prisma.arrete.upsert({
     where: { nor: E2E_ARRETE.nor },
-    // Строка annexe создаётся один раз: база сквозного теста живёт между
-    // прогонами, и на неё уже может ссылаться синистр прошлого прогона.
-    create: {
+    create: { ...data, entries: { create: [entry] } },
+    update: {
       ...data,
       entries: {
-        create: [
-          arreteEntryData(E2E_ARRETE.codeInsee, {
-            communeLabelRaw: E2E_ARRETE.communeLabelRaw,
-            departementRaw: E2E_ARRETE.departementRaw,
-            risque: E2E_ARRETE.risqueLabel,
-            eventStart: isoDateToDate(E2E_ARRETE.eventStart),
-            eventEnd: isoDateToDate(E2E_ARRETE.eventEnd),
-          }),
-        ],
+        updateMany: { where: { codeInsee: entry.codeInsee }, data: entry },
       },
     },
-    update: data,
   });
 }
 

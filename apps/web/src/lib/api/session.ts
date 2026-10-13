@@ -109,6 +109,13 @@ export type RefreshOutcome = 'open' | 'none' | 'failed';
 let refreshInFlight: Promise<RefreshOutcome> | null = null;
 
 async function requestRefresh(): Promise<RefreshOutcome> {
+  // A refusal clears only the token the request set out with: a login that
+  // landed meanwhile (the header's page-load refresh racing the form on
+  // /connexion) must not be undone by an answer to an older question.
+  const tokenAtStart = accessToken;
+  const clearIfUnchanged = () => {
+    if (accessToken === tokenAtStart) clearAccessToken();
+  };
   try {
     const response = await fetch(`${apiBaseUrl}${REFRESH_PATH}`, {
       method: 'POST',
@@ -119,10 +126,10 @@ async function requestRefresh(): Promise<RefreshOutcome> {
       setAccessToken(body.accessToken);
       return 'open';
     }
-    clearAccessToken();
+    clearIfUnchanged();
     return response.status === 401 ? 'none' : 'failed';
   } catch {
-    clearAccessToken();
+    clearIfUnchanged();
     return 'failed';
   }
 }

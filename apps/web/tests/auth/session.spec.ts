@@ -7,7 +7,9 @@ import {
   LOGIN_PATH,
   clearAccessToken,
   endSession,
+  getAccessToken,
   loginPathWithNext,
+  refreshSession,
   setAccessToken,
   subscribeAccessToken,
 } from '../../src/lib/api/session';
@@ -147,6 +149,21 @@ test('logging out revokes the session at the API and tells the subscribers the t
     unsubscribe();
     clearAccessToken();
     navigation.restore();
+  }
+});
+
+test('a refusal arriving after a login does not undo the login', async () => {
+  // The header's page-load refresh is in flight while the form on /connexion
+  // succeeds: the token the login stored must survive the older answer.
+  try {
+    await withMockApi(async () => {
+      const refusal = refreshSession();
+      setAccessToken(ACCESS_TOKEN);
+      expect(await refusal).toBe('none');
+      expect(getAccessToken()).toBe(ACCESS_TOKEN);
+    }, 401);
+  } finally {
+    clearAccessToken();
   }
 });
 

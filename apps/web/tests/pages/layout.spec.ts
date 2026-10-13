@@ -1,7 +1,7 @@
 import { AxeBuilder } from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 import { fr } from '../../src/i18n/fr';
-import { gotoPage, pages } from '../support/pages';
+import { connexion, gotoPage, inscription, pages } from '../support/pages';
 
 // Landmarks and heading order are "best-practice" axe rules, outside the WCAG
 // tags of expectNoAxeViolations — hence the explicit rule list here.
@@ -30,9 +30,12 @@ for (const entry of pages) {
     // The accessible names are pinned here because axe accepts a single
     // unlabeled nav: nothing else fails if an aria-label is dropped, and
     // landmark-unique only fires once two navs share a name.
+    // No main nav where the page's own login link stands (session-nav.tsx).
     await expect(
       page.getByRole('navigation', { name: fr.layout.mainNav }),
-    ).toBeVisible();
+    ).toHaveCount(
+      entry.path === connexion.path || entry.path === inscription.path ? 0 : 1,
+    );
     await expect(
       page.getByRole('navigation', { name: fr.layout.legalNav }),
     ).toBeVisible();
