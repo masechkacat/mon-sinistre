@@ -164,6 +164,18 @@ stripping Node (стабилен с 24.12) не подходит: не берё�
 расширения, `import.meta.dirname` и `createRequire` — у нас `require` в
 TS-коде нет, `__dirname` только в двух тестах.
 
+## Исправлено при реализации (13.10.2026)
+
+- Конфиги Vitest названы `.mts`: раннер менялся до смены формата, а tsc в
+  CommonJS-пакете отвергает `import.meta` в `.ts`. `tsconfig.build.json`
+  исключает их — они входят в `tsconfig.json` ради `tsc --noEmit`, а под
+  `rootDir: src` не лежат.
+- `apps/web/tsconfig.json` вёл contracts в исходники через `paths`, вопреки
+  `apps/web/CLAUDE.md`; Turbopack по этому маппингу не резолвил `./enums.js`
+  в `.ts`. Маппинг удалён, web берёт `dist` по `main`, как и записано.
+- Документация правилась в коммите каждой задачи, не отдельной задачей:
+  правило корневого `CLAUDE.md` сильнее плана.
+
 ## Что править в документации тем же PR
 
 - корневой `CLAUDE.md`, «Команды и проверки»: «eslint и jest его не видят»

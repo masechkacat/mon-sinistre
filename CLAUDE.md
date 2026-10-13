@@ -59,7 +59,7 @@ npm workspaces, три пакета:
 
 Команды — скрипты корневого `package.json`. Что из них не выводится:
 
-- `.claude/` не входит в workspaces, eslint и jest его **не видят** — для его
+- `.claude/` не входит в workspaces, eslint и vitest его **не видят** — для его
   скриптов есть отдельный `npm run test:tooling` (встроенный `node --test`,
   новый `.claude/*.test.js` подхватывается сам).
 - Pre-commit хук (`.githooks/`, подключается скриптом `prepare`) гоняет lint,
