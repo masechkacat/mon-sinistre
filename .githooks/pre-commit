@@ -24,7 +24,7 @@ npm run lint
 echo "pre-commit: npm test"
 npm test
 
-# Outillage hors workspaces (.claude/) : ni lint ni jest ne le couvrent.
+# Outillage hors workspaces (.claude/) : ni lint ni vitest ne le couvrent.
 echo "pre-commit: npm run test:tooling"
 npm run test:tooling
 

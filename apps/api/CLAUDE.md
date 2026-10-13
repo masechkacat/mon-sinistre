@@ -12,7 +12,7 @@ NestJS 12 на **Fastify**, не Express: плагины через `app.registe
 Скрипты — `package.json` пакета. Из них не выводится два:
 
 - тестам собранный contracts не нужен — Vitest подставляет его исходники
-  через `resolve.alias` в `vitest.config.mts` (рантайму — нужен);
+  через `resolve.alias` в `vitest.config.ts` (рантайму — нужен);
 - `lint` начинается с `tsc --noEmit` (по `include` из `tsconfig.json`), и это
   единственная проверка типов спеков: Vitest только транспилирует (Oxc, без
   информации о типах), а `nest build` спеки и `test/` исключает.

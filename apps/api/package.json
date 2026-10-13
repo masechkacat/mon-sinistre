@@ -13,7 +13,7 @@
     "lint": "tsc --noEmit && eslint .",
     "lint:fix": "eslint . --fix",
     "test": "vitest run --passWithNoTests",
-    "test:int": "vitest run --config vitest.config.int.mts --passWithNoTests",
+    "test:int": "vitest run --config vitest.config.int.ts --passWithNoTests",
     "test:watch": "vitest",
     "test:cov": "vitest run --coverage",
     "prisma:generate": "prisma generate",

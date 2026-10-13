@@ -166,10 +166,8 @@ TS-коде нет, `__dirname` только в двух тестах.
 
 ## Исправлено при реализации (13.10.2026)
 
-- Конфиги Vitest названы `.mts`: раннер менялся до смены формата, а tsc в
-  CommonJS-пакете отвергает `import.meta` в `.ts`. `tsconfig.build.json`
-  исключает их — они входят в `tsconfig.json` ради `tsc --noEmit`, а под
-  `rootDir: src` не лежат.
+- `tsconfig.build.json` исключает конфиги Vitest — они входят в
+  `tsconfig.json` ради `tsc --noEmit`, а под `rootDir: src` не лежат.
 - `apps/web/tsconfig.json` вёл contracts в исходники через `paths`, вопреки
   `apps/web/CLAUDE.md`; Turbopack по этому маппингу не резолвил `./enums.js`
   в `.ts`. Маппинг удалён, web берёт `dist` по `main`, как и записано.

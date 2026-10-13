@@ -1,5 +1,5 @@
 import { defineConfig } from 'vitest/config';
-import { shared } from './vitest.config.mjs';
+import { shared } from './vitest.config.js';
 
 export default defineConfig({
   ...shared,
