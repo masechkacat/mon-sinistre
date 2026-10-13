@@ -1,9 +1,9 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 
-import { MailComposer } from 'src/mail/compose/mail-composer';
-import { MailDeliveryError } from 'src/mail/mail-delivery.error';
-import type { ComposeMailInput, MailMessage } from 'src/mail/mail-message';
-import { MAIL_TRANSPORT, type MailTransport } from 'src/mail/mail-transport';
+import { MailComposer } from 'src/mail/compose/mail-composer.js';
+import { MailDeliveryError } from 'src/mail/mail-delivery.error.js';
+import type { ComposeMailInput, MailMessage } from 'src/mail/mail-message.js';
+import { MAIL_TRANSPORT, type MailTransport } from 'src/mail/mail-transport.js';
 
 /**
  * The single point through which every email of the product leaves. It knows

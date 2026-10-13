@@ -8,16 +8,16 @@ import {
 import {
   DECLARATION_ASSUREUR_CODE,
   VERSEMENT_INDEMNITE_CODE,
-} from 'src/deadline-rules/deadline-rule.seed';
-import { resolveDeadline } from 'src/deadline-rules/resolve-deadline';
-import { fr } from 'src/i18n/fr';
-import { MailComposer } from 'src/mail/compose/mail-composer';
-import { mailLinksOf } from 'test/helpers/mail-links';
+} from 'src/deadline-rules/deadline-rule.seed.js';
+import { resolveDeadline } from 'src/deadline-rules/resolve-deadline.js';
+import { fr } from 'src/i18n/fr.js';
+import { MailComposer } from 'src/mail/compose/mail-composer.js';
+import { mailLinksOf } from 'test/helpers/mail-links.js';
 import {
   reminderMailFor,
   type ReminderSinistreForMail,
   type ReminderStepForMail,
-} from './reminder-mail';
+} from './reminder-mail.js';
 
 const FRONTEND_URL = 'https://app.example.test';
 const MAIL_FROM = 'no-reply@example.test';

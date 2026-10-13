@@ -1,12 +1,12 @@
 import { toIsoDate, VEILLE_UNSUBSCRIBE_PATH } from '@mon-sinistre/contracts';
-import { fr } from 'src/i18n/fr';
-import { mailLinksOf } from 'test/helpers/mail-links';
-import { MailComposer } from 'src/mail/compose/mail-composer';
+import { fr } from 'src/i18n/fr.js';
+import { mailLinksOf } from 'test/helpers/mail-links.js';
+import { MailComposer } from 'src/mail/compose/mail-composer.js';
 import {
   type ArreteEntryForMail,
   type ArreteForMail,
   veilleArreteMailFor,
-} from './veille-arrete-mail';
+} from './veille-arrete-mail.js';
 
 const FRONTEND_URL = 'https://app.example.test';
 const MAIL_FROM = 'no-reply@example.test';

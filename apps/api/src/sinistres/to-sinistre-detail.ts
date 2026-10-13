@@ -13,12 +13,12 @@ import {
   type Step,
   type StepView,
 } from '@mon-sinistre/contracts';
-import type { StepPersistedStatus } from 'src/generated/prisma/enums';
-import { toSourceReference } from 'src/common/source-reference';
-import { isDeclarationRule } from 'src/deadline-rules/deadline-rule.seed';
-import { dateToIsoDate } from 'src/deadline-rules/resolve-deadline';
-import type { ResolvedDeadlineRule } from './build-step-snapshot';
-import { daysBetween, stepStatus } from './step-status';
+import type { StepPersistedStatus } from 'src/generated/prisma/enums.js';
+import { toSourceReference } from 'src/common/source-reference.js';
+import { isDeclarationRule } from 'src/deadline-rules/deadline-rule.seed.js';
+import { dateToIsoDate } from 'src/deadline-rules/resolve-deadline.js';
+import type { ResolvedDeadlineRule } from './build-step-snapshot.js';
+import { daysBetween, stepStatus } from './step-status.js';
 
 /** The `Sinistre` fields `toSinistreDetail` needs off a Prisma row. */
 export interface SinistreRow {

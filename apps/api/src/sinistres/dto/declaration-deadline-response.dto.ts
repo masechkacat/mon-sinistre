@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import type { DeclarationDeadline, IsoDate } from '@mon-sinistre/contracts';
-import { SourceReferenceDto } from './source-reference.dto';
+import { SourceReferenceDto } from './source-reference.dto.js';
 
 export class DeclarationDeadlineResponseDto implements DeclarationDeadline {
   @ApiProperty({ type: String, format: 'date' })

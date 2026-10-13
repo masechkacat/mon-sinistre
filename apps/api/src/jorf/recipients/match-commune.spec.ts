@@ -1,5 +1,5 @@
-import { normalizeCommuneName } from '../../communes/normalize-commune-name';
-import { CommuneReferentialEntry, matchCommune } from './match-commune';
+import { normalizeCommuneName } from '../../communes/normalize-commune-name.js';
+import { CommuneReferentialEntry, matchCommune } from './match-commune.js';
 
 function entry(
   overrides: Partial<CommuneReferentialEntry> & {

@@ -1,6 +1,6 @@
 import type { IsoDate } from '@mon-sinistre/contracts';
-import type { StepAnchor, StepKind } from 'src/generated/prisma/enums';
-import { resolveDeadline } from 'src/deadline-rules/resolve-deadline';
+import type { StepAnchor, StepKind } from 'src/generated/prisma/enums.js';
+import { resolveDeadline } from 'src/deadline-rules/resolve-deadline.js';
 
 /** The `StepTemplate` fields `buildStepSnapshot` copies onto a `Step`. */
 export interface StepTemplateRow {

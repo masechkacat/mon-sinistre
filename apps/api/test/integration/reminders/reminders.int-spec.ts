@@ -5,31 +5,31 @@ import {
   SINISTRE_PATH,
 } from '@mon-sinistre/contracts';
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
-import { hashSecureToken } from 'src/common/security/secure-token';
-import { DAY_MS } from 'src/common/time/time';
-import { todayInParis } from 'src/common/time/today-in-paris';
-import { seedDeadlineRules } from 'src/deadline-rules/deadline-rule.seed';
-import { dateToIsoDate } from 'src/deadline-rules/resolve-deadline';
-import { fr } from 'src/i18n/fr';
-import { AdminAlertService } from 'src/jorf/alerts/admin-alert.service';
-import { JorfMonitorService } from 'src/jorf/jorf-monitor.service';
-import { NOTIFICATION_ATTEMPTS_BEFORE_ALERT } from 'src/jorf/mail/drain-outbox';
-import { MAIL_TRANSPORT } from 'src/mail/mail-transport';
-import { PrismaService } from 'src/prisma/prisma.service';
-import { RemindersService } from 'src/reminders/reminders.service';
-import { daysBetween } from 'src/sinistres/step-status';
+import { hashSecureToken } from 'src/common/security/secure-token.js';
+import { DAY_MS } from 'src/common/time/time.js';
+import { todayInParis } from 'src/common/time/today-in-paris.js';
+import { seedDeadlineRules } from 'src/deadline-rules/deadline-rule.seed.js';
+import { dateToIsoDate } from 'src/deadline-rules/resolve-deadline.js';
+import { fr } from 'src/i18n/fr.js';
+import { AdminAlertService } from 'src/jorf/alerts/admin-alert.service.js';
+import { JorfMonitorService } from 'src/jorf/jorf-monitor.service.js';
+import { NOTIFICATION_ATTEMPTS_BEFORE_ALERT } from 'src/jorf/mail/drain-outbox.js';
+import { MAIL_TRANSPORT } from 'src/mail/mail-transport.js';
+import { PrismaService } from 'src/prisma/prisma.service.js';
+import { RemindersService } from 'src/reminders/reminders.service.js';
+import { daysBetween } from 'src/sinistres/step-status.js';
 import {
   STEP_TEMPLATE_SEED,
   seedStepTemplates,
-} from 'src/step-templates/step-template.seed';
-import { withAdminEmail } from 'test/helpers/admin-email';
-import { createIntTestApp } from 'test/helpers/app';
-import { arreteData, arreteEntryData } from 'test/helpers/arrete';
-import { commune } from 'test/helpers/commune';
-import { captureLogs } from 'test/helpers/mail-log';
-import { mailLinksOf, tokenFrom } from 'test/helpers/mail-links';
-import { RecordingTransport } from 'test/helpers/mail-transport';
-import { createUser, headersForEmail, withBearer } from 'test/helpers/session';
+} from 'src/step-templates/step-template.seed.js';
+import { withAdminEmail } from 'test/helpers/admin-email.js';
+import { createIntTestApp } from 'test/helpers/app.js';
+import { arreteData, arreteEntryData } from 'test/helpers/arrete.js';
+import { commune } from 'test/helpers/commune.js';
+import { captureLogs } from 'test/helpers/mail-log.js';
+import { mailLinksOf, tokenFrom } from 'test/helpers/mail-links.js';
+import { RecordingTransport } from 'test/helpers/mail-transport.js';
+import { createUser, headersForEmail, withBearer } from 'test/helpers/session.js';
 
 /** 07:00 in Paris on the day the dossiers below are opened: the first pass
  * after their creation, the one the phase's «Когда готова» describes. */

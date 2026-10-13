@@ -4,13 +4,13 @@ import {
   toIsoDate,
   type IsoDate,
 } from '@mon-sinistre/contracts';
-import { DECLARATION_ASSUREUR_CODE } from 'src/deadline-rules/deadline-rule.seed';
-import { resolveDeadline } from 'src/deadline-rules/resolve-deadline';
+import { DECLARATION_ASSUREUR_CODE } from 'src/deadline-rules/deadline-rule.seed.js';
+import { resolveDeadline } from 'src/deadline-rules/resolve-deadline.js';
 import {
   selectReminders,
   type ReminderCandidateLog,
   type ReminderCandidateStep,
-} from './select-reminders';
+} from './select-reminders.js';
 
 const TODAY = toIsoDate('2026-10-04');
 

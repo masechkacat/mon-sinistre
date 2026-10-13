@@ -7,21 +7,21 @@ import { Injectable, Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { Test, type TestingModule } from '@nestjs/testing';
 
-import { configFor } from 'test/helpers/config';
-import { FileMailTransport } from 'src/mail/transports/file-mail.transport';
-import { MailComposer } from 'src/mail/compose/mail-composer';
-import { captureLogs } from 'test/helpers/mail-log';
-import { MailCompositionError } from 'src/mail/mail-composition.error';
-import { MailDeliveryError } from 'src/mail/mail-delivery.error';
-import type { ComposeMailInput, MailMessage } from 'src/mail/mail-message';
-import { MAIL_TRANSPORT, type MailTransport } from 'src/mail/mail-transport';
-import { RecordingTransport } from 'test/helpers/mail-transport';
-import { MailModule } from 'src/mail/mail.module';
-import { MailService } from 'src/mail/mail.service';
+import { configFor } from 'test/helpers/config.js';
+import { FileMailTransport } from 'src/mail/transports/file-mail.transport.js';
+import { MailComposer } from 'src/mail/compose/mail-composer.js';
+import { captureLogs } from 'test/helpers/mail-log.js';
+import { MailCompositionError } from 'src/mail/mail-composition.error.js';
+import { MailDeliveryError } from 'src/mail/mail-delivery.error.js';
+import type { ComposeMailInput, MailMessage } from 'src/mail/mail-message.js';
+import { MAIL_TRANSPORT, type MailTransport } from 'src/mail/mail-transport.js';
+import { RecordingTransport } from 'test/helpers/mail-transport.js';
+import { MailModule } from 'src/mail/mail.module.js';
+import { MailService } from 'src/mail/mail.service.js';
 import {
   SCALEWAY_TEM_URL,
   ScalewayMailTransport,
-} from 'src/mail/transports/scaleway-mail.transport';
+} from 'src/mail/transports/scaleway-mail.transport.js';
 
 const RECIPIENT = 'destinataire@example.test';
 const FRONTEND_URL = 'https://app.example.test';

@@ -1,19 +1,19 @@
 import type { Logger } from '@nestjs/common';
 import type { Commune, IsoDate, SinistreStatus } from '@mon-sinistre/contracts';
-import { todayInParis } from 'src/common/time/today-in-paris';
-import { requireActiveCommune } from 'src/communes/active-commune';
-import type { DeadlineRuleService } from 'src/deadline-rules/deadline-rule.service';
-import { isoDateToDate } from 'src/deadline-rules/resolve-deadline';
-import type { StepAnchor } from 'src/generated/prisma/enums';
-import type { PrismaService } from 'src/prisma/prisma.service';
-import { CATNAT_PLAN_KEY } from 'src/step-templates/step-template.seed';
-import { anchorDatesOf } from './anchor-dates';
-import { buildStepSnapshot, type StepSnapshot } from './build-step-snapshot';
-import type { CreateSinistreDto } from './dto/create-sinistre.dto';
-import { matchArreteFor, type MatchedArrete } from './match-arrete';
-import { resolveStepRule } from './resolve-step-rule';
-import { sinistreStatus } from './sinistre-status';
-import type { StepViewRow } from './to-sinistre-detail';
+import { todayInParis } from 'src/common/time/today-in-paris.js';
+import { requireActiveCommune } from 'src/communes/active-commune.js';
+import type { DeadlineRuleService } from 'src/deadline-rules/deadline-rule.service.js';
+import { isoDateToDate } from 'src/deadline-rules/resolve-deadline.js';
+import type { StepAnchor } from 'src/generated/prisma/enums.js';
+import type { PrismaService } from 'src/prisma/prisma.service.js';
+import { CATNAT_PLAN_KEY } from 'src/step-templates/step-template.seed.js';
+import { anchorDatesOf } from './anchor-dates.js';
+import { buildStepSnapshot, type StepSnapshot } from './build-step-snapshot.js';
+import type { CreateSinistreDto } from './dto/create-sinistre.dto.js';
+import { matchArreteFor, type MatchedArrete } from './match-arrete.js';
+import { resolveStepRule } from './resolve-step-rule.js';
+import { sinistreStatus } from './sinistre-status.js';
+import type { StepViewRow } from './to-sinistre-detail.js';
 
 /** A snapshot as `Step.create` takes it: `plannedDate` in the column's type. */
 export interface StepCreateRow extends Omit<StepSnapshot, 'plannedDate'> {

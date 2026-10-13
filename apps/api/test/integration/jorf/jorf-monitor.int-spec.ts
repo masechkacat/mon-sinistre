@@ -2,33 +2,33 @@ import { vi, type Mock } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { toIsoDate, VEILLE_UNSUBSCRIBE_PATH } from '@mon-sinistre/contracts';
-import { createIntTestApp } from 'test/helpers/app';
-import type { FetchFn } from 'src/common/fetch-fn';
-import { commune as communeFixture } from 'test/helpers/commune';
-import { resolveDeadline } from 'src/deadline-rules/resolve-deadline';
-import { formatFrenchDate } from 'src/jorf/parse/french-date';
-import { seedDeadlineRules } from 'src/deadline-rules/deadline-rule.seed';
-import { seedStepTemplates } from 'src/step-templates/step-template.seed';
-import { captureLogs } from 'test/helpers/mail-log';
-import { tokenFrom } from 'test/helpers/mail-links';
-import { MailDeliveryError } from 'src/mail/mail-delivery.error';
-import { MAIL_TRANSPORT } from 'src/mail/mail-transport';
-import { RecordingTransport } from 'test/helpers/mail-transport';
-import { PrismaService } from 'src/prisma/prisma.service';
-import { createUser, headersForEmail, withBearer } from 'test/helpers/session';
-import { createVeille } from 'test/helpers/veille';
+import { createIntTestApp } from 'test/helpers/app.js';
+import type { FetchFn } from 'src/common/fetch-fn.js';
+import { commune as communeFixture } from 'test/helpers/commune.js';
+import { resolveDeadline } from 'src/deadline-rules/resolve-deadline.js';
+import { formatFrenchDate } from 'src/jorf/parse/french-date.js';
+import { seedDeadlineRules } from 'src/deadline-rules/deadline-rule.seed.js';
+import { seedStepTemplates } from 'src/step-templates/step-template.seed.js';
+import { captureLogs } from 'test/helpers/mail-log.js';
+import { tokenFrom } from 'test/helpers/mail-links.js';
+import { MailDeliveryError } from 'src/mail/mail-delivery.error.js';
+import { MAIL_TRANSPORT } from 'src/mail/mail-transport.js';
+import { RecordingTransport } from 'test/helpers/mail-transport.js';
+import { PrismaService } from 'src/prisma/prisma.service.js';
+import { createUser, headersForEmail, withBearer } from 'test/helpers/session.js';
+import { createVeille } from 'test/helpers/veille.js';
 import {
   DILA_JORFSIMPLE_BASE_URL,
   DilaClient,
-} from 'src/jorf/dila/dila.client';
-import { withAdminEmail } from 'test/helpers/admin-email';
-import { buildTarball } from 'test/helpers/build-tarball';
-import { jorfFixture } from 'test/fixtures/jorf';
+} from 'src/jorf/dila/dila.client.js';
+import { withAdminEmail } from 'test/helpers/admin-email.js';
+import { buildTarball } from 'test/helpers/build-tarball.js';
+import { jorfFixture } from 'test/fixtures/jorf.js';
 import {
   JorfMonitorService,
   MAX_DELTAS_PER_RUN,
   NOTIFICATION_ATTEMPTS_BEFORE_ALERT,
-} from 'src/jorf/jorf-monitor.service';
+} from 'src/jorf/jorf-monitor.service.js';
 
 /** Row/table/annexe builders shared by the rectificatif and alert describes below — same tag layout as the DILA fixture (parse-arrete.spec.ts), built from scratch so each test controls exactly which entries it puts in. */
 const row = (cells: string[]) =>

@@ -8,22 +8,22 @@ import {
   type CommuneArretes,
   type IsoDate,
 } from '@mon-sinistre/contracts';
-import { todayInParis } from 'src/common/time/today-in-paris';
+import { todayInParis } from 'src/common/time/today-in-paris.js';
 import {
   DECLARATION_ASSUREUR_CODE,
   seedDeadlineRules,
-} from 'src/deadline-rules/deadline-rule.seed';
+} from 'src/deadline-rules/deadline-rule.seed.js';
 import {
   isoDateToDate,
   resolveDeadline,
-} from 'src/deadline-rules/resolve-deadline';
-import { fr } from 'src/i18n/fr';
-import { PrismaService } from 'src/prisma/prisma.service';
-import { daysBetween } from 'src/sinistres/step-status';
-import { createIntTestApp } from 'test/helpers/app';
-import { arreteData, arreteEntryData } from 'test/helpers/arrete';
-import { commune } from 'test/helpers/commune';
-import { countWrites } from 'test/helpers/write-counters';
+} from 'src/deadline-rules/resolve-deadline.js';
+import { fr } from 'src/i18n/fr.js';
+import { PrismaService } from 'src/prisma/prisma.service.js';
+import { daysBetween } from 'src/sinistres/step-status.js';
+import { createIntTestApp } from 'test/helpers/app.js';
+import { arreteData, arreteEntryData } from 'test/helpers/arrete.js';
+import { commune } from 'test/helpers/commune.js';
+import { countWrites } from 'test/helpers/write-counters.js';
 
 // GET /dossier/arretes, docs/plan/dossier-preliminaire.md, Фаза 2 (issue #253)
 // — arrêtés коммуны за 12 месяцев со сроком декларации у каждого.

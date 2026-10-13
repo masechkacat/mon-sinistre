@@ -1,9 +1,9 @@
 import { PrismaPg } from '@prisma/adapter-pg';
-import e2eDbName from '../test/setup/e2e-db-name';
-import prepareDatabase from '../test/setup/prepare-database';
-import { PrismaClient } from '../src/generated/prisma/client';
-import { databaseUrlFromEnv } from '../src/prisma/database-url-from-env';
-import { seedE2eReferential } from '../test/helpers/e2e-referential';
+import e2eDbName from '../test/setup/e2e-db-name.js';
+import prepareDatabase from '../test/setup/prepare-database.js';
+import { PrismaClient } from '../src/generated/prisma/client.js';
+import { databaseUrlFromEnv } from '../src/prisma/database-url-from-env.js';
+import { seedE2eReferential } from '../test/helpers/e2e-referential.js';
 
 try {
   process.loadEnvFile();

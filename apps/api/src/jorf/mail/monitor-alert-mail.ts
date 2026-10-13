@@ -1,7 +1,7 @@
 import { VEILLE_UNSUBSCRIBE_PATH } from '@mon-sinistre/contracts';
-import type { MonitorAlertKind } from 'src/generated/prisma/enums';
-import { fr } from 'src/i18n/fr';
-import type { ComposeMailInput, MailBlock } from 'src/mail/mail-message';
+import type { MonitorAlertKind } from 'src/generated/prisma/enums.js';
+import { fr } from 'src/i18n/fr.js';
+import type { ComposeMailInput, MailBlock } from 'src/mail/mail-message.js';
 
 export interface MonitorAlertForMail {
   readonly kind: MonitorAlertKind;

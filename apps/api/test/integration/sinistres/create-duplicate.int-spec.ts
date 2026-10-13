@@ -5,12 +5,12 @@ import {
   type SinistreConflict,
   type SinistreDetail,
 } from '@mon-sinistre/contracts';
-import { seedDeadlineRules } from 'src/deadline-rules/deadline-rule.seed';
-import { PrismaService } from 'src/prisma/prisma.service';
-import { seedStepTemplates } from 'src/step-templates/step-template.seed';
-import { createIntTestApp } from 'test/helpers/app';
-import { commune } from 'test/helpers/commune';
-import { createUser, headersForEmail, withBearer } from 'test/helpers/session';
+import { seedDeadlineRules } from 'src/deadline-rules/deadline-rule.seed.js';
+import { PrismaService } from 'src/prisma/prisma.service.js';
+import { seedStepTemplates } from 'src/step-templates/step-template.seed.js';
+import { createIntTestApp } from 'test/helpers/app.js';
+import { commune } from 'test/helpers/commune.js';
+import { createUser, headersForEmail, withBearer } from 'test/helpers/session.js';
 
 const EVENT_DATE = toIsoDate('2026-06-01');
 const OTHER_DATE = toIsoDate('2026-07-15');

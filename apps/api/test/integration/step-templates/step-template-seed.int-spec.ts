@@ -1,10 +1,10 @@
-import { PrismaClient } from 'src/generated/prisma/client';
-import { createIntTestPrismaClient } from 'test/helpers/prisma-client';
+import { PrismaClient } from 'src/generated/prisma/client.js';
+import { createIntTestPrismaClient } from 'test/helpers/prisma-client.js';
 import {
   CATNAT_PLAN_KEY,
   seedStepTemplates,
   STEP_TEMPLATE_SEED,
-} from 'src/step-templates/step-template.seed';
+} from 'src/step-templates/step-template.seed.js';
 
 // seedStepTemplates idempotency (issue #148) — the schema-level guarantees
 // (unique (planKey, order), both-empty rows saving) live in

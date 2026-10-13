@@ -7,10 +7,10 @@ import {
   SchedulerRegistry,
 } from '@nestjs/schedule';
 import { Test, type TestingModule } from '@nestjs/testing';
-import { MailService } from 'src/mail/mail.service';
-import { PrismaService } from 'src/prisma/prisma.service';
-import { SinistresService } from 'src/sinistres/sinistres.service';
-import { AuthService } from './auth.service';
+import { MailService } from 'src/mail/mail.service.js';
+import { PrismaService } from 'src/prisma/prisma.service.js';
+import { SinistresService } from 'src/sinistres/sinistres.service.js';
+import { AuthService } from './auth.service.js';
 
 /**
  * The auth counterpart of `veille/veille-schedule.spec.ts`, and for the same

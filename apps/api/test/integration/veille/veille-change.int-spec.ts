@@ -3,14 +3,14 @@ import {
   VEILLE_CHANGE_PATH,
   VEILLE_CONFIRM_PATH,
 } from '@mon-sinistre/contracts';
-import { createIntTestApp } from 'test/helpers/app';
-import { tokenFrom } from 'test/helpers/mail-links';
-import { MAIL_TRANSPORT } from 'src/mail/mail-transport';
-import { RecordingTransport } from 'test/helpers/mail-transport';
-import { PrismaService } from 'src/prisma/prisma.service';
-import { DAY_MS } from 'src/veille/veille.service';
-import { communeFixture, createChangeRequest } from 'test/helpers/veille';
-import { resetThrottler } from 'test/helpers/throttler';
+import { createIntTestApp } from 'test/helpers/app.js';
+import { tokenFrom } from 'test/helpers/mail-links.js';
+import { MAIL_TRANSPORT } from 'src/mail/mail-transport.js';
+import { RecordingTransport } from 'test/helpers/mail-transport.js';
+import { PrismaService } from 'src/prisma/prisma.service.js';
+import { DAY_MS } from 'src/veille/veille.service.js';
+import { communeFixture, createChangeRequest } from 'test/helpers/veille.js';
+import { resetThrottler } from 'test/helpers/throttler.js';
 
 describe('/veille/changement (integration)', () => {
   let app: NestFastifyApplication;

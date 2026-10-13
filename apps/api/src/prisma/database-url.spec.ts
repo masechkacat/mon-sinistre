@@ -1,4 +1,4 @@
-import { buildDatabaseUrl } from './database-url';
+import { buildDatabaseUrl } from './database-url.js';
 
 /**
  * The one function that turns the five DB_* variables into a connection

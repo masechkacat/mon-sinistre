@@ -1,19 +1,19 @@
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { toIsoDate } from '@mon-sinistre/contracts';
-import { todayInParis } from 'src/common/time/today-in-paris';
+import { todayInParis } from 'src/common/time/today-in-paris.js';
 import {
   DECLARATION_ASSUREUR_CODE,
   seedDeadlineRules,
-} from 'src/deadline-rules/deadline-rule.seed';
-import { resolveDeadline } from 'src/deadline-rules/resolve-deadline';
-import { fr } from 'src/i18n/fr';
-import { PrismaService } from 'src/prisma/prisma.service';
-import { seedStepTemplates } from 'src/step-templates/step-template.seed';
-import { createIntTestApp } from 'test/helpers/app';
-import { arreteData, arreteEntryData } from 'test/helpers/arrete';
-import { commune } from 'test/helpers/commune';
-import { tomorrowInParis } from 'test/helpers/dates';
-import { countWrites } from 'test/helpers/write-counters';
+} from 'src/deadline-rules/deadline-rule.seed.js';
+import { resolveDeadline } from 'src/deadline-rules/resolve-deadline.js';
+import { fr } from 'src/i18n/fr.js';
+import { PrismaService } from 'src/prisma/prisma.service.js';
+import { seedStepTemplates } from 'src/step-templates/step-template.seed.js';
+import { createIntTestApp } from 'test/helpers/app.js';
+import { arreteData, arreteEntryData } from 'test/helpers/arrete.js';
+import { commune } from 'test/helpers/commune.js';
+import { tomorrowInParis } from 'test/helpers/dates.js';
+import { countWrites } from 'test/helpers/write-counters.js';
 
 interface ApercuStep {
   name: string;

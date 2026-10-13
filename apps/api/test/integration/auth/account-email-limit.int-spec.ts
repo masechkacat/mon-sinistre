@@ -5,13 +5,13 @@ import {
   ACCOUNT_REGISTRATION_MAIL_LIMIT,
   VEILLE_FORM_EMAIL_DAILY_LIMIT,
 } from '@mon-sinistre/contracts';
-import { createIntTestApp } from 'test/helpers/app';
-import { tokenFrom } from 'test/helpers/mail-links';
-import { MAIL_TRANSPORT } from 'src/mail/mail-transport';
-import { RecordingTransport } from 'test/helpers/mail-transport';
-import { PrismaService } from 'src/prisma/prisma.service';
-import { communeFixture } from 'test/helpers/veille';
-import { resetThrottler } from 'test/helpers/throttler';
+import { createIntTestApp } from 'test/helpers/app.js';
+import { tokenFrom } from 'test/helpers/mail-links.js';
+import { MAIL_TRANSPORT } from 'src/mail/mail-transport.js';
+import { RecordingTransport } from 'test/helpers/mail-transport.js';
+import { PrismaService } from 'src/prisma/prisma.service.js';
+import { communeFixture } from 'test/helpers/veille.js';
+import { resetThrottler } from 'test/helpers/throttler.js';
 
 describe('account mail rate limit (ACCOUNT_EMAIL_LIMIT)', () => {
   let app: NestFastifyApplication;

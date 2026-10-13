@@ -1,6 +1,6 @@
-import { jorfFixture } from 'test/fixtures/jorf';
+import { jorfFixture } from 'test/fixtures/jorf.js';
 import { ArreteEntryOutcome } from '@mon-sinistre/contracts';
-import { parseArreteXml } from './parse-arrete';
+import { parseArreteXml } from './parse-arrete.js';
 
 const arreteXml = jorfFixture('JORFTEXT000054245373.xml');
 /** The same arrêté shape published seven months earlier, whose annexes mark the header row up with `th` instead of `td` — JORF uses both. */

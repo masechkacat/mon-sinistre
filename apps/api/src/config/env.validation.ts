@@ -21,12 +21,12 @@ import {
   type ValidationArguments,
 } from 'class-validator';
 
-import { DEFAULT_MAIL_OUTBOX_DIR } from 'src/mail/transports/file-mail.transport';
+import { DEFAULT_MAIL_OUTBOX_DIR } from 'src/mail/transports/file-mail.transport.js';
 import {
   MAIL_TRANSPORT_NAMES,
   SENDING_TRANSPORT,
   type MailTransportName,
-} from 'src/mail/mail-transport-name';
+} from 'src/mail/mail-transport-name.js';
 
 /**
  * Scheme and host, nothing after them. The URL parser drops any path prefix of

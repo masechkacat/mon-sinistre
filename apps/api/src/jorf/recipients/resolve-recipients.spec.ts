@@ -2,7 +2,7 @@ import {
   type SubscribedCommune,
   resolveRecipients,
   subtractCoveredEntries,
-} from './resolve-recipients';
+} from './resolve-recipients.js';
 
 function sub(overrides: Partial<SubscribedCommune>): SubscribedCommune {
   return {

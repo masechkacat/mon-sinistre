@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
-import { VeilleController } from './veille.controller';
-import { VeilleService } from './veille.service';
+import { VeilleController } from './veille.controller.js';
+import { VeilleService } from './veille.service.js';
 
 @Module({
   controllers: [VeilleController],

@@ -1,5 +1,5 @@
-import { PrismaClient } from 'src/generated/prisma/client';
-import { createIntTestPrismaClient } from 'test/helpers/prisma-client';
+import { PrismaClient } from 'src/generated/prisma/client.js';
+import { createIntTestPrismaClient } from 'test/helpers/prisma-client.js';
 
 /** The partial index `codesMergedInto` walks lives only in its migration
  * (data-model.md § 3); as with `nameNormalized`, this suite is what notices a

@@ -2,18 +2,18 @@ import {
   ACCOUNT_MAIL_UNSUBSCRIBE_PATH,
   SINISTRE_PATH,
 } from '@mon-sinistre/contracts';
-import { resolveDeadline } from 'src/deadline-rules/resolve-deadline';
-import { fr } from 'src/i18n/fr';
-import type { ComposeMailInput, MailBlock } from 'src/mail/mail-message';
+import { resolveDeadline } from 'src/deadline-rules/resolve-deadline.js';
+import { fr } from 'src/i18n/fr.js';
+import type { ComposeMailInput, MailBlock } from 'src/mail/mail-message.js';
 import {
   communeLabel,
   type ChosenCommune,
-} from 'src/veille/veille-confirmation-mail';
-import { formatFrenchDate } from '../parse/french-date';
+} from 'src/veille/veille-confirmation-mail.js';
+import { formatFrenchDate } from '../parse/french-date.js';
 import type {
   ArreteForMail,
   DeclarationDeadlineRule,
-} from './veille-arrete-mail';
+} from './veille-arrete-mail.js';
 
 /**
  * The letter a sinistre's owner gets once its commune's état de catastrophe

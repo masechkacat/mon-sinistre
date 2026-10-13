@@ -6,9 +6,9 @@ import {
   SchedulerRegistry,
 } from '@nestjs/schedule';
 import { Test, type TestingModule } from '@nestjs/testing';
-import { MailService } from 'src/mail/mail.service';
-import { PrismaService } from 'src/prisma/prisma.service';
-import { VeilleService } from './veille.service';
+import { MailService } from 'src/mail/mail.service.js';
+import { PrismaService } from 'src/prisma/prisma.service.js';
+import { VeilleService } from './veille.service.js';
 
 /**
  * The only spec that watches the schedule itself. Every other one calls

@@ -1,7 +1,7 @@
 import { vi, type Mock } from 'vitest';
 import { Logger } from '@nestjs/common';
-import type { PrismaService } from 'src/prisma/prisma.service';
-import { DeadlineRuleService } from './deadline-rule.service';
+import type { PrismaService } from 'src/prisma/prisma.service.js';
+import { DeadlineRuleService } from './deadline-rule.service.js';
 
 // resolveActiveOrNull isolates exactly one failure — the referential gap —
 // and lets a failed query through: a public page answering "no deadline"

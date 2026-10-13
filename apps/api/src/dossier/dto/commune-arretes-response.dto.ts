@@ -5,9 +5,9 @@ import {
   type CommuneArrete,
   type CommuneArretes,
 } from '@mon-sinistre/contracts';
-import { CommuneResponseDto } from 'src/communes/dto/commune-response.dto';
-import { DeclarationDeadlineResponseDto } from 'src/sinistres/dto/declaration-deadline-response.dto';
-import { ArreteCoverageResponseDto } from './arrete-coverage-response.dto';
+import { CommuneResponseDto } from 'src/communes/dto/commune-response.dto.js';
+import { DeclarationDeadlineResponseDto } from 'src/sinistres/dto/declaration-deadline-response.dto.js';
+import { ArreteCoverageResponseDto } from './arrete-coverage-response.dto.js';
 
 class CommuneArreteDto
   extends ArreteCoverageResponseDto

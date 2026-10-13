@@ -1,6 +1,6 @@
-import { PrismaClient } from 'src/generated/prisma/client';
-import { createIntTestPrismaClient } from 'test/helpers/prisma-client';
-import { userData } from 'test/helpers/user-data';
+import { PrismaClient } from 'src/generated/prisma/client.js';
+import { createIntTestPrismaClient } from 'test/helpers/prisma-client.js';
+import { userData } from 'test/helpers/user-data.js';
 
 // Schema-level guarantees of the PasswordReset migration:
 // docs/research/user-account.md, docs/research/data-model.md § 5.

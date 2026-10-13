@@ -27,22 +27,22 @@ import type {
   ResetPasswordResponse,
 } from '@mon-sinistre/contracts';
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import type { EnvironmentVariables } from 'src/config/env.validation';
-import { fr } from 'src/i18n/fr';
-import type { AuthenticatedUser, RefreshTokenIssued } from './auth.service';
-import { AuthService } from './auth.service';
-import { AccountConfirmationResponseDto } from './dto/account-confirmation-response.dto';
-import { AccountTokenDto } from './dto/account-token.dto';
-import { CurrentUserResponseDto } from './dto/current-user-response.dto';
-import { LoginDto } from './dto/login.dto';
-import { LoginResponseDto } from './dto/login-response.dto';
-import { RegisterDto } from './dto/register.dto';
-import { RequestPasswordResetDto } from './dto/request-password-reset.dto';
-import { ResetPasswordDto } from './dto/reset-password.dto';
-import { ResetPasswordResponseDto } from './dto/reset-password-response.dto';
-import type { RequestWithJwtUser } from './passport/jwt.strategy';
-import { LocalAuthGuard } from './passport/local-auth.guard';
-import { Public } from './public.decorator';
+import type { EnvironmentVariables } from 'src/config/env.validation.js';
+import { fr } from 'src/i18n/fr.js';
+import type { AuthenticatedUser, RefreshTokenIssued } from './auth.service.js';
+import { AuthService } from './auth.service.js';
+import { AccountConfirmationResponseDto } from './dto/account-confirmation-response.dto.js';
+import { AccountTokenDto } from './dto/account-token.dto.js';
+import { CurrentUserResponseDto } from './dto/current-user-response.dto.js';
+import { LoginDto } from './dto/login.dto.js';
+import { LoginResponseDto } from './dto/login-response.dto.js';
+import { RegisterDto } from './dto/register.dto.js';
+import { RequestPasswordResetDto } from './dto/request-password-reset.dto.js';
+import { ResetPasswordDto } from './dto/reset-password.dto.js';
+import { ResetPasswordResponseDto } from './dto/reset-password-response.dto.js';
+import type { RequestWithJwtUser } from './passport/jwt.strategy.js';
+import { LocalAuthGuard } from './passport/local-auth.guard.js';
+import { Public } from './public.decorator.js';
 
 /** Exported for the specs, which replay the cookie by name. */
 export const REFRESH_COOKIE_NAME = 'refresh_token';

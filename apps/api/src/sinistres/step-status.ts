@@ -3,9 +3,9 @@ import {
   StepStatus,
   type IsoDate,
 } from '@mon-sinistre/contracts';
-import type { StepPersistedStatus } from 'src/generated/prisma/enums';
-import { DAY_MS } from 'src/common/time/time';
-import { isoDateToDate } from 'src/deadline-rules/resolve-deadline';
+import type { StepPersistedStatus } from 'src/generated/prisma/enums.js';
+import { DAY_MS } from 'src/common/time/time.js';
+import { isoDateToDate } from 'src/deadline-rules/resolve-deadline.js';
 
 export interface StepStatusInput {
   plannedDate: IsoDate | null;

@@ -1,7 +1,7 @@
 import { registerDecorator, type ValidationArguments } from 'class-validator';
 import { isIsoDate } from '@mon-sinistre/contracts';
-import { fr } from 'src/i18n/fr';
-import { todayInParis } from 'src/common/time/today-in-paris';
+import { fr } from 'src/i18n/fr.js';
+import { todayInParis } from 'src/common/time/today-in-paris.js';
 
 function isNotFutureIsoDateString(value: unknown): boolean {
   return (

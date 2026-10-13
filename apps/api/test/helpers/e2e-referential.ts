@@ -1,13 +1,13 @@
-import { todayInParis } from 'src/common/time/today-in-paris';
-import { seedDeadlineRules } from 'src/deadline-rules/deadline-rule.seed';
+import { todayInParis } from 'src/common/time/today-in-paris.js';
+import { seedDeadlineRules } from 'src/deadline-rules/deadline-rule.seed.js';
 import {
   isoDateToDate,
   resolveDeadline,
-} from 'src/deadline-rules/resolve-deadline';
-import { PrismaClient } from 'src/generated/prisma/client';
-import { seedStepTemplates } from 'src/step-templates/step-template.seed';
-import { E2E_ARRETE, arreteData, arreteEntryData } from 'test/helpers/arrete';
-import { commune } from 'test/helpers/commune';
+} from 'src/deadline-rules/resolve-deadline.js';
+import { PrismaClient } from 'src/generated/prisma/client.js';
+import { seedStepTemplates } from 'src/step-templates/step-template.seed.js';
+import { E2E_ARRETE, arreteData, arreteEntryData } from 'test/helpers/arrete.js';
+import { commune } from 'test/helpers/commune.js';
 
 // Горстка коммун для сквозного сценария, не весь справочник: полный импорт
 // требует сети, а база сквозного теста её может не иметь.

@@ -1,4 +1,4 @@
-import { escapeLikePattern } from './escape-like-pattern';
+import { escapeLikePattern } from './escape-like-pattern.js';
 
 /**
  * The only place where user input reaches a LIKE pattern, so it is tested

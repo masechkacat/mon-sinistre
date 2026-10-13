@@ -1,4 +1,4 @@
-import { STEP_TEMPLATE_SEED } from './step-template.seed';
+import { STEP_TEMPLATE_SEED } from './step-template.seed.js';
 
 // A hard-coded legal number in a step's text would duplicate — and drift
 // from — the number that lives in DeadlineRule (ТЗ § 7,

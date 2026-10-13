@@ -1,13 +1,13 @@
 import { vi } from 'vitest';
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { RisqueCatnat } from '@mon-sinistre/contracts';
-import { createIntTestApp } from 'test/helpers/app';
-import { DAY_MS, HOUR_MS } from 'src/common/time/time';
-import { captureLogs } from 'test/helpers/mail-log';
-import { commune } from 'test/helpers/commune';
-import { PrismaService } from 'src/prisma/prisma.service';
-import { AuthService } from 'src/auth/auth.service';
-import { createUser } from 'test/helpers/session';
+import { createIntTestApp } from 'test/helpers/app.js';
+import { DAY_MS, HOUR_MS } from 'src/common/time/time.js';
+import { captureLogs } from 'test/helpers/mail-log.js';
+import { commune } from 'test/helpers/commune.js';
+import { PrismaService } from 'src/prisma/prisma.service.js';
+import { AuthService } from 'src/auth/auth.service.js';
+import { createUser } from 'test/helpers/session.js';
 
 const CODE_INSEE = '30189';
 

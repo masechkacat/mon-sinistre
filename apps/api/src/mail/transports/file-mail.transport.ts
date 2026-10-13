@@ -3,9 +3,9 @@ import { join } from 'node:path';
 
 import { Logger } from '@nestjs/common';
 
-import { MailDeliveryError } from 'src/mail/mail-delivery.error';
-import type { MailMessage } from 'src/mail/mail-message';
-import type { MailTransport } from 'src/mail/mail-transport';
+import { MailDeliveryError } from 'src/mail/mail-delivery.error.js';
+import type { MailMessage } from 'src/mail/mail-message.js';
+import type { MailTransport } from 'src/mail/mail-transport.js';
 
 /** Behind an interface so the test reads the channel the developer opens, with
  * no disk and no mock of node:fs in the way. */

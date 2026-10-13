@@ -1,6 +1,6 @@
-import { loadApiEnv } from './load-env';
-import prepareDatabase from './prepare-database';
-import testDbName from './test-db-name';
+import { loadApiEnv } from './load-env.js';
+import prepareDatabase from './prepare-database.js';
+import testDbName from './test-db-name.js';
 
 /** Runs once before the integration suite: prepares `${DB_NAME}_test`. */
 export async function setup(): Promise<void> {

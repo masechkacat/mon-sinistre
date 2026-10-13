@@ -2,12 +2,12 @@ import { vi } from 'vitest';
 import {
   FileMailTransport,
   type MailOutbox,
-} from 'src/mail/transports/file-mail.transport';
-import { mailLinksOf } from 'test/helpers/mail-links';
-import { captureLogs } from 'test/helpers/mail-log';
-import { MailComposer } from 'src/mail/compose/mail-composer';
-import { MailDeliveryError } from 'src/mail/mail-delivery.error';
-import type { ComposeMailInput, MailMessage } from 'src/mail/mail-message';
+} from 'src/mail/transports/file-mail.transport.js';
+import { mailLinksOf } from 'test/helpers/mail-links.js';
+import { captureLogs } from 'test/helpers/mail-log.js';
+import { MailComposer } from 'src/mail/compose/mail-composer.js';
+import { MailDeliveryError } from 'src/mail/mail-delivery.error.js';
+import type { ComposeMailInput, MailMessage } from 'src/mail/mail-message.js';
 
 const RECIPIENT = 'destinataire@example.test';
 const FRONTEND_URL = 'https://app.example.test';

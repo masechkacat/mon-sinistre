@@ -1,8 +1,8 @@
 import type { IsoDate, RisqueCatnat } from '@mon-sinistre/contracts';
-import { dateToIsoDate } from 'src/deadline-rules/resolve-deadline';
-import type { ArreteEntryOutcome } from 'src/generated/prisma/enums';
-import { classifyRisques } from 'src/jorf/parse/classify-risques';
-import { resolveCurrentCode } from 'src/jorf/recipients/resolve-recipients';
+import { dateToIsoDate } from 'src/deadline-rules/resolve-deadline.js';
+import type { ArreteEntryOutcome } from 'src/generated/prisma/enums.js';
+import { classifyRisques } from 'src/jorf/parse/classify-risques.js';
+import { resolveCurrentCode } from 'src/jorf/recipients/resolve-recipients.js';
 
 /** The `ArreteEntry` fields `matchSinistres` needs, independent of caller. */
 export interface MatchArreteEntry {

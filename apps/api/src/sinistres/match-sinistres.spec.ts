@@ -3,7 +3,7 @@ import {
   type MatchArreteEntry,
   type MatchCandidateSinistre,
   matchSinistres,
-} from './match-sinistres';
+} from './match-sinistres.js';
 
 function entry(overrides: Partial<MatchArreteEntry>): MatchArreteEntry {
   return {

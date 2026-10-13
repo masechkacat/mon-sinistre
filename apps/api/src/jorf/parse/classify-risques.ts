@@ -1,5 +1,5 @@
 import { RisqueCatnat } from '@mon-sinistre/contracts';
-import { normalizeCommuneName } from 'src/communes/normalize-commune-name';
+import { normalizeCommuneName } from 'src/communes/normalize-commune-name.js';
 
 /**
  * Folds a JO phénomène-naturel wording into the `RisqueCatnat` values it

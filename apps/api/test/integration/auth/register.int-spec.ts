@@ -6,16 +6,16 @@ import {
   ACCOUNT_CONFIRM_PATH,
   ACCOUNT_FORGOT_PASSWORD_PATH,
 } from '@mon-sinistre/contracts';
-import { createIntTestApp } from 'test/helpers/app';
-import { DAY_MS } from 'src/common/time/time';
-import { captureLogs } from 'test/helpers/mail-log';
-import { mailLinksOf, tokenFrom } from 'test/helpers/mail-links';
-import { MAIL_TRANSPORT } from 'src/mail/mail-transport';
-import { RecordingTransport } from 'test/helpers/mail-transport';
-import { PrismaService } from 'src/prisma/prisma.service';
-import { AUTH_MAIL_RATE_LIMIT } from 'src/auth/auth.controller';
-import { createUser } from 'test/helpers/session';
-import { resetThrottler } from 'test/helpers/throttler';
+import { createIntTestApp } from 'test/helpers/app.js';
+import { DAY_MS } from 'src/common/time/time.js';
+import { captureLogs } from 'test/helpers/mail-log.js';
+import { mailLinksOf, tokenFrom } from 'test/helpers/mail-links.js';
+import { MAIL_TRANSPORT } from 'src/mail/mail-transport.js';
+import { RecordingTransport } from 'test/helpers/mail-transport.js';
+import { PrismaService } from 'src/prisma/prisma.service.js';
+import { AUTH_MAIL_RATE_LIMIT } from 'src/auth/auth.controller.js';
+import { createUser } from 'test/helpers/session.js';
+import { resetThrottler } from 'test/helpers/throttler.js';
 
 describe('POST /auth/register (integration)', () => {
   let app: NestFastifyApplication;

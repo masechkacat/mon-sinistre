@@ -1,4 +1,4 @@
-import { databaseUrlFromEnv } from './database-url-from-env';
+import { databaseUrlFromEnv } from './database-url-from-env.js';
 
 /**
  * The half of the connection string that reads the environment. What it builds

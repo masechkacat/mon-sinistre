@@ -3,7 +3,7 @@ import {
   type IsoDate,
   type SourceReference,
 } from '@mon-sinistre/contracts';
-import { resolveDeadline } from 'src/deadline-rules/resolve-deadline';
+import { resolveDeadline } from 'src/deadline-rules/resolve-deadline.js';
 
 /**
  * Builds a `SourceReference`, resolving `possiblyOutdated` the one way it is

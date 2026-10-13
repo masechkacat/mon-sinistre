@@ -1,5 +1,5 @@
 import { RisqueCatnat } from '@mon-sinistre/contracts';
-import { classifyRisques } from './classify-risques';
+import { classifyRisques } from './classify-risques.js';
 
 describe('classifyRisques', () => {
   it('classifies the trois-eaux fixture wordings as INONDATION', () => {

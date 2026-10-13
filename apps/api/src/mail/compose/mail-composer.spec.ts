@@ -1,8 +1,8 @@
-import { fr } from 'src/i18n/fr';
-import { mailLinksOf } from 'test/helpers/mail-links';
-import { MailCompositionError } from 'src/mail/mail-composition.error';
-import { MailComposer, type MailComposerOptions } from 'src/mail/compose/mail-composer';
-import type { ComposeMailInput } from 'src/mail/mail-message';
+import { fr } from 'src/i18n/fr.js';
+import { mailLinksOf } from 'test/helpers/mail-links.js';
+import { MailCompositionError } from 'src/mail/mail-composition.error.js';
+import { MailComposer, type MailComposerOptions } from 'src/mail/compose/mail-composer.js';
+import type { ComposeMailInput } from 'src/mail/mail-message.js';
 
 const FRONTEND_URL = 'https://app.example.test';
 const MAIL_FROM = 'no-reply@example.test';

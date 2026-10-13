@@ -1,6 +1,6 @@
-import type { PrismaClient } from 'src/generated/prisma/client';
-import { commune } from 'test/helpers/commune';
-import { userData } from 'test/helpers/user-data';
+import type { PrismaClient } from 'src/generated/prisma/client.js';
+import { commune } from 'test/helpers/commune.js';
+import { userData } from 'test/helpers/user-data.js';
 
 /**
  * The one `Sinistre` row shape schema-level specs need (raw `PrismaClient`, no

@@ -1,6 +1,6 @@
 import { vi } from 'vitest';
-import type { PrismaService } from 'src/prisma/prisma.service';
-import { codesMergedInto } from './codes-merged-into';
+import type { PrismaService } from 'src/prisma/prisma.service.js';
+import { codesMergedInto } from './codes-merged-into.js';
 
 type FindManyArgs = { where: { successorCodeInsee: { in: string[] } } };
 

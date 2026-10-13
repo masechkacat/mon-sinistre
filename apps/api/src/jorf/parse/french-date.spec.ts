@@ -1,5 +1,5 @@
 import { toIsoDate } from '@mon-sinistre/contracts';
-import { formatFrenchDate, parseFrenchDate } from './french-date';
+import { formatFrenchDate, parseFrenchDate } from './french-date.js';
 
 describe('parseFrenchDate', () => {
   it('converts a DD/MM/YYYY annexe date cell to IsoDate', () => {

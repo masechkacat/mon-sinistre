@@ -1,16 +1,16 @@
 import { vi } from 'vitest';
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
-import { createIntTestApp } from 'test/helpers/app';
-import { captureLogs } from 'test/helpers/mail-log';
-import { PrismaService } from 'src/prisma/prisma.service';
-import { DAY_MS, VeilleService } from 'src/veille/veille.service';
-import { generateVeilleToken } from 'src/veille/veille-token';
+import { createIntTestApp } from 'test/helpers/app.js';
+import { captureLogs } from 'test/helpers/mail-log.js';
+import { PrismaService } from 'src/prisma/prisma.service.js';
+import { DAY_MS, VeilleService } from 'src/veille/veille.service.js';
+import { generateVeilleToken } from 'src/veille/veille-token.js';
 import {
   communeFixture,
   createChangeRequest,
   createFormEmail,
   createVeille,
-} from 'test/helpers/veille';
+} from 'test/helpers/veille.js';
 
 describe('VeilleService.cleanupExpired (integration)', () => {
   let app: NestFastifyApplication;

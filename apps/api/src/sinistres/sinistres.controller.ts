@@ -26,15 +26,15 @@ import type {
   SinistreSummary,
   Step,
 } from '@mon-sinistre/contracts';
-import type { RequestWithJwtUser } from 'src/auth/passport/jwt.strategy';
-import { CreateSinistreDto } from './dto/create-sinistre.dto';
-import { SinistreConflictResponseDto } from './dto/sinistre-conflict-response.dto';
-import { SinistreDetailResponseDto } from './dto/sinistre-detail-response.dto';
-import { SinistreSummaryResponseDto } from './dto/sinistre-summary-response.dto';
-import { StepResponseDto } from './dto/step-response.dto';
-import { UpdateSinistreDto } from './dto/update-sinistre.dto';
-import { UpdateStepDto } from './dto/update-step.dto';
-import { SinistresService } from './sinistres.service';
+import type { RequestWithJwtUser } from 'src/auth/passport/jwt.strategy.js';
+import { CreateSinistreDto } from './dto/create-sinistre.dto.js';
+import { SinistreConflictResponseDto } from './dto/sinistre-conflict-response.dto.js';
+import { SinistreDetailResponseDto } from './dto/sinistre-detail-response.dto.js';
+import { SinistreSummaryResponseDto } from './dto/sinistre-summary-response.dto.js';
+import { StepResponseDto } from './dto/step-response.dto.js';
+import { UpdateSinistreDto } from './dto/update-sinistre.dto.js';
+import { UpdateStepDto } from './dto/update-step.dto.js';
+import { SinistresService } from './sinistres.service.js';
 
 /** No `@Public()` anywhere — every route goes through the global
  * `JwtAuthGuard` (`src/auth/CLAUDE.md`), as any new module's routes do by

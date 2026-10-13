@@ -1,16 +1,16 @@
 import { Controller, Get } from '@nestjs/common';
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
-import { createIntTestApp } from 'test/helpers/app';
-import { PrismaService } from 'src/prisma/prisma.service';
-import { REFRESH_COOKIE_NAME } from 'src/auth/auth.controller';
+import { createIntTestApp } from 'test/helpers/app.js';
+import { PrismaService } from 'src/prisma/prisma.service.js';
+import { REFRESH_COOKIE_NAME } from 'src/auth/auth.controller.js';
 import {
   accessTokenOf,
   createUser,
   login,
   refreshCookieOf,
   withBearer,
-} from 'test/helpers/session';
-import { Public } from 'src/auth/public.decorator';
+} from 'test/helpers/session.js';
+import { Public } from 'src/auth/public.decorator.js';
 
 /**
  * A route per case the global guard has to tell apart. Added to the testing

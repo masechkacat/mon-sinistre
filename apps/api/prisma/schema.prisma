@@ -8,10 +8,7 @@ datasource db {
 generator client {
   provider            = "prisma-client"
   output              = "../src/generated/prisma"
-  // Bare relative imports: with moduleResolution nodenext the generator would
-  // infer `.js` extensions, which tsc resolves to the .ts sources but jest's
-  // resolver does not.
-  importFileExtension = ""
+  importFileExtension = "js"
 }
 
 // Справочник коммун на основе COG (docs/research/data-model.md § 3):

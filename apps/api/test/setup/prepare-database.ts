@@ -33,7 +33,7 @@ export default async function prepareDatabase(dbName: string): Promise<void> {
   }
 
   execSync('npx prisma migrate deploy', {
-    cwd: path.join(__dirname, '..', '..'),
+    cwd: path.join(import.meta.dirname, '..', '..'),
     env: { ...process.env, DB_NAME: dbName },
     stdio: 'inherit',
   });

@@ -1,7 +1,7 @@
-import type { FetchFn } from 'src/common/fetch-fn';
-import { MailDeliveryError } from 'src/mail/mail-delivery.error';
-import type { MailMessage } from 'src/mail/mail-message';
-import type { MailTransport } from 'src/mail/mail-transport';
+import type { FetchFn } from 'src/common/fetch-fn.js';
+import { MailDeliveryError } from 'src/mail/mail-delivery.error.js';
+import type { MailMessage } from 'src/mail/mail-message.js';
+import type { MailTransport } from 'src/mail/mail-transport.js';
 
 /** The region is part of the URL, not a setting: addresses stay in the EU. */
 export const SCALEWAY_TEM_REGION = 'fr-par';

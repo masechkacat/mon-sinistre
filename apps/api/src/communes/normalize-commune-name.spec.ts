@@ -1,4 +1,4 @@
-import { normalizeCommuneName } from './normalize-commune-name';
+import { normalizeCommuneName } from './normalize-commune-name.js';
 
 describe('normalizeCommuneName', () => {
   it.each([

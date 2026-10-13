@@ -4,10 +4,10 @@ import {
   COMMUNE_SEARCH_MIN_QUERY_LENGTH,
   Commune,
 } from '@mon-sinistre/contracts';
-import { createIntTestApp } from 'test/helpers/app';
-import { commune } from 'test/helpers/commune';
-import { MAX_QUERY_LENGTH } from 'src/communes/dto/search-communes-query.dto';
-import { PrismaService } from 'src/prisma/prisma.service';
+import { createIntTestApp } from 'test/helpers/app.js';
+import { commune } from 'test/helpers/commune.js';
+import { MAX_QUERY_LENGTH } from 'src/communes/dto/search-communes-query.dto.js';
+import { PrismaService } from 'src/prisma/prisma.service.js';
 
 describe('GET /communes (integration)', () => {
   let app: NestFastifyApplication;

@@ -1,4 +1,4 @@
-import { fr } from 'src/i18n/fr';
+import { fr } from 'src/i18n/fr.js';
 
 type Translation = string | ((...args: string[]) => string);
 type Dictionary = { readonly [key: string]: Translation | Dictionary };

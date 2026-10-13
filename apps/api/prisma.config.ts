@@ -1,5 +1,5 @@
 import { defineConfig } from 'prisma/config';
-import { databaseUrlFromEnv } from './src/prisma/database-url-from-env';
+import { databaseUrlFromEnv } from './src/prisma/database-url-from-env.js';
 
 // The Prisma 7 CLI does not load .env by itself. Node ≥ 24 can do it natively;
 // the catch covers environments without a .env file (e.g. CI), where the

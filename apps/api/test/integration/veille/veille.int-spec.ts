@@ -9,20 +9,20 @@ import {
   VEILLE_MAX_COMMUNES,
   VEILLE_UNSUBSCRIBE_PATH,
 } from '@mon-sinistre/contracts';
-import { createIntTestApp } from 'test/helpers/app';
-import { fr } from 'src/i18n/fr';
-import { MailComposer } from 'src/mail/compose/mail-composer';
-import { MailCompositionError } from 'src/mail/mail-composition.error';
-import { MailDeliveryError } from 'src/mail/mail-delivery.error';
-import { captureLogs } from 'test/helpers/mail-log';
-import { tokenFrom } from 'test/helpers/mail-links';
-import type { MailMessage } from 'src/mail/mail-message';
-import { MAIL_TRANSPORT, type MailTransport } from 'src/mail/mail-transport';
-import { PrismaService } from 'src/prisma/prisma.service';
-import { VEILLE_FORM_RATE_LIMIT } from 'src/veille/veille.controller';
-import { DAY_MS, VeilleService } from 'src/veille/veille.service';
-import { communeFixture } from 'test/helpers/veille';
-import { resetThrottler } from 'test/helpers/throttler';
+import { createIntTestApp } from 'test/helpers/app.js';
+import { fr } from 'src/i18n/fr.js';
+import { MailComposer } from 'src/mail/compose/mail-composer.js';
+import { MailCompositionError } from 'src/mail/mail-composition.error.js';
+import { MailDeliveryError } from 'src/mail/mail-delivery.error.js';
+import { captureLogs } from 'test/helpers/mail-log.js';
+import { tokenFrom } from 'test/helpers/mail-links.js';
+import type { MailMessage } from 'src/mail/mail-message.js';
+import { MAIL_TRANSPORT, type MailTransport } from 'src/mail/mail-transport.js';
+import { PrismaService } from 'src/prisma/prisma.service.js';
+import { VEILLE_FORM_RATE_LIMIT } from 'src/veille/veille.controller.js';
+import { DAY_MS, VeilleService } from 'src/veille/veille.service.js';
+import { communeFixture } from 'test/helpers/veille.js';
+import { resetThrottler } from 'test/helpers/throttler.js';
 
 class RecordingTransport implements MailTransport {
   readonly sent: MailMessage[] = [];

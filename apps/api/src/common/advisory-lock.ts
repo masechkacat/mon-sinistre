@@ -1,4 +1,4 @@
-import type { PrismaClient, Prisma } from 'src/generated/prisma/client';
+import type { PrismaClient, Prisma } from 'src/generated/prisma/client.js';
 
 /**
  * Serialises a read-then-write against concurrent requests for the same

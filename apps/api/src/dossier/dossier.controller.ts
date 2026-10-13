@@ -6,12 +6,12 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import type { CommuneArretes, DossierApercu } from '@mon-sinistre/contracts';
-import { Public } from 'src/auth/public.decorator';
-import { CreateSinistreDto } from 'src/sinistres/dto/create-sinistre.dto';
-import { CommuneArretesQueryDto } from './dto/commune-arretes-query.dto';
-import { CommuneArretesResponseDto } from './dto/commune-arretes-response.dto';
-import { DossierApercuResponseDto } from './dto/dossier-apercu-response.dto';
-import { DossierService } from './dossier.service';
+import { Public } from 'src/auth/public.decorator.js';
+import { CreateSinistreDto } from 'src/sinistres/dto/create-sinistre.dto.js';
+import { CommuneArretesQueryDto } from './dto/commune-arretes-query.dto.js';
+import { CommuneArretesResponseDto } from './dto/commune-arretes-response.dto.js';
+import { DossierApercuResponseDto } from './dto/dossier-apercu-response.dto.js';
+import { DossierService } from './dossier.service.js';
 
 /** Public on the class, as `CommunesController` is: the global `JwtAuthGuard`
  * would otherwise answer 401 without a token. */

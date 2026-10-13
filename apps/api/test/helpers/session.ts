@@ -2,11 +2,11 @@ import * as bcrypt from 'bcrypt';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
-import { DAY_MS } from 'src/common/time/time';
-import type { EnvironmentVariables } from 'src/config/env.validation';
-import { PrismaService } from 'src/prisma/prisma.service';
-import { REFRESH_COOKIE_NAME } from 'src/auth/auth.controller';
-import { TOKEN_TYPE, type TokenPayload } from 'src/auth/auth.service';
+import { DAY_MS } from 'src/common/time/time.js';
+import type { EnvironmentVariables } from 'src/config/env.validation.js';
+import { PrismaService } from 'src/prisma/prisma.service.js';
+import { REFRESH_COOKIE_NAME } from 'src/auth/auth.controller.js';
+import { TOKEN_TYPE, type TokenPayload } from 'src/auth/auth.service.js';
 
 /** Cheap on purpose — this is a test fixture's cost, not a real account's. */
 const TEST_SALT_ROUNDS = 4;

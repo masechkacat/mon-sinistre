@@ -19,13 +19,13 @@ import type {
   VeilleChangeResponse,
   VeilleConfirmationResponse,
 } from '@mon-sinistre/contracts';
-import { Public } from 'src/auth/public.decorator';
-import { ThrottleByToken } from 'src/common/http/token-throttler.guard';
-import { CreateVeilleDto } from './dto/create-veille.dto';
-import { VeilleTokenDto } from './dto/veille-token.dto';
-import { VeilleChangeResponseDto } from './dto/veille-change-response.dto';
-import { VeilleConfirmationResponseDto } from './dto/veille-confirmation-response.dto';
-import { VeilleService } from './veille.service';
+import { Public } from 'src/auth/public.decorator.js';
+import { ThrottleByToken } from 'src/common/http/token-throttler.guard.js';
+import { CreateVeilleDto } from './dto/create-veille.dto.js';
+import { VeilleTokenDto } from './dto/veille-token.dto.js';
+import { VeilleChangeResponseDto } from './dto/veille-change-response.dto.js';
+import { VeilleConfirmationResponseDto } from './dto/veille-confirmation-response.dto.js';
+import { VeilleService } from './veille.service.js';
 
 /**
  * Tighter than the global 100/min because every accepted request mails a

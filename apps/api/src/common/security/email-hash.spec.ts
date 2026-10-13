@@ -1,6 +1,6 @@
 import { createHash, createHmac } from 'node:crypto';
 
-import { hashEmail } from './email-hash';
+import { hashEmail } from './email-hash.js';
 
 describe('hashEmail', () => {
   it('matches an HMAC-SHA256 keyed with the given secret', () => {

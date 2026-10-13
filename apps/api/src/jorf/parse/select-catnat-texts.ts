@@ -1,5 +1,5 @@
 import { parseXml } from '@rgrove/parse-xml';
-import { findDescendants } from './xml-tree';
+import { findDescendants } from './xml-tree.js';
 
 // The historical "portant constatation…" wording predates the ~2000s and is
 // out of the backfill's 2026 scope (docs/research/jorf-monitor.md, "Отбор

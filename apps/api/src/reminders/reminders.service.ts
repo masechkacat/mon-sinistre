@@ -5,35 +5,35 @@ import type {
   RemindersPreference,
   RisqueCatnat,
 } from '@mon-sinistre/contracts';
-import { errorSummary, stackOf } from 'src/common/error-report';
+import { errorSummary, stackOf } from 'src/common/error-report.js';
 import {
   generateSecureToken,
   hashSecureToken,
-} from 'src/common/security/secure-token';
-import { todayInParis } from 'src/common/time/today-in-paris';
+} from 'src/common/security/secure-token.js';
+import { todayInParis } from 'src/common/time/today-in-paris.js';
 import {
   dateToIsoDate,
   isoDateToDate,
   resolveDeadline,
-} from 'src/deadline-rules/resolve-deadline';
-import type { Prisma } from 'src/generated/prisma/client';
-import { fr } from 'src/i18n/fr';
-import { AdminAlertService } from 'src/jorf/alerts/admin-alert.service';
-import { NOTIFICATION_ATTEMPTS_BEFORE_ALERT } from 'src/jorf/mail/drain-outbox';
-import { MailService } from 'src/mail/mail.service';
-import { PrismaService } from 'src/prisma/prisma.service';
+} from 'src/deadline-rules/resolve-deadline.js';
+import type { Prisma } from 'src/generated/prisma/client.js';
+import { fr } from 'src/i18n/fr.js';
+import { AdminAlertService } from 'src/jorf/alerts/admin-alert.service.js';
+import { NOTIFICATION_ATTEMPTS_BEFORE_ALERT } from 'src/jorf/mail/drain-outbox.js';
+import { MailService } from 'src/mail/mail.service.js';
+import { PrismaService } from 'src/prisma/prisma.service.js';
 import {
   reminderMailFor,
   type ReminderSinistreForMail,
   type ReminderStepForMail,
-} from './reminder-mail';
-import { remindersEnabled } from './reminders-preference';
+} from './reminder-mail.js';
+import { remindersEnabled } from './reminders-preference.js';
 import {
   REMINDER_HORIZON_DAYS,
   selectReminders,
   type ReminderCandidateStep,
   type ReminderReason,
-} from './select-reminders';
+} from './select-reminders.js';
 
 /** Exported for `reminders-schedule.spec.ts`, which must not restate it. */
 export const REMINDERS_CRON = '0 7 * * *';

@@ -7,8 +7,8 @@ import {
   Logger,
 } from '@nestjs/common';
 
-import { errorSummary, stackOf } from 'src/common/error-report';
-import { httpExceptionForPrisma } from 'src/prisma/prisma-error';
+import { errorSummary, stackOf } from 'src/common/error-report.js';
+import { httpExceptionForPrisma } from 'src/prisma/prisma-error.js';
 
 /** Declared rather than imported: fastify arrives under
  * @nestjs/platform-fastify and is not a direct dependency of this package. */

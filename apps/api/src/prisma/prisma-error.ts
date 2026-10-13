@@ -1,5 +1,5 @@
 import { HttpException, NotFoundException } from '@nestjs/common';
-import { Prisma } from 'src/generated/prisma/client';
+import { Prisma } from 'src/generated/prisma/client.js';
 
 /** `P2025` — a conditional `update`/`delete` whose filter matched no row. */
 export const isRecordNotFound = (exception: unknown): boolean =>

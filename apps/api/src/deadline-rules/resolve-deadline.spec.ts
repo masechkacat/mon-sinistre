@@ -1,5 +1,5 @@
 import { toIsoDate } from '@mon-sinistre/contracts';
-import { resolveDeadline } from './resolve-deadline';
+import { resolveDeadline } from './resolve-deadline.js';
 
 describe('resolveDeadline', () => {
   it('adds a number of days to the anchor date', () => {

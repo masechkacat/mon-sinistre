@@ -4,18 +4,18 @@ import {
   SINISTRE_PATH,
   type IsoDate,
 } from '@mon-sinistre/contracts';
-import { toSourceReference } from 'src/common/source-reference';
+import { toSourceReference } from 'src/common/source-reference.js';
 import {
   isDeclarationRule,
   isInsurerRule,
-} from 'src/deadline-rules/deadline-rule.seed';
-import { fr } from 'src/i18n/fr';
-import { formatFrenchDate } from 'src/jorf/parse/french-date';
-import type { ComposeMailInput, MailBlock } from 'src/mail/mail-message';
+} from 'src/deadline-rules/deadline-rule.seed.js';
+import { fr } from 'src/i18n/fr.js';
+import { formatFrenchDate } from 'src/jorf/parse/french-date.js';
+import type { ComposeMailInput, MailBlock } from 'src/mail/mail-message.js';
 import {
   communeLabel,
   type ChosenCommune,
-} from 'src/veille/veille-confirmation-mail';
+} from 'src/veille/veille-confirmation-mail.js';
 
 /** One step worth a line today. `remainingDays` is the count `selectReminders`
  * already made (`ReminderReason.offsetDays`), not a second arithmetic over

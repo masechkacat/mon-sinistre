@@ -1,14 +1,14 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { errorSummary, stackOf } from 'src/common/error-report';
-import type { EnvironmentVariables } from 'src/config/env.validation';
-import type { Prisma } from 'src/generated/prisma/client';
-import { MailService } from 'src/mail/mail.service';
-import { PrismaService } from 'src/prisma/prisma.service';
+import { errorSummary, stackOf } from 'src/common/error-report.js';
+import type { EnvironmentVariables } from 'src/config/env.validation.js';
+import type { Prisma } from 'src/generated/prisma/client.js';
+import { MailService } from 'src/mail/mail.service.js';
+import { PrismaService } from 'src/prisma/prisma.service.js';
 import {
   type MonitorAlertForMail,
   monitorAlertMailFor,
-} from '../mail/monitor-alert-mail';
+} from '../mail/monitor-alert-mail.js';
 
 /**
  * The push channel on top of `MonitorAlert` (docs/research/jorf-monitor.md,

@@ -8,16 +8,16 @@ import {
 import {
   hashSecureToken,
   SECURE_TOKEN_LENGTH,
-} from 'src/common/security/secure-token';
-import { DAY_MS, HOUR_MS } from 'src/common/time/time';
-import { seedDeadlineRules } from 'src/deadline-rules/deadline-rule.seed';
-import { resolveDeadline } from 'src/deadline-rules/resolve-deadline';
-import { PrismaService } from 'src/prisma/prisma.service';
-import { seedStepTemplates } from 'src/step-templates/step-template.seed';
-import { createIntTestApp } from 'test/helpers/app';
-import { arreteData, arreteEntryData } from 'test/helpers/arrete';
-import { commune } from 'test/helpers/commune';
-import { createUser, headersForEmail } from 'test/helpers/session';
+} from 'src/common/security/secure-token.js';
+import { DAY_MS, HOUR_MS } from 'src/common/time/time.js';
+import { seedDeadlineRules } from 'src/deadline-rules/deadline-rule.seed.js';
+import { resolveDeadline } from 'src/deadline-rules/resolve-deadline.js';
+import { PrismaService } from 'src/prisma/prisma.service.js';
+import { seedStepTemplates } from 'src/step-templates/step-template.seed.js';
+import { createIntTestApp } from 'test/helpers/app.js';
+import { arreteData, arreteEntryData } from 'test/helpers/arrete.js';
+import { commune } from 'test/helpers/commune.js';
+import { createUser, headersForEmail } from 'test/helpers/session.js';
 
 const CODE_INSEE = '30189';
 const EVENT_DATE = toIsoDate('2026-06-10');

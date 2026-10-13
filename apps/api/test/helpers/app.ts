@@ -7,11 +7,11 @@ import {
 import { SchedulerRegistry } from '@nestjs/schedule';
 import { Test, TestingModuleBuilder } from '@nestjs/testing';
 import { ThrottlerStorage } from '@nestjs/throttler';
-import { AppModule } from 'src/app.module';
-import type { EnvironmentVariables } from 'src/config/env.validation';
-import { registerCookiePlugin } from 'src/config/fastify-cookie';
-import { createGlobalValidationPipe } from 'src/config/validation-pipe';
-import { ResettableThrottlerStorage } from 'test/helpers/throttler';
+import { AppModule } from 'src/app.module.js';
+import type { EnvironmentVariables } from 'src/config/env.validation.js';
+import { registerCookiePlugin } from 'src/config/fastify-cookie.js';
+import { createGlobalValidationPipe } from 'src/config/validation-pipe.js';
+import { ResettableThrottlerStorage } from 'test/helpers/throttler.js';
 
 /**
  * The token `ScheduleModule.forRoot()` files its options under, written out

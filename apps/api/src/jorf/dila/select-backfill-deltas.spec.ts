@@ -1,7 +1,7 @@
 import {
   BACKFILL_START_DELTA,
   selectBackfillDeltas,
-} from './select-backfill-deltas';
+} from './select-backfill-deltas.js';
 
 describe('selectBackfillDeltas', () => {
   it('drops deltas generated before the 2026 backfill boundary', () => {

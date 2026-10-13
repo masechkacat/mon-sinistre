@@ -1,10 +1,10 @@
 import { vi } from 'vitest';
-import type { PrismaClient } from 'src/generated/prisma/client';
+import type { PrismaClient } from 'src/generated/prisma/client.js';
 import {
   CommuneImportService,
   CommuneImportSource,
-} from './commune-import.service';
-import { GeoApiCommune } from './geo-api.client';
+} from './commune-import.service.js';
+import { GeoApiCommune } from './geo-api.client.js';
 
 // Pure-logic suite (mocked Prisma, no database): the real persistence paths
 // are covered by commune-import.int-spec.ts.

@@ -5,7 +5,7 @@ import {
   NOTIFICATION_ATTEMPTS_BEFORE_ALERT,
   type OutboxAdapter,
   type PendingOutboxRow,
-} from './drain-outbox';
+} from './drain-outbox.js';
 
 function fakeLogger(): Logger {
   return {

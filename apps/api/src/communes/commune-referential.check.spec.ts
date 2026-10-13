@@ -1,7 +1,7 @@
 import { vi } from 'vitest';
 import { Logger } from '@nestjs/common';
-import { PrismaService } from 'src/prisma/prisma.service';
-import { CommuneReferentialCheck } from './commune-referential.check';
+import { PrismaService } from 'src/prisma/prisma.service.js';
+import { CommuneReferentialCheck } from './commune-referential.check.js';
 
 /**
  * The check exists to break the silence of a `seed` that never ran, so what

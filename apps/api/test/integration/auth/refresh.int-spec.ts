@@ -2,27 +2,27 @@ import { vi } from 'vitest';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
-import { createIntTestApp } from 'test/helpers/app';
-import type { EnvironmentVariables } from 'src/config/env.validation';
-import type { Prisma } from 'src/generated/prisma/client';
-import { PrismaService } from 'src/prisma/prisma.service';
+import { createIntTestApp } from 'test/helpers/app.js';
+import type { EnvironmentVariables } from 'src/config/env.validation.js';
+import type { Prisma } from 'src/generated/prisma/client.js';
+import { PrismaService } from 'src/prisma/prisma.service.js';
 import {
   REFRESH_COOKIE_NAME,
   SESSION_RATE_LIMIT,
-} from 'src/auth/auth.controller';
+} from 'src/auth/auth.controller.js';
 import {
   REFRESH_ROTATION_GRACE_MS,
   TOKEN_TYPE,
   type TokenPayload,
-} from 'src/auth/auth.service';
+} from 'src/auth/auth.service.js';
 import {
   accessTokenOf,
   createUser,
   login,
   refresh as refreshWith,
   refreshCookieOf,
-} from 'test/helpers/session';
-import { resetThrottler } from 'test/helpers/throttler';
+} from 'test/helpers/session.js';
+import { resetThrottler } from 'test/helpers/throttler.js';
 
 describe('POST /auth/refresh (integration)', () => {
   let app: NestFastifyApplication;

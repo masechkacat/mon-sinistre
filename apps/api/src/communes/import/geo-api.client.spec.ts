@@ -4,7 +4,7 @@ import {
   GeoApiClient,
   GeoApiCommune,
   MIN_EXPECTED_COMMUNES,
-} from './geo-api.client';
+} from './geo-api.client.js';
 
 // Enough valid records to clear the completeness floor, generated in memory —
 // this suite never talks to the network or the database.

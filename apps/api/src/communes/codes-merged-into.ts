@@ -1,5 +1,5 @@
-import { resolveCurrentCode } from 'src/jorf/recipients/resolve-recipients';
-import type { PrismaService } from 'src/prisma/prisma.service';
+import { resolveCurrentCode } from 'src/jorf/recipients/resolve-recipients.js';
+import type { PrismaService } from 'src/prisma/prisma.service.js';
 
 /**
  * `code` and every commune merged into it, however many mergers back

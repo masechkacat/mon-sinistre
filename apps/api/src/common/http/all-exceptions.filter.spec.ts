@@ -8,9 +8,9 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 
-import { Prisma } from 'src/generated/prisma/client';
+import { Prisma } from 'src/generated/prisma/client.js';
 
-import { AllExceptionsFilter } from './all-exceptions.filter';
+import { AllExceptionsFilter } from './all-exceptions.filter.js';
 
 const ADDRESS = 'destinataire@example.test';
 

@@ -1,6 +1,6 @@
 import { PrismaPg } from '@prisma/adapter-pg';
-import { PrismaClient } from 'src/generated/prisma/client';
-import { databaseUrlFromEnv } from 'src/prisma/database-url-from-env';
+import { PrismaClient } from 'src/generated/prisma/client.js';
+import { databaseUrlFromEnv } from 'src/prisma/database-url-from-env.js';
 
 /**
  * For integration specs that do not bootstrap Nest. Specs that do take

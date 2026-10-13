@@ -1,7 +1,7 @@
 import { vi } from 'vitest';
-import { PrismaClient } from 'src/generated/prisma/client';
-import { E2E_COMMUNES, seedE2eReferential } from 'test/helpers/e2e-referential';
-import { createIntTestPrismaClient } from 'test/helpers/prisma-client';
+import { PrismaClient } from 'src/generated/prisma/client.js';
+import { E2E_COMMUNES, seedE2eReferential } from 'test/helpers/e2e-referential.js';
+import { createIntTestPrismaClient } from 'test/helpers/prisma-client.js';
 
 // Здесь, а не в своём каталоге: собственная логика сева — только коммуны,
 // правила дедлайнов и шаги он заливает функциями, покрытыми спеками их модулей.

@@ -3,12 +3,12 @@ import {
   SINISTRE_PATH,
   toIsoDate,
 } from '@mon-sinistre/contracts';
-import { fr } from 'src/i18n/fr';
-import { mailLinksOf } from 'test/helpers/mail-links';
-import { MailComposer } from 'src/mail/compose/mail-composer';
-import { sinistreArreteMailFor } from './sinistre-arrete-mail';
-import type { ArreteForMail } from './veille-arrete-mail';
-import type { ChosenCommune } from 'src/veille/veille-confirmation-mail';
+import { fr } from 'src/i18n/fr.js';
+import { mailLinksOf } from 'test/helpers/mail-links.js';
+import { MailComposer } from 'src/mail/compose/mail-composer.js';
+import { sinistreArreteMailFor } from './sinistre-arrete-mail.js';
+import type { ArreteForMail } from './veille-arrete-mail.js';
+import type { ChosenCommune } from 'src/veille/veille-confirmation-mail.js';
 
 const FRONTEND_URL = 'https://app.example.test';
 const MAIL_FROM = 'no-reply@example.test';

@@ -1,4 +1,4 @@
-import { prismaErrorDetail } from 'src/prisma/prisma-error';
+import { prismaErrorDetail } from 'src/prisma/prisma-error.js';
 
 const MAX_LOGGED_FRAMES = 12;
 

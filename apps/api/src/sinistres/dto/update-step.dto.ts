@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsIn } from 'class-validator';
-import { StepPersistedStatus } from 'src/generated/prisma/enums';
+import { StepPersistedStatus } from 'src/generated/prisma/enums.js';
 
 /**
  * The two `StepStatus` values a client may set directly — the same

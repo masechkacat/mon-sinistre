@@ -4,7 +4,7 @@ import {
   type VeilleChangeResponse,
   type VeilleChangeStatus,
 } from '@mon-sinistre/contracts';
-import { CommuneResponseDto } from 'src/communes/dto/commune-response.dto';
+import { CommuneResponseDto } from 'src/communes/dto/commune-response.dto.js';
 
 /** One commune of the pending request's new composition. */
 class VeilleChangeCommuneDto extends PickType(CommuneResponseDto, [

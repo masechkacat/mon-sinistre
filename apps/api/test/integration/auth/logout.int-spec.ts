@@ -1,11 +1,11 @@
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
-import { createIntTestApp } from 'test/helpers/app';
-import { PrismaService } from 'src/prisma/prisma.service';
+import { createIntTestApp } from 'test/helpers/app.js';
+import { PrismaService } from 'src/prisma/prisma.service.js';
 import {
   REFRESH_COOKIE_NAME,
   SESSION_RATE_LIMIT,
-} from 'src/auth/auth.controller';
-import { REFRESH_ROTATION_GRACE_MS } from 'src/auth/auth.service';
+} from 'src/auth/auth.controller.js';
+import { REFRESH_ROTATION_GRACE_MS } from 'src/auth/auth.service.js';
 import {
   createUser,
   login,
@@ -13,8 +13,8 @@ import {
   refresh as refreshWith,
   refreshCookieOf,
   refreshSetCookieOf,
-} from 'test/helpers/session';
-import { resetThrottler } from 'test/helpers/throttler';
+} from 'test/helpers/session.js';
+import { resetThrottler } from 'test/helpers/throttler.js';
 
 describe('POST /auth/logout (integration)', () => {
   let app: NestFastifyApplication;

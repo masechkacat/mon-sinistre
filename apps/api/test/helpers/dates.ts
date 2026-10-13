@@ -1,5 +1,5 @@
-import { resolveDeadline } from 'src/deadline-rules/resolve-deadline';
-import { todayInParis } from 'src/common/time/today-in-paris';
+import { resolveDeadline } from 'src/deadline-rules/resolve-deadline.js';
+import { todayInParis } from 'src/common/time/today-in-paris.js';
 
 /**
  * The first date every `IsNotFutureIsoDate` field refuses. `Europe/Paris` is

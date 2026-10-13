@@ -5,7 +5,7 @@ import {
   PASSWORD_MIN_LENGTH,
   isValidPassword,
 } from '@mon-sinistre/contracts';
-import { fr } from 'src/i18n/fr';
+import { fr } from 'src/i18n/fr.js';
 
 /**
  * Wraps `isValidPassword` (contracts, CNIL cas n° 2) as a class-validator

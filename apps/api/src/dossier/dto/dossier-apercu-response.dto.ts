@@ -6,10 +6,10 @@ import {
   type DossierApercu,
   type IsoDate,
 } from '@mon-sinistre/contracts';
-import { CommuneResponseDto } from 'src/communes/dto/commune-response.dto';
-import { DeclarationDeadlineResponseDto } from 'src/sinistres/dto/declaration-deadline-response.dto';
-import { StepViewResponseDto } from 'src/sinistres/dto/step-response.dto';
-import { ArreteCoverageResponseDto } from './arrete-coverage-response.dto';
+import { CommuneResponseDto } from 'src/communes/dto/commune-response.dto.js';
+import { DeclarationDeadlineResponseDto } from 'src/sinistres/dto/declaration-deadline-response.dto.js';
+import { StepViewResponseDto } from 'src/sinistres/dto/step-response.dto.js';
+import { ArreteCoverageResponseDto } from './arrete-coverage-response.dto.js';
 
 /**
  * Swagger-only mirror of {@link DossierApercu} — `implements` makes the

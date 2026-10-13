@@ -1,11 +1,11 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { StepKind } from '@mon-sinistre/contracts';
-import { PrismaClient } from 'src/generated/prisma/client';
-import { createIntTestPrismaClient } from 'test/helpers/prisma-client';
-import { createSinistre } from 'test/helpers/sinistre';
+import { PrismaClient } from 'src/generated/prisma/client.js';
+import { createIntTestPrismaClient } from 'test/helpers/prisma-client.js';
+import { createSinistre } from 'test/helpers/sinistre.js';
 
-const MIGRATIONS_DIR = join(__dirname, '../../../prisma/migrations');
+const MIGRATIONS_DIR = join(import.meta.dirname, '../../../prisma/migrations');
 
 /**
  * The backfill statements of the migration, read from the file Prisma

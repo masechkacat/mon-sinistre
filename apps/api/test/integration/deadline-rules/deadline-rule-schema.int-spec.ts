@@ -1,10 +1,10 @@
-import { PrismaClient } from 'src/generated/prisma/client';
-import { deadlineRuleData } from 'test/helpers/deadline-rule';
-import { createIntTestPrismaClient } from 'test/helpers/prisma-client';
+import { PrismaClient } from 'src/generated/prisma/client.js';
+import { deadlineRuleData } from 'test/helpers/deadline-rule.js';
+import { createIntTestPrismaClient } from 'test/helpers/prisma-client.js';
 import {
   DEADLINE_RULE_SEED,
   seedDeadlineRules,
-} from 'src/deadline-rules/deadline-rule.seed';
+} from 'src/deadline-rules/deadline-rule.seed.js';
 
 // Schema-level guarantees of the DeadlineRule migration:
 // docs/research/data-model.md § 3, docs/research/jorf-monitor.md,

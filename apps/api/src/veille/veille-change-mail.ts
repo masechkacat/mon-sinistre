@@ -2,13 +2,13 @@ import {
   VEILLE_CHANGE_PATH,
   VEILLE_CHANGE_TTL_DAYS,
 } from '@mon-sinistre/contracts';
-import { fr } from 'src/i18n/fr';
-import type { ComposeMailInput } from 'src/mail/mail-message';
+import { fr } from 'src/i18n/fr.js';
+import type { ComposeMailInput } from 'src/mail/mail-message.js';
 import {
   communeLabel,
   unsubscribePathFor,
   type ChosenCommune,
-} from './veille-confirmation-mail';
+} from './veille-confirmation-mail.js';
 
 /** The change-of-composition mail: fr.mail.veille.change supplies the
  * strings, the caller supplies the data (tokens, new communes) that is not

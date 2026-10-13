@@ -7,9 +7,9 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
-import { createIntTestApp } from 'test/helpers/app';
-import { Public } from 'src/auth/public.decorator';
-import { Prisma } from 'src/generated/prisma/client';
+import { createIntTestApp } from 'test/helpers/app.js';
+import { Public } from 'src/auth/public.decorator.js';
+import { Prisma } from 'src/generated/prisma/client.js';
 
 const ADDRESS = 'destinataire@example.test';
 

@@ -3,8 +3,8 @@ import {
   ACCOUNT_RESET_PATH,
   PASSWORD_RESET_TTL_HOURS,
 } from '@mon-sinistre/contracts';
-import { fr } from 'src/i18n/fr';
-import type { ComposeMailInput } from 'src/mail/mail-message';
+import { fr } from 'src/i18n/fr.js';
+import type { ComposeMailInput } from 'src/mail/mail-message.js';
 
 /** `fr.mail.account.reason` is shared with `confirmationMailFor` — every
  * account mail is justified by the same fact (`ACCOUNT_MAIL_UNSUBSCRIBE_PATH`

@@ -1,13 +1,13 @@
-import { fr } from 'src/i18n/fr';
-import { MailCompositionError } from 'src/mail/mail-composition.error';
+import { fr } from 'src/i18n/fr.js';
+import { MailCompositionError } from 'src/mail/mail-composition.error.js';
 import type {
   ComposeMailInput,
   MailBlock,
   MailMessage,
   ResolvedMailBlock,
-} from 'src/mail/mail-message';
-import { renderHtml } from 'src/mail/compose/render-html';
-import { renderText } from 'src/mail/compose/render-text';
+} from 'src/mail/mail-message.js';
+import { renderHtml } from 'src/mail/compose/render-html.js';
+import { renderText } from 'src/mail/compose/render-text.js';
 
 export interface MailComposerOptions {
   /** FRONTEND_URL: the base every link of every email is built on. */
