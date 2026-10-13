@@ -30,8 +30,8 @@
       валидацией (минимальная длина — 2 символа).
 - [ ] Настроить инфраструктуру интеграционных тестов по решению из
       research-отчёта: отдельная тестовая база `${DB_NAME}_test` на
-      docker-compose Postgres, конфиг `jest.int.config.js` (`*.int-spec.ts`,
-      `maxWorkers: 1`), globalSetup с `CREATE DATABASE` и
+      docker-compose Postgres, конфиг `vitest.config.int.ts` (`*.int-spec.ts`,
+      `fileParallelism: false`), globalSetup с `CREATE DATABASE` и
       `prisma migrate deploy`, `TRUNCATE` между тестами; зафиксировать в
       `apps/api/CLAUDE.md`.
 - [ ] Подключить Prisma 7 строго по `apps/api/CLAUDE.md` («Текущее состояние»):

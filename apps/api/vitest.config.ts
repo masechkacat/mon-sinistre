@@ -15,7 +15,7 @@ export const shared = {
     globals: true,
     setupFiles: ['reflect-metadata'],
     restoreMocks: true,
-    // Порядок хуков как у Jest: afterEach в порядке объявления, не в обратном.
+    // afterEach в порядке объявления, не в обратном.
     sequence: { hooks: 'list' as const },
     coverage: { include: ['src/**/*.ts'], exclude: ['src/generated/**'] },
   },

@@ -11,11 +11,8 @@
 
 ### Интеграционные тесты с реальным Postgres
 
-> **Исправлено при реализации (13.10.2026).** Jest заменён на Vitest, ts-node
-> на tsx — `docs/research/esm-vitest.md`.
-
 **Решение:** отдельная тестовая база на уже поднимаемом docker-compose Postgres
-(`${DB_NAME}_test` на том же инстансе) + отдельный jest-конфиг.
+(`${DB_NAME}_test` на том же инстансе) + отдельный конфиг Vitest.
 **Почему:** ноль новых зависимостей (`pg` уже в dependencies — им же создаётся
 база в globalSetup); Postgres и так обязателен для локальной разработки
 (`npm run db:up`); старт тестов мгновенный, без цикла «скачать образ → поднять
@@ -27,14 +24,14 @@ docker-compose (18), никакой рассинхронизации с прод
 тестами. Вернуться к нему, если появится CI без сервисного Postgres.
 **Как применять:**
 
-- Интеграционные спеки — `*.int-spec.ts` рядом с кодом в `src/`. Юнит-конфиг в
-  `package.json` их не видит (его `testRegex` — `.*\.spec\.ts$`, а суффикс
-  `-spec.ts` под него не подпадает), поэтому pre-commit хук и корневой
+- Интеграционные спеки — `*.int-spec.ts` рядом с кодом в `src/`. Юнит-конфиг
+  их не видит (его `include` — `src/**/*.spec.ts`, а суффикс `-spec.ts` под
+  него не подпадает), поэтому pre-commit хук и корневой
   `npm test` остаются быстрыми и без Docker-требования.
-- Отдельный конфиг `jest.int.config.js` (тот же `rootDir: 'src'`,
-  `moduleNameMapper`, `transform`, что в юнит-конфиге; `testRegex:
-'.*\\.int-spec\\.ts$'`, `maxWorkers: 1` — тесты делят одну базу) + скрипт
-  `"test:int": "jest --config jest.int.config.js"`.
+- Отдельный конфиг `vitest.config.int.ts` (общая часть с юнит-конфигом
+  импортируется; `include: ['test/**/*.int-spec.ts']`, `fileParallelism:
+  false` — тесты делят одну базу) + скрипт
+  `"test:int": "vitest run --config vitest.config.int.ts"`.
 - `globalSetup`: загрузить `.env` через `process.loadEnvFile()` в `try/catch`
   (нативно в Node 24, ноль зависимостей; `dotenv` напрямую не подключать — в
   package.json его нет, резолвится лишь как транзитивная зависимость
