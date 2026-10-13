@@ -23,8 +23,8 @@ import { PrismaService } from '../src/prisma/prisma.service.js';
 // No Nest application context on purpose — same reasoning as prisma/seed.ts:
 // this one-off script needs the monitor's plain classes with notify: false
 // (docs/research/jorf-monitor.md, "Бэкфилл с 01.01.2026"), not a bootstrap of
-// AppModule. Run: npm run backfill:jorf — the same ts-node recipe as the seed
-// command in prisma.config.ts, for the same reason.
+// AppModule. Run: npm run backfill:jorf — tsx, like the seed command in
+// prisma.config.ts.
 
 try {
   process.loadEnvFile();

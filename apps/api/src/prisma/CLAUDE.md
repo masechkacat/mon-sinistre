@@ -14,8 +14,7 @@
 при отсутствии файла (например в CI) переменные приходят из окружения. `dotenv`
 не подключать — фантомная зависимость, Node ≥ 24 умеет это сам. Здесь же
 настроена seed-команда: `migrations.seed` →
-`ts-node -r tsconfig-paths/register prisma/seed.ts` (регистрация путей
-обязательна: value-импорт из `src/...` без неё упадёт с `MODULE_NOT_FOUND`).
+`tsx prisma/seed.ts` (tsx читает алиас `src/...` из tsconfig сам).
 
 ## `DATABASE_URL` не существует
 

@@ -20,7 +20,7 @@
     "migration:dev": "prisma migrate dev",
     "migration:deploy": "prisma migrate deploy",
     "seed": "prisma db seed",
-    "backfill:jorf": "ts-node -r tsconfig-paths/register scripts/jorf-backfill.ts"
+    "backfill:jorf": "tsx scripts/jorf-backfill.ts"
   },
   "dependencies": {
     "@fastify/cookie": "^11.1.2",
@@ -63,8 +63,7 @@
     "eslint": "^10.8.0",
     "globals": "^17.8.0",
     "prisma": "^7.10.0",
-    "ts-node": "^10.9.2",
-    "tsconfig-paths": "^4.2.0",
+    "tsx": "^4.23.15",
     "typescript": "~6.0.3",
     "typescript-eslint": "^8.65.0",
     "vitest": "^5.0.4"
