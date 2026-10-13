@@ -1,6 +1,5 @@
 // Covers the IsoDate helpers from @mon-sinistre/contracts: that package has no
-// test runner of its own — per the monorepo convention all tests live here,
-// and Vitest resolves contracts straight from its sources (`resolve.alias`).
+// test runner of its own — per the monorepo convention all tests live here.
 import { isIsoDate, toIsoDate } from '@mon-sinistre/contracts';
 
 describe('isIsoDate', () => {

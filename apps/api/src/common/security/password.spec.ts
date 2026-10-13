@@ -1,7 +1,6 @@
 // Covers the password validator from @mon-sinistre/contracts: that package
 // has no test runner of its own — per the monorepo convention all tests live
-// here, and Vitest resolves contracts straight from its sources
-// (`resolve.alias`).
+// here.
 import {
   PASSWORD_MAX_BYTES,
   PASSWORD_MIN_CHAR_CLASSES,

@@ -14,7 +14,6 @@ export default defineConfig({
   schema: 'prisma/schema.prisma',
   migrations: {
     // npm run seed → one-off idempotent referential import (communes COG).
-    // tsx resolves the `src/...` path alias from tsconfig itself.
     seed: 'tsx prisma/seed.ts',
   },
   datasource: {

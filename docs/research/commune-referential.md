@@ -11,10 +11,8 @@
 
 ### Интеграционные тесты с реальным Postgres
 
-> **Исправлено при реализации (13.10.2026).** Jest заменён на Vitest
-> (`vitest.config.mts`, `vitest.config.int.mts`; `fileParallelism: false`
-> вместо `maxWorkers: 1`, `VITEST_POOL_ID` вместо `JEST_WORKER_ID`), seed
-> запускается `tsx`, не `ts-node` — `docs/research/esm-vitest.md`.
+> **Исправлено при реализации (13.10.2026).** Jest заменён на Vitest, ts-node
+> на tsx — `docs/research/esm-vitest.md`.
 
 **Решение:** отдельная тестовая база на уже поднимаемом docker-compose Postgres
 (`${DB_NAME}_test` на том же инстансе) + отдельный jest-конфиг.
