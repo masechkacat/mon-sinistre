@@ -11,7 +11,11 @@ import { PrismaService } from 'src/prisma/prisma.service.js';
 import { seedStepTemplates } from 'src/step-templates/step-template.seed.js';
 import { createIntTestApp } from 'test/helpers/app.js';
 import { commune } from 'test/helpers/commune.js';
-import { createUser, headersForEmail, withBearer } from 'test/helpers/session.js';
+import {
+  createUser,
+  headersForEmail,
+  withBearer,
+} from 'test/helpers/session.js';
 
 const EVENT_DATE = toIsoDate('2026-06-01');
 const OTHER_DATE = toIsoDate('2026-07-15');

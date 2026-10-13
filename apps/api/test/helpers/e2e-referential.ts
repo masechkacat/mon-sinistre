@@ -6,7 +6,11 @@ import {
 } from 'src/deadline-rules/resolve-deadline.js';
 import { PrismaClient } from 'src/generated/prisma/client.js';
 import { seedStepTemplates } from 'src/step-templates/step-template.seed.js';
-import { E2E_ARRETE, arreteData, arreteEntryData } from 'test/helpers/arrete.js';
+import {
+  E2E_ARRETE,
+  arreteData,
+  arreteEntryData,
+} from 'test/helpers/arrete.js';
 import { commune } from 'test/helpers/commune.js';
 
 // Горстка коммун для сквозного сценария, не весь справочник: полный импорт

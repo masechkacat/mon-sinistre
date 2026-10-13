@@ -44,7 +44,10 @@ test('lists two of the caller’s sinistres, each with its status in words and i
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify([
-        sinistreSummary({ id: SINISTRE_ID_1, status: SinistreStatus.AVANT_ARRETE }),
+        sinistreSummary({
+          id: SINISTRE_ID_1,
+          status: SinistreStatus.AVANT_ARRETE,
+        }),
         sinistreSummary({
           id: SINISTRE_ID_2,
           risque: RisqueCatnat.SECHERESSE,

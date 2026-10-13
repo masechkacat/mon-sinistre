@@ -5,7 +5,10 @@ import {
   CommuneImportService,
   CommuneImportSource,
 } from 'src/communes/import/commune-import.service.js';
-import { GEO_API_COMMUNES_URL, GeoApiCommune } from 'src/communes/import/geo-api.client.js';
+import {
+  GEO_API_COMMUNES_URL,
+  GeoApiCommune,
+} from 'src/communes/import/geo-api.client.js';
 
 const geoCommune = (
   code: string,

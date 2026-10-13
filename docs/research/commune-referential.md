@@ -30,7 +30,7 @@ docker-compose (18), никакой рассинхронизации с прод
   Docker-требования; из сборки `test/` исключён целиком (`tsconfig.build.json`).
 - Отдельный конфиг `vitest.config.int.ts` (общая часть с юнит-конфигом
   импортируется; `include: ['test/**/*.int-spec.ts']`, `fileParallelism:
-  false` — тесты делят одну базу) + скрипт
+false` — тесты делят одну базу) + скрипт
   `"test:int": "vitest run --config vitest.config.int.ts"`.
 - `globalSetup`: загрузить `.env` через `loadApiEnv()` (`src/prisma/load-env.ts`:
   нативный `process.loadEnvFile()`, ноль зависимостей; `dotenv` напрямую не

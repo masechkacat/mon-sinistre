@@ -245,9 +245,7 @@ export class RemindersService {
     recipient: Recipient,
     today: IsoDate,
   ): Promise<boolean> {
-    const unsubscribeToken = await this.mintUnsubscribeToken(
-      recipient.userId,
-    );
+    const unsubscribeToken = await this.mintUnsubscribeToken(recipient.userId);
     if (unsubscribeToken === null) {
       return false;
     }

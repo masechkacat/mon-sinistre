@@ -2,7 +2,10 @@ import { describe, it, expect } from 'vitest';
 import { VEILLE_UNSUBSCRIBE_PATH } from '@mon-sinistre/contracts';
 import { fr } from 'src/i18n/fr.js';
 import { MailComposer } from 'src/mail/compose/mail-composer.js';
-import { MAX_ALERTS_DETAILED, monitorAlertMailFor } from './monitor-alert-mail.js';
+import {
+  MAX_ALERTS_DETAILED,
+  monitorAlertMailFor,
+} from './monitor-alert-mail.js';
 
 const FRONTEND_URL = 'https://app.example.test';
 const MAIL_FROM = 'no-reply@example.test';

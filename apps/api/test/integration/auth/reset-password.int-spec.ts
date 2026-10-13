@@ -2,7 +2,10 @@ import { describe, it, expect, beforeEach, beforeAll, afterAll } from 'vitest';
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { createIntTestApp } from 'test/helpers/app.js';
 import { HOUR_MS } from 'src/common/time/time.js';
-import { hashSecureToken, SECURE_TOKEN_LENGTH } from 'src/common/security/secure-token.js';
+import {
+  hashSecureToken,
+  SECURE_TOKEN_LENGTH,
+} from 'src/common/security/secure-token.js';
 import { PrismaService } from 'src/prisma/prisma.service.js';
 import {
   createUser as createUserIn,

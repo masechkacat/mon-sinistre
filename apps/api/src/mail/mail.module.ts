@@ -3,7 +3,10 @@ import { ConfigService } from '@nestjs/config';
 
 import type { EnvironmentVariables } from 'src/config/env.validation.js';
 import { FileMailTransport } from 'src/mail/transports/file-mail.transport.js';
-import { MailComposer, type MailComposerOptions } from 'src/mail/compose/mail-composer.js';
+import {
+  MailComposer,
+  type MailComposerOptions,
+} from 'src/mail/compose/mail-composer.js';
 import { SENDING_TRANSPORT } from 'src/mail/mail-transport-name.js';
 import { MAIL_TRANSPORT, type MailTransport } from 'src/mail/mail-transport.js';
 import { MailService } from 'src/mail/mail.service.js';

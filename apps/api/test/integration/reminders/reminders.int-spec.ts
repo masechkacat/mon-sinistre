@@ -38,7 +38,11 @@ import { commune } from 'test/helpers/commune.js';
 import { captureLogs } from 'test/helpers/mail-log.js';
 import { mailLinksOf, tokenFrom } from 'test/helpers/mail-links.js';
 import { RecordingTransport } from 'test/helpers/mail-transport.js';
-import { createUser, headersForEmail, withBearer } from 'test/helpers/session.js';
+import {
+  createUser,
+  headersForEmail,
+  withBearer,
+} from 'test/helpers/session.js';
 
 /** 07:00 in Paris on the day the dossiers below are opened: the first pass
  * after their creation, the one the phase's «Когда готова» describes. */

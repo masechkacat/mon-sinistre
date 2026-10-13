@@ -24,7 +24,11 @@ import { MailDeliveryError } from 'src/mail/mail-delivery.error.js';
 import { MAIL_TRANSPORT } from 'src/mail/mail-transport.js';
 import { RecordingTransport } from 'test/helpers/mail-transport.js';
 import { PrismaService } from 'src/prisma/prisma.service.js';
-import { createUser, headersForEmail, withBearer } from 'test/helpers/session.js';
+import {
+  createUser,
+  headersForEmail,
+  withBearer,
+} from 'test/helpers/session.js';
 import { createVeille } from 'test/helpers/veille.js';
 import {
   DILA_JORFSIMPLE_BASE_URL,

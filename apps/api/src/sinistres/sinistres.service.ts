@@ -22,7 +22,10 @@ import {
 } from 'src/deadline-rules/resolve-deadline.js';
 import { fr } from 'src/i18n/fr.js';
 import { PrismaService } from 'src/prisma/prisma.service.js';
-import { withAdvisoryLock, withAdvisoryLockIn } from 'src/common/advisory-lock.js';
+import {
+  withAdvisoryLock,
+  withAdvisoryLockIn,
+} from 'src/common/advisory-lock.js';
 import { todayInParis } from 'src/common/time/today-in-paris.js';
 import { codesMergedInto } from 'src/communes/codes-merged-into.js';
 import type { CreateSinistreDto } from './dto/create-sinistre.dto.js';

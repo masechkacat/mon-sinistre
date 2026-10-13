@@ -1,6 +1,9 @@
 import type { ConfigService } from '@nestjs/config';
 
-import { validateEnv, type EnvironmentVariables } from 'src/config/env.validation.js';
+import {
+  validateEnv,
+  type EnvironmentVariables,
+} from 'src/config/env.validation.js';
 
 /**
  * The one ConfigService stub of the unit specs. The base is the real schema's

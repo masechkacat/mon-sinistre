@@ -8,7 +8,10 @@ import {
   vi,
 } from 'vitest';
 import { PrismaClient } from 'src/generated/prisma/client.js';
-import { E2E_COMMUNES, seedE2eReferential } from 'test/helpers/e2e-referential.js';
+import {
+  E2E_COMMUNES,
+  seedE2eReferential,
+} from 'test/helpers/e2e-referential.js';
 import { createIntTestPrismaClient } from 'test/helpers/prisma-client.js';
 
 // Здесь, а не в своём каталоге: собственная логика сева — только коммуны,

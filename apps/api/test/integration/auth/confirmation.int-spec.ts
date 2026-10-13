@@ -3,7 +3,10 @@ import { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { createIntTestApp } from 'test/helpers/app.js';
 import { DAY_MS } from 'src/common/time/time.js';
 import { PrismaService } from 'src/prisma/prisma.service.js';
-import { hashSecureToken, SECURE_TOKEN_LENGTH } from 'src/common/security/secure-token.js';
+import {
+  hashSecureToken,
+  SECURE_TOKEN_LENGTH,
+} from 'src/common/security/secure-token.js';
 import { createUser as createUserIn } from 'test/helpers/session.js';
 
 describe('POST /auth/confirmation (integration)', () => {

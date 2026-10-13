@@ -15,7 +15,11 @@ import { createIntTestApp } from 'test/helpers/app.js';
 import { arreteData, arreteEntryData } from 'test/helpers/arrete.js';
 import { commune } from 'test/helpers/commune.js';
 import { tomorrowInParis } from 'test/helpers/dates.js';
-import { createUser, headersForEmail, withBearer } from 'test/helpers/session.js';
+import {
+  createUser,
+  headersForEmail,
+  withBearer,
+} from 'test/helpers/session.js';
 
 interface SinistreWithSteps {
   id: string;

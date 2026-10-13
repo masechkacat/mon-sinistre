@@ -63,9 +63,10 @@ npm workspaces, три пакета:
   скриптов есть отдельный `npm run test:tooling` (встроенный `node --test`,
   новый `.claude/*.test.js` подхватывается сам).
 - Pre-commit хук (`.githooks/`, подключается скриптом `prepare`) гоняет lint,
-  test, test:tooling, dup и gitleaks (секреты в индексе; без установленного
-  gitleaks — предупреждение, не блокировка) и **не должен изменять файлы**:
-  `lint` без `--fix`, автопочинка — отдельным `lint:fix` в API.
+  format:check, test, test:tooling, dup и gitleaks (секреты в индексе; без
+  установленного gitleaks — предупреждение, не блокировка) и **не должен
+  изменять файлы**: `lint` без `--fix`, автопочинка — отдельными `lint:fix` в
+  API и `format` в корне.
 - Install-скрипты зависимостей npm по умолчанию блокирует и молча пропускает:
   разрешённые перечислены в `allowScripts` корневого `package.json` с пином к
   версии — после обновления такого пакета `npm install-scripts approve <pkg>`
