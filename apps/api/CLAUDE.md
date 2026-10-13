@@ -18,6 +18,9 @@ NestJS 12 на **Fastify**, не Express: плагины через `app.registe
   ts-jest для nodenext) jest только транспилирует, а `nest build` спеки и
   `test/` исключает.
 
+Переход на ESM и Vitest — решения в `../../docs/research/esm-vitest.md`; до
+их применения всё выше остаётся на Jest.
+
 ## Модули
 
 Свои `CLAUDE.md` у `src/prisma/`, `src/communes/`, `src/mail/`, `src/veille/`,
