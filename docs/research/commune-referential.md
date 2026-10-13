@@ -97,8 +97,8 @@ API или усечённого ответа, который остался ва
 
 **Решение:** импорт-логика — обычный класс `CommuneImportService`, принимающий
 в конструктор `PrismaClient` и `GeoApiClient`; seed-скрипт `prisma/seed.ts`
-инстанцирует их напрямую. В `prisma.config.ts` — `migrations: { seed: 'ts-node
-prisma/seed.ts' }` (ts-node уже в devDependencies).
+инстанцирует их напрямую. В `prisma.config.ts` — `migrations: { seed: 'tsx
+prisma/seed.ts' }` (tsx уже в devDependencies).
 **Почему:** `NestFactory.createApplicationContext(AppModule)` завалился бы на
 валидации окружения (`env.validation.ts` требует JWT-секреты и прочие
 переменные, не нужные импорту справочника) и требует собранный contracts. Seed

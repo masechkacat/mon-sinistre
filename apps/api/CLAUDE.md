@@ -17,8 +17,6 @@ NestJS 12 на **Fastify**, не Express: плагины через `app.registe
   единственная проверка типов спеков: Vitest только транспилирует (Oxc, без
   информации о типах), а `nest build` спеки и `test/` исключает.
 
-Решения по ESM и Vitest — `../../docs/research/esm-vitest.md`.
-
 ## Модули
 
 Свои `CLAUDE.md` у `src/prisma/`, `src/communes/`, `src/mail/`, `src/veille/`,
