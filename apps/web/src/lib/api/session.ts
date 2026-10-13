@@ -9,6 +9,8 @@ import { apiBaseUrl } from './config';
  */
 export const LOGIN_PATH = '/connexion';
 
+export const ESPACE_PERSONNEL_PATH = '/espace-personnel';
+
 export const LOGIN_NEXT_PARAM = 'suivant';
 
 /** The login address that comes back to `path` once the session is open. */
@@ -54,12 +56,13 @@ export function loginNextPath(searchParams: URLSearchParams): Route | null {
   }
 }
 
-const REFRESH_PATH = '/auth/refresh';
+/** Exported for the mocks that stand in for the API in `tests/support/`. */
+export const REFRESH_PATH = '/auth/refresh';
 const LOGOUT_PATH = '/auth/logout';
 
 // Module-level, not React state (in-memory choice — docs/research/user-account.md,
 // «Web: сессия на клиенте»): every caller across the app — apiFetch's 401
-// handler, the page guard, a future header widget — reads and writes the
+// handler, the page guard, the session widgets (use-session.ts) — reads and writes the
 // same value without a provider. This module must never be imported for its
 // mutations from server-executed code (a Route Handler, a Server Component)
 // — Node keeps the module instance alive across requests, so a value set
@@ -67,16 +70,33 @@ const LOGOUT_PATH = '/auth/logout';
 // 'use client' code running in the browser.
 let accessToken: string | null = null;
 
+const accessTokenListeners = new Set<(token: string | null) => void>();
+
+export function subscribeAccessToken(
+  listener: (token: string | null) => void,
+): () => void {
+  accessTokenListeners.add(listener);
+  return () => {
+    accessTokenListeners.delete(listener);
+  };
+}
+
+function notifyAccessToken(): void {
+  for (const listener of accessTokenListeners) listener(accessToken);
+}
+
 export function getAccessToken(): string | null {
   return accessToken;
 }
 
 export function setAccessToken(token: string): void {
   accessToken = token;
+  notifyAccessToken();
 }
 
 export function clearAccessToken(): void {
   accessToken = null;
+  notifyAccessToken();
 }
 
 /**
@@ -89,6 +109,13 @@ export type RefreshOutcome = 'open' | 'none' | 'failed';
 let refreshInFlight: Promise<RefreshOutcome> | null = null;
 
 async function requestRefresh(): Promise<RefreshOutcome> {
+  // A refusal clears only the token the request set out with: a login that
+  // landed meanwhile (the header's page-load refresh racing the form on
+  // /connexion) must not be undone by an answer to an older question.
+  const tokenAtStart = accessToken;
+  const clearIfUnchanged = () => {
+    if (accessToken === tokenAtStart) clearAccessToken();
+  };
   try {
     const response = await fetch(`${apiBaseUrl}${REFRESH_PATH}`, {
       method: 'POST',
@@ -99,10 +126,10 @@ async function requestRefresh(): Promise<RefreshOutcome> {
       setAccessToken(body.accessToken);
       return 'open';
     }
-    clearAccessToken();
+    clearIfUnchanged();
     return response.status === 401 ? 'none' : 'failed';
   } catch {
-    clearAccessToken();
+    clearIfUnchanged();
     return 'failed';
   }
 }

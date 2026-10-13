@@ -14,7 +14,7 @@ import { RequestError } from '@/components/request-error';
 import { EmailField, PasswordField } from '@/components/text-field';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { ApiError, apiFetch } from '@/lib/api/client';
-import { setAccessToken } from '@/lib/api/session';
+import { ESPACE_PERSONNEL_PATH, setAccessToken } from '@/lib/api/session';
 import { useCreateSinistre } from '@/lib/api/use-create-sinistre';
 import {
   dossierInput,
@@ -62,7 +62,7 @@ export function ConnexionForm({
         enregistrement.mutation.mutate(dossier);
         return;
       }
-      router.push(suivant ?? '/espace-personnel');
+      router.push(suivant ?? ESPACE_PERSONNEL_PATH);
     },
   });
 

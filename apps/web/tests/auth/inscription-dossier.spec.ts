@@ -134,6 +134,8 @@ test('the link to the login page carries the same three parameters', async ({
   await openInscription(page, INSCRIPTION_DOSSIER_PATH);
 
   await expect(
-    page.getByRole('link', { name: fr.compte.inscription.loginLink }),
+    page
+      .getByRole('main')
+      .getByRole('link', { name: fr.compte.inscription.loginLink }),
   ).toHaveAttribute('href', dossierPath('/connexion', APERCU_PARAMS));
 });

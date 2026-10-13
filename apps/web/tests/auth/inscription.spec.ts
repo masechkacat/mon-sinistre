@@ -150,7 +150,9 @@ test('the page shows the purpose of the data and links to the privacy policy', a
 test('the page links to the login page', async ({ page }) => {
   await page.goto('/inscription');
   await expect(
-    page.getByRole('link', { name: fr.compte.inscription.loginLink }),
+    page
+      .getByRole('main')
+      .getByRole('link', { name: fr.compte.inscription.loginLink }),
   ).toHaveAttribute('href', '/connexion');
 });
 

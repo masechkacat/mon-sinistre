@@ -2,7 +2,13 @@ import { expect, test, type Page } from '@playwright/test';
 import { fr } from '../../src/i18n/fr';
 import { expectNoAxeViolations } from '../support/a11y';
 import { NIMES, mockCommuneSearch, selectNimes } from '../support/communes';
-import { communeArreteFixture, mockCommuneArretes } from '../support/dossier';
+import { dossierTitle } from '../../src/lib/dossier-title';
+import {
+  apercuFixture,
+  communeArreteFixture,
+  mockApercu,
+  mockCommuneArretes,
+} from '../support/dossier';
 import { testApiBaseUrl } from '../support/env';
 import { gotoPage, home } from '../support/pages';
 import { stringLeaves } from '../support/strings';
@@ -75,4 +81,26 @@ test('home: choosing a commune asks for its arrêtés and answers under the fiel
     page.getByRole('heading', { name: fr.home.catnat.heading }),
   ).toBeVisible();
   await expectNoAxeViolations(page);
+});
+
+test('home: the dossier of an arrêté opens from the answer, with no address typed', async ({
+  page,
+}) => {
+  const apercu = apercuFixture();
+  await page.route(`${testApiBaseUrl}/communes**`, mockCommuneSearch);
+  await mockCommuneArretes(page, [communeArreteFixture()]);
+  await mockApercu(page, apercu);
+  await gotoPage(page, home);
+
+  await selectNimes(page, fr.home.communeLabel);
+  await page.getByRole('link', { name: fr.reponseCommune.ouvrir }).click();
+
+  // Which parameters the button carries is reponse-commune.spec's business;
+  // here it is the way in from the home page that is under test.
+  await expect(page).toHaveURL(
+    new RegExp(`/dossier\\?.*commune=${NIMES.codeInsee}`),
+  );
+  await expect(
+    page.getByRole('heading', { level: 1, name: dossierTitle(apercu) }),
+  ).toBeVisible();
 });

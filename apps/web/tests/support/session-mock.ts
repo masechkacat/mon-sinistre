@@ -1,5 +1,8 @@
 import type { Page, Route as PlaywrightRoute } from '@playwright/test';
+import { REFRESH_PATH } from '../../src/lib/api/session';
 import { testApiBaseUrl } from './env';
+
+const refreshUrl = `${testApiBaseUrl}${REFRESH_PATH}`;
 
 export const ACCESS_TOKEN = 'jeton-acces-test';
 
@@ -16,9 +19,8 @@ const NO_SESSION = {
  * prove the same branch by accident instead of by the API's answer.
  */
 export function mockNoSession(page: Page) {
-  return page.route(
-    `${testApiBaseUrl}/auth/refresh`,
-    (route: PlaywrightRoute) => route.fulfill(NO_SESSION),
+  return page.route(refreshUrl, (route: PlaywrightRoute) =>
+    route.fulfill(NO_SESSION),
   );
 }
 
@@ -33,17 +35,14 @@ export function mockSession(page: Page) {
   let loggedOut = false;
   return {
     async install() {
-      await page.route(
-        `${testApiBaseUrl}/auth/refresh`,
-        (route: PlaywrightRoute) => {
-          if (loggedOut) return route.fulfill(NO_SESSION);
-          return route.fulfill({
-            status: 200,
-            contentType: 'application/json',
-            body: JSON.stringify({ accessToken: ACCESS_TOKEN }),
-          });
-        },
-      );
+      await page.route(refreshUrl, (route: PlaywrightRoute) => {
+        if (loggedOut) return route.fulfill(NO_SESSION);
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ accessToken: ACCESS_TOKEN }),
+        });
+      });
       await page.route(
         `${testApiBaseUrl}/auth/logout`,
         (route: PlaywrightRoute) => {

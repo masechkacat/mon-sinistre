@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import Link from 'next/link';
+import { SessionNav } from '@/components/session-nav';
 import { fr } from '@/i18n/fr';
 import { legalPages } from '@/lib/legal-pages';
 import { cn } from '@/lib/utils';
@@ -33,10 +34,16 @@ export default function RootLayout({
             {fr.layout.skipToContent}
           </a>
           <header className="border-b">
-            <div className={chromeContainer}>
+            <div
+              className={cn(
+                chromeContainer,
+                'flex items-center justify-between gap-x-6',
+              )}
+            >
               <Link href="/" className="font-semibold">
                 {fr.serviceName}
               </Link>
+              <SessionNav />
             </div>
           </header>
           <main id="contenu" className="flex-1">

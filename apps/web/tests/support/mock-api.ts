@@ -1,4 +1,5 @@
 import { createServer, type IncomingMessage, type Server } from 'node:http';
+import { REFRESH_PATH } from '../../src/lib/api/session';
 import { testApiBaseUrl } from './env';
 
 // A real listener on the API address baked into the build (env.ts), for the
@@ -56,12 +57,17 @@ export async function withMockApi(
     const chunks: Buffer[] = [];
     req.on('data', (chunk: Buffer) => chunks.push(chunk));
     req.on('end', () => {
-      received = {
-        method: req.method,
-        url: req.url,
-        contentType: req.headers['content-type'],
-        body: Buffer.concat(chunks).toString('utf8'),
-      };
+      // The header asks for a silent session refresh on every page load
+      // (session-nav.tsx), so a page opened by a spec in a parallel worker
+      // knocks on this address too; counted as traffic, it would make a
+      // neighbour's page load look like the call under test.
+      if (req.url !== REFRESH_PATH)
+        received = {
+          method: req.method,
+          url: req.url,
+          contentType: req.headers['content-type'],
+          body: Buffer.concat(chunks).toString('utf8'),
+        };
       if (answer === 'unreachable') {
         res.destroy();
         return;

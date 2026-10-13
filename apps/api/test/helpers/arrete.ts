@@ -1,3 +1,24 @@
+import { RisqueCatnat, toIsoDate } from '@mon-sinistre/contracts';
+
+/**
+ * The single arrêté the e2e seed publishes (`e2e-referential.ts`), named here
+ * rather than there because this file imports no `src/` module: the
+ * Playwright spec of `apps/web` reads the dates it asserts from the same
+ * place the seed writes them. The publication date is the seed's, counted
+ * from the run.
+ */
+export const E2E_ARRETE = {
+  nor: 'INTE2609999A',
+  codeInsee: '13055',
+  communeLabelRaw: 'Marseille',
+  departementRaw: 'Bouches-du-Rhône',
+  /** As the Journal officiel prints it, and the category it classifies to. */
+  risqueLabel: 'Inondations et coulées de boue',
+  risque: RisqueCatnat.INONDATION,
+  eventStart: toIsoDate('2026-09-28'),
+  eventEnd: toIsoDate('2026-10-02'),
+} as const;
+
 /** Minimal `Arrete` row good enough for schema-level int-specs. */
 export function arreteData(overrides: Partial<{ nor: string }> = {}) {
   return {
