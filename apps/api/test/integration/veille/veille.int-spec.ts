@@ -1,4 +1,13 @@
-import { vi, type MockInstance } from 'vitest';
+import {
+  describe,
+  it,
+  expect,
+  beforeEach,
+  beforeAll,
+  afterAll,
+  vi,
+  type MockInstance,
+} from 'vitest';
 import { createHash } from 'node:crypto';
 
 import { NestFastifyApplication } from '@nestjs/platform-fastify';

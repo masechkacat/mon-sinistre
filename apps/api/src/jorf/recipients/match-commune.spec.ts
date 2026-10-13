@@ -1,3 +1,4 @@
+import { describe, it, expect } from 'vitest';
 import { normalizeCommuneName } from '../../communes/normalize-commune-name.js';
 import { CommuneReferentialEntry, matchCommune } from './match-commune.js';
 

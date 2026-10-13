@@ -1,3 +1,4 @@
+import { describe, it, expect } from 'vitest';
 import { NotFoundException } from '@nestjs/common';
 import { Prisma } from 'src/generated/prisma/client.js';
 import {

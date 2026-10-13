@@ -1,3 +1,4 @@
+import { describe, it, expect, beforeEach, beforeAll, afterAll } from 'vitest';
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { createIntTestApp } from 'test/helpers/app.js';
 import { deadlineRuleData } from 'test/helpers/deadline-rule.js';

@@ -18,6 +18,7 @@ import {
 import { composerOptionsFrom, transportFor } from '../src/mail/mail.module.js';
 import { MailComposer } from '../src/mail/compose/mail-composer.js';
 import { MailService } from '../src/mail/mail.service.js';
+import { loadApiEnv } from '../src/prisma/load-env.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 
 // No Nest application context on purpose — same reasoning as prisma/seed.ts:
@@ -26,11 +27,7 @@ import { PrismaService } from '../src/prisma/prisma.service.js';
 // AppModule. Run: npm run backfill:jorf — tsx, like the seed command in
 // prisma.config.ts.
 
-try {
-  process.loadEnvFile();
-} catch {
-  // .env is absent — variables come from the environment (e.g. CI).
-}
+loadApiEnv();
 
 async function main(): Promise<void> {
   const config = new ConfigService<EnvironmentVariables, true>(

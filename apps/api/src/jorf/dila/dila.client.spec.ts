@@ -1,4 +1,4 @@
-import { vi } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { DILA_JORFSIMPLE_BASE_URL, DilaClient } from './dila.client.js';
 import { buildTarball, TARBALL_ROOT_DIR } from 'test/helpers/build-tarball.js';
 import { jorfFixture } from 'test/fixtures/jorf.js';

@@ -1,3 +1,4 @@
+import { describe, it, expect } from 'vitest';
 import { SinistreStatus, toIsoDate } from '@mon-sinistre/contracts';
 import { sinistreStatus } from './sinistre-status.js';
 

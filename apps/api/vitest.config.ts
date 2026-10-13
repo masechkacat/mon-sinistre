@@ -12,7 +12,6 @@ export const shared = {
     },
   },
   test: {
-    globals: true,
     setupFiles: ['reflect-metadata'],
     restoreMocks: true,
     // afterEach в порядке объявления, не в обратном.

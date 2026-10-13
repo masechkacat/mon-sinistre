@@ -1,14 +1,9 @@
 import { defineConfig } from 'prisma/config';
 import { databaseUrlFromEnv } from './src/prisma/database-url-from-env.js';
+import { loadApiEnv } from './src/prisma/load-env.js';
 
-// The Prisma 7 CLI does not load .env by itself. Node ≥ 24 can do it natively;
-// the catch covers environments without a .env file (e.g. CI), where the
-// variables come from the process environment instead.
-try {
-  process.loadEnvFile();
-} catch {
-  // .env is absent — variables are expected in the environment.
-}
+// The Prisma 7 CLI does not load .env by itself.
+loadApiEnv();
 
 export default defineConfig({
   schema: 'prisma/schema.prisma',

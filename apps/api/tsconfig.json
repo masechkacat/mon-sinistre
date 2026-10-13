@@ -4,7 +4,7 @@
     // Не ./src: проверка типов шире сборки (см. include); сужает tsconfig.build.json.
     "rootDir": "./",
     "outDir": "./dist",
-    "types": ["node", "vitest/globals"],
+    "types": ["node"],
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
     "strictPropertyInitialization": false,

@@ -1,3 +1,4 @@
+import { describe, it, expect } from 'vitest';
 import { plainToInstance } from 'class-transformer';
 import { validate as validateInstance } from 'class-validator';
 import {

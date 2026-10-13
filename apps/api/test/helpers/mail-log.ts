@@ -1,4 +1,4 @@
-import { vi } from 'vitest';
+import { expect, beforeEach, vi } from 'vitest';
 import { LOG_LEVELS, Logger, type LogLevel } from '@nestjs/common';
 
 /**
@@ -34,10 +34,6 @@ export const captureLogs = (): CapturedLogs => {
         },
       );
     }
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
   });
 
   const text = (): string => written.map((entry) => entry.text).join('\n');

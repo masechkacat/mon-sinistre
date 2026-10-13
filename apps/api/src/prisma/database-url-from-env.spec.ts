@@ -1,3 +1,4 @@
+import { describe, it, expect } from 'vitest';
 import { databaseUrlFromEnv } from './database-url-from-env.js';
 
 /**

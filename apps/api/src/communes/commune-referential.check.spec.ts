@@ -1,4 +1,4 @@
-import { vi } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import { Logger } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service.js';
 import { CommuneReferentialCheck } from './commune-referential.check.js';

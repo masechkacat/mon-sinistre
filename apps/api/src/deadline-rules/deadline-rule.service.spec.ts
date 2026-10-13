@@ -1,4 +1,4 @@
-import { vi, type Mock } from 'vitest';
+import { describe, it, expect, vi, type Mock } from 'vitest';
 import { Logger } from '@nestjs/common';
 import type { PrismaService } from 'src/prisma/prisma.service.js';
 import { DeadlineRuleService } from './deadline-rule.service.js';

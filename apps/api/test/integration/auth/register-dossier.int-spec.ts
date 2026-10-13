@@ -1,3 +1,4 @@
+import { describe, it, expect, beforeEach, beforeAll, afterAll } from 'vitest';
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { RisqueCatnat } from '@mon-sinistre/contracts';
 import { createIntTestApp } from 'test/helpers/app.js';

@@ -1,3 +1,4 @@
+import { describe, it, expect } from 'vitest';
 import { isIsoDate } from '@mon-sinistre/contracts';
 import { todayInParis } from './today-in-paris.js';
 

@@ -1,3 +1,4 @@
+import { describe, it, expect } from 'vitest';
 import {
   BACKFILL_START_DELTA,
   selectBackfillDeltas,

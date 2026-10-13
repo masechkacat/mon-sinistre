@@ -1,3 +1,4 @@
+import { describe, it, expect } from 'vitest';
 import { toIsoDate, VEILLE_UNSUBSCRIBE_PATH } from '@mon-sinistre/contracts';
 import { fr } from 'src/i18n/fr.js';
 import { mailLinksOf } from 'test/helpers/mail-links.js';

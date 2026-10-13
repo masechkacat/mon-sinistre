@@ -1,4 +1,4 @@
-import { vi } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import type { PrismaService } from 'src/prisma/prisma.service.js';
 import { codesMergedInto } from './codes-merged-into.js';
 

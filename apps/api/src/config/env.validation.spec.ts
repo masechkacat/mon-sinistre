@@ -1,3 +1,4 @@
+import { describe, it, expect } from 'vitest';
 import { validateEnv } from './env.validation.js';
 
 const SECRET = 'x'.repeat(48);

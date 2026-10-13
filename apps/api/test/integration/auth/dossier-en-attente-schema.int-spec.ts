@@ -1,3 +1,4 @@
+import { describe, it, expect, beforeEach, beforeAll, afterAll } from 'vitest';
 import { PrismaClient } from 'src/generated/prisma/client.js';
 import { commune } from 'test/helpers/commune.js';
 import { createIntTestPrismaClient } from 'test/helpers/prisma-client.js';

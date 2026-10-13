@@ -1,4 +1,12 @@
-import { vi } from 'vitest';
+import {
+  describe,
+  it,
+  expect,
+  beforeEach,
+  beforeAll,
+  afterAll,
+  vi,
+} from 'vitest';
 import { Logger } from '@nestjs/common';
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
 import {

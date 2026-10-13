@@ -1,3 +1,4 @@
+import { describe, it, expect } from 'vitest';
 import { jorfFixture } from 'test/fixtures/jorf.js';
 import { ArreteEntryOutcome } from '@mon-sinistre/contracts';
 import { parseArreteXml } from './parse-arrete.js';

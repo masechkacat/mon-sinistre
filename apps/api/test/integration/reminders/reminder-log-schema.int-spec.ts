@@ -1,3 +1,4 @@
+import { describe, it, expect, beforeEach, beforeAll, afterAll } from 'vitest';
 import { PrismaClient, ReminderKind } from 'src/generated/prisma/client.js';
 import { createIntTestPrismaClient } from 'test/helpers/prisma-client.js';
 import { createSinistre } from 'test/helpers/sinistre.js';

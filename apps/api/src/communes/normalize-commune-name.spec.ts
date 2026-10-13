@@ -1,3 +1,4 @@
+import { describe, it, expect } from 'vitest';
 import { normalizeCommuneName } from './normalize-commune-name.js';
 
 describe('normalizeCommuneName', () => {

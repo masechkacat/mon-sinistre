@@ -1,3 +1,4 @@
+import { describe, it, expect } from 'vitest';
 import { fr } from 'src/i18n/fr.js';
 
 type Translation = string | ((...args: string[]) => string);

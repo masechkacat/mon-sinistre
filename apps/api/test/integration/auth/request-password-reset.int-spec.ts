@@ -1,3 +1,4 @@
+import { describe, it, expect, beforeEach, beforeAll, afterAll } from 'vitest';
 import { createHash } from 'node:crypto';
 
 import { NestFastifyApplication } from '@nestjs/platform-fastify';

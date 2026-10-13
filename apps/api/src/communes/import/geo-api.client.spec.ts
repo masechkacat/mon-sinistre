@@ -1,4 +1,4 @@
-import { vi } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   GEO_API_COMMUNES_URL,
   GeoApiClient,

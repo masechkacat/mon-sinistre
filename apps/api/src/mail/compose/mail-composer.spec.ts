@@ -1,3 +1,4 @@
+import { describe, it, expect } from 'vitest';
 import { fr } from 'src/i18n/fr.js';
 import { mailLinksOf } from 'test/helpers/mail-links.js';
 import { MailCompositionError } from 'src/mail/mail-composition.error.js';

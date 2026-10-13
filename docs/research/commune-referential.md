@@ -32,10 +32,10 @@ docker-compose (18), никакой рассинхронизации с прод
   импортируется; `include: ['test/**/*.int-spec.ts']`, `fileParallelism:
   false` — тесты делят одну базу) + скрипт
   `"test:int": "vitest run --config vitest.config.int.ts"`.
-- `globalSetup`: загрузить `.env` через `process.loadEnvFile()` в `try/catch`
-  (нативно в Node 24, ноль зависимостей; `dotenv` напрямую не подключать — в
-  package.json его нет, резолвится лишь как транзитивная зависимость
-  `@nestjs/config`; catch — на случай отсутствия `.env`, когда переменные
+- `globalSetup`: загрузить `.env` через `loadApiEnv()` (`src/prisma/load-env.ts`:
+  нативный `process.loadEnvFile()`, ноль зависимостей; `dotenv` напрямую не
+  подключать — в package.json его нет, резолвится лишь как транзитивная
+  зависимость `@nestjs/config`; отсутствие `.env` допустимо — переменные
   приходят из окружения, например в CI); клиентом `pg` подключиться к
   служебной базе и `CREATE DATABASE "${DB_NAME}_test"` (если нет); затем
   `execSync('npx prisma migrate deploy', { env: { ...process.env, DB_NAME:
@@ -105,9 +105,9 @@ prisma/seed.ts' }` (tsx уже в devDependencies).
 **Отброшено:** bootstrap Nest-контекста в seed — лишняя связность; когда
 появится регулярная актуализация по расписанию, тот же класс оборачивается
 Nest-провайдером через `useFactory`, ничего переписывать не придётся.
-**Как применять:** первой строкой seed-скрипта — `process.loadEnvFile()` в
-`try/catch`, как в `prisma.config.ts` (процесс seed запускается CLI отдельно,
-наследование env из `prisma.config.ts` не гарантировано); при несовпадении
+**Как применять:** первой строкой seed-скрипта — `loadApiEnv()`, как в
+`prisma.config.ts` (процесс seed запускается CLI отдельно, наследование env из
+`prisma.config.ts` не гарантировано); при несовпадении
 счётчика — `process.exitCode = 1` и лог
 без персональных данных (тут их и нет: только числа и коды INSEE).
 

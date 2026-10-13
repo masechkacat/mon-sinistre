@@ -1,4 +1,4 @@
-import { vi, type Mock } from 'vitest';
+import { describe, it, expect, vi, type Mock } from 'vitest';
 import { MailComposer } from 'src/mail/compose/mail-composer.js';
 import { captureLogs } from 'test/helpers/mail-log.js';
 import { MailDeliveryError } from 'src/mail/mail-delivery.error.js';

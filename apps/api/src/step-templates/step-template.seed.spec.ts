@@ -1,3 +1,4 @@
+import { describe, it, expect } from 'vitest';
 import { STEP_TEMPLATE_SEED } from './step-template.seed.js';
 
 // A hard-coded legal number in a step's text would duplicate — and drift

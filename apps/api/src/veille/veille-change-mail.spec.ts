@@ -1,3 +1,4 @@
+import { describe, it, expect } from 'vitest';
 import {
   VEILLE_CHANGE_PATH,
   VEILLE_CHANGE_TTL_DAYS,

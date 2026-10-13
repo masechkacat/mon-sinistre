@@ -1,3 +1,4 @@
+import { describe, it, expect } from 'vitest';
 import { RisqueCatnat, toIsoDate } from '@mon-sinistre/contracts';
 import {
   type MatchArreteEntry,

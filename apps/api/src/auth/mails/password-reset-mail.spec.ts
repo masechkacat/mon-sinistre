@@ -1,3 +1,4 @@
+import { describe, it, expect } from 'vitest';
 import {
   ACCOUNT_MAIL_UNSUBSCRIBE_PATH,
   ACCOUNT_RESET_PATH,

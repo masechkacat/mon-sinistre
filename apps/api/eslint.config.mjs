@@ -13,10 +13,7 @@ export default tseslint.config(
   ...tseslint.configs.recommendedTypeChecked,
   {
     languageOptions: {
-      globals: {
-        ...globals.node,
-        ...globals.vitest,
-      },
+      globals: globals.node,
       sourceType: 'module',
       parserOptions: {
         projectService: true,

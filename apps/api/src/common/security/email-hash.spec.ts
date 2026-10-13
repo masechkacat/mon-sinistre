@@ -1,3 +1,4 @@
+import { describe, it, expect } from 'vitest';
 import { createHash, createHmac } from 'node:crypto';
 
 import { hashEmail } from './email-hash.js';

@@ -1,3 +1,4 @@
+import { describe, it, expect } from 'vitest';
 import {
   VEILLE_CONFIRM_PATH,
   VEILLE_CONFIRM_TTL_DAYS,

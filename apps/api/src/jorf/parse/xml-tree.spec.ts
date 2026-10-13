@@ -1,3 +1,4 @@
+import { describe, it, expect } from 'vitest';
 import { parseXml, XmlElement } from '@rgrove/parse-xml';
 import { textWithLineBreaks } from './xml-tree.js';
 

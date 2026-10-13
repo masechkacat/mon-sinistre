@@ -1,3 +1,4 @@
+import { describe, it, expect } from 'vitest';
 import { StepStatus, toIsoDate } from '@mon-sinistre/contracts';
 import { stepStatus } from './step-status.js';
 

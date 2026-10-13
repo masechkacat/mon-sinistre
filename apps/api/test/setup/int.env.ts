@@ -1,4 +1,4 @@
-import { loadApiEnv } from './load-env.js';
+import { loadApiEnv } from '../../src/prisma/load-env.js';
 import testDbName from './test-db-name.js';
 
 loadApiEnv();
