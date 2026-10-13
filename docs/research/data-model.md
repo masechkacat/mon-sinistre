@@ -53,7 +53,9 @@ erDiagram
     Arrete ||--o{ VeilleNotification : triggered
     Sinistre ||--o{ Step : plan
     Sinistre ||--o{ InventoryItem : inventory
-    InventoryItem ||--o{ File : attachments
+    Sinistre ||--o{ File : files
+    InventoryItem |o--o{ File : illustrates
+    Step |o--o{ File : proves
     DeadlineRule |o--o{ Step : resolved-from
     StepTemplate ||..o{ Step : "copied-from (без FK)"
     Step ||--o{ ReminderLog : reminded
@@ -259,6 +261,9 @@ Auth уже решён (api/CLAUDE.md): Passport local + JWT, refresh с рот�
 | eventDate       | date                                   |                                                               |
 | arreteEntryId   | uuid, null → ArreteEntry, **restrict** | перепривязывается при признании после отказа                  |
 | declarationDate | date, null                             |                                                               |
+| assureur        | text, null                             | название страховщика                                          |
+| contratNumero   | text, null                             |                                                               |
+| canalAssureur   | text, null                             | как связываются: espace client, email, courrier               |
 | status          | enum SinistreStatus                    |                                                               |
 | createdAt       | timestamptz                            |                                                               |
 
@@ -310,14 +315,17 @@ Auth уже решён (api/CLAUDE.md): Passport local + JWT, refresh с рот�
 - `InventoryItem`: id, sinistreId → Sinistre (cascade), name, brand,
   description, quantity, costCents, purchaseDate, warrantyUntil, serialNumber,
   createdAt. Индекс `(sinistreId)`.
-- `File`: id, inventoryItemId → InventoryItem (cascade), kind (PHOTO /
+- `File`: id, sinistreId → Sinistre (cascade), inventoryItemId null →
+  InventoryItem (set null), stepId null → Step (set null): фото повреждений у
+  шага «photographier», счета у «rassembler les factures», доказательство
+  отправки у «déclarer»; kind (PHOTO /
   JUSTIFICATIF), fileName, contentType, sizeBytes, **storageKey** (ключ S3 —
   наружу не отдаётся, только короткие подписанные URL), **contentSha256**
   (алгоритм — в имени колонки: целостность доказательных файлов, проверка
   загрузки, задел на дедупликацию), uploadedAt. EXIF-ограничение — к пайплайну
   загрузки, не к схеме.
 
-Цепочка владения: `File → InventoryItem → Sinistre → User`. Каждый запрос
+Цепочка владения: `File → Sinistre → User`. Каждый запрос
 фильтрует по `userId` **в условии** через join цепочки (правило: чужой и
 несуществующий объект неразличимы, 404).
 
@@ -383,8 +391,8 @@ SinistreNotification»).
 - **Veille**: hard delete по запросу/отписке — каскад сносит VeilleCommune,
   VeilleNotification и VeilleChange. Немедленно, без корзины (жёсткое
   требование ТЗ § 7).
-- **User**: удаление аккаунта — каскад User → Sinistre → Step/InventoryItem →
-  File и User → DossierEnAttente строками БД **плюс** удаление объектов S3 по
+- **User**: удаление аккаунта — каскад User → Sinistre → Step/InventoryItem/File
+  и User → DossierEnAttente строками БД **плюс** удаление объектов S3 по
   `storageKey`. Порядок: сначала собрать ключи, удалить строки транзакцией,
   затем чистить S3 (недоудалённые объекты добирает фоновая сверка — S3 не
   участвует в транзакции БД).
