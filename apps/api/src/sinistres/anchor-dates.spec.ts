@@ -1,5 +1,6 @@
+import { describe, it, expect } from 'vitest';
 import { toIsoDate } from '@mon-sinistre/contracts';
-import { anchorDatesOf } from './anchor-dates';
+import { anchorDatesOf } from './anchor-dates.js';
 
 describe('anchorDatesOf', () => {
   it('always resolves DATE_SINISTRE to the event date', () => {

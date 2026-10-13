@@ -1,11 +1,12 @@
+import { describe, it, expect, beforeEach, beforeAll, afterAll } from 'vitest';
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { LOGIN_ATTEMPT_LIMIT } from '@mon-sinistre/contracts';
-import { createIntTestApp } from 'test/helpers/app';
-import { hashSecureToken } from 'src/common/security/secure-token';
-import { HOUR_MS } from 'src/common/time/time';
-import { PrismaService } from 'src/prisma/prisma.service';
-import { createUser as createUserIn, PASSWORD } from 'test/helpers/session';
-import { resetThrottler } from 'test/helpers/throttler';
+import { createIntTestApp } from 'test/helpers/app.js';
+import { hashSecureToken } from 'src/common/security/secure-token.js';
+import { HOUR_MS } from 'src/common/time/time.js';
+import { PrismaService } from 'src/prisma/prisma.service.js';
+import { createUser as createUserIn, PASSWORD } from 'test/helpers/session.js';
+import { resetThrottler } from 'test/helpers/throttler.js';
 
 describe('login attempt rate limit (LOGIN_ATTEMPT_LIMIT)', () => {
   let app: NestFastifyApplication;

@@ -1,6 +1,6 @@
-import { PrismaClient } from 'src/generated/prisma/client';
-import { normalizeCommuneName } from 'src/communes/normalize-commune-name';
-import { GEO_API_COMMUNES_URL, GeoApiCommune } from './geo-api.client';
+import { PrismaClient } from 'src/generated/prisma/client.js';
+import { normalizeCommuneName } from 'src/communes/normalize-commune-name.js';
+import { GEO_API_COMMUNES_URL, GeoApiCommune } from './geo-api.client.js';
 
 /**
  * What the import needs from the outside world — GeoApiClient satisfies it

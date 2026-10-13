@@ -1,8 +1,8 @@
 import { ApiProperty } from '@nestjs/swagger';
 import type { SinistreDetail } from '@mon-sinistre/contracts';
-import { DeclarationDeadlineResponseDto } from './declaration-deadline-response.dto';
-import { SinistreSummaryResponseDto } from './sinistre-summary-response.dto';
-import { StepResponseDto } from './step-response.dto';
+import { DeclarationDeadlineResponseDto } from './declaration-deadline-response.dto.js';
+import { SinistreSummaryResponseDto } from './sinistre-summary-response.dto.js';
+import { StepResponseDto } from './step-response.dto.js';
 
 /**
  * Swagger-only mirror of {@link SinistreDetail} — `implements` makes the

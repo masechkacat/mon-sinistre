@@ -2,6 +2,7 @@
   "name": "@mon-sinistre/contracts",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "description": "Types, enums and API contracts shared between the API and the web client",
   "license": "UNLICENSED",
   "main": "./dist/index.js",

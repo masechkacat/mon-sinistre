@@ -1,16 +1,16 @@
 import type { IsoDate } from '@mon-sinistre/contracts';
-import { loadSuccessorMap } from 'src/communes/load-successor-map';
+import { loadSuccessorMap } from 'src/communes/load-successor-map.js';
 import {
   dateToIsoDate,
   isoDateToDate,
-} from 'src/deadline-rules/resolve-deadline';
-import type { ArreteEntryOutcome } from 'src/generated/prisma/enums';
-import type { PrismaService } from 'src/prisma/prisma.service';
+} from 'src/deadline-rules/resolve-deadline.js';
+import type { ArreteEntryOutcome } from 'src/generated/prisma/enums.js';
+import type { PrismaService } from 'src/prisma/prisma.service.js';
 import {
   matchSinistres,
   toMatchArreteEntry,
   type MatchCandidateSinistre,
-} from './match-sinistres';
+} from './match-sinistres.js';
 
 /** The matched entry's fields a caller needs to date and status a plan, and
  * to print the arrêté without a row of its own to read it off. */

@@ -1,5 +1,6 @@
+import { describe, it, expect } from 'vitest';
 import { isIsoDate } from '@mon-sinistre/contracts';
-import { todayInParis } from './today-in-paris';
+import { todayInParis } from './today-in-paris.js';
 
 describe('todayInParis', () => {
   it('returns the Paris calendar date, not the UTC one, past midnight in CEST (summer, UTC+2)', () => {

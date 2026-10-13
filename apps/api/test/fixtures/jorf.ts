@@ -7,4 +7,4 @@ import { join } from 'node:path';
  * их отсюда, поэтому переезд каталога правится в одном месте.
  */
 export const jorfFixture = (name: string): string =>
-  readFileSync(join(__dirname, 'jorf', name), 'utf-8');
+  readFileSync(join(import.meta.dirname, 'jorf', name), 'utf-8');

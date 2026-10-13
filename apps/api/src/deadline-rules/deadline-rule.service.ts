@@ -1,11 +1,11 @@
 import { Inject, Injectable, type Logger } from '@nestjs/common';
 import type { IsoDate } from '@mon-sinistre/contracts';
-import type { Prisma } from 'src/generated/prisma/client';
-import type { StepAnchor } from 'src/generated/prisma/enums';
-import { PrismaService } from 'src/prisma/prisma.service';
-import { DECLARATION_ASSUREUR_CODE } from './deadline-rule.seed';
-import type { DeadlineRuleModel } from 'src/generated/prisma/models/DeadlineRule';
-import { dateToIsoDate, isoDateToDate } from './resolve-deadline';
+import type { Prisma } from 'src/generated/prisma/client.js';
+import type { StepAnchor } from 'src/generated/prisma/enums.js';
+import { PrismaService } from 'src/prisma/prisma.service.js';
+import { DECLARATION_ASSUREUR_CODE } from './deadline-rule.seed.js';
+import type { DeadlineRuleModel } from 'src/generated/prisma/models/DeadlineRule.js';
+import { dateToIsoDate, isoDateToDate } from './resolve-deadline.js';
 
 /** Only a line the arrêté recognises carries the déclaration délai: a
  * refusal dates nothing, whatever rule is active (ТЗ § 3.3). */

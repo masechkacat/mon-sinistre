@@ -12,29 +12,29 @@ import {
   awaitingConfirmation,
   expiredUnconfirmed,
   isStillOpen,
-} from 'src/common/time/confirmation-window';
-import { runGuarded } from 'src/common/scheduled-cleanup';
-import { addDays, DAY_MS } from 'src/common/time/time';
-import type { EnvironmentVariables } from 'src/config/env.validation';
-import type { Prisma } from 'src/generated/prisma/client';
-import { MailCompositionError } from 'src/mail/mail-composition.error';
-import type { ComposeMailInput } from 'src/mail/mail-message';
-import { MailService } from 'src/mail/mail.service';
+} from 'src/common/time/confirmation-window.js';
+import { runGuarded } from 'src/common/scheduled-cleanup.js';
+import { addDays, DAY_MS } from 'src/common/time/time.js';
+import type { EnvironmentVariables } from 'src/config/env.validation.js';
+import type { Prisma } from 'src/generated/prisma/client.js';
+import { MailCompositionError } from 'src/mail/mail-composition.error.js';
+import type { ComposeMailInput } from 'src/mail/mail-message.js';
+import { MailService } from 'src/mail/mail.service.js';
 import {
   isForeignKeyViolation,
   isUniqueViolationOn,
   nullIfRecordNotFound,
-} from 'src/prisma/prisma-error';
-import { PrismaService } from 'src/prisma/prisma.service';
-import type { CreateVeilleDto } from './dto/create-veille.dto';
-import { changeMailFor } from './veille-change-mail';
+} from 'src/prisma/prisma-error.js';
+import { PrismaService } from 'src/prisma/prisma.service.js';
+import type { CreateVeilleDto } from './dto/create-veille.dto.js';
+import { changeMailFor } from './veille-change-mail.js';
 import {
   confirmationMailFor,
   type ChosenCommune,
-} from './veille-confirmation-mail';
-import { hashVeilleFormEmail } from './veille-email-hash';
-import { generateVeilleToken, hashVeilleToken } from './veille-token';
-import { mintUnsubscribeToken } from './veille-unsubscribe-token';
+} from './veille-confirmation-mail.js';
+import { hashVeilleFormEmail } from './veille-email-hash.js';
+import { generateVeilleToken, hashVeilleToken } from './veille-token.js';
+import { mintUnsubscribeToken } from './veille-unsubscribe-token.js';
 
 /** Re-exported for the veille specs, which import it from here — the single
  * definition lives in src/common/time.ts (shared with account confirmation),

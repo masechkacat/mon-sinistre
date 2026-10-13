@@ -5,8 +5,8 @@
  * their source, so no legal figure is hard-coded elsewhere.
  */
 
-import { SourceReference } from './models';
-import { toIsoDate } from './iso-date';
+import { SourceReference } from './models.js';
+import { toIsoDate } from './iso-date.js';
 
 export const PASSWORD_MIN_LENGTH = 8;
 

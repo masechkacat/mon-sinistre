@@ -1,4 +1,4 @@
-import type { PrismaService } from 'src/prisma/prisma.service';
+import type { PrismaService } from 'src/prisma/prisma.service.js';
 
 /**
  * `Commune.successorCodeInsee` reduced to a map — only rows that merged carry

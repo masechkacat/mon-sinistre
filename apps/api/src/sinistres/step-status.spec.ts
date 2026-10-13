@@ -1,5 +1,6 @@
+import { describe, it, expect } from 'vitest';
 import { StepStatus, toIsoDate } from '@mon-sinistre/contracts';
-import { stepStatus } from './step-status';
+import { stepStatus } from './step-status.js';
 
 const TODAY = toIsoDate('2026-08-23');
 

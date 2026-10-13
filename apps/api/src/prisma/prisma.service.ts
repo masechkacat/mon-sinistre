@@ -1,9 +1,9 @@
 import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaPg } from '@prisma/adapter-pg';
-import { EnvironmentVariables } from 'src/config/env.validation';
-import { PrismaClient } from 'src/generated/prisma/client';
-import { buildDatabaseUrl } from './database-url';
+import { EnvironmentVariables } from 'src/config/env.validation.js';
+import { PrismaClient } from 'src/generated/prisma/client.js';
+import { buildDatabaseUrl } from './database-url.js';
 
 @Injectable()
 export class PrismaService

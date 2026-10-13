@@ -1,12 +1,12 @@
 import type { Logger } from '@nestjs/common';
 import type { IsoDate } from '@mon-sinistre/contracts';
-import type { DeadlineRuleService } from 'src/deadline-rules/deadline-rule.service';
-import { isoDateToDate } from 'src/deadline-rules/resolve-deadline';
-import type { StepAnchor } from 'src/generated/prisma/enums';
+import type { DeadlineRuleService } from 'src/deadline-rules/deadline-rule.service.js';
+import { isoDateToDate } from 'src/deadline-rules/resolve-deadline.js';
+import type { StepAnchor } from 'src/generated/prisma/enums.js';
 import type {
   ResolvedDeadlineRule,
   StepTemplateRow,
-} from './build-step-snapshot';
+} from './build-step-snapshot.js';
 
 /**
  * The rule a template's step cites, resolved off its anchor date (off today

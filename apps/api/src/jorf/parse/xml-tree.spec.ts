@@ -1,5 +1,6 @@
+import { describe, it, expect } from 'vitest';
 import { parseXml, XmlElement } from '@rgrove/parse-xml';
-import { textWithLineBreaks } from './xml-tree';
+import { textWithLineBreaks } from './xml-tree.js';
 
 const cell = (inner: string): XmlElement =>
   parseXml(`<td>${inner}</td>`).root as XmlElement;

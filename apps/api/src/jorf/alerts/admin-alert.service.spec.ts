@@ -1,13 +1,14 @@
-import { AdminAlertService } from 'src/jorf/alerts/admin-alert.service';
-import type { MonitorAlertForMail } from 'src/jorf/mail/monitor-alert-mail';
-import { MailComposer } from 'src/mail/compose/mail-composer';
-import { composerOptionsFrom } from 'src/mail/mail.module';
-import { MailService } from 'src/mail/mail.service';
-import { PrismaService } from 'src/prisma/prisma.service';
-import { ADMIN_EMAIL } from 'test/helpers/admin-email';
-import { configFor } from 'test/helpers/config';
-import { captureLogs } from 'test/helpers/mail-log';
-import { RecordingTransport } from 'test/helpers/mail-transport';
+import { describe, it, expect, beforeEach, vi, type Mock } from 'vitest';
+import { AdminAlertService } from 'src/jorf/alerts/admin-alert.service.js';
+import type { MonitorAlertForMail } from 'src/jorf/mail/monitor-alert-mail.js';
+import { MailComposer } from 'src/mail/compose/mail-composer.js';
+import { composerOptionsFrom } from 'src/mail/mail.module.js';
+import { MailService } from 'src/mail/mail.service.js';
+import { PrismaService } from 'src/prisma/prisma.service.js';
+import { ADMIN_EMAIL } from 'test/helpers/admin-email.js';
+import { configFor } from 'test/helpers/config.js';
+import { captureLogs } from 'test/helpers/mail-log.js';
+import { RecordingTransport } from 'test/helpers/mail-transport.js';
 
 const ALERTS: readonly MonitorAlertForMail[] = [
   {
@@ -20,11 +21,11 @@ const logs = captureLogs();
 
 describe('AdminAlertService', () => {
   let transport: RecordingTransport;
-  let create: jest.Mock;
+  let create: Mock;
 
   beforeEach(() => {
     transport = new RecordingTransport();
-    create = jest.fn().mockResolvedValue(ALERTS[0]);
+    create = vi.fn().mockResolvedValue(ALERTS[0]);
   });
 
   const serviceWith = (adminEmail: string | undefined): AdminAlertService => {

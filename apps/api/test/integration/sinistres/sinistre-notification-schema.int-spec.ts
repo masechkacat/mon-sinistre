@@ -1,7 +1,8 @@
-import { PrismaClient } from 'src/generated/prisma/client';
-import { arreteData } from 'test/helpers/arrete';
-import { createIntTestPrismaClient } from 'test/helpers/prisma-client';
-import { createSinistre } from 'test/helpers/sinistre';
+import { describe, it, expect, beforeEach, beforeAll, afterAll } from 'vitest';
+import { PrismaClient } from 'src/generated/prisma/client.js';
+import { arreteData } from 'test/helpers/arrete.js';
+import { createIntTestPrismaClient } from 'test/helpers/prisma-client.js';
+import { createSinistre } from 'test/helpers/sinistre.js';
 
 // Schema-level guarantees of the SinistreNotification outbox migration:
 // docs/research/data-model.md § 5, docs/research/sinistre-plan.md, «Схема:

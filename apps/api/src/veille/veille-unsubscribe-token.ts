@@ -1,6 +1,6 @@
-import type { Prisma } from 'src/generated/prisma/client';
-import { nullIfRecordNotFound } from 'src/prisma/prisma-error';
-import { generateVeilleToken } from './veille-token';
+import type { Prisma } from 'src/generated/prisma/client.js';
+import { nullIfRecordNotFound } from 'src/prisma/prisma-error.js';
+import { generateVeilleToken } from './veille-token.js';
 
 export type MintedUnsubscribeToken = {
   email: string;

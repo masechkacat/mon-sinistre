@@ -1,5 +1,6 @@
-import { normalizeCommuneName } from '../../communes/normalize-commune-name';
-import { CommuneReferentialEntry, matchCommune } from './match-commune';
+import { describe, it, expect } from 'vitest';
+import { normalizeCommuneName } from '../../communes/normalize-commune-name.js';
+import { CommuneReferentialEntry, matchCommune } from './match-commune.js';
 
 function entry(
   overrides: Partial<CommuneReferentialEntry> & {
@@ -84,7 +85,11 @@ describe('matchCommune', () => {
         codeInsee: '85129',
         departementName: 'Vendée',
       }),
-      entry({ name: 'Le Pouzin', codeInsee: '07181', departementName: 'Ardèche' }),
+      entry({
+        name: 'Le Pouzin',
+        codeInsee: '07181',
+        departementName: 'Ardèche',
+      }),
       entry({
         name: "La Cadière-d'Azur",
         codeInsee: '83034',
@@ -103,7 +108,9 @@ describe('matchCommune', () => {
         '85129',
       );
       expect(matchCommune(communes, 'Pouzin (Le)', 'Ardèche')).toBe('07181');
-      expect(matchCommune(communes, "Cadière-d'Azur (La)", 'Var')).toBe('83034');
+      expect(matchCommune(communes, "Cadière-d'Azur (La)", 'Var')).toBe(
+        '83034',
+      );
       expect(matchCommune(communes, "Escarène (L')", 'Alpes-Maritimes')).toBe(
         '06057',
       );
@@ -132,7 +139,9 @@ describe('matchCommune', () => {
         }),
       ];
 
-      expect(matchCommune(bothColombes, 'Colombe (La)', 'Manche')).toBe('50127');
+      expect(matchCommune(bothColombes, 'Colombe (La)', 'Manche')).toBe(
+        '50127',
+      );
     });
   });
 

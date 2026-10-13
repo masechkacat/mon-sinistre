@@ -1,8 +1,8 @@
 import { BadRequestException } from '@nestjs/common';
 import type { Commune } from '@mon-sinistre/contracts';
-import { fr } from 'src/i18n/fr';
-import type { PrismaService } from 'src/prisma/prisma.service';
-import { communeFields } from './commune-fields';
+import { fr } from 'src/i18n/fr.js';
+import type { PrismaService } from 'src/prisma/prisma.service.js';
+import { communeFields } from './commune-fields.js';
 
 /**
  * The commune a request names, or the `400` for a code the referential does

@@ -1,5 +1,5 @@
 import { toIsoDate, type IsoDate } from '@mon-sinistre/contracts';
-import type { DurationUnit } from 'src/generated/prisma/enums';
+import type { DurationUnit } from 'src/generated/prisma/enums.js';
 
 /** UTC calendar date of a `Date` as `IsoDate` — never local time, since `@db.Date` columns (`Arrete.publishedAt` and friends) carry none. The one conversion of this direction; {@link resolveDeadline} and `src/jorf/jorf-monitor.service.ts` both read `@db.Date` columns back off Prisma and need it. */
 export const dateToIsoDate = (value: Date): IsoDate =>

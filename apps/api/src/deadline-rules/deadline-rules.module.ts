@@ -1,5 +1,5 @@
 import { Global, Module } from '@nestjs/common';
-import { DeadlineRuleService } from './deadline-rule.service';
+import { DeadlineRuleService } from './deadline-rule.service.js';
 
 /**
  * Global like `PrismaModule`/`MailModule`: resolving a `DeadlineRule` is

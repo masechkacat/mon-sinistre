@@ -51,12 +51,12 @@ export class UsersService {
 // Testing is straightforward
 describe('UsersService', () => {
   let service: UsersService;
-  let mockRepo: jest.Mocked<UserRepository>;
+  let mockRepo: Mocked<UserRepository>;
 
   beforeEach(() => {
     mockRepo = {
-      find: jest.fn(),
-      save: jest.fn(),
+      find: vi.fn(),
+      save: vi.fn(),
     } as any;
 
     service = new UsersService(mockRepo, { dbUrl: 'test' });

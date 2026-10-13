@@ -1,11 +1,12 @@
+import { describe, it, expect } from 'vitest';
 import { NotFoundException } from '@nestjs/common';
-import { Prisma } from 'src/generated/prisma/client';
+import { Prisma } from 'src/generated/prisma/client.js';
 import {
   httpExceptionForPrisma,
   isForeignKeyViolation,
   isUniqueViolationOn,
   prismaErrorDetail,
-} from './prisma-error';
+} from './prisma-error.js';
 
 /**
  * The `meta` layouts below are copied from errors raised against Postgres

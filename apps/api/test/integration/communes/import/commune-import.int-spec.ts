@@ -1,10 +1,14 @@
-import { PrismaClient } from 'src/generated/prisma/client';
-import { createIntTestPrismaClient } from 'test/helpers/prisma-client';
+import { describe, it, expect, beforeEach, beforeAll, afterAll } from 'vitest';
+import { PrismaClient } from 'src/generated/prisma/client.js';
+import { createIntTestPrismaClient } from 'test/helpers/prisma-client.js';
 import {
   CommuneImportService,
   CommuneImportSource,
-} from 'src/communes/import/commune-import.service';
-import { GEO_API_COMMUNES_URL, GeoApiCommune } from 'src/communes/import/geo-api.client';
+} from 'src/communes/import/commune-import.service.js';
+import {
+  GEO_API_COMMUNES_URL,
+  GeoApiCommune,
+} from 'src/communes/import/geo-api.client.js';
 
 const geoCommune = (
   code: string,

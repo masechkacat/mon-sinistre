@@ -1,6 +1,7 @@
+import { describe, it, expect } from 'vitest';
 import { createHash } from 'node:crypto';
 
-import { generateSecureToken, hashSecureToken } from './secure-token';
+import { generateSecureToken, hashSecureToken } from './secure-token.js';
 
 const BASE64URL = /^[A-Za-z0-9_-]+$/;
 

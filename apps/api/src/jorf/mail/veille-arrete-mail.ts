@@ -1,17 +1,17 @@
 import type { IsoDate } from '@mon-sinistre/contracts';
-import { resolveDeadline } from 'src/deadline-rules/resolve-deadline';
+import { resolveDeadline } from 'src/deadline-rules/resolve-deadline.js';
 import type {
   ArreteEntryOutcome,
   DurationUnit,
-} from 'src/generated/prisma/enums';
-import { fr } from 'src/i18n/fr';
-import type { ComposeMailInput, MailBlock } from 'src/mail/mail-message';
+} from 'src/generated/prisma/enums.js';
+import { fr } from 'src/i18n/fr.js';
+import type { ComposeMailInput, MailBlock } from 'src/mail/mail-message.js';
 import {
   communeLabel,
   unsubscribePathFor,
   type ChosenCommune,
-} from 'src/veille/veille-confirmation-mail';
-import { formatFrenchDate } from '../parse/french-date';
+} from 'src/veille/veille-confirmation-mail.js';
+import { formatFrenchDate } from '../parse/french-date.js';
 
 export interface ArreteEntryForMail {
   readonly commune: ChosenCommune;

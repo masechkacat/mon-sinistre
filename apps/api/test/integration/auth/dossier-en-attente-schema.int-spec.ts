@@ -1,7 +1,8 @@
-import { PrismaClient } from 'src/generated/prisma/client';
-import { commune } from 'test/helpers/commune';
-import { createIntTestPrismaClient } from 'test/helpers/prisma-client';
-import { userData } from 'test/helpers/user-data';
+import { describe, it, expect, beforeEach, beforeAll, afterAll } from 'vitest';
+import { PrismaClient } from 'src/generated/prisma/client.js';
+import { commune } from 'test/helpers/commune.js';
+import { createIntTestPrismaClient } from 'test/helpers/prisma-client.js';
+import { userData } from 'test/helpers/user-data.js';
 
 // Schema-level guarantees of the DossierEnAttente migration:
 // docs/research/dossier-preliminaire.md, «Три параметра до подтверждения»,

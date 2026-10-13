@@ -1,13 +1,14 @@
-import { DILA_JORFSIMPLE_BASE_URL, DilaClient } from './dila.client';
-import { buildTarball, TARBALL_ROOT_DIR } from 'test/helpers/build-tarball';
-import { jorfFixture } from 'test/fixtures/jorf';
+import { describe, it, expect, vi } from 'vitest';
+import { DILA_JORFSIMPLE_BASE_URL, DilaClient } from './dila.client.js';
+import { buildTarball, TARBALL_ROOT_DIR } from 'test/helpers/build-tarball.js';
+import { jorfFixture } from 'test/fixtures/jorf.js';
 
 const indexHtml = jorfFixture('dila-index.html');
 const arreteXml = jorfFixture('JORFTEXT000054245373.xml');
 const tocXml = jorfFixture('JORFCONT000054245240.xml');
 
 const fetchOf = (body: string | Uint8Array, status = 200) =>
-  jest.fn(() => Promise.resolve(new Response(body, { status })));
+  vi.fn(() => Promise.resolve(new Response(body, { status })));
 
 /**
  * The same layout as a real DILA delta ({@link TARBALL_ROOT_DIR} wraps every
@@ -48,7 +49,7 @@ describe('DilaClient', () => {
     });
 
     it('propagates a network error', async () => {
-      const fetchFn = jest.fn(() => Promise.reject(new Error('ECONNRESET')));
+      const fetchFn = vi.fn(() => Promise.reject(new Error('ECONNRESET')));
 
       await expect(new DilaClient(fetchFn).listDeltas()).rejects.toThrow(
         'ECONNRESET',
@@ -117,7 +118,7 @@ describe('DilaClient', () => {
     });
 
     it('propagates a network error', async () => {
-      const fetchFn = jest.fn(() => Promise.reject(new Error('ECONNRESET')));
+      const fetchFn = vi.fn(() => Promise.reject(new Error('ECONNRESET')));
 
       await expect(
         new DilaClient(fetchFn).downloadDelta(
@@ -146,7 +147,7 @@ describe('DilaClient', () => {
           setTimeout(() => controller.error(new Error('connection reset')), 0);
         },
       });
-      const fetchFn = jest.fn(() =>
+      const fetchFn = vi.fn(() =>
         Promise.resolve(new Response(body, { status: 200 })),
       );
 

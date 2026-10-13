@@ -1,12 +1,13 @@
-import type { PrismaService } from 'src/prisma/prisma.service';
-import { codesMergedInto } from './codes-merged-into';
+import { describe, it, expect, vi } from 'vitest';
+import type { PrismaService } from 'src/prisma/prisma.service.js';
+import { codesMergedInto } from './codes-merged-into.js';
 
 type FindManyArgs = { where: { successorCodeInsee: { in: string[] } } };
 
 /** A `Commune` table reduced to its successor edges, answering the one query
  * `codesMergedInto` issues per hop. */
 function prismaWith(successorOf: Record<string, string>) {
-  const findMany = jest.fn(({ where }: FindManyArgs) =>
+  const findMany = vi.fn(({ where }: FindManyArgs) =>
     Promise.resolve(
       Object.entries(successorOf)
         .filter(([, successor]) =>

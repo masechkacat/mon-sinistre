@@ -1,15 +1,16 @@
+import { describe, it, expect, beforeEach, beforeAll, afterAll } from 'vitest';
 import { createHash } from 'node:crypto';
 
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { ACCOUNT_RESET_PATH } from '@mon-sinistre/contracts';
-import { createIntTestApp } from 'test/helpers/app';
-import { captureLogs } from 'test/helpers/mail-log';
-import { tokenFrom } from 'test/helpers/mail-links';
-import { MAIL_TRANSPORT } from 'src/mail/mail-transport';
-import { RecordingTransport } from 'test/helpers/mail-transport';
-import { PrismaService } from 'src/prisma/prisma.service';
-import { createUser as createUserIn } from 'test/helpers/session';
-import { resetThrottler } from 'test/helpers/throttler';
+import { createIntTestApp } from 'test/helpers/app.js';
+import { captureLogs } from 'test/helpers/mail-log.js';
+import { tokenFrom } from 'test/helpers/mail-links.js';
+import { MAIL_TRANSPORT } from 'src/mail/mail-transport.js';
+import { RecordingTransport } from 'test/helpers/mail-transport.js';
+import { PrismaService } from 'src/prisma/prisma.service.js';
+import { createUser as createUserIn } from 'test/helpers/session.js';
+import { resetThrottler } from 'test/helpers/throttler.js';
 
 describe('POST /auth/password-reset (integration)', () => {
   let app: NestFastifyApplication;

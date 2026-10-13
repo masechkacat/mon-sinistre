@@ -1,5 +1,5 @@
 import type { Logger } from '@nestjs/common';
-import { errorSummary, stackOf } from './error-report';
+import { errorSummary, stackOf } from './error-report.js';
 
 /**
  * Runs one step of a scheduled tick isolated from its siblings — a cleanup

@@ -1,3 +1,4 @@
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import {
@@ -6,10 +7,10 @@ import {
   SchedulerRegistry,
 } from '@nestjs/schedule';
 import { Test, type TestingModule } from '@nestjs/testing';
-import { MailService } from 'src/mail/mail.service';
-import { PrismaService } from 'src/prisma/prisma.service';
-import { SinistresService } from 'src/sinistres/sinistres.service';
-import { AuthService } from './auth.service';
+import { MailService } from 'src/mail/mail.service.js';
+import { PrismaService } from 'src/prisma/prisma.service.js';
+import { SinistresService } from 'src/sinistres/sinistres.service.js';
+import { AuthService } from './auth.service.js';
 
 /**
  * The auth counterpart of `veille/veille-schedule.spec.ts`, and for the same
@@ -22,7 +23,7 @@ import { AuthService } from './auth.service';
  * module, with only `VeilleService` in it.
  */
 describe('AuthService cleanup schedule', () => {
-  const deleteMany = jest.fn().mockResolvedValue({ count: 0 });
+  const deleteMany = vi.fn().mockResolvedValue({ count: 0 });
   let moduleRef: TestingModule;
 
   beforeAll(async () => {

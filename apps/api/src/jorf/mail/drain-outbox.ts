@@ -1,6 +1,6 @@
 import type { Logger } from '@nestjs/common';
-import { errorSummary, stackOf } from 'src/common/error-report';
-import { runGuarded } from 'src/common/scheduled-cleanup';
+import { errorSummary, stackOf } from 'src/common/error-report.js';
+import { runGuarded } from 'src/common/scheduled-cleanup.js';
 
 /**
  * Failed sends of one outbox row before it is called stuck

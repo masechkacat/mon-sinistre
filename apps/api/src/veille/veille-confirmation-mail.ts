@@ -3,8 +3,8 @@ import {
   VEILLE_CONFIRM_TTL_DAYS,
   VEILLE_UNSUBSCRIBE_PATH,
 } from '@mon-sinistre/contracts';
-import { fr } from 'src/i18n/fr';
-import type { ComposeMailInput } from 'src/mail/mail-message';
+import { fr } from 'src/i18n/fr.js';
+import type { ComposeMailInput } from 'src/mail/mail-message.js';
 
 export interface ChosenCommune {
   readonly name: string;

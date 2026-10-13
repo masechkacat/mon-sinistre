@@ -73,9 +73,9 @@ test('correcting the commune clears a confirmation, and keeps the address typed'
   await expect(page.getByText(copy.confirmationSent.title)).toHaveCount(0);
   await expect(champ(page)).toHaveValue(adresse);
   await bouton(page).click();
-  expect(bodies.map((b) => (b as { communeCodes: string[] }).communeCodes)).toEqual(
-    [[NIMES.codeInsee], [CHATEAU.codeInsee]],
-  );
+  expect(
+    bodies.map((b) => (b as { communeCodes: string[] }).communeCodes),
+  ).toEqual([[NIMES.codeInsee], [CHATEAU.codeInsee]]);
 });
 
 test('an empty address reports an error tied to the field, and does not send the request', async ({

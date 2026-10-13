@@ -5,14 +5,14 @@ import {
   toIsoDate,
 } from '@mon-sinistre/contracts';
 import { parseXml, XmlElement } from '@rgrove/parse-xml';
-import { parseFrenchDate } from './french-date';
+import { parseFrenchDate } from './french-date.js';
 import {
   findChild,
   findChildren,
   findChildText,
   findDescendants,
   textWithLineBreaks,
-} from './xml-tree';
+} from './xml-tree.js';
 
 /** One commune line of an arrêté annexe, before commune-referential matching. */
 export interface ParsedArreteEntry {
@@ -214,7 +214,7 @@ function computeContentHash(parsed: Omit<ParsedArrete, 'contentHash'>): string {
 /**
  * Parses a JORFSIMPLE `<TEXTE>` XML into an arrêté, or `null` if it is not
  * one — `<NATURE>` is the second selection gate after the table-of-contents
- * title match ({@link import('./select-catnat-texts').selectCatnatTextIds}).
+ * title match ({@link import('./select-catnat-texts.js').selectCatnatTextIds}).
  */
 export function parseArreteXml(xml: string): ParsedArrete | null {
   const root = parseXml(xml).root;

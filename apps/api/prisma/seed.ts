@@ -1,10 +1,11 @@
 import { PrismaPg } from '@prisma/adapter-pg';
-import { CommuneImportService } from '../src/communes/import/commune-import.service';
-import { GeoApiClient } from '../src/communes/import/geo-api.client';
-import { seedDeadlineRules } from '../src/deadline-rules/deadline-rule.seed';
-import { PrismaClient } from '../src/generated/prisma/client';
-import { databaseUrlFromEnv } from '../src/prisma/database-url-from-env';
-import { seedStepTemplates } from '../src/step-templates/step-template.seed';
+import { CommuneImportService } from '../src/communes/import/commune-import.service.js';
+import { GeoApiClient } from '../src/communes/import/geo-api.client.js';
+import { seedDeadlineRules } from '../src/deadline-rules/deadline-rule.seed.js';
+import { PrismaClient } from '../src/generated/prisma/client.js';
+import { databaseUrlFromEnv } from '../src/prisma/database-url-from-env.js';
+import { loadApiEnv } from '../src/prisma/load-env.js';
+import { seedStepTemplates } from '../src/step-templates/step-template.seed.js';
 
 // No Nest application context on purpose: the seed depends only on DB_* and
 // the network, while bootstrapping AppModule would demand the full validated
@@ -13,11 +14,7 @@ import { seedStepTemplates } from '../src/step-templates/step-template.seed';
 
 // The seed process is spawned by the Prisma CLI — inheriting the env loaded
 // in prisma.config.ts is not guaranteed, so load .env here as well.
-try {
-  process.loadEnvFile();
-} catch {
-  // .env is absent — variables come from the environment (e.g. CI).
-}
+loadApiEnv();
 
 async function main(): Promise<void> {
   const prisma = new PrismaClient({

@@ -5,7 +5,7 @@ import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
   {
-    // Only jest/eslint plumbing is plain JS; the project itself is TS, and
+    // Only eslint plumbing is plain JS; the project itself is TS, and
     // projectService rejects any file outside tsconfig's include.
     ignores: ['**/*.js', '**/*.mjs', 'dist/**', 'src/generated/**'],
   },
@@ -13,11 +13,8 @@ export default tseslint.config(
   ...tseslint.configs.recommendedTypeChecked,
   {
     languageOptions: {
-      globals: {
-        ...globals.node,
-        ...globals.jest,
-      },
-      sourceType: 'commonjs',
+      globals: globals.node,
+      sourceType: 'module',
       parserOptions: {
         projectService: true,
         tsconfigRootDir: import.meta.dirname,

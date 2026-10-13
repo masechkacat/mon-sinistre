@@ -1,10 +1,11 @@
-import { PrismaClient } from 'src/generated/prisma/client';
-import { arreteData, arreteEntryData } from 'test/helpers/arrete';
-import { commune } from 'test/helpers/commune';
-import { deadlineRuleData } from 'test/helpers/deadline-rule';
-import { createIntTestPrismaClient } from 'test/helpers/prisma-client';
-import { createSinistre, sinistreData } from 'test/helpers/sinistre';
-import { userData } from 'test/helpers/user-data';
+import { describe, it, expect, beforeEach, beforeAll, afterAll } from 'vitest';
+import { PrismaClient } from 'src/generated/prisma/client.js';
+import { arreteData, arreteEntryData } from 'test/helpers/arrete.js';
+import { commune } from 'test/helpers/commune.js';
+import { deadlineRuleData } from 'test/helpers/deadline-rule.js';
+import { createIntTestPrismaClient } from 'test/helpers/prisma-client.js';
+import { createSinistre, sinistreData } from 'test/helpers/sinistre.js';
+import { userData } from 'test/helpers/user-data.js';
 
 // Schema-level guarantees of the Sinistre / Step / StepTemplate migration:
 // docs/research/data-model.md § 3, § 5, docs/research/sinistre-plan.md,

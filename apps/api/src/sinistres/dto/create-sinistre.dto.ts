@@ -12,7 +12,7 @@ import {
   type CreateSinistreInput,
   type IsoDate,
 } from '@mon-sinistre/contracts';
-import { IsNotFutureIsoDate } from '../is-not-future-iso-date.decorator';
+import { IsNotFutureIsoDate } from '../is-not-future-iso-date.decorator.js';
 
 export class CreateSinistreDto implements CreateSinistreInput {
   @ApiProperty({ example: '30189' })

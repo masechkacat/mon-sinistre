@@ -5,12 +5,12 @@ import {
   REMINDER_OFFSETS_DAYS,
   type IsoDate,
 } from '@mon-sinistre/contracts';
-import { isDeclarationRule } from 'src/deadline-rules/deadline-rule.seed';
+import { isDeclarationRule } from 'src/deadline-rules/deadline-rule.seed.js';
 import type {
   ReminderKind,
   StepPersistedStatus,
-} from 'src/generated/prisma/enums';
-import { daysBetween } from 'src/sinistres/step-status';
+} from 'src/generated/prisma/enums.js';
+import { daysBetween } from 'src/sinistres/step-status.js';
 
 /** A `ReminderLog` row of a candidate step, whatever `plannedDate` it was left on. */
 export interface ReminderCandidateLog {

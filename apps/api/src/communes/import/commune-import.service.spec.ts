@@ -1,9 +1,10 @@
-import type { PrismaClient } from 'src/generated/prisma/client';
+import { describe, it, expect, vi } from 'vitest';
+import type { PrismaClient } from 'src/generated/prisma/client.js';
 import {
   CommuneImportService,
   CommuneImportSource,
-} from './commune-import.service';
-import { GeoApiCommune } from './geo-api.client';
+} from './commune-import.service.js';
+import { GeoApiCommune } from './geo-api.client.js';
 
 // Pure-logic suite (mocked Prisma, no database): the real persistence paths
 // are covered by commune-import.int-spec.ts.
@@ -28,7 +29,7 @@ describe('CommuneImportService', () => {
   it('fails with a count mismatch error when an upsert is lost', async () => {
     // A silently lost write cannot be provoked through the real client —
     // simulate it at the Prisma boundary: one upsert rejects, the rest pass.
-    const upsert = jest
+    const upsert = vi
       .fn()
       .mockRejectedValueOnce(new Error('connection reset by peer'))
       .mockResolvedValue({});

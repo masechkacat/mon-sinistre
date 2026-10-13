@@ -12,7 +12,7 @@
 ### Интеграционные тесты с реальным Postgres
 
 **Решение:** отдельная тестовая база на уже поднимаемом docker-compose Postgres
-(`${DB_NAME}_test` на том же инстансе) + отдельный jest-конфиг.
+(`${DB_NAME}_test` на том же инстансе) + отдельный конфиг Vitest.
 **Почему:** ноль новых зависимостей (`pg` уже в dependencies — им же создаётся
 база в globalSetup); Postgres и так обязателен для локальной разработки
 (`npm run db:up`); старт тестов мгновенный, без цикла «скачать образ → поднять
@@ -24,18 +24,18 @@ docker-compose (18), никакой рассинхронизации с прод
 тестами. Вернуться к нему, если появится CI без сервисного Postgres.
 **Как применять:**
 
-- Интеграционные спеки — `*.int-spec.ts` рядом с кодом в `src/`. Юнит-конфиг в
-  `package.json` их не видит (его `testRegex` — `.*\.spec\.ts$`, а суффикс
-  `-spec.ts` под него не подпадает), поэтому pre-commit хук и корневой
-  `npm test` остаются быстрыми и без Docker-требования.
-- Отдельный конфиг `jest.int.config.js` (тот же `rootDir: 'src'`,
-  `moduleNameMapper`, `transform`, что в юнит-конфиге; `testRegex:
-'.*\\.int-spec\\.ts$'`, `maxWorkers: 1` — тесты делят одну базу) + скрипт
-  `"test:int": "jest --config jest.int.config.js"`.
-- `globalSetup`: загрузить `.env` через `process.loadEnvFile()` в `try/catch`
-  (нативно в Node 24, ноль зависимостей; `dotenv` напрямую не подключать — в
-  package.json его нет, резолвится лишь как транзитивная зависимость
-  `@nestjs/config`; catch — на случай отсутствия `.env`, когда переменные
+- Интеграционные спеки — `*.int-spec.ts` в `test/integration/`, по папке на
+  модуль. Юнит-конфиг их не видит (его `include` — `src/**/*.spec.ts`),
+  поэтому pre-commit хук и корневой `npm test` остаются быстрыми и без
+  Docker-требования; из сборки `test/` исключён целиком (`tsconfig.build.json`).
+- Отдельный конфиг `vitest.config.int.ts` (общая часть с юнит-конфигом
+  импортируется; `include: ['test/**/*.int-spec.ts']`, `fileParallelism:
+false` — тесты делят одну базу) + скрипт
+  `"test:int": "vitest run --config vitest.config.int.ts"`.
+- `globalSetup`: загрузить `.env` через `loadApiEnv()` (`src/prisma/load-env.ts`:
+  нативный `process.loadEnvFile()`, ноль зависимостей; `dotenv` напрямую не
+  подключать — в package.json его нет, резолвится лишь как транзитивная
+  зависимость `@nestjs/config`; отсутствие `.env` допустимо — переменные
   приходят из окружения, например в CI); клиентом `pg` подключиться к
   служебной базе и `CREATE DATABASE "${DB_NAME}_test"` (если нет); затем
   `execSync('npx prisma migrate deploy', { env: { ...process.env, DB_NAME:
@@ -44,7 +44,6 @@ docker-compose (18), никакой рассинхронизации с прод
   `PrismaService` в тестах.
 - Между тестами — `TRUNCATE` затронутых таблиц (`beforeEach`), не пересоздание
   схемы.
-- В `tsconfig.build.json` к исключениям `*.spec.ts` добавить `*.int-spec.ts`.
 
 ### HTTP-клиент для geo.api.gouv.fr
 
@@ -97,8 +96,8 @@ API или усечённого ответа, который остался ва
 
 **Решение:** импорт-логика — обычный класс `CommuneImportService`, принимающий
 в конструктор `PrismaClient` и `GeoApiClient`; seed-скрипт `prisma/seed.ts`
-инстанцирует их напрямую. В `prisma.config.ts` — `migrations: { seed: 'ts-node
-prisma/seed.ts' }` (ts-node уже в devDependencies).
+инстанцирует их напрямую. В `prisma.config.ts` — `migrations: { seed: 'tsx
+prisma/seed.ts' }` (tsx уже в devDependencies).
 **Почему:** `NestFactory.createApplicationContext(AppModule)` завалился бы на
 валидации окружения (`env.validation.ts` требует JWT-секреты и прочие
 переменные, не нужные импорту справочника) и требует собранный contracts. Seed
@@ -106,9 +105,9 @@ prisma/seed.ts' }` (ts-node уже в devDependencies).
 **Отброшено:** bootstrap Nest-контекста в seed — лишняя связность; когда
 появится регулярная актуализация по расписанию, тот же класс оборачивается
 Nest-провайдером через `useFactory`, ничего переписывать не придётся.
-**Как применять:** первой строкой seed-скрипта — `process.loadEnvFile()` в
-`try/catch`, как в `prisma.config.ts` (процесс seed запускается CLI отдельно,
-наследование env из `prisma.config.ts` не гарантировано); при несовпадении
+**Как применять:** первой строкой seed-скрипта — `loadApiEnv()`, как в
+`prisma.config.ts` (процесс seed запускается CLI отдельно, наследование env из
+`prisma.config.ts` не гарантировано); при несовпадении
 счётчика — `process.exitCode = 1` и лог
 без персональных данных (тут их и нет: только числа и коды INSEE).
 

@@ -1,13 +1,14 @@
+import { describe, it, expect, beforeEach, beforeAll, afterAll } from 'vitest';
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
-import { createIntTestApp } from 'test/helpers/app';
-import { captureLogs } from 'test/helpers/mail-log';
-import { PrismaService } from 'src/prisma/prisma.service';
-import { REFRESH_COOKIE_NAME } from 'src/auth/auth.controller';
+import { createIntTestApp } from 'test/helpers/app.js';
+import { captureLogs } from 'test/helpers/mail-log.js';
+import { PrismaService } from 'src/prisma/prisma.service.js';
+import { REFRESH_COOKIE_NAME } from 'src/auth/auth.controller.js';
 import {
   createUser as createUserIn,
   PASSWORD,
   refreshSetCookieOf,
-} from 'test/helpers/session';
+} from 'test/helpers/session.js';
 
 describe('POST /auth/login (integration)', () => {
   let app: NestFastifyApplication;

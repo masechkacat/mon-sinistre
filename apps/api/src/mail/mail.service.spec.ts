@@ -1,3 +1,4 @@
+import { describe, it, expect, vi, type MockInstance } from 'vitest';
 import { mkdtemp, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -6,21 +7,21 @@ import { Injectable, Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { Test, type TestingModule } from '@nestjs/testing';
 
-import { configFor } from 'test/helpers/config';
-import { FileMailTransport } from 'src/mail/transports/file-mail.transport';
-import { MailComposer } from 'src/mail/compose/mail-composer';
-import { captureLogs } from 'test/helpers/mail-log';
-import { MailCompositionError } from 'src/mail/mail-composition.error';
-import { MailDeliveryError } from 'src/mail/mail-delivery.error';
-import type { ComposeMailInput, MailMessage } from 'src/mail/mail-message';
-import { MAIL_TRANSPORT, type MailTransport } from 'src/mail/mail-transport';
-import { RecordingTransport } from 'test/helpers/mail-transport';
-import { MailModule } from 'src/mail/mail.module';
-import { MailService } from 'src/mail/mail.service';
+import { configFor } from 'test/helpers/config.js';
+import { FileMailTransport } from 'src/mail/transports/file-mail.transport.js';
+import { MailComposer } from 'src/mail/compose/mail-composer.js';
+import { captureLogs } from 'test/helpers/mail-log.js';
+import { MailCompositionError } from 'src/mail/mail-composition.error.js';
+import { MailDeliveryError } from 'src/mail/mail-delivery.error.js';
+import type { ComposeMailInput, MailMessage } from 'src/mail/mail-message.js';
+import { MAIL_TRANSPORT, type MailTransport } from 'src/mail/mail-transport.js';
+import { RecordingTransport } from 'test/helpers/mail-transport.js';
+import { MailModule } from 'src/mail/mail.module.js';
+import { MailService } from 'src/mail/mail.service.js';
 import {
   SCALEWAY_TEM_URL,
   ScalewayMailTransport,
-} from 'src/mail/transports/scaleway-mail.transport';
+} from 'src/mail/transports/scaleway-mail.transport.js';
 
 const RECIPIENT = 'destinataire@example.test';
 const FRONTEND_URL = 'https://app.example.test';
@@ -238,13 +239,13 @@ describe('MailModule', () => {
    * takes globalThis.fetch as the default value of a constructor parameter, so
    * a spy set up after the factory ran would watch a function nobody calls.
    *
-   * Undone by restoreMocks of the jest configuration, not by an afterEach of
+   * Undone by restoreMocks of the Vitest configuration, not by an afterEach of
    * this file: a spy on a global that outlives its test is a failure reported
    * in some other suite, and the guarantee must not depend on which helper this
    * file happens to import.
    */
-  const watchNetwork = (): jest.SpiedFunction<typeof globalThis.fetch> =>
-    jest.spyOn(globalThis, 'fetch');
+  const watchNetwork = (): MockInstance<typeof globalThis.fetch> =>
+    vi.spyOn(globalThis, 'fetch');
 
   /** A temporary outbox, removed even when the assertions of a test fail. */
   const withOutboxDir = async (

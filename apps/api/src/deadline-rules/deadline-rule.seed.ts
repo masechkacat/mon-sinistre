@@ -1,4 +1,4 @@
-import { PrismaClient } from 'src/generated/prisma/client';
+import { PrismaClient } from 'src/generated/prisma/client.js';
 
 /** The one spelling of the déclaration-délai `DeadlineRule.code` — the seed
  * row and every lookup of it (`src/jorf/jorf-monitor.service.ts`) key on this

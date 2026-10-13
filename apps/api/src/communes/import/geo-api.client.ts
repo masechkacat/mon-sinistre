@@ -1,4 +1,4 @@
-import type { FetchFn } from 'src/common/fetch-fn';
+import type { FetchFn } from 'src/common/fetch-fn.js';
 
 /**
  * Client for the geo.api.gouv.fr commune referential — the single source the

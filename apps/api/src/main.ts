@@ -7,10 +7,10 @@ import {
 } from '@nestjs/platform-fastify';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from '@fastify/helmet';
-import { AppModule } from './app.module';
-import type { EnvironmentVariables } from './config/env.validation';
-import { registerCookiePlugin } from './config/fastify-cookie';
-import { createGlobalValidationPipe } from './config/validation-pipe';
+import { AppModule } from './app.module.js';
+import type { EnvironmentVariables } from './config/env.validation.js';
+import { registerCookiePlugin } from './config/fastify-cookie.js';
+import { createGlobalValidationPipe } from './config/validation-pipe.js';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestFastifyApplication>(

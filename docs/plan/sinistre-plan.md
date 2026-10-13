@@ -55,7 +55,7 @@
       без зависимостей), `anchorDatesOf(sinistre)` — `DATE_DECLARATION` даёт
       **max(дата декларации, дата публикации)** и не даёт ничего без одной из
       них, `stepStatus(step, today)`, `toSourceReference(url, verifiedAt,
-      today)` с первой реализацией `possiblyOutdated` через `resolveDeadline` и
+today)` с первой реализацией `possiblyOutdated` через `resolveDeadline` и
       `REFERENCE_DATA_STALE_AFTER_MONTHS`. **Проверяется тестами (до кода):**
       `plannedDate === null` → `A_VENIR` (ни в просроченных, ни в ближайших,
       критерий PRD № 16); `persistedStatus` перекрывает вычисление; границы
@@ -64,7 +64,7 @@
       с опубликованным arrêté; `possiblyOutdated` на дате ровно шестимесячной
       давности и на 31 августа (конец месяца).
 - [ ] Модуль `src/sinistres/`: `POST /sinistres` (`{ codeInsee, risque,
-      eventDate }` → 201 `SinistreDetail`) и `GET /sinistres/:id`; копия плана
+eventDate }` → 201 `SinistreDetail`) и `GET /sinistres/:id`; копия плана
       из `StepTemplate` в `Step` тянет `anchor`, `offsetDays`,
       `deadlineRuleId` и `sourceUrl`/`sourceVerifiedAt` — правило резолвится
       **всегда**, в том числе когда якорь неразрешим (тогда на дату создания);
@@ -98,7 +98,7 @@
       одинаковый 404 с тем же телом (критерий PRD № 19); удаление аккаунта с
       синистром проходит и не падает на внешнем ключе (критерий № 20).
 - [ ] `PATCH /sinistres/:id/etapes/:stepId` — `{ status: 'FAIT' |
-      'NON_APPLICABLE' | null }` → `StepResponse`; запись через
+'NON_APPLICABLE' | null }` → `StepResponse`; запись через
       `updateMany({ where: { id: stepId, sinistre: { id, userId } } })` с
       `count === 0` → 404. **Проверяется тестами (до кода):** отмеченный шаг
       перестаёт числиться предстоящим, остальные шаги не меняются (критерий
@@ -106,7 +106,7 @@
       чужого синистра — 404, и чужой шаг не изменился.
 - [ ] `PATCH /sinistres/:id` — `{ declarationDate: IsoDate | null }`; статус
       назначает единственная чистая функция `sinistreStatus(link,
-      declarationDate)` (дата задана → `DECLARE`; иначе `ARRETE_PUBLIE` /
+declarationDate)` (дата задана → `DECLARE`; иначе `ARRETE_PUBLIE` /
       `ARRETE_REFUSE` по привязке, без привязки — `AVANT_ARRETE`), шагам якоря
       `DATE_DECLARATION` проставляется `plannedDate`. **Проверяется тестами
       (до кода):** указание даты переводит в `DECLARE` и даёт даты шагам якоря,

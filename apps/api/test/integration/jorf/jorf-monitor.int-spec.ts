@@ -1,33 +1,47 @@
+import {
+  describe,
+  it,
+  expect,
+  beforeEach,
+  beforeAll,
+  afterAll,
+  vi,
+  type Mock,
+} from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { toIsoDate, VEILLE_UNSUBSCRIBE_PATH } from '@mon-sinistre/contracts';
-import { createIntTestApp } from 'test/helpers/app';
-import type { FetchFn } from 'src/common/fetch-fn';
-import { commune as communeFixture } from 'test/helpers/commune';
-import { resolveDeadline } from 'src/deadline-rules/resolve-deadline';
-import { formatFrenchDate } from 'src/jorf/parse/french-date';
-import { seedDeadlineRules } from 'src/deadline-rules/deadline-rule.seed';
-import { seedStepTemplates } from 'src/step-templates/step-template.seed';
-import { captureLogs } from 'test/helpers/mail-log';
-import { tokenFrom } from 'test/helpers/mail-links';
-import { MailDeliveryError } from 'src/mail/mail-delivery.error';
-import { MAIL_TRANSPORT } from 'src/mail/mail-transport';
-import { RecordingTransport } from 'test/helpers/mail-transport';
-import { PrismaService } from 'src/prisma/prisma.service';
-import { createUser, headersForEmail, withBearer } from 'test/helpers/session';
-import { createVeille } from 'test/helpers/veille';
+import { createIntTestApp } from 'test/helpers/app.js';
+import type { FetchFn } from 'src/common/fetch-fn.js';
+import { commune as communeFixture } from 'test/helpers/commune.js';
+import { resolveDeadline } from 'src/deadline-rules/resolve-deadline.js';
+import { formatFrenchDate } from 'src/jorf/parse/french-date.js';
+import { seedDeadlineRules } from 'src/deadline-rules/deadline-rule.seed.js';
+import { seedStepTemplates } from 'src/step-templates/step-template.seed.js';
+import { captureLogs } from 'test/helpers/mail-log.js';
+import { tokenFrom } from 'test/helpers/mail-links.js';
+import { MailDeliveryError } from 'src/mail/mail-delivery.error.js';
+import { MAIL_TRANSPORT } from 'src/mail/mail-transport.js';
+import { RecordingTransport } from 'test/helpers/mail-transport.js';
+import { PrismaService } from 'src/prisma/prisma.service.js';
+import {
+  createUser,
+  headersForEmail,
+  withBearer,
+} from 'test/helpers/session.js';
+import { createVeille } from 'test/helpers/veille.js';
 import {
   DILA_JORFSIMPLE_BASE_URL,
   DilaClient,
-} from 'src/jorf/dila/dila.client';
-import { withAdminEmail } from 'test/helpers/admin-email';
-import { buildTarball } from 'test/helpers/build-tarball';
-import { jorfFixture } from 'test/fixtures/jorf';
+} from 'src/jorf/dila/dila.client.js';
+import { withAdminEmail } from 'test/helpers/admin-email.js';
+import { buildTarball } from 'test/helpers/build-tarball.js';
+import { jorfFixture } from 'test/fixtures/jorf.js';
 import {
   JorfMonitorService,
   MAX_DELTAS_PER_RUN,
   NOTIFICATION_ATTEMPTS_BEFORE_ALERT,
-} from 'src/jorf/jorf-monitor.service';
+} from 'src/jorf/jorf-monitor.service.js';
 
 /** Row/table/annexe builders shared by the rectificatif and alert describes below — same tag layout as the DILA fixture (parse-arrete.spec.ts), built from scratch so each test controls exactly which entries it puts in. */
 const row = (cells: string[]) =>
@@ -106,7 +120,7 @@ function stubFetch(
   indexNames: string[],
   downloads: Record<string, Buffer | Error>,
 ): FetchFn {
-  return jest.fn((url: string) => {
+  return vi.fn((url: string) => {
     if (url === DILA_JORFSIMPLE_BASE_URL) {
       const html = indexNames
         .map((name) => `<a href="${name}">${name}</a>`)
@@ -188,8 +202,7 @@ describe('JorfMonitorService.run (integration)', () => {
     });
 
     await monitor.run();
-    const downloadCallsAfterFirstRun = (currentFetch as jest.Mock).mock.calls
-      .length;
+    const downloadCallsAfterFirstRun = (currentFetch as Mock).mock.calls.length;
     await monitor.run();
 
     expect(await prisma.arrete.count()).toBe(1);
@@ -197,7 +210,7 @@ describe('JorfMonitorService.run (integration)', () => {
     expect(await prisma.jorfDelta.count()).toBe(1);
     // The second run's downloadDelta is never called: the delta is already
     // marked processed, so only the listing fetch runs again.
-    expect((currentFetch as jest.Mock).mock.calls.length).toBe(
+    expect((currentFetch as Mock).mock.calls.length).toBe(
       downloadCallsAfterFirstRun + 1,
     );
   });
@@ -394,7 +407,7 @@ describe('JorfMonitorService.run (integration)', () => {
     it('loses, without throwing, when another process creates the lock between the read and the create (issue 196)', async () => {
       const rival = randomUUID();
       const findUnique = prisma.monitorLock.findUnique.bind(prisma.monitorLock);
-      const read = jest
+      const read = vi
         .spyOn(prisma.monitorLock, 'findUnique')
         .mockImplementationOnce(((args) =>
           findUnique(args).then(async (held) => {
@@ -769,7 +782,7 @@ describe('JorfMonitorService.run (integration)', () => {
       });
       // The text parses; the write behind it doesn't go through — a dropped
       // connection, a statement timeout. Nothing about the JO is wrong here.
-      const transaction = jest
+      const transaction = vi
         .spyOn(prisma, '$transaction')
         .mockRejectedValueOnce(new Error('P1001 database unreachable'));
 
@@ -1492,7 +1505,7 @@ describe('veille notification outbox (issue #106)', () => {
         reconnues: [AMIGNY],
       }),
     });
-    const send = jest
+    const send = vi
       .spyOn(transport, 'send')
       .mockRejectedValue(new MailDeliveryError('boom'));
     try {

@@ -11,7 +11,7 @@ import {
   INSEE_CODE_LENGTH,
   VEILLE_MAX_COMMUNES,
 } from '@mon-sinistre/contracts';
-import { NormalizeEmail } from 'src/common/http/normalize-email.decorator';
+import { NormalizeEmail } from 'src/common/http/normalize-email.decorator.js';
 
 export class CreateVeilleDto {
   /**

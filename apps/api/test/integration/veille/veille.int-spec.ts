@@ -1,3 +1,13 @@
+import {
+  describe,
+  it,
+  expect,
+  beforeEach,
+  beforeAll,
+  afterAll,
+  vi,
+  type MockInstance,
+} from 'vitest';
 import { createHash } from 'node:crypto';
 
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
@@ -8,20 +18,20 @@ import {
   VEILLE_MAX_COMMUNES,
   VEILLE_UNSUBSCRIBE_PATH,
 } from '@mon-sinistre/contracts';
-import { createIntTestApp } from 'test/helpers/app';
-import { fr } from 'src/i18n/fr';
-import { MailComposer } from 'src/mail/compose/mail-composer';
-import { MailCompositionError } from 'src/mail/mail-composition.error';
-import { MailDeliveryError } from 'src/mail/mail-delivery.error';
-import { captureLogs } from 'test/helpers/mail-log';
-import { tokenFrom } from 'test/helpers/mail-links';
-import type { MailMessage } from 'src/mail/mail-message';
-import { MAIL_TRANSPORT, type MailTransport } from 'src/mail/mail-transport';
-import { PrismaService } from 'src/prisma/prisma.service';
-import { VEILLE_FORM_RATE_LIMIT } from 'src/veille/veille.controller';
-import { DAY_MS, VeilleService } from 'src/veille/veille.service';
-import { communeFixture } from 'test/helpers/veille';
-import { resetThrottler } from 'test/helpers/throttler';
+import { createIntTestApp } from 'test/helpers/app.js';
+import { fr } from 'src/i18n/fr.js';
+import { MailComposer } from 'src/mail/compose/mail-composer.js';
+import { MailCompositionError } from 'src/mail/mail-composition.error.js';
+import { MailDeliveryError } from 'src/mail/mail-delivery.error.js';
+import { captureLogs } from 'test/helpers/mail-log.js';
+import { tokenFrom } from 'test/helpers/mail-links.js';
+import type { MailMessage } from 'src/mail/mail-message.js';
+import { MAIL_TRANSPORT, type MailTransport } from 'src/mail/mail-transport.js';
+import { PrismaService } from 'src/prisma/prisma.service.js';
+import { VEILLE_FORM_RATE_LIMIT } from 'src/veille/veille.controller.js';
+import { DAY_MS, VeilleService } from 'src/veille/veille.service.js';
+import { communeFixture } from 'test/helpers/veille.js';
+import { resetThrottler } from 'test/helpers/throttler.js';
 
 class RecordingTransport implements MailTransport {
   readonly sent: MailMessage[] = [];
@@ -319,16 +329,16 @@ describe('POST /veille (integration)', () => {
       after?: () => Promise<unknown>;
     }): void => {
       const original = prisma.$transaction.bind(prisma);
-      (
-        jest.spyOn(prisma, '$transaction') as jest.SpyInstance
-      ).mockImplementation(async (...args: unknown[]) => {
-        await races.before?.();
-        const result: unknown = await original(
-          ...(args as Parameters<typeof original>),
-        );
-        await races.after?.();
-        return result;
-      });
+      (vi.spyOn(prisma, '$transaction') as MockInstance).mockImplementation(
+        async (...args: unknown[]) => {
+          await races.before?.();
+          const result: unknown = await original(
+            ...(args as Parameters<typeof original>),
+          );
+          await races.after?.();
+          return result;
+        },
+      );
     };
 
     it('answers 204 and says so in the log when the unique-index race is lost twice', async () => {
@@ -820,7 +830,7 @@ describe('POST /veille (integration)', () => {
 
     it('refunds the attempt when the mail cannot be composed — a deterministic bug must stay loud, not burn the budget into silent 204s', async () => {
       await prisma.commune.create({ data: communeFixture('30189', 'Nîmes') });
-      const compose = jest
+      const compose = vi
         .spyOn(app.get(MailComposer), 'compose')
         .mockImplementationOnce(() => {
           throw new MailCompositionError('composition broke');

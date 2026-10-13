@@ -8,9 +8,9 @@ import {
   ValidateNested,
 } from 'class-validator';
 import type { RegisterInput } from '@mon-sinistre/contracts';
-import { NormalizeEmail } from 'src/common/http/normalize-email.decorator';
-import { CreateSinistreDto } from 'src/sinistres/dto/create-sinistre.dto';
-import { IsAccountPassword } from '../is-account-password.decorator';
+import { NormalizeEmail } from 'src/common/http/normalize-email.decorator.js';
+import { CreateSinistreDto } from 'src/sinistres/dto/create-sinistre.dto.js';
+import { IsAccountPassword } from '../is-account-password.decorator.js';
 
 /** `dossier` of {@link RegisterInput}. */
 export class PendingDossierDto extends OmitType(CreateSinistreDto, [

@@ -1,14 +1,15 @@
+import { describe, it, expect, beforeEach, beforeAll, afterAll } from 'vitest';
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { RisqueCatnat } from '@mon-sinistre/contracts';
-import { createIntTestApp } from 'test/helpers/app';
-import { commune } from 'test/helpers/commune';
-import { createUser, PASSWORD } from 'test/helpers/session';
-import { fr } from 'src/i18n/fr';
-import { MAIL_TRANSPORT } from 'src/mail/mail-transport';
-import { PrismaService } from 'src/prisma/prisma.service';
-import { RecordingTransport } from 'test/helpers/mail-transport';
-import { resetThrottler } from 'test/helpers/throttler';
-import { tomorrowInParis } from 'test/helpers/dates';
+import { createIntTestApp } from 'test/helpers/app.js';
+import { commune } from 'test/helpers/commune.js';
+import { createUser, PASSWORD } from 'test/helpers/session.js';
+import { fr } from 'src/i18n/fr.js';
+import { MAIL_TRANSPORT } from 'src/mail/mail-transport.js';
+import { PrismaService } from 'src/prisma/prisma.service.js';
+import { RecordingTransport } from 'test/helpers/mail-transport.js';
+import { resetThrottler } from 'test/helpers/throttler.js';
+import { tomorrowInParis } from 'test/helpers/dates.js';
 
 const CODE_INSEE = '30189';
 const EMAIL = 'victime@example.fr';

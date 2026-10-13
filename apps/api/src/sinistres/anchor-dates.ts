@@ -1,5 +1,5 @@
 import type { IsoDate } from '@mon-sinistre/contracts';
-import type { StepAnchor } from 'src/generated/prisma/enums';
+import type { StepAnchor } from 'src/generated/prisma/enums.js';
 
 /** The fields `anchorDatesOf` needs off a `Sinistre` — not the full Prisma row. */
 export interface AnchorDatesInput {

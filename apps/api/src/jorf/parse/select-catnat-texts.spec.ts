@@ -1,5 +1,6 @@
-import { jorfFixture } from 'test/fixtures/jorf';
-import { selectCatnatTextIds } from './select-catnat-texts';
+import { describe, it, expect } from 'vitest';
+import { jorfFixture } from 'test/fixtures/jorf.js';
+import { selectCatnatTextIds } from './select-catnat-texts.js';
 
 const tocXml = jorfFixture('JORFCONT000054245240.xml');
 

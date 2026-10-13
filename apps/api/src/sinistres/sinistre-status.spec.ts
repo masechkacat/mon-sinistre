@@ -1,5 +1,6 @@
+import { describe, it, expect } from 'vitest';
 import { SinistreStatus, toIsoDate } from '@mon-sinistre/contracts';
-import { sinistreStatus } from './sinistre-status';
+import { sinistreStatus } from './sinistre-status.js';
 
 describe('sinistreStatus', () => {
   it('gives DECLARE once a declaration date is set, regardless of the link', () => {

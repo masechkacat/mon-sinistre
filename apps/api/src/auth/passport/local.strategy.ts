@@ -2,9 +2,9 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import type { FastifyRequest } from 'fastify';
 import { Strategy } from 'passport-local';
-import { normalizeEmail } from 'src/common/http/normalize-email.decorator';
-import { fr } from 'src/i18n/fr';
-import { AuthService, type AuthenticatedUser } from '../auth.service';
+import { normalizeEmail } from 'src/common/http/normalize-email.decorator.js';
+import { fr } from 'src/i18n/fr.js';
+import { AuthService, type AuthenticatedUser } from '../auth.service.js';
 
 /**
  * Reads `email`/`password` off the raw request body — Nest runs guards before

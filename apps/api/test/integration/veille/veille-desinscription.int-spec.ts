@@ -1,8 +1,9 @@
+import { describe, it, expect, beforeEach, beforeAll, afterAll } from 'vitest';
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
-import { GLOBAL_RATE_LIMIT } from 'src/app.module';
-import { createIntTestApp } from 'test/helpers/app';
-import { PrismaService } from 'src/prisma/prisma.service';
-import { communeFixture, createVeille } from 'test/helpers/veille';
+import { GLOBAL_RATE_LIMIT } from 'src/app.module.js';
+import { createIntTestApp } from 'test/helpers/app.js';
+import { PrismaService } from 'src/prisma/prisma.service.js';
+import { communeFixture, createVeille } from 'test/helpers/veille.js';
 
 describe('POST /veille/desinscription (integration)', () => {
   let app: NestFastifyApplication;

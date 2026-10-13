@@ -1,7 +1,8 @@
-import { PrismaClient } from 'src/generated/prisma/client';
-import { createIntTestPrismaClient } from 'test/helpers/prisma-client';
-import { arreteData } from 'test/helpers/arrete';
-import { commune } from 'test/helpers/commune';
+import { describe, it, expect, beforeEach, beforeAll, afterAll } from 'vitest';
+import { PrismaClient } from 'src/generated/prisma/client.js';
+import { createIntTestPrismaClient } from 'test/helpers/prisma-client.js';
+import { arreteData } from 'test/helpers/arrete.js';
+import { commune } from 'test/helpers/commune.js';
 
 // Schema-level guarantees of the jorf-monitor migration: docs/research/jorf-monitor.md,
 // docs/research/data-model.md § 4.

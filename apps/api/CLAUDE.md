@@ -11,15 +11,11 @@ NestJS 12 на **Fastify**, не Express: плагины через `app.registe
 
 Скрипты — `package.json` пакета. Из них не выводится два:
 
-- тестам собранный contracts не нужен — jest подставляет его исходники через
-  `moduleNameMapper` (рантайму — нужен);
+- тестам собранный contracts не нужен — Vitest подставляет его исходники
+  через `resolve.alias` в `vitest.config.ts` (рантайму — нужен);
 - `lint` начинается с `tsc --noEmit` (по `include` из `tsconfig.json`), и это
-  единственная проверка типов спеков: под `isolatedModules` (требование
-  ts-jest для nodenext) jest только транспилирует, а `nest build` спеки и
-  `test/` исключает.
-
-Переход на ESM и Vitest — решения в `../../docs/research/esm-vitest.md`; до
-их применения всё выше остаётся на Jest.
+  единственная проверка типов спеков: Vitest только транспилирует (Oxc, без
+  информации о типах), а `nest build` спеки и `test/` исключает.
 
 ## Модули
 
@@ -142,14 +138,14 @@ Prisma CLI, seed, скрипты `scripts/` и обвязка тестов.
 ## Интеграционные тесты
 
 - Спеки — `*.int-spec.ts` в `test/integration/<модуль>/`, зеркалом `src/`.
-  Юнит-конфиг с `rootDir: src` их не видит, поэтому
-  pre-commit и корневой `npm test` остаются быстрыми и без Docker.
-- `maxWorkers: 1` обязателен, пока тесты делят одну базу; если станет медленно —
-  база-на-воркера через `JEST_WORKER_ID`, не testcontainers.
-- База — `${DB_NAME}_test` на том же Postgres; `test/setup/jest.int.global-setup.js`
-  создаёт её и прогоняет миграции, `test/setup/jest.int.env.js` направляет туда
-  `PrismaService`. Имя обе стороны берут из `test/setup/test-db-name.js`.
-- База сквозного теста — `${DB_NAME}_e2e`, сев — `scripts/e2e-seed.ts` (`test/setup/e2e-db-name.js`).
+  Юнит-конфиг (`include: src/**/*.spec.ts`) их не видит, поэтому pre-commit
+  и корневой `npm test` остаются быстрыми и без Docker.
+- `fileParallelism: false` обязателен, пока тесты делят одну базу; если станет
+  медленно — база-на-воркера через `VITEST_POOL_ID`, не testcontainers.
+- База — `${DB_NAME}_test` на том же Postgres; `test/setup/int.global-setup.ts`
+  создаёт её и прогоняет миграции, `test/setup/int.env.ts` направляет туда
+  `PrismaService`. Имя обе стороны берут из `test/setup/test-db-name.ts`.
+- База сквозного теста — `${DB_NAME}_e2e`, сев — `scripts/e2e-seed.ts` (`test/setup/e2e-db-name.ts`).
 - Между тестами — `TRUNCATE` затронутых таблиц в `beforeEach`, не пересоздание
   схемы.
 - **Планировщик в тестовом приложении не взводится вовсе** — почему, чем это
@@ -157,11 +153,11 @@ Prisma CLI, seed, скрипты `scripts/` и обвязка тестов.
   `createIntTestApp`.
 - Хелперы — `test/helpers/`, по одному файлу на предмет (`app`, `session`,
   `mail-log`, …); суффиксы `*.test-helper.ts`/`*.int-helper.ts` больше не нужны:
-  каталог сам говорит, что это тестовый код, а `testRegex` его не матчит.
+  каталог сам говорит, что это тестовый код, а `include` конфигов его не матчит.
   Юнит-спеки в `src/` зовут их по тому же алиасу `test/*`.
 - Фикстуры — `test/fixtures/`, читаются только через свой модуль
   (`jorfFixture`): путь к файлу не повторяется в спеках. Импорты из `test/` — по
-  алиасу `test/*` (tsconfig + оба jest-конфига), относительных путей наверх нет.
+  алиасу `test/*` (tsconfig; Vitest читает его через `resolve.tsconfigPaths`), относительных путей наверх нет.
   Сам каталог `test/` в сборку не идёт: `tsconfig.build.json` исключает его и
   держит `rootDir: src`.
 - В CI понадобится сервисный Postgres 18.

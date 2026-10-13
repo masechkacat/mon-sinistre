@@ -1,4 +1,4 @@
-import type { ResolvedMailBlock } from 'src/mail/mail-message';
+import type { ResolvedMailBlock } from 'src/mail/mail-message.js';
 
 /**
  * The HTML version: one column inside a table, inline styles, no external

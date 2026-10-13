@@ -1,7 +1,7 @@
 import { IsString } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
-import { TokenDto } from 'src/common/http/token.dto';
-import { IsAccountPassword } from '../is-account-password.decorator';
+import { TokenDto } from 'src/common/http/token.dto.js';
+import { IsAccountPassword } from '../is-account-password.decorator.js';
 
 /**
  * Body of `POST /auth/password-reset/confirm` — the mailed token plus the

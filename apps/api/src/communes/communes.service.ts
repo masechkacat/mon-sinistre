@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { COMMUNE_SEARCH_LIMIT, Commune } from '@mon-sinistre/contracts';
-import { escapeLikePattern } from 'src/prisma/escape-like-pattern';
-import { PrismaService } from 'src/prisma/prisma.service';
-import { normalizeCommuneName } from './normalize-commune-name';
-import { communeFields } from './commune-fields';
+import { escapeLikePattern } from 'src/prisma/escape-like-pattern.js';
+import { PrismaService } from 'src/prisma/prisma.service.js';
+import { normalizeCommuneName } from './normalize-commune-name.js';
+import { communeFields } from './commune-fields.js';
 
 @Injectable()
 export class CommunesService {

@@ -1,4 +1,4 @@
-import type { PrismaService } from 'src/prisma/prisma.service';
+import type { PrismaService } from 'src/prisma/prisma.service.js';
 
 /**
  * The rows a public read must never leave behind — both endpoints of

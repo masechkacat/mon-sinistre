@@ -1,15 +1,16 @@
+import { describe, it, expect } from 'vitest';
 import { DurationUnit, StepKind, toIsoDate } from '@mon-sinistre/contracts';
 import {
   DECLARATION_ASSUREUR_CODE,
   INFORMATION_ASSUREUR_CODE,
-} from 'src/deadline-rules/deadline-rule.seed';
+} from 'src/deadline-rules/deadline-rule.seed.js';
 import {
   declarationDeadlineOf,
   toStepResponse,
   toStepView,
   type StepRow,
   type StepViewRow,
-} from './to-sinistre-detail';
+} from './to-sinistre-detail.js';
 
 const TODAY = toIsoDate('2026-08-23');
 

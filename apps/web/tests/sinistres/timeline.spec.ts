@@ -10,7 +10,11 @@ test('the next step is the earliest dated step that is still to come', () => {
       plannedDate: toIsoDate('2027-01-15'),
       status: StepStatus.A_VENIR,
     }),
-    step({ id: 'soon', plannedDate: toIsoDate('2026-10-20'), status: StepStatus.A_FAIRE }),
+    step({
+      id: 'soon',
+      plannedDate: toIsoDate('2026-10-20'),
+      status: StepStatus.A_FAIRE,
+    }),
   ]);
 
   expect(next?.id).toBe('soon');
@@ -36,7 +40,11 @@ test('an overdue, done or not-applicable step is not upcoming', () => {
       plannedDate: toIsoDate('2026-09-01'),
       status: StepStatus.EN_RETARD,
     }),
-    step({ id: 'fait', plannedDate: toIsoDate('2026-10-01'), status: StepStatus.FAIT }),
+    step({
+      id: 'fait',
+      plannedDate: toIsoDate('2026-10-01'),
+      status: StepStatus.FAIT,
+    }),
     step({
       id: 'na',
       plannedDate: toIsoDate('2026-10-02'),

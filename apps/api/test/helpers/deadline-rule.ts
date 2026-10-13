@@ -1,4 +1,4 @@
-import type { StepAnchor } from 'src/generated/prisma/enums';
+import type { StepAnchor } from 'src/generated/prisma/enums.js';
 
 /** `DECLARATION_ASSUREUR`'s real seed values — the default every override in the test suite starts from, so a schema-only test doesn't have to restate them. */
 export function deadlineRuleData(

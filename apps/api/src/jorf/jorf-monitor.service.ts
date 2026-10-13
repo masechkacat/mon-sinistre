@@ -7,77 +7,77 @@ import type {
   SinistreStatus,
 } from '@mon-sinistre/contracts';
 import { Cron } from '@nestjs/schedule';
-import { errorSummary, stackOf } from 'src/common/error-report';
-import { runGuarded } from 'src/common/scheduled-cleanup';
-import { loadSuccessorMap } from 'src/communes/load-successor-map';
-import { normalizeCommuneName } from 'src/communes/normalize-commune-name';
+import { errorSummary, stackOf } from 'src/common/error-report.js';
+import { runGuarded } from 'src/common/scheduled-cleanup.js';
+import { loadSuccessorMap } from 'src/communes/load-successor-map.js';
+import { normalizeCommuneName } from 'src/communes/normalize-commune-name.js';
 import {
   carriesDeclarationDelai,
   DeadlineRuleService,
-} from 'src/deadline-rules/deadline-rule.service';
+} from 'src/deadline-rules/deadline-rule.service.js';
 import {
   dateToIsoDate,
   isoDateToDate,
-} from 'src/deadline-rules/resolve-deadline';
-import type { Prisma } from 'src/generated/prisma/client';
+} from 'src/deadline-rules/resolve-deadline.js';
+import type { Prisma } from 'src/generated/prisma/client.js';
 import type {
   ArreteEntryOutcome,
   MonitorAlertKind,
   SinistreNotificationKind,
-} from 'src/generated/prisma/enums';
-import type { ComposeMailInput } from 'src/mail/mail-message';
-import { MailService } from 'src/mail/mail.service';
-import { isUniqueViolationOn } from 'src/prisma/prisma-error';
-import { PrismaService } from 'src/prisma/prisma.service';
+} from 'src/generated/prisma/enums.js';
+import type { ComposeMailInput } from 'src/mail/mail-message.js';
+import { MailService } from 'src/mail/mail.service.js';
+import { isUniqueViolationOn } from 'src/prisma/prisma-error.js';
+import { PrismaService } from 'src/prisma/prisma.service.js';
 import {
   type ResolvedDeadlineRule,
   resolveStepPlannedDate,
-} from 'src/sinistres/build-step-snapshot';
+} from 'src/sinistres/build-step-snapshot.js';
 import {
   matchSinistres,
   toMatchArreteEntry,
   type MatchArreteEntry,
   type MatchCandidateSinistre,
-} from 'src/sinistres/match-sinistres';
-import { anchorDatesOf } from 'src/sinistres/anchor-dates';
-import { recomputeDeclarationSteps } from 'src/sinistres/recompute-declaration-steps';
-import { sinistreStatus } from 'src/sinistres/sinistre-status';
+} from 'src/sinistres/match-sinistres.js';
+import { anchorDatesOf } from 'src/sinistres/anchor-dates.js';
+import { recomputeDeclarationSteps } from 'src/sinistres/recompute-declaration-steps.js';
+import { sinistreStatus } from 'src/sinistres/sinistre-status.js';
 import {
   type MintedUnsubscribeToken,
   mintUnsubscribeToken,
-} from 'src/veille/veille-unsubscribe-token';
-import { AdminAlertService } from './alerts/admin-alert.service';
-import { DilaClient } from './dila/dila.client';
-import { classifyRisques } from './parse/classify-risques';
+} from 'src/veille/veille-unsubscribe-token.js';
+import { AdminAlertService } from './alerts/admin-alert.service.js';
+import { DilaClient } from './dila/dila.client.js';
+import { classifyRisques } from './parse/classify-risques.js';
 import {
   type CommuneReferentialEntry,
   matchCommune,
-} from './recipients/match-commune';
+} from './recipients/match-commune.js';
 import {
   drainOutbox as runOutboxDrain,
   type OutboxAdapter,
   type PendingOutboxRow,
-} from './mail/drain-outbox';
-import type { MonitorAlertForMail } from './mail/monitor-alert-mail';
+} from './mail/drain-outbox.js';
+import type { MonitorAlertForMail } from './mail/monitor-alert-mail.js';
 import {
   type ParsedArrete,
   type ParsedArreteEntry,
   parseArreteXml,
-} from './parse/parse-arrete';
+} from './parse/parse-arrete.js';
 import {
   type SubscribedCommune,
   resolveRecipients,
   subtractCoveredEntries,
-} from './recipients/resolve-recipients';
-import { selectCatnatTextIds } from './parse/select-catnat-texts';
+} from './recipients/resolve-recipients.js';
+import { selectCatnatTextIds } from './parse/select-catnat-texts.js';
 import {
   type ArreteEntryForMail,
   type ArreteForMail,
   veilleArreteMailFor,
-} from './mail/veille-arrete-mail';
-import { sinistreArreteMailFor } from './mail/sinistre-arrete-mail';
+} from './mail/veille-arrete-mail.js';
+import { sinistreArreteMailFor } from './mail/sinistre-arrete-mail.js';
 
-export { NOTIFICATION_ATTEMPTS_BEFORE_ALERT } from './mail/drain-outbox';
+export { NOTIFICATION_ATTEMPTS_BEFORE_ALERT } from './mail/drain-outbox.js';
 
 const TOC_BASENAME_PATTERN = /^JORFCONT/;
 

@@ -1,8 +1,8 @@
 import type { IsoDate } from '@mon-sinistre/contracts';
-import { isoDateToDate } from 'src/deadline-rules/resolve-deadline';
-import type { Prisma } from 'src/generated/prisma/client';
-import { type AnchorDatesInput, anchorDatesOf } from './anchor-dates';
-import { resolveStepPlannedDate } from './build-step-snapshot';
+import { isoDateToDate } from 'src/deadline-rules/resolve-deadline.js';
+import type { Prisma } from 'src/generated/prisma/client.js';
+import { type AnchorDatesInput, anchorDatesOf } from './anchor-dates.js';
+import { resolveStepPlannedDate } from './build-step-snapshot.js';
 
 /**
  * Rewrites the `plannedDate` of every template step anchored on

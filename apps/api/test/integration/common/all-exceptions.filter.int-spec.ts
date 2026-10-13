@@ -1,4 +1,13 @@
 import {
+  describe,
+  it,
+  expect,
+  beforeEach,
+  beforeAll,
+  afterAll,
+  vi,
+} from 'vitest';
+import {
   Controller,
   Get,
   HttpException,
@@ -6,9 +15,9 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
-import { createIntTestApp } from 'test/helpers/app';
-import { Public } from 'src/auth/public.decorator';
-import { Prisma } from 'src/generated/prisma/client';
+import { createIntTestApp } from 'test/helpers/app.js';
+import { Public } from 'src/auth/public.decorator.js';
+import { Prisma } from 'src/generated/prisma/client.js';
 
 const ADDRESS = 'destinataire@example.test';
 
@@ -83,11 +92,11 @@ describe('AllExceptionsFilter (integration)', () => {
 
   beforeEach(() => {
     logged = [];
-    jest
-      .spyOn(Logger.prototype, 'error')
-      .mockImplementation((...args: unknown[]) => {
+    vi.spyOn(Logger.prototype, 'error').mockImplementation(
+      (...args: unknown[]) => {
         logged.push(args.map((arg) => String(arg)).join('\n'));
-      });
+      },
+    );
   });
 
   it('answers an unhandled error with 500 and says nothing of it', async () => {

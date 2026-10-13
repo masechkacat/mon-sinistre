@@ -2,8 +2,8 @@ import {
   ACCOUNT_FORGOT_PASSWORD_PATH,
   ACCOUNT_MAIL_UNSUBSCRIBE_PATH,
 } from '@mon-sinistre/contracts';
-import { fr } from 'src/i18n/fr';
-import type { ComposeMailInput } from 'src/mail/mail-message';
+import { fr } from 'src/i18n/fr.js';
+import type { ComposeMailInput } from 'src/mail/mail-message.js';
 
 /** The one build of the "already have an account" mail — sent when
  * `AuthService.register` (`src/auth/CLAUDE.md`) is asked to register an

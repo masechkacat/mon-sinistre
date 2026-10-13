@@ -13,28 +13,31 @@ import {
   type SinistreSummary,
   type Step,
 } from '@mon-sinistre/contracts';
-import type { Prisma } from 'src/generated/prisma/client';
-import type { StepPersistedStatus } from 'src/generated/prisma/enums';
-import { DeadlineRuleService } from 'src/deadline-rules/deadline-rule.service';
+import type { Prisma } from 'src/generated/prisma/client.js';
+import type { StepPersistedStatus } from 'src/generated/prisma/enums.js';
+import { DeadlineRuleService } from 'src/deadline-rules/deadline-rule.service.js';
 import {
   dateToIsoDate,
   isoDateToDate,
-} from 'src/deadline-rules/resolve-deadline';
-import { fr } from 'src/i18n/fr';
-import { PrismaService } from 'src/prisma/prisma.service';
-import { withAdvisoryLock, withAdvisoryLockIn } from 'src/common/advisory-lock';
-import { todayInParis } from 'src/common/time/today-in-paris';
-import { codesMergedInto } from 'src/communes/codes-merged-into';
-import type { CreateSinistreDto } from './dto/create-sinistre.dto';
-import { recomputeDeclarationSteps } from './recompute-declaration-steps';
-import { sinistreStatus } from './sinistre-status';
-import { planDossier, type PlannedDossier } from './snapshot-plan';
-import { communeFields } from 'src/communes/commune-fields';
+} from 'src/deadline-rules/resolve-deadline.js';
+import { fr } from 'src/i18n/fr.js';
+import { PrismaService } from 'src/prisma/prisma.service.js';
+import {
+  withAdvisoryLock,
+  withAdvisoryLockIn,
+} from 'src/common/advisory-lock.js';
+import { todayInParis } from 'src/common/time/today-in-paris.js';
+import { codesMergedInto } from 'src/communes/codes-merged-into.js';
+import type { CreateSinistreDto } from './dto/create-sinistre.dto.js';
+import { recomputeDeclarationSteps } from './recompute-declaration-steps.js';
+import { sinistreStatus } from './sinistre-status.js';
+import { planDossier, type PlannedDossier } from './snapshot-plan.js';
+import { communeFields } from 'src/communes/commune-fields.js';
 import {
   toSinistreDetail,
   toSinistreSummary,
   toStepResponse,
-} from './to-sinistre-detail';
+} from './to-sinistre-detail.js';
 
 const stepInclude = {
   deadlineRule: { select: { code: true, duration: true, unit: true } },

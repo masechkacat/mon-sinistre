@@ -3,34 +3,31 @@ import { ConfigService } from '@nestjs/config';
 import {
   validateEnv,
   type EnvironmentVariables,
-} from '../src/config/env.validation';
-import { DeadlineRuleService } from '../src/deadline-rules/deadline-rule.service';
-import { AdminAlertService } from '../src/jorf/alerts/admin-alert.service';
-import { DilaClient } from '../src/jorf/dila/dila.client';
+} from '../src/config/env.validation.js';
+import { DeadlineRuleService } from '../src/deadline-rules/deadline-rule.service.js';
+import { AdminAlertService } from '../src/jorf/alerts/admin-alert.service.js';
+import { DilaClient } from '../src/jorf/dila/dila.client.js';
 import {
   JorfMonitorService,
   MAX_DELTAS_PER_RUN,
-} from '../src/jorf/jorf-monitor.service';
+} from '../src/jorf/jorf-monitor.service.js';
 import {
   BACKFILL_MIN_PUBLISHED_AT,
   selectBackfillDeltas,
-} from '../src/jorf/dila/select-backfill-deltas';
-import { composerOptionsFrom, transportFor } from '../src/mail/mail.module';
-import { MailComposer } from '../src/mail/compose/mail-composer';
-import { MailService } from '../src/mail/mail.service';
-import { PrismaService } from '../src/prisma/prisma.service';
+} from '../src/jorf/dila/select-backfill-deltas.js';
+import { composerOptionsFrom, transportFor } from '../src/mail/mail.module.js';
+import { MailComposer } from '../src/mail/compose/mail-composer.js';
+import { MailService } from '../src/mail/mail.service.js';
+import { loadApiEnv } from '../src/prisma/load-env.js';
+import { PrismaService } from '../src/prisma/prisma.service.js';
 
 // No Nest application context on purpose — same reasoning as prisma/seed.ts:
 // this one-off script needs the monitor's plain classes with notify: false
 // (docs/research/jorf-monitor.md, "Бэкфилл с 01.01.2026"), not a bootstrap of
-// AppModule. Run: npm run backfill:jorf — the same ts-node recipe as the seed
-// command in prisma.config.ts, for the same reason.
+// AppModule. Run: npm run backfill:jorf — tsx, like the seed command in
+// prisma.config.ts.
 
-try {
-  process.loadEnvFile();
-} catch {
-  // .env is absent — variables come from the environment (e.g. CI).
-}
+loadApiEnv();
 
 async function main(): Promise<void> {
   const config = new ConfigService<EnvironmentVariables, true>(

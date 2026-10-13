@@ -1,4 +1,4 @@
-import { buildDatabaseUrl } from './database-url';
+import { buildDatabaseUrl } from './database-url.js';
 
 /**
  * For the three callers that run outside Nest: the Prisma CLI config, the seed

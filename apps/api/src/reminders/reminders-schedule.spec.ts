@@ -1,9 +1,10 @@
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { ScheduleModule, SchedulerRegistry } from '@nestjs/schedule';
 import { Test, type TestingModule } from '@nestjs/testing';
-import { AdminAlertService } from 'src/jorf/alerts/admin-alert.service';
-import { MailService } from 'src/mail/mail.service';
-import { PrismaService } from 'src/prisma/prisma.service';
-import { REMINDERS_CRON, RemindersService } from './reminders.service';
+import { AdminAlertService } from 'src/jorf/alerts/admin-alert.service.js';
+import { MailService } from 'src/mail/mail.service.js';
+import { PrismaService } from 'src/prisma/prisma.service.js';
+import { REMINDERS_CRON, RemindersService } from './reminders.service.js';
 
 /**
  * The reminders counterpart of `auth/auth-schedule.spec.ts`, and for the reason
@@ -11,7 +12,7 @@ import { REMINDERS_CRON, RemindersService } from './reminders.service';
  * ever received a reminder.
  */
 describe('RemindersService schedule', () => {
-  const findMany = jest.fn().mockResolvedValue([]);
+  const findMany = vi.fn().mockResolvedValue([]);
   let moduleRef: TestingModule;
 
   beforeAll(async () => {

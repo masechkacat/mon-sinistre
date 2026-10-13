@@ -64,9 +64,7 @@ export function PlanStepItem({
         state={state}
         date={step.plannedDate}
         daysLeft={
-          apercu && state === DeadlineBadgeState.enRetard
-            ? null
-            : step.daysLeft
+          apercu && state === DeadlineBadgeState.enRetard ? null : step.daysLeft
         }
         completedAt={step.completedAt}
         delay={step.delay}

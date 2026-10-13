@@ -1,12 +1,13 @@
+import { describe, it, expect, beforeEach, beforeAll, afterAll } from 'vitest';
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
-import { createIntTestApp } from 'test/helpers/app';
-import { PrismaService } from 'src/prisma/prisma.service';
+import { createIntTestApp } from 'test/helpers/app.js';
+import { PrismaService } from 'src/prisma/prisma.service.js';
 import {
   accessTokenOf,
   createUser,
   login,
   withBearer,
-} from 'test/helpers/session';
+} from 'test/helpers/session.js';
 
 describe('GET /auth/me (integration)', () => {
   let app: NestFastifyApplication;

@@ -4,7 +4,7 @@
     // Не ./src: проверка типов шире сборки (см. include); сужает tsconfig.build.json.
     "rootDir": "./",
     "outDir": "./dist",
-    "types": ["node", "jest"],
+    "types": ["node"],
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
     "strictPropertyInitialization": false,
@@ -22,7 +22,8 @@
     "test/**/*.ts",
     "scripts/**/*.ts",
     "prisma/seed.ts",
-    "prisma.config.ts"
+    "prisma.config.ts",
+    "vitest.config*.ts"
   ],
   "exclude": ["node_modules", "dist"]
 }

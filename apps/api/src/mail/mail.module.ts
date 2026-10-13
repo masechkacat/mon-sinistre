@@ -1,13 +1,16 @@
 import { Global, Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
-import type { EnvironmentVariables } from 'src/config/env.validation';
-import { FileMailTransport } from 'src/mail/transports/file-mail.transport';
-import { MailComposer, type MailComposerOptions } from 'src/mail/compose/mail-composer';
-import { SENDING_TRANSPORT } from 'src/mail/mail-transport-name';
-import { MAIL_TRANSPORT, type MailTransport } from 'src/mail/mail-transport';
-import { MailService } from 'src/mail/mail.service';
-import { ScalewayMailTransport } from 'src/mail/transports/scaleway-mail.transport';
+import type { EnvironmentVariables } from 'src/config/env.validation.js';
+import { FileMailTransport } from 'src/mail/transports/file-mail.transport.js';
+import {
+  MailComposer,
+  type MailComposerOptions,
+} from 'src/mail/compose/mail-composer.js';
+import { SENDING_TRANSPORT } from 'src/mail/mail-transport-name.js';
+import { MAIL_TRANSPORT, type MailTransport } from 'src/mail/mail-transport.js';
+import { MailService } from 'src/mail/mail.service.js';
+import { ScalewayMailTransport } from 'src/mail/transports/scaleway-mail.transport.js';
 
 /** Exported for `apps/api/scripts/jorf-backfill.ts` (образец seed): the only caller outside this module building a `MailService` without Nest DI — the two belong here and not next to it, so the factory a bootstrapped app uses and the one the backfill script uses never drift apart. */
 export const composerOptionsFrom = (

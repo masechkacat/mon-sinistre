@@ -193,5 +193,7 @@ test('a session lost while saving after the login comes back to this same login,
   // Not `/connexion?suivant=/connexion?commune=…`: nested there, the dossier
   // would be invisible to the login that follows.
   await expect(page).toHaveURL(CONNEXION_DOSSIER_PATH);
-  await expect(page.getByLabel(fr.compte.connexion.passwordLabel)).toBeVisible();
+  await expect(
+    page.getByLabel(fr.compte.connexion.passwordLabel),
+  ).toBeVisible();
 });

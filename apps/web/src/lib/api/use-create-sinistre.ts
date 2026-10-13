@@ -58,9 +58,7 @@ export function useCreateSinistre(current?: CreateSinistreInput) {
     conflict: stale ? null : conflict,
     /** The request failed for a reason the screen can only report, not act on. */
     failed:
-      !stale &&
-      mutation.isError &&
-      sinistreConflictOf(mutation.error) === null,
+      !stale && mutation.isError && sinistreConflictOf(mutation.error) === null,
     confirmNew: () => {
       const sent = mutation.variables;
       if (sent) mutation.mutate({ ...sent, confirmNew: true });

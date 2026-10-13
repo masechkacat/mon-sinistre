@@ -10,13 +10,13 @@ import {
   COMMUNE_SEARCH_MIN_QUERY_LENGTH,
   Commune,
 } from '@mon-sinistre/contracts';
-import { Public } from 'src/auth/public.decorator';
-import { CommunesService } from './communes.service';
-import { CommuneResponseDto } from './dto/commune-response.dto';
+import { Public } from 'src/auth/public.decorator.js';
+import { CommunesService } from './communes.service.js';
+import { CommuneResponseDto } from './dto/commune-response.dto.js';
 import {
   MAX_QUERY_LENGTH,
   SearchCommunesQueryDto,
-} from './dto/search-communes-query.dto';
+} from './dto/search-communes-query.dto.js';
 
 /** Public commune search — no authentication: it powers the veille signup. */
 @Public()

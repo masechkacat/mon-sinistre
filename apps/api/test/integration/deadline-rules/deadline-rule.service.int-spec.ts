@@ -1,11 +1,12 @@
+import { describe, it, expect, beforeEach, beforeAll, afterAll } from 'vitest';
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
-import { createIntTestApp } from 'test/helpers/app';
-import { deadlineRuleData } from 'test/helpers/deadline-rule';
+import { createIntTestApp } from 'test/helpers/app.js';
+import { deadlineRuleData } from 'test/helpers/deadline-rule.js';
 import {
   DeadlineRuleService,
   NoActiveDeadlineRuleError,
-} from 'src/deadline-rules/deadline-rule.service';
-import { PrismaService } from 'src/prisma/prisma.service';
+} from 'src/deadline-rules/deadline-rule.service.js';
+import { PrismaService } from 'src/prisma/prisma.service.js';
 
 // DeadlineRuleService.resolveActive — the one query "which DeadlineRule is
 // active for this code/anchor on this date" every caller resolves through

@@ -1,6 +1,7 @@
-import { PrismaClient } from 'src/generated/prisma/client';
-import { createIntTestPrismaClient } from 'test/helpers/prisma-client';
-import { normalizeCommuneName } from 'src/communes/normalize-commune-name';
+import { describe, it, expect, beforeEach, beforeAll, afterAll } from 'vitest';
+import { PrismaClient } from 'src/generated/prisma/client.js';
+import { createIntTestPrismaClient } from 'test/helpers/prisma-client.js';
+import { normalizeCommuneName } from 'src/communes/normalize-commune-name.js';
 
 /**
  * The migration that carries the search key, checked against the real schema:

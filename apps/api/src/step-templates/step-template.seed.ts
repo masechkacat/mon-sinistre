@@ -5,8 +5,8 @@ import {
   PROVISION_INDEMNITE_CODE,
   REPARATION_MISSIONNEE_CODE,
   VERSEMENT_INDEMNITE_CODE,
-} from 'src/deadline-rules/deadline-rule.seed';
-import { PrismaClient } from 'src/generated/prisma/client';
+} from 'src/deadline-rules/deadline-rule.seed.js';
+import { PrismaClient } from 'src/generated/prisma/client.js';
 
 /** The only `StepTemplate.planKey` this MVP seeds — `CATNAT_REFUS` (refusal
  * steps) is out of PRD scope (docs/research/sinistre-plan.md, «Шаблон

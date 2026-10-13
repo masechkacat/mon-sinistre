@@ -1,9 +1,10 @@
+import { describe, it, expect } from 'vitest';
 import { RisqueCatnat, toIsoDate } from '@mon-sinistre/contracts';
 import {
   type MatchArreteEntry,
   type MatchCandidateSinistre,
   matchSinistres,
-} from './match-sinistres';
+} from './match-sinistres.js';
 
 function entry(overrides: Partial<MatchArreteEntry>): MatchArreteEntry {
   return {

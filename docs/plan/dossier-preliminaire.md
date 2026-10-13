@@ -22,7 +22,7 @@
 **Задачи:**
 
 - [ ] Contracts: `enum StepKind { ACTION, PHOTOS, JUSTIFICATIFS, OBJETS,
-    DECLARATION }`; `StepView` (`name`, `description`, `kind`, `anchor`,
+DECLARATION }`; `StepView` (`name`, `description`, `kind`, `anchor`,
       `plannedDate`, `status`, `daysLeft`, `delay`, `source`, `order`) и
       `Step extends StepView`; `DossierApercu` по research; `SinistreConflict`;
       `COMMUNE_ARRETES_WINDOW_MONTHS = 12` с докблоком «продуктовое число».
@@ -45,7 +45,7 @@
       значений, остальные девять — `ACTION`; повторный seed идемпотентен;
       `build-step-snapshot.spec.ts` — `kind` шаблона попадает в снапшот.
 - [ ] Вынос общих частей из `SinistresService`: `matchArreteFor(prisma,
-    { codeInsee, risque, eventDate })` в `src/sinistres/match-arrete.ts`,
+{ codeInsee, risque, eventDate })` в `src/sinistres/match-arrete.ts`,
       `resolveStepRule` в `src/sinistres/resolve-step-rule.ts`,
       `toStepView(row, today)` в `to-sinistre-detail.ts` (обёртка
       `toStepResponse` добавляет `id`, `sinistreId`, `completedAt`,
@@ -95,7 +95,7 @@
       хоп; цикл в справочнике не зацикливает и даёт `[code]`.
 - [ ] `DossierService.arretes(codeInsee)` и `GET /dossier/arretes`: entries
       по `{code} ∪ predecessors` с `arrete.publishedAt ≥ resolveDeadline(today,
-    -COMMUNE_ARRETES_WINDOW_MONTHS, 'MONTHS')`, сортировка `publishedAt desc`,
+-COMMUNE_ARRETES_WINDOW_MONTHS, 'MONTHS')`, сортировка `publishedAt desc`,
       `risques` через `classifyRisques`, `declarationDeadline` у `RECONNU`
       через `DeadlineRuleService.resolveActive` + `resolveDeadline` +
       `daysBetween` + `toSourceReference`. **Проверяется тестами (до кода):**
@@ -123,7 +123,7 @@
 **Задачи:**
 
 - [ ] Contracts: `CreateSinistreInput.confirmNew?: boolean`, `SinistreConflict
-    { code: 'DOSSIER_EXISTANT'; existing: { id; eventDate } }`.
+{ code: 'DOSSIER_EXISTANT'; existing: { id; eventDate } }`.
       **Проверяется тестами (до кода):** `npm run build:contracts`.
 - [ ] `CreateSinistreDto.confirmNew` (`@IsOptional() @IsBoolean()`);
       `SinistresService.create` в транзакции читает синистры пользователя по
@@ -162,7 +162,7 @@
       int-spec — удаление `User` уносит строку; вторая строка на того же
       `userId` отклоняется; удаление коммуны под строкой не проходит.
 - [ ] `RegisterDto.dossier` (`@IsOptional() @ValidateNested() @Type(() =>
-    CreateSinistreDto)`); `AuthService.register`: новый адрес — вставка,
+CreateSinistreDto)`); `AuthService.register`: новый адрес — вставка,
       неподтверждённый — upsert, подтверждённый — не трогается, ответ `204`
       во всех трёх. **Проверяется тестами (до кода):**
       `test/integration/auth/register-dossier.int-spec.ts` — O: новый адрес с
@@ -212,7 +212,7 @@
       колбэками. **Проверяется тестами (до кода):** существующие спеки
       `/sinistres/[id]` зелёные без правок (режим редактирования не
       изменился, кнопки отметки у контейнеров остаются); `tests/components/
-    plan.spec.ts` — в режиме чтения в `<ol>` нет ни одной `button`,
+plan.spec.ts` — в режиме чтения в `<ol>` нет ни одной `button`,
       контейнер содержит подпись и не содержит бейджа «FAIT».
 - [ ] `src/lib/dossier-params.ts`: `parseDossierParams(searchParams)` →
       `{ commune?, risque?, date? }` с проверкой `isIsoDate` и `RisqueCatnat`,
@@ -228,7 +228,7 @@
       dossier» (`size="touch"`, пока ведёт на `/inscription?…`, логика
       сессии — фаза 6); шапка: статус attendu / publié / refusé, ключевые
       даты, при `arrete` — ссылка Légifrance; `declarationDeadline.daysLeft
-    < 0` → «délai expiré» словами без числа; `tests/support/pages.ts`
+< 0` → «délai expiré» словами без числа; `tests/support/pages.ts`
       получает `/dossier` с `mockApi` на `GET /dossier/apercu**`.
       **Проверяется тестами (до кода):** `tests/dossier/dossier.spec.ts` —
       четыре состояния по мокам (attendu: шаги якоря публикации «date à
@@ -275,7 +275,7 @@ PRD, страница подтверждения ведёт на него, дв�
       `refreshSession()` → `createSinistre` и переход; иначе `router.push`
       на `/inscription?` + `dossierSearch(params)`. **Проверяется тестами
       (до кода):** `dossier.spec.ts` — с `mockSession` нажатие шлёт `POST
-    /sinistres` с тремя полями и ведёт на `/sinistres/<id>`; без сессии
+/sinistres` с тремя полями и ведёт на `/sinistres/<id>`; без сессии
       (refresh → `401`) — адрес становится `/inscription?commune=…`.
 - [ ] `/inscription`: читает параметры, показывает строку «Votre dossier :
       …» (`fr.dossier.resume`), шлёт `dossier` в `POST /auth/register`;
@@ -338,7 +338,7 @@ PRD, страница подтверждения ведёт на него, дв�
 - [ ] Главная: `CommuneSelect` в верхнем экране, `ReponseCommune` под ним
       после выбора, объясняющий текст ниже, раздел «Et ensuite ?» удалён;
       удаление `app/veille/page.tsx`, `veille-form.tsx`, `tests/veille/
-    veille.spec.ts` и строк `fr.veille.page.*`/`fr.veille.form.*`, не
+veille.spec.ts` и строк `fr.veille.page.*`/`fr.veille.form.*`, не
       используемых подстраницами; `next.config.ts` — `redirects`
       `/veille → /` (`permanent: true`); `tests/support/pages.ts` — `veille`
       удалена, подстраницы остаются. **Проверяется тестами (до кода):**

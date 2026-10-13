@@ -1,7 +1,7 @@
 import { Readable } from 'node:stream';
 import type { IsoDate } from '@mon-sinistre/contracts';
 import { Parser as TarParser, ReadEntry } from 'tar';
-import type { FetchFn } from 'src/common/fetch-fn';
+import type { FetchFn } from 'src/common/fetch-fn.js';
 
 /**
  * Client for the DILA JORFSIMPLE open-data feed — the monitor's only data

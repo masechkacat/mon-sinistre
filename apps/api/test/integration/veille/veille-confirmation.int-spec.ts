@@ -1,9 +1,10 @@
+import { describe, it, expect, beforeEach, beforeAll, afterAll } from 'vitest';
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
-import { createIntTestApp } from 'test/helpers/app';
-import { PrismaService } from 'src/prisma/prisma.service';
-import { DAY_MS } from 'src/veille/veille.service';
-import { createVeille } from 'test/helpers/veille';
-import { VEILLE_TOKEN_LENGTH } from 'src/veille/veille-token';
+import { createIntTestApp } from 'test/helpers/app.js';
+import { PrismaService } from 'src/prisma/prisma.service.js';
+import { DAY_MS } from 'src/veille/veille.service.js';
+import { createVeille } from 'test/helpers/veille.js';
+import { VEILLE_TOKEN_LENGTH } from 'src/veille/veille-token.js';
 
 describe('/veille/confirmation (integration)', () => {
   let app: NestFastifyApplication;

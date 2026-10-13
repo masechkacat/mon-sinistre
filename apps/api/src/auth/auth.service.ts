@@ -24,43 +24,43 @@ import {
   type ResetPasswordResponse,
   type RisqueCatnat,
 } from '@mon-sinistre/contracts';
-import { withAdvisoryLock } from 'src/common/advisory-lock';
-import { errorSummary } from 'src/common/error-report';
-import { requireActiveCommune } from 'src/communes/active-commune';
-import { loadSuccessorMap } from 'src/communes/load-successor-map';
-import { resolveCurrentCode } from 'src/jorf/recipients/resolve-recipients';
+import { withAdvisoryLock } from 'src/common/advisory-lock.js';
+import { errorSummary } from 'src/common/error-report.js';
+import { requireActiveCommune } from 'src/communes/active-commune.js';
+import { loadSuccessorMap } from 'src/communes/load-successor-map.js';
+import { resolveCurrentCode } from 'src/jorf/recipients/resolve-recipients.js';
 import {
   dateToIsoDate,
   isoDateToDate,
-} from 'src/deadline-rules/resolve-deadline';
-import { SinistresService } from 'src/sinistres/sinistres.service';
+} from 'src/deadline-rules/resolve-deadline.js';
+import { SinistresService } from 'src/sinistres/sinistres.service.js';
 import {
   awaitingConfirmation,
   expiredUnconfirmed,
-} from 'src/common/time/confirmation-window';
-import { hashEmail } from 'src/common/security/email-hash';
-import { runGuarded } from 'src/common/scheduled-cleanup';
+} from 'src/common/time/confirmation-window.js';
+import { hashEmail } from 'src/common/security/email-hash.js';
+import { runGuarded } from 'src/common/scheduled-cleanup.js';
 import {
   generateSecureToken,
   hashSecureToken,
-} from 'src/common/security/secure-token';
-import { addDays, addHours, DAY_MS, HOUR_MS } from 'src/common/time/time';
-import type { EnvironmentVariables } from 'src/config/env.validation';
-import { fr } from 'src/i18n/fr';
-import { MailCompositionError } from 'src/mail/mail-composition.error';
-import type { ComposeMailInput } from 'src/mail/mail-message';
-import { MailService } from 'src/mail/mail.service';
-import type { Prisma } from 'src/generated/prisma/client';
+} from 'src/common/security/secure-token.js';
+import { addDays, addHours, DAY_MS, HOUR_MS } from 'src/common/time/time.js';
+import type { EnvironmentVariables } from 'src/config/env.validation.js';
+import { fr } from 'src/i18n/fr.js';
+import { MailCompositionError } from 'src/mail/mail-composition.error.js';
+import type { ComposeMailInput } from 'src/mail/mail-message.js';
+import { MailService } from 'src/mail/mail.service.js';
+import type { Prisma } from 'src/generated/prisma/client.js';
 import {
   isForeignKeyViolation,
   isUniqueViolationOn,
-} from 'src/prisma/prisma-error';
-import { PrismaService } from 'src/prisma/prisma.service';
-import { remindersEnabled } from 'src/reminders/reminders-preference';
-import { alreadyRegisteredMailFor } from './mails/account-already-registered-mail';
-import { confirmationMailFor } from './mails/account-confirmation-mail';
-import type { PendingDossierDto, RegisterDto } from './dto/register.dto';
-import { passwordResetMailFor } from './mails/password-reset-mail';
+} from 'src/prisma/prisma-error.js';
+import { PrismaService } from 'src/prisma/prisma.service.js';
+import { remindersEnabled } from 'src/reminders/reminders-preference.js';
+import { alreadyRegisteredMailFor } from './mails/account-already-registered-mail.js';
+import { confirmationMailFor } from './mails/account-confirmation-mail.js';
+import type { PendingDossierDto, RegisterDto } from './dto/register.dto.js';
+import { passwordResetMailFor } from './mails/password-reset-mail.js';
 
 const nextConfirmExpiresAt = (): Date => addDays(ACCOUNT_CONFIRM_TTL_DAYS);
 const nextPasswordResetExpiresAt = (): Date =>

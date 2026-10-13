@@ -6,27 +6,27 @@ import {
   type CommuneArretes,
   type DossierApercu,
 } from '@mon-sinistre/contracts';
-import { todayInParis } from 'src/common/time/today-in-paris';
-import { requireActiveCommune } from 'src/communes/active-commune';
-import { codesMergedInto } from 'src/communes/codes-merged-into';
-import { DeadlineRuleService } from 'src/deadline-rules/deadline-rule.service';
+import { todayInParis } from 'src/common/time/today-in-paris.js';
+import { requireActiveCommune } from 'src/communes/active-commune.js';
+import { codesMergedInto } from 'src/communes/codes-merged-into.js';
+import { DeadlineRuleService } from 'src/deadline-rules/deadline-rule.service.js';
 import {
   dateToIsoDate,
   isoDateToDate,
   resolveDeadline,
-} from 'src/deadline-rules/resolve-deadline';
-import { classifyRisques } from 'src/jorf/parse/classify-risques';
-import { PrismaService } from 'src/prisma/prisma.service';
-import type { CreateSinistreDto } from 'src/sinistres/dto/create-sinistre.dto';
-import type { MatchedArrete } from 'src/sinistres/match-arrete';
-import { legalStepDate } from 'src/sinistres/build-step-snapshot';
-import { planDossier, toPlannedView } from 'src/sinistres/snapshot-plan';
+} from 'src/deadline-rules/resolve-deadline.js';
+import { classifyRisques } from 'src/jorf/parse/classify-risques.js';
+import { PrismaService } from 'src/prisma/prisma.service.js';
+import type { CreateSinistreDto } from 'src/sinistres/dto/create-sinistre.dto.js';
+import type { MatchedArrete } from 'src/sinistres/match-arrete.js';
+import { legalStepDate } from 'src/sinistres/build-step-snapshot.js';
+import { planDossier, toPlannedView } from 'src/sinistres/snapshot-plan.js';
 import {
   citedSourceOf,
   declarationDeadlineOf,
   toDeclarationDeadline,
   toStepView,
-} from 'src/sinistres/to-sinistre-detail';
+} from 'src/sinistres/to-sinistre-detail.js';
 
 @Injectable()
 export class DossierService {

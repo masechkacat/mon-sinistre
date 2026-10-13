@@ -14,12 +14,12 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import type { RemindersPreference } from '@mon-sinistre/contracts';
-import type { RequestWithJwtUser } from 'src/auth/passport/jwt.strategy';
-import { Public } from 'src/auth/public.decorator';
-import { ThrottleByToken } from 'src/common/http/token-throttler.guard';
-import { RemindersPreferenceDto } from './dto/reminders-preference.dto';
-import { RemindersTokenDto } from './dto/reminders-token.dto';
-import { RemindersService } from './reminders.service';
+import type { RequestWithJwtUser } from 'src/auth/passport/jwt.strategy.js';
+import { Public } from 'src/auth/public.decorator.js';
+import { ThrottleByToken } from 'src/common/http/token-throttler.guard.js';
+import { RemindersPreferenceDto } from './dto/reminders-preference.dto.js';
+import { RemindersTokenDto } from './dto/reminders-token.dto.js';
+import { RemindersService } from './reminders.service.js';
 
 @ApiTags('rappels')
 @Controller('rappels')

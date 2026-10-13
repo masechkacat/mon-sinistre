@@ -7,7 +7,7 @@ import {
   type IsoDateTime,
   type SinistreSummary,
 } from '@mon-sinistre/contracts';
-import { CommuneResponseDto } from 'src/communes/dto/commune-response.dto';
+import { CommuneResponseDto } from 'src/communes/dto/commune-response.dto.js';
 
 /**
  * Swagger-only mirror of {@link SinistreSummary} — `implements` makes the

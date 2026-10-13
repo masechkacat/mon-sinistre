@@ -1,3 +1,4 @@
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { ConfigService } from '@nestjs/config';
 import {
   CronExpression,
@@ -5,9 +6,9 @@ import {
   SchedulerRegistry,
 } from '@nestjs/schedule';
 import { Test, type TestingModule } from '@nestjs/testing';
-import { MailService } from 'src/mail/mail.service';
-import { PrismaService } from 'src/prisma/prisma.service';
-import { VeilleService } from './veille.service';
+import { MailService } from 'src/mail/mail.service.js';
+import { PrismaService } from 'src/prisma/prisma.service.js';
+import { VeilleService } from './veille.service.js';
 
 /**
  * The only spec that watches the schedule itself. Every other one calls
@@ -21,7 +22,7 @@ import { VeilleService } from './veille.service';
  * the `@Cron` metadata with it — leaving nothing registered to test.
  */
 describe('VeilleService cleanup schedule', () => {
-  const deleteMany = jest.fn().mockResolvedValue({ count: 0 });
+  const deleteMany = vi.fn().mockResolvedValue({ count: 0 });
   let moduleRef: TestingModule;
 
   beforeAll(async () => {

@@ -34,7 +34,7 @@ export default defineConfig({
     {
       // Outbox emptied first, so the spec's poll reads only this run's mail.
       // The seed keeps the base DB_NAME: it creates `_e2e` from there.
-      command: `rm -rf "${e2eOutboxDir}" && npx ts-node -r tsconfig-paths/register scripts/e2e-seed.ts && DB_NAME=${e2eDatabase} npm run start`,
+      command: `rm -rf "${e2eOutboxDir}" && npx tsx scripts/e2e-seed.ts && DB_NAME=${e2eDatabase} npm run start`,
       cwd: apiDir,
       port: testApiPort,
       env: {

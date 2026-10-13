@@ -1,4 +1,4 @@
-import type { MailMessage } from 'src/mail/mail-message';
+import type { MailMessage } from 'src/mail/mail-message.js';
 
 /** Behind a token rather than a branch on the environment: tests put their own
  * transport here through DI, without touching process.env. */

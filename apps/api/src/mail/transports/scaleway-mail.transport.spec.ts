@@ -1,14 +1,15 @@
-import { MailComposer } from 'src/mail/compose/mail-composer';
-import { captureLogs } from 'test/helpers/mail-log';
-import { MailDeliveryError } from 'src/mail/mail-delivery.error';
-import type { MailMessage } from 'src/mail/mail-message';
-import { MailService } from 'src/mail/mail.service';
+import { describe, it, expect, vi, type Mock } from 'vitest';
+import { MailComposer } from 'src/mail/compose/mail-composer.js';
+import { captureLogs } from 'test/helpers/mail-log.js';
+import { MailDeliveryError } from 'src/mail/mail-delivery.error.js';
+import type { MailMessage } from 'src/mail/mail-message.js';
+import { MailService } from 'src/mail/mail.service.js';
 import {
   SCALEWAY_TEM_TIMEOUT_MS,
   SCALEWAY_TEM_URL,
   ScalewayMailTransport,
   type ScalewayMailConfig,
-} from 'src/mail/transports/scaleway-mail.transport';
+} from 'src/mail/transports/scaleway-mail.transport.js';
 
 const RECIPIENT = 'destinataire@example.test';
 const UNSUBSCRIBE_URL = 'https://app.example.test/desabonnement/jeton-123';
@@ -68,10 +69,11 @@ const ACCEPTED = {
   emails: [{ id: '4d3e2f1a-0000-4000-8000-abcdefabcdef', status: 'new' }],
 };
 
-type FetchMock = jest.Mock<Promise<Response>, [string, RequestInit]>;
+type FetchFn = (url: string, init: RequestInit) => Promise<Response>;
+type FetchMock = Mock<FetchFn>;
 
 const respondingWith = (body: unknown, status = 200): FetchMock =>
-  jest.fn<Promise<Response>, [string, RequestInit]>(() =>
+  vi.fn<FetchFn>(() =>
     Promise.resolve(
       new Response(typeof body === 'string' ? body : JSON.stringify(body), {
         status,
@@ -89,9 +91,9 @@ const respondingWith = (body: unknown, status = 200): FetchMock =>
 const unreadableAnswer = (
   status: number,
   headers: Record<string, string>,
-): { fetchFn: FetchMock; json: jest.Mock; cancel: jest.Mock } => {
-  const json = jest.fn(() => Promise.resolve({ type: 'invalid_arguments' }));
-  const cancel = jest.fn(() => Promise.resolve());
+): { fetchFn: FetchMock; json: Mock; cancel: Mock } => {
+  const json = vi.fn(() => Promise.resolve({ type: 'invalid_arguments' }));
+  const cancel = vi.fn(() => Promise.resolve());
   const response = {
     ok: false,
     status,
@@ -101,18 +103,14 @@ const unreadableAnswer = (
   } as unknown as Response;
 
   return {
-    fetchFn: jest.fn<Promise<Response>, [string, RequestInit]>(() =>
-      Promise.resolve(response),
-    ),
+    fetchFn: vi.fn<FetchFn>(() => Promise.resolve(response)),
     json,
     cancel,
   };
 };
 
 const failingWith = (error: Error): FetchMock =>
-  jest.fn<Promise<Response>, [string, RequestInit]>(() =>
-    Promise.reject(error),
-  );
+  vi.fn<FetchFn>(() => Promise.reject(error));
 
 /**
  * What fetch rejects with once AbortSignal.timeout fires — reproduced rather
@@ -193,7 +191,7 @@ describe('ScalewayMailTransport', () => {
     // that the request carries a deadline at all, and a test has no business
     // spending ten seconds proving it. Asserting "an AbortSignal is there"
     // would not — a signal that never fires is one too.
-    const timeout = jest.spyOn(AbortSignal, 'timeout');
+    const timeout = vi.spyOn(AbortSignal, 'timeout');
     const fetchFn = respondingWith(ACCEPTED);
 
     await transport(fetchFn).send(MESSAGE);
@@ -397,9 +395,7 @@ describe('ScalewayMailTransport', () => {
       status: 200,
       json: () => Promise.reject(timeoutError()),
     } as unknown as Response;
-    const fetchFn = jest.fn<Promise<Response>, [string, RequestInit]>(() =>
-      Promise.resolve(stalled),
-    );
+    const fetchFn = vi.fn<FetchFn>(() => Promise.resolve(stalled));
 
     const failure = await failureOf(fetchFn);
 

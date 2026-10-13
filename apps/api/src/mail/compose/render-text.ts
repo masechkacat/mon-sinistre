@@ -1,4 +1,4 @@
-import type { ResolvedMailBlock } from 'src/mail/mail-message';
+import type { ResolvedMailBlock } from 'src/mail/mail-message.js';
 
 /**
  * The plain-text version: visible text and full addresses, nothing else. No

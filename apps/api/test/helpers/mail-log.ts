@@ -1,3 +1,4 @@
+import { expect, beforeEach, vi } from 'vitest';
 import { LOG_LEVELS, Logger, type LogLevel } from '@nestjs/common';
 
 /**
@@ -27,16 +28,12 @@ export const captureLogs = (): CapturedLogs => {
   beforeEach(() => {
     written = [];
     for (const level of LOG_LEVELS) {
-      jest
-        .spyOn(Logger.prototype, level)
-        .mockImplementation((...args: unknown[]) => {
+      vi.spyOn(Logger.prototype, level).mockImplementation(
+        (...args: unknown[]) => {
           written.push({ level, text: serialize(args) });
-        });
+        },
+      );
     }
-  });
-
-  afterEach(() => {
-    jest.restoreAllMocks();
   });
 
   const text = (): string => written.map((entry) => entry.text).join('\n');

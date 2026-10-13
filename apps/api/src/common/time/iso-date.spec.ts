@@ -1,6 +1,6 @@
 // Covers the IsoDate helpers from @mon-sinistre/contracts: that package has no
-// test runner of its own — per the monorepo convention all tests live here,
-// and jest resolves contracts straight from its sources (moduleNameMapper).
+// test runner of its own — per the monorepo convention all tests live here.
+import { describe, it, expect } from 'vitest';
 import { isIsoDate, toIsoDate } from '@mon-sinistre/contracts';
 
 describe('isIsoDate', () => {

@@ -22,14 +22,14 @@ Europe/Paris с записью после отправки, ротация то�
 
 - [ ] Contracts: `OVERDUE_REMINDER_MAX_COUNT = 4` рядом с
       `OVERDUE_REMINDER_INTERVAL_DAYS`, `REMINDER_UNSUBSCRIBE_PATH =
-    '/compte/rappels/desinscription'` с докблоком по образцу `VEILLE_*_PATH`.
+'/compte/rappels/desinscription'` с докблоком по образцу `VEILLE_*_PATH`.
       **Проверяется тестами (до кода):** `npm run build:contracts` — API
       собирается против новых констант; спека отбора (ниже) импортирует
       предел из contracts, а не своё число.
 - [ ] Миграция `add_reminder_log`: enum `ReminderKind`, таблица `ReminderLog`
       (`stepId` cascade, `kind`, `offsetDays` null, `plannedDate`, `sentOn`),
       два условных unique SQL руками (`SCALE`: `stepId, kind, offsetDays,
-    plannedDate`; `OVERDUE`: `stepId, sentOn`), частичный индекс
+plannedDate`; `OVERDUE`: `stepId, sentOn`), частичный индекс
       `Step(plannedDate) where persistedStatus is null`, колонки `User`:
       `remindersDisabledAt`, `reminderUnsubscribeTokenHash` (null, unique),
       `reminderFailures` (default 0). `data-model.md` §§ 5–6 — тем же
@@ -51,7 +51,7 @@ Europe/Paris с записью после отправки, ротация то�
       8 тот же день повода нет; лог с другой `plannedDate` не считается —
       порог срабатывает заново по новой дате; остаток 0 — повод `SCALE`.
 - [ ] `src/reminders/reminder-mail.ts` — `reminderMailFor(to, token, today,
-    sinistres)` и ветка `fr.mail.reminders`: блок на синистр (коммуна,
+sinistres)` и ветка `fr.mail.reminders`: блок на синистр (коммуна,
       риск, дата события, список шагов «dans N jours» / «dernier jour»,
       ссылка `${SINISTRE_PATH}/${id}`), для `DECLARATION_ASSUREUR` отдельный
       абзац остатка, `externalLink` на норму с датой сверки и пометкой при
@@ -62,7 +62,7 @@ Europe/Paris с записью после отправки, ротация то�
       для шага декларации с датой сверки, пометка при устаревшем правиле,
       «dernier jour» при нуле, путь отписки с токеном, тема меняется.
 - [ ] `RemindersModule` + `RemindersService.run({ now })`: `@Cron('0 7 * * *',
-    Europe/Paris)`, флаг `running`, запрос кандидатов с горизонтом из
+Europe/Paris)`, флаг `running`, запрос кандидатов с горизонтом из
       констант и `remindersDisabledAt: null`, группировка по пользователю,
       ротация `reminderUnsubscribeTokenHash` в транзакции (`count === 0` →
       письма нет), `MailService.send`, затем одна транзакция: строки
@@ -75,7 +75,7 @@ Europe/Paris с записью после отправки, ротация то�
       ссылки на синистры, что HTML; второй `run` тем же `now` письма не шлёт;
       строки `ReminderLog` записаны с фактическим `offsetDays`; хеш токена в
       базе соответствует ссылке письма; `captureLogs().expectNoTraceOf(email,
-    названиеШага)`.
+названиеШага)`.
 
 **Когда готова:** `run` утром после создания синистра присылает одно письмо
 со всеми шагами в пределах шкалы; `run` второй раз в тот же день не шлёт
@@ -111,7 +111,7 @@ Europe/Paris с записью после отправки, ротация то�
       остаются зелёными на новом провайдере; спека сервиса — молчит без
       `ADMIN_EMAIL`, ловит сбой отправки в лог.
 - [ ] Изоляция сбоя в `run`: `try/catch` на пользователя, `reminderFailures
-    += 1` при исключении сборки или отправки, сброс в 0 в транзакции
++= 1` при исключении сборки или отправки, сброс в 0 в транзакции
       успешной отправки, при равенстве `NOTIFICATION_ATTEMPTS_BEFORE_ALERT` —
       `MonitorAlert NOTIFICATION_STUCK` без `arreteId` и письмо через
       `AdminAlertService`. **Проверяется тестами (до кода):**
@@ -169,7 +169,7 @@ Europe/Paris с записью после отправки, ротация то�
 
 - [ ] `src/lib/api/reminders.ts` (`unsubscribeReminders`,
       `updateReminders`) и фабрика `oneClickUnsubscribeHandlers({ unsubscribe,
-    confirmPath })` в `src/lib/one-click-unsubscribe.ts`;
+confirmPath })` в `src/lib/one-click-unsubscribe.ts`;
       `veille/desinscription/route.ts` переводится на неё.
       **Проверяется тестами (до кода):** `tests/veille` route-спека остаётся
       зелёной; спека фабрики — `POST` отвечает 200 при успехе API и не-200

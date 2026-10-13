@@ -8,7 +8,7 @@ import {
   type Step,
   type StepView,
 } from '@mon-sinistre/contracts';
-import { SourceReferenceDto } from './source-reference.dto';
+import { SourceReferenceDto } from './source-reference.dto.js';
 
 export class StepDelayDto {
   @ApiProperty()

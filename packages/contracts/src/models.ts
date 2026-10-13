@@ -11,8 +11,8 @@ import {
   StepStatus,
   VeilleChangeStatus,
   VeilleConfirmationStatus,
-} from './enums';
-import { IsoDate, IsoDateTime } from './iso-date';
+} from './enums.js';
+import { IsoDate, IsoDateTime } from './iso-date.js';
 
 /** Provenance of a reference-data statement. */
 export interface SourceReference {

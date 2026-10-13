@@ -1,7 +1,8 @@
-import { PrismaClient, ReminderKind } from 'src/generated/prisma/client';
-import { createIntTestPrismaClient } from 'test/helpers/prisma-client';
-import { createSinistre } from 'test/helpers/sinistre';
-import { userData } from 'test/helpers/user-data';
+import { describe, it, expect, beforeEach, beforeAll, afterAll } from 'vitest';
+import { PrismaClient, ReminderKind } from 'src/generated/prisma/client.js';
+import { createIntTestPrismaClient } from 'test/helpers/prisma-client.js';
+import { createSinistre } from 'test/helpers/sinistre.js';
+import { userData } from 'test/helpers/user-data.js';
 
 // Schema-level guarantees of the add_reminder_log migration:
 // docs/research/data-model.md § 5, § 6, docs/research/sinistre-reminders.md,

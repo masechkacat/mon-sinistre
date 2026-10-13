@@ -1,3 +1,4 @@
+import { describe, it, expect } from 'vitest';
 import { plainToInstance } from 'class-transformer';
 import { validate as validateInstance } from 'class-validator';
 import {
@@ -5,8 +6,8 @@ import {
   PASSWORD_MIN_CHAR_CLASSES,
   PASSWORD_MIN_LENGTH,
 } from '@mon-sinistre/contracts';
-import { fr } from 'src/i18n/fr';
-import { RegisterDto } from './register.dto';
+import { fr } from 'src/i18n/fr.js';
+import { RegisterDto } from './register.dto.js';
 
 const VALID = { email: 'victime@example.fr', password: 'Abc12345' };
 

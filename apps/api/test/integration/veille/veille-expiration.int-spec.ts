@@ -1,15 +1,24 @@
+import {
+  describe,
+  it,
+  expect,
+  beforeEach,
+  beforeAll,
+  afterAll,
+  vi,
+} from 'vitest';
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
-import { createIntTestApp } from 'test/helpers/app';
-import { captureLogs } from 'test/helpers/mail-log';
-import { PrismaService } from 'src/prisma/prisma.service';
-import { DAY_MS, VeilleService } from 'src/veille/veille.service';
-import { generateVeilleToken } from 'src/veille/veille-token';
+import { createIntTestApp } from 'test/helpers/app.js';
+import { captureLogs } from 'test/helpers/mail-log.js';
+import { PrismaService } from 'src/prisma/prisma.service.js';
+import { DAY_MS, VeilleService } from 'src/veille/veille.service.js';
+import { generateVeilleToken } from 'src/veille/veille-token.js';
 import {
   communeFixture,
   createChangeRequest,
   createFormEmail,
   createVeille,
-} from 'test/helpers/veille';
+} from 'test/helpers/veille.js';
 
 describe('VeilleService.cleanupExpired (integration)', () => {
   let app: NestFastifyApplication;
@@ -159,11 +168,9 @@ describe('VeilleService.cleanupExpired (integration)', () => {
     });
     // A Prisma message is where an address would reach the log — the tick
     // catches the failure itself, precisely so nothing prints it verbatim.
-    jest
-      .spyOn(veille, 'deleteExpiredUnconfirmed')
-      .mockRejectedValueOnce(
-        new Error('Unique constraint failed: riverain@example.fr'),
-      );
+    vi.spyOn(veille, 'deleteExpiredUnconfirmed').mockRejectedValueOnce(
+      new Error('Unique constraint failed: riverain@example.fr'),
+    );
 
     await expect(veille.cleanupExpired()).resolves.toBeUndefined();
 

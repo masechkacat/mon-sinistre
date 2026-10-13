@@ -1,5 +1,5 @@
 import { toIsoDate, type IsoDate } from '@mon-sinistre/contracts';
-import { deltaNameFor } from './dila.client';
+import { deltaNameFor } from './dila.client.js';
 
 /**
  * The 2026 backfill's declared start (docs/research/jorf-monitor.md,

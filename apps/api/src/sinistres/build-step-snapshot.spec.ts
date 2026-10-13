@@ -1,5 +1,6 @@
+import { describe, it, expect } from 'vitest';
 import { toIsoDate } from '@mon-sinistre/contracts';
-import { buildStepSnapshot } from './build-step-snapshot';
+import { buildStepSnapshot } from './build-step-snapshot.js';
 
 const template = (
   overrides: Partial<{

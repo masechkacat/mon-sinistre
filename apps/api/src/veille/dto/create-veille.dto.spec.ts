@@ -1,8 +1,9 @@
+import { describe, it, expect } from 'vitest';
 import { plainToInstance } from 'class-transformer';
 import { validate as validateInstance } from 'class-validator';
 import { VEILLE_MAX_COMMUNES } from '@mon-sinistre/contracts';
 
-import { CreateVeilleDto } from './create-veille.dto';
+import { CreateVeilleDto } from './create-veille.dto.js';
 
 const VALID = { email: 'riverain@example.fr', communeCodes: ['30189'] };
 
