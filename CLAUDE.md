@@ -71,6 +71,8 @@ npm workspaces, три пакета:
   версии — после обновления такого пакета `npm install-scripts approve <pkg>`
   заново, иначе `bcrypt` и движок Prisma не соберутся. `@scarf/scarf` запрещён
   как телеметрия.
+- `node .claude/metrics.js [--prs N]` — замер харнеса; что считается и
+  зачем — `docs/plan/harness-v2.md`.
 - `dup` — jscpd против `.jscpd-baseline.json`: буквальный копипаст, которого
   нет в baseline, валит коммит. Baseline — список известных клонов, а не
   разрешение на них: устранив клон, пересобрать его `dup:baseline`, чтобы он

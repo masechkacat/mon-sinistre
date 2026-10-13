@@ -1,6 +1,4 @@
 #!/usr/bin/env node
-'use strict';
-
 /**
  * Ralph Loop — автономный прогон фазы плана.
  *
@@ -14,12 +12,14 @@
  * Правила для агента: .claude/ralph.md
  */
 
-const { execFileSync, spawnSync } = require('node:child_process');
-const fs = require('node:fs');
-const path = require('node:path');
+import { execFileSync, spawnSync } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
+import * as metrics from './metrics.js';
 
-const ROOT = path.resolve(__dirname, '..');
-const CONFIG_PATH = path.join(__dirname, 'ralph.config.json');
+const ROOT = path.resolve(import.meta.dirname, '..');
+const CONFIG_PATH = path.join(import.meta.dirname, 'ralph.config.json');
 
 // Пределы выборок gh: при достижении цикл предупреждает, а не молча теряет хвост.
 const BOARD_LIMIT = 500;
@@ -636,10 +636,12 @@ function buildPrompt(cfg, phase, milestone, branch, issue) {
   ].join('\n');
 }
 
-function runIteration(cfg, prompt) {
+function runIteration(cfg, prompt, sessionId) {
   const args = [
     '-p',
     prompt,
+    '--session-id',
+    sessionId,
     '--permission-mode',
     cfg.permissionMode || 'acceptEdits',
   ];
@@ -664,7 +666,7 @@ function prTitle(cfg, phase, milestone) {
   return `${cfg.prType}(${cfg.feature}): фаза ${phase} — ${phaseLabel(milestone)}`;
 }
 
-function openPullRequest(cfg, phase, milestone, branch) {
+function openPullRequest(cfg, phase, milestone, branch, sessions = []) {
   if (DRY_RUN) {
     ok(`здесь был бы push ветки ${branch} и PR в main — в dry-run пропущено`);
     return null;
@@ -732,6 +734,7 @@ function openPullRequest(cfg, phase, milestone, branch) {
     `- PRD: \`docs/prd/${cfg.feature}.md\``,
     `- Research: \`docs/research/${cfg.feature}.md\``,
     `- Текст (\`*.md\`): +${mdAdded}/−${mdDeleted} строк к \`origin/main\``,
+    ...metrics.report({ sessions, root: ROOT }),
     '',
     '_Собрано Ralph Loop (`.claude/ralph.js`), по одному коммиту на issue._',
   ].join('\n');
@@ -776,6 +779,7 @@ function main() {
   // дело не доходит — он предохранитель для прогонов на несколько issues.
   let iterations = 0;
   let stall = 0;
+  const sessions = [];
   let previous = null;
 
   for (const phase of cfg.phases) {
@@ -805,7 +809,7 @@ function main() {
 
       if (queue.length === 0) {
         step(`Фаза ${phase} закрыта — открываю PR`);
-        const url = openPullRequest(cfg, phase, milestone, branch);
+        const url = openPullRequest(cfg, phase, milestone, branch, sessions);
         if (url) opened.push(url);
         break;
       }
@@ -833,9 +837,12 @@ function main() {
       }
 
       const headBefore = git(['rev-parse', branch]);
+      const sessionId = randomUUID();
+      sessions.push(sessionId);
       const exit = runIteration(
         cfg,
         buildPrompt(cfg, phase, milestone, branch, issue),
+        sessionId,
       );
       requireSameBranch(branch);
       // Состояние читается по имени ветки, а не по HEAD: коммит на посторонней
@@ -906,7 +913,7 @@ function abort(e) {
   process.exit(1);
 }
 
-if (require.main === module) {
+if (import.meta.main) {
   try {
     main();
   } catch (e) {
@@ -916,7 +923,7 @@ if (require.main === module) {
 
 // Экспорт — только для тестов (`.claude/ralph.test.js`): наружу цикл остаётся
 // одним исполняемым файлом.
-module.exports = {
+export {
   RalphStop,
   branchName,
   buildPrompt,

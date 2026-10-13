@@ -2,6 +2,7 @@
   "name": "mon-sinistre",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "description": "Veille des arrêtés de catastrophe naturelle et suivi du sinistre",
   "license": "UNLICENSED",
   "engines": {
