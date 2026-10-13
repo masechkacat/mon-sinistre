@@ -1,3 +1,4 @@
+import { vi, type Mock } from 'vitest';
 import { AdminAlertService } from 'src/jorf/alerts/admin-alert.service';
 import type { MonitorAlertForMail } from 'src/jorf/mail/monitor-alert-mail';
 import { MailComposer } from 'src/mail/compose/mail-composer';
@@ -20,11 +21,11 @@ const logs = captureLogs();
 
 describe('AdminAlertService', () => {
   let transport: RecordingTransport;
-  let create: jest.Mock;
+  let create: Mock;
 
   beforeEach(() => {
     transport = new RecordingTransport();
-    create = jest.fn().mockResolvedValue(ALERTS[0]);
+    create = vi.fn().mockResolvedValue(ALERTS[0]);
   });
 
   const serviceWith = (adminEmail: string | undefined): AdminAlertService => {

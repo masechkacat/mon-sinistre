@@ -1,3 +1,4 @@
+import { vi, type Mock } from 'vitest';
 import type { Logger } from '@nestjs/common';
 import {
   drainOutbox,
@@ -8,20 +9,20 @@ import {
 
 function fakeLogger(): Logger {
   return {
-    error: jest.fn(),
-    warn: jest.fn(),
-    log: jest.fn(),
+    error: vi.fn(),
+    warn: vi.fn(),
+    log: vi.fn(),
   } as unknown as Logger;
 }
 
 /** A logger whose `error` calls the test can read back as `errors`. */
-function spyingLogger(): { logger: Logger; errors: jest.Mock } {
-  const errors = jest.fn();
+function spyingLogger(): { logger: Logger; errors: Mock } {
+  const errors = vi.fn();
   return {
     logger: {
       error: errors,
-      warn: jest.fn(),
-      log: jest.fn(),
+      warn: vi.fn(),
+      log: vi.fn(),
     } as unknown as Logger,
     errors,
   };
@@ -184,8 +185,8 @@ describe('drainOutbox', () => {
   });
 
   it('an alert that fails to raise is retried by the next run, not lost with a counted attempt', async () => {
-    const onStuck = jest
-      .fn<Promise<void>, [PendingOutboxRow, number]>()
+    const onStuck = vi
+      .fn<(row: PendingOutboxRow, attempt: number) => Promise<void>>()
       .mockRejectedValueOnce(new Error('alert mail down'))
       .mockResolvedValue(undefined);
     const { adapter, state } = fakeAdapter(
@@ -213,8 +214,8 @@ describe('drainOutbox', () => {
   });
 
   it('a mark that fails after a successful send is not a delivery failure', async () => {
-    const incrementAttempts = jest.fn();
-    const onStuck = jest.fn();
+    const incrementAttempts = vi.fn();
+    const onStuck = vi.fn();
     const { logger, errors } = spyingLogger();
     const { adapter, sent, state } = fakeAdapter([row('a', 'arrete-1')], {
       markSent: () => Promise.reject(new Error('db timeout')),
@@ -271,7 +272,7 @@ describe('drainOutbox', () => {
   );
 
   it('a failed mark of a row mailed to nobody does not block the others in the same group', async () => {
-    const incrementAttempts = jest.fn();
+    const incrementAttempts = vi.fn();
     const { logger, errors } = spyingLogger();
     const { adapter, sent, state } = fakeAdapter(
       [row('a', 'arrete-1'), row('b', 'arrete-1')],

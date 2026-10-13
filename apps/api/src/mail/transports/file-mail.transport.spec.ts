@@ -1,3 +1,4 @@
+import { vi } from 'vitest';
 import {
   FileMailTransport,
   type MailOutbox,
@@ -71,7 +72,7 @@ const logs = captureLogs();
 
 describe('FileMailTransport', () => {
   it('writes the message to its channel without reaching the network', async () => {
-    const fetchSpy = jest.spyOn(globalThis, 'fetch');
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
     const outbox = new OutboxSpy();
 
     await transportWith(outbox).send(message());

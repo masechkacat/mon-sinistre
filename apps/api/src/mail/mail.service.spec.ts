@@ -1,3 +1,4 @@
+import { vi, type MockInstance } from 'vitest';
 import { mkdtemp, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -238,13 +239,13 @@ describe('MailModule', () => {
    * takes globalThis.fetch as the default value of a constructor parameter, so
    * a spy set up after the factory ran would watch a function nobody calls.
    *
-   * Undone by restoreMocks of the jest configuration, not by an afterEach of
+   * Undone by restoreMocks of the Vitest configuration, not by an afterEach of
    * this file: a spy on a global that outlives its test is a failure reported
    * in some other suite, and the guarantee must not depend on which helper this
    * file happens to import.
    */
-  const watchNetwork = (): jest.SpiedFunction<typeof globalThis.fetch> =>
-    jest.spyOn(globalThis, 'fetch');
+  const watchNetwork = (): MockInstance<typeof globalThis.fetch> =>
+    vi.spyOn(globalThis, 'fetch');
 
   /** A temporary outbox, removed even when the assertions of a test fail. */
   const withOutboxDir = async (

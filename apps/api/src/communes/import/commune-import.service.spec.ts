@@ -1,3 +1,4 @@
+import { vi } from 'vitest';
 import type { PrismaClient } from 'src/generated/prisma/client';
 import {
   CommuneImportService,
@@ -28,7 +29,7 @@ describe('CommuneImportService', () => {
   it('fails with a count mismatch error when an upsert is lost', async () => {
     // A silently lost write cannot be provoked through the real client —
     // simulate it at the Prisma boundary: one upsert rejects, the rest pass.
-    const upsert = jest
+    const upsert = vi
       .fn()
       .mockRejectedValueOnce(new Error('connection reset by peer'))
       .mockResolvedValue({});

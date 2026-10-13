@@ -1,3 +1,4 @@
+import { vi } from 'vitest';
 import { PrismaClient } from 'src/generated/prisma/client';
 import { E2E_COMMUNES, seedE2eReferential } from 'test/helpers/e2e-referential';
 import { createIntTestPrismaClient } from 'test/helpers/prisma-client';
@@ -27,7 +28,7 @@ describe('seedE2eReferential (integration)', () => {
   });
 
   it('makes no network request', async () => {
-    const fetchSpy = jest.spyOn(globalThis, 'fetch');
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
 
     await seedE2eReferential(prisma);
 

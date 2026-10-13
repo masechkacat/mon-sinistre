@@ -1,3 +1,4 @@
+import { vi, type MockInstance } from 'vitest';
 import {
   REMINDER_UNSUBSCRIBE_PATH,
   RisqueCatnat,
@@ -303,9 +304,9 @@ describe('RemindersService.run (integration)', () => {
 
     it('does not count a delivered mail as failed when its record cannot be written', async () => {
       const email = await createSinistreOwner('30189');
-      jest
-        .spyOn(prisma, '$transaction')
-        .mockRejectedValueOnce(new Error('database timeout'));
+      vi.spyOn(prisma, '$transaction').mockRejectedValueOnce(
+        new Error('database timeout'),
+      );
 
       await reminders.run({ now: NOW });
 
@@ -322,9 +323,9 @@ describe('RemindersService.run (integration)', () => {
         where: { email: refused },
         data: { reminderFailures: NOTIFICATION_ATTEMPTS_BEFORE_ALERT - 1 },
       });
-      jest
-        .spyOn(app.get(AdminAlertService), 'raise')
-        .mockRejectedValueOnce(new Error('database timeout'));
+      vi.spyOn(app.get(AdminAlertService), 'raise').mockRejectedValueOnce(
+        new Error('database timeout'),
+      );
 
       await reminders.run({ now: NOW });
 
@@ -452,18 +453,18 @@ describe('RemindersService.run (integration)', () => {
       // The window the rotation guards: the candidate query has read the step,
       // the mail is not out yet, and the person switches the reminders off.
       const original = prisma.step.findMany.bind(prisma.step);
-      (
-        jest.spyOn(prisma.step, 'findMany') as jest.SpyInstance
-      ).mockImplementation(async (...args: unknown[]) => {
-        const rows: unknown = await original(
-          ...(args as Parameters<typeof original>),
-        );
-        await prisma.user.updateMany({
-          where: { email },
-          data: { remindersDisabledAt: new Date() },
-        });
-        return rows;
-      });
+      (vi.spyOn(prisma.step, 'findMany') as MockInstance).mockImplementation(
+        async (...args: unknown[]) => {
+          const rows: unknown = await original(
+            ...(args as Parameters<typeof original>),
+          );
+          await prisma.user.updateMany({
+            where: { email },
+            data: { remindersDisabledAt: new Date() },
+          });
+          return rows;
+        },
+      );
 
       await reminders.run({ now: NOW });
 

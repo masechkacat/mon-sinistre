@@ -1,3 +1,4 @@
+import { vi } from 'vitest';
 import {
   GEO_API_COMMUNES_URL,
   GeoApiClient,
@@ -16,9 +17,7 @@ const makeCommunes = (count: number): GeoApiCommune[] =>
   }));
 
 const fetchOf = (body: unknown, status = 200) =>
-  jest.fn(() =>
-    Promise.resolve(new Response(JSON.stringify(body), { status })),
-  );
+  vi.fn(() => Promise.resolve(new Response(JSON.stringify(body), { status })));
 
 describe('GeoApiClient', () => {
   it('returns the full commune list with the département name', async () => {
@@ -102,7 +101,7 @@ describe('GeoApiClient', () => {
   });
 
   it('rejects a truncated response body that is not valid JSON', async () => {
-    const fetchFn = jest.fn(() =>
+    const fetchFn = vi.fn(() =>
       Promise.resolve(new Response('[{"code":"01001"', { status: 200 })),
     );
 

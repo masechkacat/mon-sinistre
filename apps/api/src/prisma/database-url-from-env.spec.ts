@@ -7,7 +7,7 @@ import { databaseUrlFromEnv } from './database-url-from-env';
  * of them is not there.
  *
  * Worth its own spec because its callers have none: the Prisma CLI config, the
- * seed and the integration-test client all run outside jest, and a regression
+ * seed and the integration-test client all run outside the test runner, and a regression
  * here would surface as migrations applied to one database and the application
  * connected to another.
  */

@@ -1,3 +1,4 @@
+import { vi } from 'vitest';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
@@ -150,7 +151,7 @@ describe('POST /auth/refresh (integration)', () => {
       args: Prisma.RefreshTokenCreateArgs,
     ) => Promise<unknown>,
   ) =>
-    jest
+    vi
       .spyOn(prisma, '$transaction')
       .mockImplementationOnce(
         (fn: (tx: Prisma.TransactionClient) => Promise<unknown>) =>

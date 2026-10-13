@@ -1,3 +1,4 @@
+import { vi } from 'vitest';
 import { ScheduleModule, SchedulerRegistry } from '@nestjs/schedule';
 import { Test, type TestingModule } from '@nestjs/testing';
 import { AdminAlertService } from 'src/jorf/alerts/admin-alert.service';
@@ -11,7 +12,7 @@ import { REMINDERS_CRON, RemindersService } from './reminders.service';
  * ever received a reminder.
  */
 describe('RemindersService schedule', () => {
-  const findMany = jest.fn().mockResolvedValue([]);
+  const findMany = vi.fn().mockResolvedValue([]);
   let moduleRef: TestingModule;
 
   beforeAll(async () => {

@@ -1,3 +1,4 @@
+import { vi, type Mock } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { toIsoDate, VEILLE_UNSUBSCRIBE_PATH } from '@mon-sinistre/contracts';
@@ -106,7 +107,7 @@ function stubFetch(
   indexNames: string[],
   downloads: Record<string, Buffer | Error>,
 ): FetchFn {
-  return jest.fn((url: string) => {
+  return vi.fn((url: string) => {
     if (url === DILA_JORFSIMPLE_BASE_URL) {
       const html = indexNames
         .map((name) => `<a href="${name}">${name}</a>`)
@@ -188,8 +189,7 @@ describe('JorfMonitorService.run (integration)', () => {
     });
 
     await monitor.run();
-    const downloadCallsAfterFirstRun = (currentFetch as jest.Mock).mock.calls
-      .length;
+    const downloadCallsAfterFirstRun = (currentFetch as Mock).mock.calls.length;
     await monitor.run();
 
     expect(await prisma.arrete.count()).toBe(1);
@@ -197,7 +197,7 @@ describe('JorfMonitorService.run (integration)', () => {
     expect(await prisma.jorfDelta.count()).toBe(1);
     // The second run's downloadDelta is never called: the delta is already
     // marked processed, so only the listing fetch runs again.
-    expect((currentFetch as jest.Mock).mock.calls.length).toBe(
+    expect((currentFetch as Mock).mock.calls.length).toBe(
       downloadCallsAfterFirstRun + 1,
     );
   });
@@ -394,7 +394,7 @@ describe('JorfMonitorService.run (integration)', () => {
     it('loses, without throwing, when another process creates the lock between the read and the create (issue 196)', async () => {
       const rival = randomUUID();
       const findUnique = prisma.monitorLock.findUnique.bind(prisma.monitorLock);
-      const read = jest
+      const read = vi
         .spyOn(prisma.monitorLock, 'findUnique')
         .mockImplementationOnce(((args) =>
           findUnique(args).then(async (held) => {
@@ -769,7 +769,7 @@ describe('JorfMonitorService.run (integration)', () => {
       });
       // The text parses; the write behind it doesn't go through — a dropped
       // connection, a statement timeout. Nothing about the JO is wrong here.
-      const transaction = jest
+      const transaction = vi
         .spyOn(prisma, '$transaction')
         .mockRejectedValueOnce(new Error('P1001 database unreachable'));
 
@@ -1492,7 +1492,7 @@ describe('veille notification outbox (issue #106)', () => {
         reconnues: [AMIGNY],
       }),
     });
-    const send = jest
+    const send = vi
       .spyOn(transport, 'send')
       .mockRejectedValue(new MailDeliveryError('boom'));
     try {

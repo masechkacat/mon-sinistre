@@ -1,3 +1,4 @@
+import { vi } from 'vitest';
 import { Logger } from '@nestjs/common';
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
 import {
@@ -285,7 +286,7 @@ describe('DossierController GET /dossier/arretes (integration)', () => {
     // its place), and the gap must cost the log one line per date, not one
     // per visitor per entry.
     await prisma.deadlineRule.deleteMany();
-    const logged = jest
+    const logged = vi
       .spyOn(Logger.prototype, 'error')
       .mockImplementation(() => undefined);
 

@@ -1,17 +1,15 @@
-'use strict';
-
-const { execSync } = require('node:child_process');
-const path = require('node:path');
-const { Client } = require('pg');
+import { execSync } from 'node:child_process';
+import path from 'node:path';
+import { Client } from 'pg';
 
 /**
  * Makes `dbName` exist on the docker-compose Postgres and migrates it. Shared
- * by the jest global setup and the e2e seed. CREATE DATABASE goes through the
- * database DB_NAME names, which must already exist. Overriding DB_NAME for the
- * migration is enough to retarget the Prisma CLI — prisma.config.ts builds the
- * connection string from DB_*.
+ * by the integration global setup and the e2e seed. CREATE DATABASE goes
+ * through the database DB_NAME names, which must already exist. Overriding
+ * DB_NAME for the migration is enough to retarget the Prisma CLI —
+ * prisma.config.ts builds the connection string from DB_*.
  */
-module.exports = async function prepareDatabase(dbName) {
+export default async function prepareDatabase(dbName: string): Promise<void> {
   const client = new Client({
     host: process.env.DB_HOST,
     port: Number(process.env.DB_PORT),
@@ -39,4 +37,4 @@ module.exports = async function prepareDatabase(dbName) {
     env: { ...process.env, DB_NAME: dbName },
     stdio: 'inherit',
   });
-};
+}

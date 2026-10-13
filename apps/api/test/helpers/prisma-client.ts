@@ -6,7 +6,7 @@ import { databaseUrlFromEnv } from 'src/prisma/database-url-from-env';
  * For integration specs that do not bootstrap Nest. Specs that do take
  * PrismaService from the container instead.
  *
- * Callers own the lifecycle: `$disconnect()` in `afterAll`, or the jest run
+ * Callers own the lifecycle: `$disconnect()` in `afterAll`, or the test run
  * hangs on the open pool.
  */
 export const createIntTestPrismaClient = (): PrismaClient =>

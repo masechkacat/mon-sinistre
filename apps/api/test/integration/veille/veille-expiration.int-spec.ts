@@ -1,3 +1,4 @@
+import { vi } from 'vitest';
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { createIntTestApp } from 'test/helpers/app';
 import { captureLogs } from 'test/helpers/mail-log';
@@ -159,11 +160,9 @@ describe('VeilleService.cleanupExpired (integration)', () => {
     });
     // A Prisma message is where an address would reach the log — the tick
     // catches the failure itself, precisely so nothing prints it verbatim.
-    jest
-      .spyOn(veille, 'deleteExpiredUnconfirmed')
-      .mockRejectedValueOnce(
-        new Error('Unique constraint failed: riverain@example.fr'),
-      );
+    vi.spyOn(veille, 'deleteExpiredUnconfirmed').mockRejectedValueOnce(
+      new Error('Unique constraint failed: riverain@example.fr'),
+    );
 
     await expect(veille.cleanupExpired()).resolves.toBeUndefined();
 

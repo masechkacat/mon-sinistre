@@ -1,3 +1,4 @@
+import { vi } from 'vitest';
 import { ConfigService } from '@nestjs/config';
 import {
   CronExpression,
@@ -21,7 +22,7 @@ import { VeilleService } from './veille.service';
  * the `@Cron` metadata with it — leaving nothing registered to test.
  */
 describe('VeilleService cleanup schedule', () => {
-  const deleteMany = jest.fn().mockResolvedValue({ count: 0 });
+  const deleteMany = vi.fn().mockResolvedValue({ count: 0 });
   let moduleRef: TestingModule;
 
   beforeAll(async () => {

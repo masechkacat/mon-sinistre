@@ -1,3 +1,4 @@
+import { vi } from 'vitest';
 import { Logger } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CommuneReferentialCheck } from './commune-referential.check';
@@ -10,9 +11,11 @@ import { CommuneReferentialCheck } from './commune-referential.check';
  */
 describe('CommuneReferentialCheck', () => {
   const runWith = async (total: number) => {
-    const count = jest.fn<Promise<number>, []>().mockResolvedValue(total);
+    const count = vi.fn<() => Promise<number>>().mockResolvedValue(total);
     const prisma = { commune: { count } } as unknown as PrismaService;
-    const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+    const warn = vi
+      .spyOn(Logger.prototype, 'warn')
+      .mockImplementation(() => undefined);
 
     await new CommuneReferentialCheck(prisma).onApplicationBootstrap();
 
@@ -20,7 +23,7 @@ describe('CommuneReferentialCheck', () => {
   };
 
   afterEach(() => {
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   it('stays silent once the referential is imported', async () => {

@@ -1,3 +1,4 @@
+import { vi, type Mock } from 'vitest';
 import { Logger } from '@nestjs/common';
 import type { PrismaService } from 'src/prisma/prisma.service';
 import { DeadlineRuleService } from './deadline-rule.service';
@@ -8,19 +9,19 @@ import { DeadlineRuleService } from './deadline-rule.service';
 describe('DeadlineRuleService.resolveActiveOrNull', () => {
   const onDate = new Date('2026-07-01');
 
-  function serviceWith(findFirst: jest.Mock) {
+  function serviceWith(findFirst: Mock) {
     const prisma = { deadlineRule: { findFirst } } as unknown as PrismaService;
     return new DeadlineRuleService(prisma);
   }
 
   function silentLogger() {
     const logger = new Logger('spec');
-    const error = jest.spyOn(logger, 'error').mockImplementation(() => {});
+    const error = vi.spyOn(logger, 'error').mockImplementation(() => {});
     return { logger, error };
   }
 
   it('returns null and logs once when no rule is active', async () => {
-    const service = serviceWith(jest.fn().mockResolvedValue(null));
+    const service = serviceWith(vi.fn().mockResolvedValue(null));
     const { logger, error } = silentLogger();
 
     await expect(
@@ -40,7 +41,7 @@ describe('DeadlineRuleService.resolveActiveOrNull', () => {
   });
 
   it('resolves once per publication date and answers null for a refusal without asking', async () => {
-    const findFirst = jest.fn().mockResolvedValue({ id: 'rule' });
+    const findFirst = vi.fn().mockResolvedValue({ id: 'rule' });
     const service = serviceWith(findFirst);
     const { logger } = silentLogger();
     const published = new Date('2026-06-12');
@@ -60,7 +61,7 @@ describe('DeadlineRuleService.resolveActiveOrNull', () => {
 
   it('rethrows a failed query without logging it as a gap', async () => {
     const failure = new Error('connection reset');
-    const service = serviceWith(jest.fn().mockRejectedValue(failure));
+    const service = serviceWith(vi.fn().mockRejectedValue(failure));
     const { logger, error } = silentLogger();
 
     await expect(

@@ -1,3 +1,4 @@
+import { vi, type MockInstance } from 'vitest';
 import { createHash } from 'node:crypto';
 
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
@@ -319,16 +320,16 @@ describe('POST /veille (integration)', () => {
       after?: () => Promise<unknown>;
     }): void => {
       const original = prisma.$transaction.bind(prisma);
-      (
-        jest.spyOn(prisma, '$transaction') as jest.SpyInstance
-      ).mockImplementation(async (...args: unknown[]) => {
-        await races.before?.();
-        const result: unknown = await original(
-          ...(args as Parameters<typeof original>),
-        );
-        await races.after?.();
-        return result;
-      });
+      (vi.spyOn(prisma, '$transaction') as MockInstance).mockImplementation(
+        async (...args: unknown[]) => {
+          await races.before?.();
+          const result: unknown = await original(
+            ...(args as Parameters<typeof original>),
+          );
+          await races.after?.();
+          return result;
+        },
+      );
     };
 
     it('answers 204 and says so in the log when the unique-index race is lost twice', async () => {
@@ -820,7 +821,7 @@ describe('POST /veille (integration)', () => {
 
     it('refunds the attempt when the mail cannot be composed — a deterministic bug must stay loud, not burn the budget into silent 204s', async () => {
       await prisma.commune.create({ data: communeFixture('30189', 'Nîmes') });
-      const compose = jest
+      const compose = vi
         .spyOn(app.get(MailComposer), 'compose')
         .mockImplementationOnce(() => {
           throw new MailCompositionError('composition broke');

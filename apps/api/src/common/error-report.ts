@@ -38,9 +38,9 @@ export const stackOf = (thrown: unknown): string | undefined => {
   // An error with no message has no ": " in its header either — V8 writes the
   // name alone. Spelling the separator out regardless would fail the match
   // below and cost the frames of exactly the error that has nothing else to
-  // show. Under jest this is invisible: source-map-support rewrites the stack
-  // and puts the separator back, so the case is recorded with a stack written
-  // out by hand in the spec.
+  // show. A test runner that rewrites stacks through source maps puts the
+  // separator back, so the case is recorded with a stack written out by hand
+  // in the spec.
   const header = thrown.message
     ? `${thrown.name}: ${thrown.message}`
     : thrown.name;

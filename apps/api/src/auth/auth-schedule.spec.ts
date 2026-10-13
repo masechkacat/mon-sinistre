@@ -1,3 +1,4 @@
+import { vi } from 'vitest';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import {
@@ -22,7 +23,7 @@ import { AuthService } from './auth.service';
  * module, with only `VeilleService` in it.
  */
 describe('AuthService cleanup schedule', () => {
-  const deleteMany = jest.fn().mockResolvedValue({ count: 0 });
+  const deleteMany = vi.fn().mockResolvedValue({ count: 0 });
   let moduleRef: TestingModule;
 
   beforeAll(async () => {

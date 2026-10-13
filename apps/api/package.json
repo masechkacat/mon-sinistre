@@ -11,10 +11,10 @@
     "start:prod": "NODE_ENV=production node dist/main",
     "lint": "tsc --noEmit && eslint .",
     "lint:fix": "eslint . --fix",
-    "test": "NODE_OPTIONS=--experimental-vm-modules jest --passWithNoTests",
-    "test:int": "NODE_OPTIONS=--experimental-vm-modules jest --config jest.int.config.js --passWithNoTests",
-    "test:watch": "npm test -- --watch",
-    "test:cov": "npm test -- --coverage",
+    "test": "vitest run --passWithNoTests",
+    "test:int": "vitest run --config vitest.config.int.mts --passWithNoTests",
+    "test:watch": "vitest",
+    "test:cov": "vitest run --coverage",
     "prisma:generate": "prisma generate",
     "migration:dev": "prisma migrate dev",
     "migration:deploy": "prisma migrate deploy",
@@ -55,45 +55,17 @@
     "@nestjs/schematics": "^12.0.6",
     "@nestjs/testing": "^12.1.2",
     "@types/bcrypt": "^6.0.0",
-    "@types/jest": "^30.0.0",
     "@types/node": "^24.13.3",
     "@types/passport-jwt": "^4.0.1",
     "@types/passport-local": "^1.0.38",
+    "@vitest/coverage-v8": "^5.0.4",
     "eslint": "^10.8.0",
     "globals": "^17.8.0",
-    "jest": "^30.4.2",
     "prisma": "^7.10.0",
-    "ts-jest": "^29.4.12",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
     "typescript": "~6.0.3",
-    "typescript-eslint": "^8.65.0"
-  },
-  "jest": {
-    "moduleFileExtensions": [
-      "js",
-      "json",
-      "ts"
-    ],
-    "rootDir": "src",
-    "setupFiles": [
-      "reflect-metadata"
-    ],
-    "testRegex": ".*\\.spec\\.ts$",
-    "restoreMocks": true,
-    "transform": {
-      "^.+\\.(t|j)s$": "ts-jest"
-    },
-    "moduleNameMapper": {
-      "^@mon-sinistre/contracts$": "<rootDir>/../../../packages/contracts/src",
-      "^src/(.*)$": "<rootDir>/$1",
-      "^test/(.*)$": "<rootDir>/../test/$1"
-    },
-    "collectCoverageFrom": [
-      "**/*.(t|j)s",
-      "!generated/**"
-    ],
-    "coverageDirectory": "../coverage",
-    "testEnvironment": "node"
+    "typescript-eslint": "^8.65.0",
+    "vitest": "^5.0.4"
   }
 }

@@ -1,3 +1,4 @@
+import { vi, type MockInstance } from 'vitest';
 import {
   type ArgumentsHost,
   BadRequestException,
@@ -25,8 +26,8 @@ const prismaError = (
 
 const hostFor = (url = '/communes') => {
   const reply = {
-    status: jest.fn((): unknown => reply),
-    send: jest.fn(),
+    status: vi.fn((): unknown => reply),
+    send: vi.fn(),
   };
   const host = {
     switchToHttp: () => ({
@@ -39,16 +40,18 @@ const hostFor = (url = '/communes') => {
 };
 
 /** Everything the logger was handed for one call, as one searchable string. */
-const loggedText = (spy: jest.SpyInstance): string =>
+const loggedText = (spy: MockInstance): string =>
   (spy.mock.calls as unknown[][]).map((call) => call.join('\n')).join('\n');
 
 describe('AllExceptionsFilter', () => {
   const filter = new AllExceptionsFilter();
-  let error: jest.SpyInstance;
+  let error: MockInstance;
 
   beforeEach(() => {
-    // restoreMocks in the jest config undoes this after every test.
-    error = jest.spyOn(Logger.prototype, 'error').mockImplementation();
+    // restoreMocks in the Vitest config undoes this after every test.
+    error = vi
+      .spyOn(Logger.prototype, 'error')
+      .mockImplementation(() => undefined);
   });
 
   describe('the answer', () => {
@@ -327,10 +330,10 @@ describe('AllExceptionsFilter', () => {
     });
 
     it('logs the frames of an error that carries no message', () => {
-      // The stack is written out by hand in the format V8 produces, because
-      // jest does not run in it: source-map-support rebuilds every stack it
-      // touches and puts a ": " after the name even when there is no message,
-      // so a spec throwing a real `new Error()` would pass either way. In
+      // The stack is written out by hand in the format V8 produces: a test
+      // runner that rebuilds stacks through source maps puts a ": " after the
+      // name even when there is no message, so a spec throwing a real
+      // `new Error()` could pass either way. In
       // production the header is the bare name — and an error with nothing but
       // a class name is the one whose frames are all there is to go on.
       const bare = new Error();

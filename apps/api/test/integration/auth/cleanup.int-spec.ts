@@ -1,3 +1,4 @@
+import { vi } from 'vitest';
 import { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { RisqueCatnat } from '@mon-sinistre/contracts';
 import { createIntTestApp } from 'test/helpers/app';
@@ -221,11 +222,9 @@ describe('AuthService.cleanupExpired (integration)', () => {
     });
     // A Prisma message is where an address would reach the log — the tick
     // catches the failure itself, precisely so nothing prints it verbatim.
-    jest
-      .spyOn(auth, 'deleteExpiredUnconfirmedUsers')
-      .mockRejectedValueOnce(
-        new Error('Unique constraint failed: victime@example.fr'),
-      );
+    vi.spyOn(auth, 'deleteExpiredUnconfirmedUsers').mockRejectedValueOnce(
+      new Error('Unique constraint failed: victime@example.fr'),
+    );
 
     await expect(auth.cleanupExpired()).resolves.toBeUndefined();
 
