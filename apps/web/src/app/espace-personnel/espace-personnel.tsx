@@ -86,12 +86,12 @@ export function EspacePersonnel() {
 
             <Link
               href="/sinistres"
-              className={buttonVariants({ variant: 'outline' })}
+              className={buttonVariants({ variant: 'outline', size: 'touch' })}
             >
               {fr.compte.espacePersonnel.sinistresLink}
             </Link>
 
-            <Button type="button" onClick={() => endSession()}>
+            <Button type="button" size="touch" onClick={() => endSession()}>
               {fr.session.logout}
             </Button>
 
@@ -109,7 +109,10 @@ export function EspacePersonnel() {
                 <button
                   ref={deleteTriggerRef}
                   type="button"
-                  className={buttonVariants({ variant: 'outline' })}
+                  className={buttonVariants({
+                    variant: 'outline',
+                    size: 'touch',
+                  })}
                   onClick={() => setConfirmingDelete(true)}
                 >
                   {fr.compte.espacePersonnel.deleteAccount.button}
@@ -148,6 +151,7 @@ export function EspacePersonnel() {
                     <Button
                       type="button"
                       variant="outline"
+                      size="touch"
                       onClick={() => setConfirmingDelete(false)}
                       disabled={deleteMutation.isPending}
                     >
@@ -156,6 +160,7 @@ export function EspacePersonnel() {
                     <Button
                       type="button"
                       variant="outline"
+                      size="touch"
                       onClick={() => deleteMutation.mutate()}
                       disabled={deleteMutation.isPending}
                     >

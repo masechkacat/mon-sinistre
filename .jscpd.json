@@ -1,5 +1,9 @@
 {
   "minTokens": 70,
-  "ignore": ["**/*.json", "**/prisma/migrations/**", "**/fixtures/**"],
+  "ignore": [
+    "**/*.json",
+    "**/prisma/migrations/**",
+    "**/fixtures/**/*.{xml,html}"
+  ],
   "reporters": ["console"]
 }
