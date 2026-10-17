@@ -95,7 +95,7 @@ const OUVRIR_MON_DOSSIER = 'Ouvrir mon dossier';
 const EVENEMENT_DU = (date: string) => `Événement du ${date}`;
 
 const conteneurVide = (contenu: string) =>
-  `${contenu} : cet espace s’ouvrira une fois votre dossier enregistré.`;
+  `${contenu} : cet espace n’est pas encore ouvert.`;
 
 const apresAncre: Record<StepAnchor, string> = {
   [StepAnchor.DATE_SINISTRE]: 'après le sinistre',
@@ -495,6 +495,7 @@ export const fr = {
       page: { title: 'Mon dossier' },
       timelineLabel: 'Étapes de votre dossier',
       prochaineEtape: 'Prochaine étape',
+      faits: { titre: FAIT, liste: 'Étapes déjà réglées' },
       sansDateNiAncre: 'Cette étape n’a pas encore de date prévue.',
       marquer: {
         fait: 'Marquer comme fait',

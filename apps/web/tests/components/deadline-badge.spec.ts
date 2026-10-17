@@ -7,11 +7,7 @@ import {
   CASE_DELAY,
   type BadgeCase,
 } from '../../src/app/test-bejdz/cases';
-import {
-  dateParts,
-  formatDateFr,
-  formatDateShortFr,
-} from '../../src/i18n/date';
+import { dateParts, formatDateFr } from '../../src/i18n/date';
 import { fr } from '../../src/i18n/fr';
 import { DeadlineBadgeState } from '../../src/lib/deadline-badge';
 import { expectFace } from '../support/fonts';
@@ -19,7 +15,6 @@ import { gotoPage, testBejdz } from '../support/pages';
 import { sourceFiles } from '../support/sources';
 
 const copy = fr.deadlineBadge;
-const forms = ['hero', 'row'] as const;
 const themes = ['light', 'dark'] as const;
 
 /**
@@ -50,22 +45,14 @@ const expected: Record<
   },
 };
 
-// The hero form lays the date out as a tear-off sheet (month, day, weekday);
-// the row form reads it on one line.
+// The badge lays the date out as a tear-off sheet: month, day, weekday.
 const parts = dateParts(CASE_DATE);
-const dateFragments = {
-  hero: [parts.month, parts.day, parts.weekday],
-  row: [copy.prevueLe(formatDateShortFr(CASE_DATE))],
-} as const;
 
-function expectedTexts(
-  entry: BadgeCase,
-  form: (typeof forms)[number],
-): string[] {
+function expectedTexts(entry: BadgeCase): string[] {
   const { words, dated } = expected[entry.state];
   const texts = [...words];
   if (!dated) return texts;
-  texts.push(...dateFragments[form]);
+  texts.push(parts.month, parts.day, parts.weekday);
   // A done step has nothing left to count down to.
   if (entry.daysLeft !== null && entry.state !== DeadlineBadgeState.fait) {
     texts.push(copy.compteARebours(entry.daysLeft));
@@ -73,32 +60,28 @@ function expectedTexts(
   return texts;
 }
 
-const badge = (page: Page, form: string, state: DeadlineBadgeState): Locator =>
-  page.getByTestId(`badge-${form}-${state}`);
+const badge = (page: Page, state: DeadlineBadgeState): Locator =>
+  page.getByTestId(`badge-${state}`);
 
-for (const form of forms) {
-  test(`form ${form}: every state names itself and gives its date or its reason`, async ({
-    page,
-  }) => {
-    await gotoPage(page, testBejdz);
-    for (const entry of badgeCases) {
-      const locator = badge(page, form, entry.state);
-      for (const text of expectedTexts(entry, form)) {
-        await expect(locator, `${form} / ${entry.state}`).toContainText(text);
-      }
+test('every state names itself and gives its date or its reason', async ({
+  page,
+}) => {
+  await gotoPage(page, testBejdz);
+  for (const entry of badgeCases) {
+    const locator = badge(page, entry.state);
+    for (const text of expectedTexts(entry)) {
+      await expect(locator, entry.state).toContainText(text);
     }
-  });
-}
+  }
+});
 
 test('« date à venir » counts the window from the step’s own anchor', async ({
   page,
 }) => {
   await gotoPage(page, testBejdz);
-  for (const form of forms) {
-    const locator = badge(page, form, DeadlineBadgeState.dateAVenir);
-    await expect(locator).toContainText('après votre déclaration');
-    await expect(locator).not.toContainText('arrêté');
-  }
+  const locator = badge(page, DeadlineBadgeState.dateAVenir);
+  await expect(locator).toContainText('après votre déclaration');
+  await expect(locator).not.toContainText('arrêté');
 });
 
 for (const colorScheme of themes) {
@@ -112,15 +95,13 @@ for (const colorScheme of themes) {
       if (colour === 'grayscale') {
         await page.addStyleTag({ content: 'html { filter: grayscale(1); }' });
       }
-      for (const form of forms) {
-        for (const entry of badgeCases) {
-          await expect(badge(page, form, entry.state)).toHaveScreenshot([
-            form,
-            entry.state,
-            colorScheme,
-            `${colour}.png`,
-          ]);
-        }
+      for (const entry of badgeCases) {
+        await expect(badge(page, entry.state)).toHaveScreenshot([
+          'hero',
+          entry.state,
+          colorScheme,
+          `${colour}.png`,
+        ]);
       }
     });
   }

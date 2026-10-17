@@ -10,11 +10,7 @@ import {
 } from '@mon-sinistre/contracts';
 import type { StepMark } from '../../src/lib/api/sinistres';
 import { dossierTitle } from '../../src/lib/dossier-title';
-import {
-  dateParts,
-  formatDateFr,
-  formatDateShortFr,
-} from '../../src/i18n/date';
+import { dateParts, formatDateShortFr } from '../../src/i18n/date';
 import { fr } from '../../src/i18n/fr';
 import { expectNoAxeViolations } from '../support/a11y';
 import { greenColours } from '../support/contrast';
@@ -74,24 +70,13 @@ const badgeCopy = fr.deadlineBadge;
 const prevueLe = (date: string) =>
   badgeCopy.prevueLe(formatDateShortFr(toIsoDate(date)));
 
-// What the fields of each step above must reach the badge as.
-const BADGE_TEXTS: Record<string, string[]> = {
-  'step-retard': [
-    badgeCopy.enRetard,
-    badgeCopy.compteARebours(-3),
-    prevueLe('2026-10-10'),
-  ],
-  'step-proche': [
-    badgeCopy.derniereSemaine,
-    badgeCopy.compteARebours(DEADLINE_URGENT_THRESHOLD_DAYS),
-    prevueLe('2026-10-20'),
-  ],
-  'step-sans-date': [badgeCopy.dateAVenir],
-  'step-plus-tard': [badgeCopy.compteARebours(30), prevueLe('2026-11-12')],
-  'step-fait': [
-    badgeCopy.fait(formatDateFr(toIsoDate('2026-10-08'))),
-    prevueLe('2026-10-10'),
-  ],
+// What the fields of each step above must reach its date line as. The done
+// step is not here: it stands in the row of what is behind, by its name alone.
+const DATE_LINES: Record<string, string[]> = {
+  'step-retard': [badgeCopy.enRetard, prevueLe('2026-10-10')],
+  'step-proche': [badgeCopy.derniereSemaine, prevueLe('2026-10-20')],
+  'step-sans-date': [fr.sinistres.detail.attentePar.DATE_ETAT_ESTIMATIF],
+  'step-plus-tard': [prevueLe('2026-11-12')],
 };
 
 function sinistreDetail(overrides: Partial<Record<string, unknown>> = {}) {
@@ -203,7 +188,7 @@ async function openDetail(
   await page.goto(`/sinistres/${SINISTRE_ID_1}`);
 }
 
-test('the plan is an ordered list with one item per step, each state named by its badge', async ({
+test('the plan is an ordered list of what is left to do, each step with its date line', async ({
   page,
 }) => {
   await openDetail(page, sinistreDetail());
@@ -211,13 +196,24 @@ test('the plan is an ordered list with one item per step, each state named by it
   const timeline = page.getByRole('list', {
     name: fr.sinistres.detail.timelineLabel,
   });
-  await expect(timeline.getByRole('listitem')).toHaveCount(STEPS.length);
+  await expect(timeline.getByRole('listitem')).toHaveCount(
+    Object.keys(DATE_LINES).length,
+  );
   for (const item of STEPS) {
-    const card = timeline.getByRole('listitem').filter({ hasText: item.name });
-    for (const text of BADGE_TEXTS[item.id]) {
-      await expect(card, item.id).toContainText(text);
+    const texts = DATE_LINES[item.id];
+    const strip = timeline.getByRole('listitem').filter({ hasText: item.name });
+    if (!texts) {
+      await expect(strip, item.id).toHaveCount(0);
+      continue;
+    }
+    for (const text of texts) {
+      await expect(strip, item.id).toContainText(text);
     }
   }
+  // The done step is behind the plan, in the row of what is settled.
+  await expect(page.locator('[data-slot="plan-fait"]')).toContainText(
+    'Prévenir le voisin',
+  );
 });
 
 test('the lines of text the badges replaced are gone from the page', async ({
@@ -400,12 +396,12 @@ for (const colorScheme of ['light', 'dark'] as const) {
       }),
     );
 
-    const timeline = page.getByRole('list', {
-      name: fr.sinistres.detail.timelineLabel,
-    });
-    await expect(timeline).toHaveScreenshot(`etapes-${colorScheme}.png`);
-    // Done is not a reward: nothing on the settled card lights up in green.
-    expect(await greenColours(timeline)).toEqual([]);
+    // The sheet, not the plan alone: a settled step is read under it, in the
+    // row of what is behind.
+    const feuille = page.locator('[data-slot="dossier-feuille"]');
+    await expect(feuille).toHaveScreenshot(`etapes-${colorScheme}.png`);
+    // Done is not a reward: nothing on the settled line lights up in green.
+    expect(await greenColours(feuille)).toEqual([]);
   });
 }
 
@@ -432,9 +428,11 @@ test('a mark is announced in a live region already on the page, and the other st
   await expect(announcements).toHaveText(
     fr.sinistres.detail.annonce.fait('Envoyer les photos'),
   );
-  await expect(timelineItem(page, 'Envoyer les photos')).toContainText(
-    badgeCopy.fait(null),
+  await expect(page.locator('[data-slot="plan-fait"]')).toContainText(
+    'Envoyer les photos',
   );
+  // The focus follows the step to the line it moved to, instead of falling
+  // back to the top of the page with the strip that held it.
   await expect(timelineItem(page, 'Envoyer les photos')).toBeFocused();
   await expect(sibling).toHaveAttribute('data-intact', 'oui');
 });

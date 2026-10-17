@@ -15,6 +15,25 @@ export enum DeadlineBadgeState {
   dateAVenir = 'dateAVenir',
 }
 
+/**
+ * The states a running deadline names in words of urgency: the badge paints
+ * them in vermillon, a plan strip spells the word out on its date line.
+ */
+const URGENT_STATES = [
+  DeadlineBadgeState.enRetard,
+  DeadlineBadgeState.aujourdhui,
+  DeadlineBadgeState.demain,
+  DeadlineBadgeState.derniereSemaine,
+] as const;
+
+type UrgentDeadlineState = (typeof URGENT_STATES)[number];
+
+export function isUrgentDeadline(
+  state: DeadlineBadgeState,
+): state is UrgentDeadlineState {
+  return (URGENT_STATES as readonly DeadlineBadgeState[]).includes(state);
+}
+
 export function deadlineBadgeState({
   status,
   daysLeft,

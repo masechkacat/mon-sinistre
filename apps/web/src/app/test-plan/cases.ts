@@ -87,3 +87,40 @@ export const planCases: StepView[] = [
     order: 9,
   },
 ];
+
+/**
+ * The two settled steps of the same plan — one done, one set aside — in the
+ * order the template gives them, which is the order the row of what is behind
+ * has to keep.
+ */
+export const closCases: StepView[] = [
+  {
+    name: 'Sécuriser le logement',
+    description: '',
+    kind: StepKind.ACTION,
+    plannedDate: toIsoDate('2026-10-08'),
+    status: StepStatus.FAIT,
+    anchor: StepAnchor.DATE_SINISTRE,
+    source: null,
+    daysLeft: -5,
+    delay: null,
+    order: 2,
+  },
+  {
+    name: 'Prévenir la mairie',
+    description: '',
+    kind: StepKind.ACTION,
+    plannedDate: toIsoDate('2026-10-12'),
+    status: StepStatus.NON_APPLICABLE,
+    anchor: StepAnchor.DATE_SINISTRE,
+    source: null,
+    daysLeft: null,
+    delay: null,
+    order: 6,
+  },
+];
+
+/** The plan with its settled steps back in template order. */
+export const planClosCases: StepView[] = [...planCases, ...closCases].sort(
+  (a, b) => a.order - b.order,
+);

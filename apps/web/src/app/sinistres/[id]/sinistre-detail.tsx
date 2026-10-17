@@ -3,12 +3,13 @@
 import { Field } from '@base-ui/react/field';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
-import { useRef, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { StepStatus, isIsoDate, type IsoDate } from '@mon-sinistre/contracts';
 import { FieldError } from '@/components/field-error';
 import { PageContainer } from '@/components/page-container';
 import { DeclarationDeadlineBlock } from '@/components/plan/declaration-deadline-block';
 import { DossierEntete } from '@/components/plan/dossier-entete';
+import { DossierFeuille } from '@/components/plan/dossier-feuille';
 import { PlanList } from '@/components/plan/plan-list';
 import { RequestError } from '@/components/request-error';
 import { AlertDialog, AlertDialogContent } from '@/components/ui/alert-dialog';
@@ -50,14 +51,17 @@ export function SinistreDetailView({ id }: { id: string }) {
   // a failure of one mark must not be overwritten by a later mark's result.
   const [announcement, setAnnouncement] = useState<string | null>(null);
   const stepItems = useRef(new Map<string, HTMLLIElement>());
+  // The step a successful mark gives the focus back to. A marked step trades
+  // the plan for the row of what is behind — and comes back when the mark is
+  // undone — so the node that held the focus is gone by then: the focus can
+  // only follow once the answer is rendered, hence the effect below.
+  const focusAfterMark = useRef<string | null>(null);
   const markMutation = useMutation({
     mutationFn: ({ stepId, status: mark }: StepMarkRequest) =>
       setSinistreStepStatus(id, stepId, mark),
     onSuccess: (_step, mark) => {
       setAnnouncement(markAnnouncement(mark));
-      // The step's `li` stays mounted across the refetch, so focus survives
-      // it; the buttons that held focus are replaced by the refetch.
-      stepItems.current.get(mark.stepId)?.focus();
+      focusAfterMark.current = mark.stepId;
       return queryClient.invalidateQueries({
         queryKey: queryKeys.sinistre(id),
       });
@@ -65,6 +69,14 @@ export function SinistreDetailView({ id }: { id: string }) {
     onError: () => setAnnouncement(fr.sinistres.detail.marquageEchec),
   });
   const sinistre = query.data;
+
+  useEffect(() => {
+    const stepId = focusAfterMark.current;
+    const node = stepId === null ? null : stepItems.current.get(stepId);
+    if (!node) return;
+    focusAfterMark.current = null;
+    node.focus();
+  }, [sinistre]);
 
   return (
     <PageContainer className="space-y-8">
@@ -100,20 +112,22 @@ export function SinistreDetailView({ id }: { id: string }) {
             <DeclarationDeadlineBlock deadline={sinistre.declarationDeadline} />
           ) : null}
 
-          <PlanList
-            steps={sinistre.steps}
-            itemRef={(step, node) => {
-              if (node) stepItems.current.set(step.id, node);
-              else stepItems.current.delete(step.id);
-            }}
-            onMark={(step, mark) =>
-              markMutation.mutate({
-                stepId: step.id,
-                etape: step.name,
-                status: mark,
-              })
-            }
-          />
+          <DossierFeuille>
+            <PlanList
+              steps={sinistre.steps}
+              itemRef={(step, node) => {
+                if (node) stepItems.current.set(step.id, node);
+                else stepItems.current.delete(step.id);
+              }}
+              onMark={(step, mark) =>
+                markMutation.mutate({
+                  stepId: step.id,
+                  etape: step.name,
+                  status: mark,
+                })
+              }
+            />
+          </DossierFeuille>
 
           <SuppressionSection sinistreId={id} />
         </>

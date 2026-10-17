@@ -117,7 +117,6 @@ test('arrêté attendu: the step anchored on the publication waits without a dat
   ).toBeVisible();
 
   const declaration = planItem(page, APERCU_STEPS.declaration);
-  await expect(declaration).toContainText(badgeCopy.dateAVenir);
   await expect(declaration).toContainText(
     copy.attentePar.DATE_PUBLICATION_ARRETE,
   );

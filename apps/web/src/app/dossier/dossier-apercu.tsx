@@ -16,6 +16,7 @@ import { ArretePublication } from '@/components/plan/arrete-publication';
 import { DeclarationDeadlineBlock } from '@/components/plan/declaration-deadline-block';
 import { DossierEntete } from '@/components/plan/dossier-entete';
 import { DossierExistant } from '@/components/plan/dossier-existant';
+import { DossierFeuille } from '@/components/plan/dossier-feuille';
 import { PlanList } from '@/components/plan/plan-list';
 import { RequestError } from '@/components/request-error';
 import { SectionHeading } from '@/components/section-heading';
@@ -208,7 +209,9 @@ function Apercu({
 
             {/* No onMark: nothing is stored to be marked until the dossier is
               saved, so the plan is read-only here. */}
-            <PlanList steps={apercu.steps} apercu />
+            <DossierFeuille>
+              <PlanList steps={apercu.steps} />
+            </DossierFeuille>
 
             <Button
               size="touch"
