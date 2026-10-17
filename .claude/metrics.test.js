@@ -19,20 +19,18 @@ import {
 
 const line = (o) => JSON.stringify(o);
 
-test('usageOfTranscript суммирует только ходы ассистента с usage', () => {
+test('usageOfTranscript считает каждый ответ модели один раз', () => {
+  const usage = {
+    cache_read_input_tokens: 1000,
+    cache_creation_input_tokens: 100,
+    input_tokens: 10,
+    output_tokens: 50,
+  };
   const text = [
     line({ type: 'user', message: { content: 'задача' } }),
-    line({
-      type: 'assistant',
-      message: {
-        usage: {
-          cache_read_input_tokens: 1000,
-          cache_creation_input_tokens: 100,
-          input_tokens: 10,
-          output_tokens: 50,
-        },
-      },
-    }),
+    // один ответ — две строки (текст и вызов инструмента) с тем же usage
+    line({ type: 'assistant', message: { id: 'msg_1', usage } }),
+    line({ type: 'assistant', message: { id: 'msg_1', usage } }),
     line({ type: 'assistant', message: { content: [] } }),
     'не json',
     line({

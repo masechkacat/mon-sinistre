@@ -33,9 +33,14 @@ const EMPTY_USAGE = { turns: 0, context: 0, output: 0 };
 /**
  * Сумма по транскрипту (jsonl): ходы ассистента, контекст на входе каждого
  * хода (кеш и новое — это то, что платится каждый ход) и выход.
+ *
+ * Один ответ модели записан несколькими строками `assistant` — по одной на
+ * блок текста и на каждый вызов инструмента, и в каждой тот же `usage`;
+ * считается первая строка каждого `message.id`.
  */
 function usageOfTranscript(text) {
   const sum = { ...EMPTY_USAGE };
+  const counted = new Set();
   for (const line of text.split('\n')) {
     if (!line) continue;
     let entry;
@@ -46,6 +51,11 @@ function usageOfTranscript(text) {
     }
     const usage = entry.type === 'assistant' && entry.message?.usage;
     if (!usage) continue;
+    const id = entry.message.id;
+    if (id) {
+      if (counted.has(id)) continue;
+      counted.add(id);
+    }
     sum.turns++;
     sum.context +=
       (usage.cache_read_input_tokens || 0) +
