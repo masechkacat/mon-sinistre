@@ -19,6 +19,7 @@ import {
   checkLinearAdvance,
   checkSameBranch,
   closesIssue,
+  dryReviewPrompt,
   fieldKey,
   filterQueue,
   milestonePrefix,
@@ -367,4 +368,10 @@ test('prTitle берёт тип коммита из конфига', () => {
     prTitle(validateConfig(config({ prType: 'chore' })), 3, milestone),
     'chore(commune-referential): фаза 3 — Поиск',
   );
+});
+
+test('dryReviewPrompt называет агента и дифф фазы', () => {
+  const prompt = dryReviewPrompt('veille/phase-2');
+  assert.match(prompt, /dry-reviewer/);
+  assert.match(prompt, /origin\/main\.\.\.veille\/phase-2/);
 });

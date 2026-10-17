@@ -1,12 +1,5 @@
 {
   "minTokens": 70,
-  "ignore": [
-    "**/*.spec.ts",
-    "**/*.test.ts",
-    "**/*.test.tsx",
-    "**/*.test.js",
-    "**/*.json",
-    "**/prisma/migrations/**"
-  ],
+  "ignore": ["**/*.json", "**/prisma/migrations/**", "**/fixtures/**"],
   "reporters": ["console"]
 }

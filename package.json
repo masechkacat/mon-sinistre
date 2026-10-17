@@ -28,8 +28,8 @@
     "lint": "npm run lint --workspaces --if-present",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "dup": "jscpd --baseline .jscpd-baseline.json packages/contracts/src apps/api/src apps/web/src .claude --fail-on-new-clones",
-    "dup:baseline": "jscpd --baseline .jscpd-baseline.json packages/contracts/src apps/api/src apps/web/src .claude --update-baseline",
+    "dup": "jscpd --baseline .jscpd-baseline.json packages/contracts/src apps/api/src apps/api/test apps/web/src apps/web/tests apps/web/e2e .claude --fail-on-new-clones",
+    "dup:baseline": "jscpd --baseline .jscpd-baseline.json packages/contracts/src apps/api/src apps/api/test apps/web/src apps/web/tests apps/web/e2e .claude --update-baseline",
     "db:up": "docker compose --env-file ./apps/api/.env up -d db",
     "db:down": "docker compose --env-file ./apps/api/.env down"
   },

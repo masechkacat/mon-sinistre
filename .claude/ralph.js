@@ -666,6 +666,45 @@ function prTitle(cfg, phase, milestone) {
   return `${cfg.prType}(${cfg.feature}): фаза ${phase} — ${phaseLabel(milestone)}`;
 }
 
+function dryReviewPrompt(branch) {
+  return (
+    `Запусти субагента dry-reviewer по диффу origin/main...${branch} ` +
+    'и верни его отчёт дословно, без вступления и выводов.'
+  );
+}
+
+// Сбой этого ревью PR не блокирует: дубли тогда смотрят руками.
+function dryReview(cfg, branch) {
+  const args = ['-p', dryReviewPrompt(branch), '--permission-mode', 'default'];
+  if (cfg.model) args.push('--model', cfg.model);
+  args.push(
+    '--max-turns',
+    '30',
+    '--allowedTools',
+    'Agent',
+    'Task',
+    'Read',
+    'Grep',
+    'Glob',
+    'Bash(git diff:*)',
+    'Bash(git log:*)',
+    'Bash(git show:*)',
+  );
+  const res = spawnSync('claude', args, {
+    cwd: ROOT,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'inherit'],
+  });
+  const report = (res.stdout || '').trim();
+  if (res.status !== 0 || !report) {
+    warn(
+      'dry-reviewer по диффу фазы не отработал — дубли на PR смотреть руками',
+    );
+    return null;
+  }
+  return report;
+}
+
 function openPullRequest(cfg, phase, milestone, branch, sessions = []) {
   if (DRY_RUN) {
     ok(`здесь был бы push ветки ${branch} и PR в main — в dry-run пропущено`);
@@ -760,6 +799,23 @@ function openPullRequest(cfg, phase, milestone, branch, sessions = []) {
     );
   }
   ok(`PR открыт: ${url}`);
+  const report = dryReview(cfg, branch);
+  if (report) {
+    try {
+      gh([
+        'pr',
+        'comment',
+        url,
+        '--body',
+        `## dry-reviewer по диффу origin/main...${branch}\n\n${report}`,
+      ]);
+      ok('отчёт dry-reviewer добавлен комментарием к PR');
+    } catch (e) {
+      warn(
+        `Комментарий к PR не добавлен: ${(e.stderr || e.message || '').trim()}`,
+      );
+    }
+  }
   return url;
 }
 
@@ -931,6 +987,7 @@ export {
   checkLinearAdvance,
   checkSameBranch,
   closesIssue,
+  dryReviewPrompt,
   fieldKey,
   filterQueue,
   milestonePrefix,
