@@ -3,7 +3,7 @@
 **PRD**: docs/prd/design-system.md (план фаз пишется после этого отчёта)
 **Дата**: 2026-10-04
 
-Снапшот на дату. Источник значений — чистовик Claude Design
+Источник значений — чистовик Claude Design
 <https://claude.ai/artifact/2t7HDyqpTr7v1PLwdUsAsK>; что из него переносится
 буквально, а что нет, сказано в PRD. Уже решённое и не переисследуемое:
 темы на `prefers-color-scheme` без переключателя, Playwright + axe как
@@ -44,11 +44,15 @@ woff2 (иначе woff — `next/font/local` принимает оба) и та�
 ### Токены: имена, значения, слой shadcn
 
 **Решение:** семь ролей чистовика объявляются один раз как CSS-переменные с
-французскими именами (`--fond`, `--papier`, `--encre`, `--secondaire`,
-`--filet`, `--vermillon`, `--petrole`; в тёмной теме плюс `--texte-sur-fond`,
-`--secondaire-sur-fond`, `--filet-sur-fond`), значения — hex из чистовика
-без пересчёта в oklch. Переменные shadcn, которыми уже пользуются компоненты,
-получают значения из ролей, а не вторые литералы:
+французскими именами, значения — hex из чистовика без пересчёта в oklch:
+`--fond` `#e6e4e0`, `--papier` `#f5f3ef`, `--encre` `#4a3426`,
+`--secondaire` `#7a5f50`, `--filet` `#d2c8bf`, `--vermillon` `#a8321f`,
+`--petrole` `#1f4e5f`. В тёмной теме fond — `#1e1917`, плюс семейство
+«sur fond» — не новые роли системы, а её тёмная проекция:
+`--texte-sur-fond` `#efe6d9`, `--secondaire-sur-fond` `#c4b4a3`,
+`--filet-sur-fond` `#55483f`, `--vermillon-sur-fond` `#d9634b`. Переменные
+shadcn, которыми уже пользуются компоненты, получают значения из ролей, а не
+вторые литералы:
 
 | shadcn                               | светлая          | тёмная                 |
 | ------------------------------------ | ---------------- | ---------------------- |
@@ -56,61 +60,54 @@ woff2 (иначе woff — `next/font/local` принимает оба) и та�
 | `--foreground`                       | encre            | texte sur fond         |
 | `--card`, `--popover`                | papier           | papier (как в светлой) |
 | `--card-foreground`                  | encre            | encre                  |
-| `--muted`, `--secondary`, `--accent` | fond             | fond                   |
+| `--muted`, `--secondary`, `--accent` | surface tint     | surface tint           |
 | `--muted-foreground`                 | secondaire       | secondaire sur fond    |
-| `--border`, `--input`                | filet            | filet sur fond         |
+| `--border`                           | filet            | filet sur fond         |
+| `--input`                            | filet            | filet                  |
 | `--primary` / `--primary-foreground` | pétrole / papier | texte sur fond / encre |
 | `--ring`                             | pétrole          | texte sur fond         |
-| `--destructive`                      | vermillon        | vermillon              |
+| `--destructive`                      | vermillon        | vermillon sur fond     |
 | `--radius`                           | 0.25rem          | —                      |
+
+Три строки таблицы продиктованы axe и WCAG 1.4.11, а не чистовиком:
+
+1. **`--destructive` в тёмной теме — vermillon sur fond** (4.8:1 на fond):
+   ошибки полей лежат прямо на фоне, а vermillon чистовика даёт там 2.6:1.
+   На `papier` правило поверхности возвращает vermillon.
+2. **`--border` и `--input` в тёмной теме расходятся:** `--border` (линии,
+   разделители) — filet sur fond, `--input` (рамки полей и бумажных кнопок)
+   — filet, 10.6:1: граница элемента управления обязана держать 3:1.
+   Контурная кнопка берёт рамку из `--input`, не из `--border`.
+3. **`--muted`/`--secondary`/`--accent` — производная `--surface-tint`**,
+   `color-mix` поверхности с её чернилами (8 % в светлой, 10 % в тёмной,
+   7 % на papier): ховер `outline`/`ghost` и фон чипов коммун должны
+   отличаться от фона, а чистовик промежуточного тона не называет. Это
+   правило вывода, не новый литерал.
 
 В `@theme inline` добавляются `--color-vermillon` и `--color-petrole`, чтобы
 бейдж и правила-тесты говорили на языке ролей, а не shadcn. Токены
 `--sidebar-*` и `--chart-*` удаляются: в `src/` их никто не читает.
-
-> **Исправлено при реализации (issue 228, 04.10.2026).** Значения ролей,
-> которых здесь не было: светлая — fond `#e6e4e0`, papier `#f5f3ef`, encre
-> `#4a3426`, secondaire `#7a5f50`, filet `#d2c8bf`, vermillon `#a8321f`,
-> pétrole `#1f4e5f`; тёмная — fond `#1e1917`, texte sur fond `#efe6d9`,
-> secondaire sur fond `#c4b4a3`, filet sur fond `#55483f`. Три строки таблицы
-> выше не прошли axe и WCAG 1.4.11, решения:
->
-> 1. **`--destructive` в тёмной теме — `vermillon sur fond` `#d9634b`**
->    (4.8:1 на fond), четвёртая роль «sur fond»: ошибки полей лежат прямо на
->    фоне, а vermillon чистовика даёт там 2.6:1. На `papier` правило
->    поверхности возвращает vermillon. Семейство «sur fond» — не восьмая роль
->    системы, а её тёмная проекция, как и три роли чистовика.
-> 2. **`--border` и `--input` в тёмной теме расходятся:** `--border` (линии,
->    разделители) — filet sur fond, `--input` (рамки полей и бумажных кнопок)
->    — filet, 10.6:1: граница элемента управления обязана держать 3:1.
->    Контурная кнопка должна брать рамку из `--input`, не из `--border`, —
->    задача про `Button`.
-> 3. **`--muted`/`--secondary`/`--accent` — производная `--surface-tint`**,
->    `color-mix` поверхности с её чернилами (8 % в светлой, 10 % в тёмной,
->    7 % на papier): ховер `outline`/`ghost` и фон чипов коммун должны
->    отличаться от фона, а чистовик промежуточного тона не называет. Это
->    правило вывода, не новый литерал.
->
-> Правило `[data-surface='papier']` объявлено в `globals.css` этой же
-> задачей (иначе `--destructive` на листе остался бы светлым); атрибут на
-> `Card`, `Alert`, попапах и поповерах — задача про поверхность, как в плане.
-> **Почему:** компоненты shadcn (`bg-card`, `text-muted-foreground`,
-> `border-border`) перекрашиваются без правки — это и есть «существующие
-> страницы перекрашиваются через токены» из PRD. Радиус 4 px — перфорированная
-> бумага почти без скругления; текущие 10 px из другого материала.
-> **Отброшено:** переименовать классы компонентов под роли — трогает каждый
-> файл; oklch-перевод значений — теряется прямая сверка с чистовиком.
-> **Как применять:** `:root { --fond: #e6e4e0; … --background: var(--fond); … }`,
-> тёмные значения — в существующем `@media (prefers-color-scheme: dark)`.
-> Тест токенов (ниже) читает те же переменные через `getComputedStyle`.
+**Почему:** компоненты shadcn (`bg-card`, `text-muted-foreground`,
+`border-border`) перекрашиваются без правки — это и есть «существующие
+страницы перекрашиваются через токены» из PRD. Радиус 4 px — перфорированная
+бумага почти без скругления; текущие 10 px из другого материала.
+**Отброшено:** переименовать классы компонентов под роли — трогает каждый
+файл; oklch-перевод значений — теряется прямая сверка с чистовиком.
+**Как применять:** `:root { --fond: #e6e4e0; … --background: var(--fond); … }`,
+тёмные значения — в существующем `@media (prefers-color-scheme: dark)`.
+Тест токенов (ниже) читает те же переменные через `getComputedStyle`.
 
 ### Поверхность «papier» в тёмной теме
 
 **Решение:** атрибут `data-surface="papier"` на каждом бумажном контейнере
 (Card, бейдж, бумажная кнопка) и одно правило в `globals.css`:
 `[data-surface='papier'] { --foreground: var(--encre); --muted-foreground:
-var(--secondaire); --border: var(--filet); --primary: var(--petrole);
---primary-foreground: var(--papier); --ring: var(--petrole); }`.
+var(--secondaire); --border: var(--filet); --input: var(--filet);
+--destructive: var(--vermillon); --primary: var(--petrole);
+--primary-foreground: var(--papier); --ring: var(--petrole); }`. Производные
+`--muted`/`--secondary`/`--accent` и их `*-foreground` объявлены на
+`:root, [data-surface='papier']`: объявленные только на `:root`, они
+сохраняли бы на листе тон fond (ховер контурной кнопки на карточке — 1.2:1).
 **Почему:** правило чистовика «всё на papier не меняет значений» означает,
 что внутри листа переменные «sur fond» должны вернуться к светлым. Один
 селектор делает это для всех утилит сразу: `text-foreground` внутри карточки
@@ -125,11 +122,6 @@ var(--secondaire); --border: var(--filet); --primary: var(--petrole);
 **Как применять:** Card ставит атрибут сам; бейдж и бумажная кнопка — тоже.
 Тест: на тестовой странице в тёмной теме вычисленный `color` текста внутри
 `[data-surface='papier']` равен encre, снаружи — texte sur fond.
-
-> **Расхождение с реализацией:** одного правила мало — производные
-> `--muted`/`--secondary`/`--accent` и их `*-foreground`, объявленные только
-> на `:root`, на листе сохраняли тёмный тон fond (ховер контурной кнопки на
-> карточке — 1.2:1). Они объявлены на `:root, [data-surface='papier']`.
 
 ### Разрушающие действия без киновари
 
@@ -183,7 +175,8 @@ venir» `Step` получает `delay: { value: number; unit: DurationUnit } | 
 
 **Решение:** `apps/web/src/lib/deadline-badge.ts`: enum `DeadlineBadgeState`
 (`norme`, `derniereSemaine`, `demain`, `aujourdhui`, `enRetard`, `fait`,
-`sansObjet`, `dateAVenir`) и функция `deadlineBadgeState({ status, daysLeft })`:
+`sansObjet`, `dateAVenir`) и функция `deadlineBadgeState({ status?, daysLeft })`
+(`status` необязателен: дедлайн декларации не шаг и даёт только `daysLeft`):
 `FAIT` → fait; `NON_APPLICABLE` → sansObjet; `daysLeft === null` → dateAVenir;
 `< 0` → enRetard; `0` → aujourdhui; `1` → demain;
 `≤ DEADLINE_URGENT_THRESHOLD_DAYS` → derniereSemaine; иначе norme. Порядок
@@ -195,9 +188,6 @@ en retard.
 знает; состояние как часть `StepStatus` — ломает хранимые статусы.
 **Как применять:** тест перечисляет граничные пары: 8 → norme, 7 →
 derniereSemaine, 1 → demain, 0 → aujourdhui, −1 → enRetard, FAIT с −3 → fait.
-
-> Расхождение с реализацией (10.10.2026): `status` необязателен — дедлайн
-> декларации не шаг и вызывает функцию только с `daysLeft`.
 
 ### Компонент бейджа
 
@@ -217,15 +207,12 @@ sans objet — `border-dashed`. Число — `font-heading` (Newsreader) с
 темируется и не масштабируется при 200 %.
 **Как применять:** `hero` встаёт в `DeclarationDeadlineBlock` вместо трёх
 строк текста, `row` — в карточку шага вместо строки статуса и `datePrevue`;
-`SourceNote` остаётся под бейджем. Короткая дата «jeu. 15 oct.» и части
-шапки («OCT.», «15», «JEUDI») — новые хелперы в `src/i18n/date.ts` на
+`SourceNote` остаётся под бейджем. Короткая дата «jeu. 15 oct. 2026» (в
+форме `row` подписана «Prévue le …» — иначе у сделанного шага две даты без
+подписи) и части шапки («oct.», «15», «jeudi» — в нижнем регистре, капитель
+даёт CSS) — хелперы в `src/i18n/date.ts` на
 `Intl.DateTimeFormat('fr-FR', { timeZone: 'UTC' })` и `formatToParts`, по
 образцу `formatDateFr`; `toLocaleDateString` в компонентах по-прежнему нет.
-
-> Расхождение с реализацией (10.10.2026): короткая дата несёт год
-> («jeu. 15 oct. 2026») и в форме `row` подписана «Prévue le …» — иначе у
-> сделанного шага две даты без подписи; части шапки возвращаются в нижнем
-> регистре, капитель даёт CSS.
 
 ### Типографическая шкала
 
@@ -279,12 +266,10 @@ J-n 1.75rem, дата бейджа 1.0625rem, подписи 0.875rem, шапк�
 (web-foundation.md); eslint-плагин для hex-литералов — новая зависимость ради
 одного grep.
 **Как применять:** тестовая страница строится из того же `deadlineBadgeState`
-и фикстур `tests/support/sinistres.ts`; при смене эталона снимки обновляются
-осознанно (`--update-snapshots`) и попадают в тот же коммит, что изменение.
-
-> Расхождение с реализацией (10.10.2026): входы тестовой страницы — её
-> `src/app/test-bejdz/cases.ts`, не фикстуры `tests/` (`src` их не
-> импортирует); спеки бейджа читают те же `cases.ts`.
+и своих входов `src/app/test-bejdz/cases.ts` (фикстуры `tests/` из `src` не
+импортируются); спеки бейджа читают те же `cases.ts`. При смене эталона
+снимки обновляются осознанно (`--update-snapshots`) и попадают в тот же
+коммит, что изменение.
 
 ### Déclaration d'accessibilité
 
@@ -295,11 +280,9 @@ J-n 1.75rem, дата бейджа 1.0625rem, подписи 0.875rem, шапк�
 accessibles, établissement de la déclaration, retour d'information et contact,
 voies de recours (Défenseur des droits: форма, délégué, адрес Libre réponse
 71120, 75342 Paris CEDEX 07). `LegalSection` расширяется необязательными
-ссылками `{ text, href }` — для формы Défenseur des droits и адреса контакта.
-
-> Расхождение с реализацией (10.10.2026): ссылкой оформлен только формуляр
-> Défenseur des droits — адрес контакта до публикации плейсхолдер, `href` из
-> него не собрать, а страница délégué не сверена.
+ссылками `{ text, href }`; ссылкой оформлен только формуляр Défenseur des
+droits — адрес контакта до публикации плейсхолдер, `href` из него не
+собрать, а страница délégué не сверена.
 
 Статус — **«non conforme»**: по определению RGAA «conformité partielle»
 требует валидного аудита с ≥ 50 % соблюдённых критериев, а без аудита статус —

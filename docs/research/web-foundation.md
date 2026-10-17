@@ -3,10 +3,6 @@
 **План**: docs/plan/web-foundation.md
 **Дата**: 2026-08-04
 
-> **Снапшот на дату.** Отчёт фиксирует решения на момент ресерча; расхождения
-> при реализации отмечаются врезкой «Исправлено при реализации», как в
-> docs/research/emails.md.
-
 Стек, от которого отталкиваются решения: Next.js 16.2 (App Router, `src/app/`),
 React 19.2, Tailwind CSS 4.1, TanStack Query 5.101 (установлен, не подключён),
 eslint 9 + `eslint-config-next` 16 (flat config), Node 24. Тестов и
@@ -56,12 +52,9 @@ eslint 9 + `eslint-config-next` 16 (flat config), Node 24. Тестов и
   `reuseExistingServer: false` осознанно: подхваченный dev-сервер сделал бы
   тесты фазы 3 ложно-зелёными.
 
-> **Расхождение с реализацией (23.08.2026):** тесты с тех пор разложены по
-> каталогам — хелперы в `tests/support/`, спеки по группам (`auth/`, `veille/`,
-> `compte/`, `a11y/`, `pages/`, `components/`, `app/`). Ниже путь к хелперу
-> назван так, как он выглядел на дату отчёта; правила при переезде не менялись.
-
-- Общий хелпер `tests/a11y.ts`:
+- Хелперы — в `tests/support/`, спеки — по группам (`a11y/`, `app/`,
+  `auth/`, `components/`, `compte/`, `dossier/`, `home/`, `pages/`,
+  `sinistres/`, `veille/`). Общий хелпер `tests/support/a11y.ts`:
 
   ```ts
   export async function expectNoAxeViolations(page: Page) {
@@ -74,7 +67,7 @@ eslint 9 + `eslint-config-next` 16 (flat config), Node 24. Тестов и
 
   `color-contrast` входит в тег `wcag2aa` — отдельно включать не нужно.
 
-- Список публичных страниц — один массив в `tests/pages.ts`; общий тест
+- Список публичных страниц — один массив в `tests/support/pages.ts`; общий тест
   итерирует «каждая страница × обе темы». Новая страница = одна строка в
   массиве; фазы 2–4 только пополняют его.
 - Смоук самой проверки (задача фазы 1): тест делает
