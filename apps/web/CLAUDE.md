@@ -10,29 +10,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Next.js 16 (App Router, `src/app/`), React 19, Tailwind CSS 4 (через PostCSS, без tailwind.config). Компонентная база — **shadcn/ui на Base UI**, инициализирована (конфигурация — `components.json`); при добавлении компонентов выбирать Base UI-вариант, не Radix. Отдельных библиотек примитивов сверх этого не подключать. Работа с API — **TanStack Query** (см. «Правила проекта»).
 
-Технические решения фундамента клиента — тест-инфраструктура (Playwright + axe),
-темы, локализация, контроль литералов, слой API — приняты в
-`../../docs/research/web-foundation.md`; фазы применяют их, не перевыбирая.
-Решения фичи veille (страницы, combobox коммун, one-click отписка) —
-`../../docs/research/veille-subscription-lifecycle.md`; страница подтверждения
-изменения состава — `../../docs/research/veille-commune-change.md`; аккаунт
-(access-токен в памяти слоя API, тихий refresh, клиентский guard) —
-`../../docs/research/user-account.md`; синистр и план действий (страницы,
-одиночный combobox коммуны, хронология, сквозной тест против реального API) —
-`../../docs/research/sinistre-plan.md`; напоминания (общие с veille route
-handler и экран подтверждения по токену, переключатель в кабинете) —
-`../../docs/research/sinistre-reminders.md`; дизайн-система (роли цветов и
-их маппинг на токены shadcn, поверхность `data-surface="papier"` в тёмной
-теме, локальные шрифты Luciole/Newsreader, бейдж дедлайна и его состояния,
-тесты контраста и снимков, déclaration d'accessibilité) —
-`../../docs/research/design-system.md`; досье без аккаунта (главная с
-полем коммуны и блоком ответа, страница `/dossier` с параметрами в адресе,
-общие презентационные компоненты плана для двух режимов, шапка с состоянием
-сессии, `suivant` после входа) — `../../docs/research/dossier-preliminaire.md`.
+Фундамент клиента (`../../docs/research/web-foundation.md`: тест-инфраструктура,
+темы, локализация, слой API) и дизайн-система
+(`../../docs/research/design-system.md`) — решения, общие для всех фич: фазы
+применяют их, не перевыбирая.
 
 ## Команды
 
-Запуск, сборка, линт и тесты — из корня (`npm run dev:web`, `npm run build`, `npm run lint`, `npm run test:web` — Playwright; `npm run test:e2e` — сквозной против реального API и базы, `playwright.e2e.config.ts`). API ожидается на http://localhost:3001. Доменная логика тестируется в API. Линтер — eslint c `eslint-config-next` (flat config в `eslint.config.mjs`), запускается pre-commit хуком.
+Запуск, сборка, линт и тесты — из корня (`npm run dev:web`, `npm run build`, `npm run lint`, `npm run test:web` — Playwright; `npm run test:e2e` — сквозной против реального API и базы, `playwright.e2e.config.ts`). API ожидается на http://localhost:3001. Доменная логика тестируется в API. Линтер — eslint с `eslint-config-next` (flat config в `eslint.config.mjs`).
 
 ## Тесты
 
@@ -70,10 +55,3 @@ handler и экран подтверждения по токену, перекл
 - Отображаемые подписи к enum-значениям (статусы синистра и шагов) живут в локализации клиента; сами значения и пороги — из `@mon-sinistre/contracts`.
 - **Любое изменение UI завершено только после `/ui-review`.** «Код написан и компилируется» — не завершение.
 - Расчётные даты всегда подаются как ориентировочные, со ссылкой на источник (`SourceReference`) и предложением сверить с договором страхования и страховщиком — приложение не даёт юридических консультаций.
-
-## Актуализация документации
-
-При изменении архитектуры клиента обновлять этот файл в том же коммите:
-появление слоя работы с API, механизма локализации, тестов. Изменения,
-затрагивающие весь монорепозиторий, — в корневом `../../CLAUDE.md`. Факт, уже
-написанный там, здесь не повторять: корневой файл загружен всегда.
