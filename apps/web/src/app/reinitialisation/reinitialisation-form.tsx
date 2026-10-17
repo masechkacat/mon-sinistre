@@ -101,7 +101,7 @@ export function ReinitialisationForm() {
             error={passwordError}
           />
 
-          <Button type="submit" disabled={mutation.isPending}>
+          <Button type="submit" size="touch" disabled={mutation.isPending}>
             {mutation.isPending
               ? fr.compte.reinitialisation.submitting
               : fr.compte.reinitialisation.submit}

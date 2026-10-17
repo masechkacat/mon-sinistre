@@ -78,7 +78,7 @@ export function MotDePasseOublieForm() {
             error={emailError}
           />
 
-          <Button type="submit" disabled={mutation.isPending}>
+          <Button type="submit" size="touch" disabled={mutation.isPending}>
             {mutation.isPending
               ? fr.compte.motDePasseOublie.submitting
               : fr.compte.motDePasseOublie.submit}

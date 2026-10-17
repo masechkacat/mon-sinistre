@@ -117,17 +117,21 @@ const expectHoveredAA = async (control: Locator) => {
   expect(contrastRatio(background, text)).toBeGreaterThanOrEqual(4.5);
 };
 
-test('dark theme: a hovered outline button keeps AA text contrast on the ground and on a sheet', async ({
-  page,
-}) => {
-  await gotoListe(page, 'dark');
-  await expectHoveredAA(
-    page.getByRole('link', { name: fr.sinistres.liste.viewLink }),
-  );
+for (const colorScheme of ['light', 'dark'] as const) {
+  test(`${colorScheme} theme: every hovered control on a sheet and on the ground keeps AA text contrast`, async ({
+    page,
+  }) => {
+    await gotoListe(page, colorScheme);
+    const onSheetControls = page.locator(onSheet('a, button'));
+    expect(await onSheetControls.count()).toBeGreaterThan(0);
+    for (const control of await onSheetControls.all()) {
+      await expectHoveredAA(control);
+    }
 
-  await page.route(`${testApiBaseUrl}/auth/me`, (route) => route.abort());
-  await page.goto('/espace-personnel');
-  await expectHoveredAA(
-    page.getByRole('link', { name: fr.compte.espacePersonnel.sinistresLink }),
-  );
-});
+    await page.route(`${testApiBaseUrl}/auth/me`, (route) => route.abort());
+    await page.goto('/espace-personnel');
+    await expectHoveredAA(
+      page.getByRole('link', { name: fr.compte.espacePersonnel.sinistresLink }),
+    );
+  });
+}

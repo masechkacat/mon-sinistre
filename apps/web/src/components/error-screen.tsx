@@ -23,7 +23,9 @@ export function ErrorScreen({
           {fr.serverError.digestLabel} {digest}
         </p>
       ) : null}
-      <Button onClick={reset}>{fr.serverError.retry}</Button>
+      <Button size="touch" onClick={reset}>
+        {fr.serverError.retry}
+      </Button>
     </MessageScreen>
   );
 }
