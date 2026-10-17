@@ -1,6 +1,6 @@
 {
-  "feature": "dossier-preliminaire",
-  "phases": [8],
+  "feature": "sinistre-dossier",
+  "phases": [1],
   "maxIterations": 8,
   "stallLimit": 2,
   "model": "claude-opus-5",
