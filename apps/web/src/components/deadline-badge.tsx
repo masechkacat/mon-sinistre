@@ -1,11 +1,11 @@
 import type { IsoDate, Step } from '@mon-sinistre/contracts';
-import { dateParts, formatDateFr, formatDateShortFr } from '@/i18n/date';
+import { Tampon, capsClassName } from '@/components/tampon';
+import { dateParts, formatDateFr } from '@/i18n/date';
 import { fr } from '@/i18n/fr';
-import { DeadlineBadgeState } from '@/lib/deadline-badge';
+import { DeadlineBadgeState, isUrgentDeadline } from '@/lib/deadline-badge';
 import { cn } from '@/lib/utils';
 
 export interface DeadlineBadgeProps {
-  form: 'hero' | 'row';
   state: DeadlineBadgeState;
   date: IsoDate | null;
   daysLeft: number | null;
@@ -16,7 +16,6 @@ export interface DeadlineBadgeProps {
 
 interface Material {
   dated?: boolean;
-  urgent?: boolean;
   quiet?: boolean;
   dashed?: boolean;
   stamped?: boolean;
@@ -25,10 +24,10 @@ interface Material {
 
 const material: Record<DeadlineBadgeState, Material> = {
   [DeadlineBadgeState.norme]: { dated: true },
-  [DeadlineBadgeState.derniereSemaine]: { dated: true, urgent: true },
-  [DeadlineBadgeState.demain]: { dated: true, urgent: true },
-  [DeadlineBadgeState.aujourdhui]: { dated: true, urgent: true },
-  [DeadlineBadgeState.enRetard]: { dated: true, urgent: true },
+  [DeadlineBadgeState.derniereSemaine]: { dated: true },
+  [DeadlineBadgeState.demain]: { dated: true },
+  [DeadlineBadgeState.aujourdhui]: { dated: true },
+  [DeadlineBadgeState.enRetard]: { dated: true },
   [DeadlineBadgeState.fait]: { dated: true, quiet: true, stamped: true },
   [DeadlineBadgeState.sansObjet]: { quiet: true, dashed: true },
   [DeadlineBadgeState.dateAVenir]: { explained: true },
@@ -54,10 +53,12 @@ const perforation =
 const secondSheet =
   'shadow-[4px_4px_0_0_var(--papier),4px_4px_0_1px_var(--filet)]';
 
-const caps = 'text-[0.8125rem] font-bold tracking-wider uppercase';
-
+/**
+ * The deadline of a dossier as a tear-off sheet. One form, the head of the
+ * screen it belongs to: the plan says the state of its steps in the words of
+ * their date lines (docs/research/sinistre-dossier.md).
+ */
 export function DeadlineBadge({
-  form,
   state,
   date,
   daysLeft,
@@ -65,12 +66,10 @@ export function DeadlineBadge({
   delay = null,
   anchor = null,
 }: DeadlineBadgeProps) {
-  const { dated, urgent, quiet, dashed, stamped, explained } = material[state];
-  const hero = form === 'hero';
+  const { dated, quiet, dashed, stamped, explained } = material[state];
   const word = stateWord(state, completedAt);
-  const shownDate = dated ? date : null;
-  const parts = hero && shownDate ? dateParts(shownDate) : null;
-  const signal = urgent ? 'text-vermillon' : undefined;
+  const parts = dated && date ? dateParts(date) : null;
+  const signal = isUrgentDeadline(state) ? 'text-vermillon' : undefined;
   const countdown =
     dated && daysLeft !== null && !stamped
       ? copy.compteARebours(daysLeft)
@@ -80,94 +79,62 @@ export function DeadlineBadge({
     <div
       data-slot="deadline-badge"
       data-surface="papier"
-      data-form={form}
+      // Constant, and not dropped with the second form: the head of a dossier
+      // is where a badge is allowed to be, and the tests of both screens count
+      // the hero badges they see.
+      data-form="hero"
       data-state={state}
       className={cn(
         perforation,
-        'bg-card px-4 pb-3',
+        'w-full max-w-60 bg-card px-4 pb-3 text-center',
         dashed
           ? 'border-2 border-dashed border-border'
           : cn('border border-border', secondSheet),
         quiet ? 'text-muted-foreground' : 'text-foreground',
-        hero
-          ? 'w-full max-w-60 text-center'
-          : 'flex w-full flex-wrap items-baseline gap-x-4 gap-y-1',
       )}
     >
-      {/* The word has a line of its own, hence the wrapper: `basis-full` on
-          the stamp itself would stretch it across the whole row. */}
+      {/* The word has a line of its own, hence the wrapper: `mb-1` on the
+          stamp itself would not clear the figure below it. */}
       {word ? (
-        <div className={hero ? 'mb-1' : 'basis-full'}>
-          <p
-            className={cn(
-              caps,
-              signal,
-              stamped &&
-                cn(
-                  'w-fit -rotate-4 border-2 border-current px-2',
-                  hero && 'mx-auto',
-                ),
-            )}
-          >
-            {word}
-          </p>
+        <div className="mb-1">
+          {stamped ? (
+            <Tampon className={cn(signal, 'mx-auto')}>{word}</Tampon>
+          ) : (
+            <p className={cn(capsClassName, signal)}>{word}</p>
+          )}
         </div>
       ) : null}
 
-      {hero ? (
-        <>
-          {countdown ? (
-            <p className={cn('text-[1.75rem] font-bold tabular-nums', signal)}>
-              {countdown}
-            </p>
-          ) : null}
-          {parts ? (
-            <p className={cn(caps, 'text-muted-foreground')}>{parts.month}</p>
-          ) : null}
-          <Figure
-            text={parts?.day ?? null}
-            size="text-[4.25rem]"
-            signal={signal}
-          />
-          {parts ? (
-            <p className={cn(caps, 'text-muted-foreground')}>{parts.weekday}</p>
-          ) : null}
-        </>
-      ) : (
-        <>
-          <Figure text={countdown} size="text-[3.25rem]" signal={signal} />
-          {shownDate ? (
-            <p className="text-[1.0625rem] tabular-nums">
-              {copy.prevueLe(formatDateShortFr(shownDate))}
-            </p>
-          ) : null}
-        </>
-      )}
+      {countdown ? (
+        <p className={cn('text-[1.75rem] font-bold tabular-nums', signal)}>
+          {countdown}
+        </p>
+      ) : null}
+      {parts ? (
+        <p className={cn(capsClassName, 'text-muted-foreground')}>
+          {parts.month}
+        </p>
+      ) : null}
+      <Figure text={parts?.day ?? null} signal={signal} />
+      {parts ? (
+        <p className={cn(capsClassName, 'text-muted-foreground')}>
+          {parts.weekday}
+        </p>
+      ) : null}
 
       {explained && delay ? (
-        <p className={cn('text-sm', hero ? 'mt-1' : 'basis-full')}>
-          {copy.delai(delay, anchor)}
-        </p>
+        <p className="mt-1 text-sm">{copy.delai(delay, anchor)}</p>
       ) : null}
     </div>
   );
 }
 
-function Figure({
-  text,
-  size,
-  signal,
-}: {
-  text: string | null;
-  size: string;
-  signal?: string;
-}) {
+function Figure({ text, signal }: { text: string | null; signal?: string }) {
   return (
     <p
       data-slot="deadline-number"
       className={cn(
-        'font-heading leading-none font-bold tabular-nums',
-        size,
+        'font-heading text-[4.25rem] leading-none font-bold tabular-nums',
         signal,
       )}
       aria-hidden={text === null ? true : undefined}

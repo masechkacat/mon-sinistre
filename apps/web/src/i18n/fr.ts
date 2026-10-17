@@ -95,7 +95,7 @@ const OUVRIR_MON_DOSSIER = 'Ouvrir mon dossier';
 const EVENEMENT_DU = (date: string) => `Événement du ${date}`;
 
 const conteneurVide = (contenu: string) =>
-  `${contenu} : cet espace s’ouvrira une fois votre dossier enregistré.`;
+  `${contenu} : cet espace n’est pas encore ouvert.`;
 
 const apresAncre: Record<StepAnchor, string> = {
   [StepAnchor.DATE_SINISTRE]: 'après le sinistre',
@@ -494,7 +494,25 @@ export const fr = {
     detail: {
       page: { title: 'Mon dossier' },
       timelineLabel: 'Étapes de votre dossier',
-      prochaineEtape: 'Prochaine étape',
+      etapeEnCours: {
+        titre: 'Étape en cours',
+        avancement: 'Avancement de votre plan d’actions',
+        progression: (faites: number, total: number) =>
+          `${faites} étape${faites > 1 ? 's' : ''} faite${faites > 1 ? 's' : ''} sur ${total}`,
+      },
+      chronologie: {
+        label: 'Dates clés de votre dossier',
+        evenement: 'Événement',
+        arrete: 'Arrêté',
+        declaration: 'Déclaration',
+        indemnisation: 'Indemnisation',
+        attendu: 'attendu',
+        publie: 'publié',
+        refuse: 'refusé',
+        aVenir: 'à venir',
+        avantLe: (date: string) => `avant le ${date}`,
+      },
+      faits: { titre: FAIT, liste: 'Étapes déjà réglées' },
       sansDateNiAncre: 'Cette étape n’a pas encore de date prévue.',
       marquer: {
         fait: 'Marquer comme fait',
@@ -511,7 +529,6 @@ export const fr = {
       marquageEchec:
         'L’étape n’a pas pu être mise à jour. Elle garde son état précédent : réessayez dans un instant.',
       declaration: {
-        heading: 'Déclaration à votre assureur',
         label: 'Date de votre déclaration à l’assureur',
         hint: 'Le jour où vous avez prévenu votre assureur du sinistre. Les dates du plan qui en dépendent se calculent à partir de ce jour.',
         requis: 'Indiquez la date de votre déclaration.',

@@ -34,6 +34,11 @@ const RISQUE_LABEL = fr.sinistres.risque.options[RisqueCatnat.INONDATION].label;
 /** No arrêté covers it: the dossier prepared on it stays «avant arrêté». */
 const EVENT_DATE = toIsoDate('2026-09-20');
 
+// By its stamp, not by the words: the plan of the seeded template explains the
+// arrêté in its own steps, and the status word is in those sentences too.
+const statutTampon = (page: Page) =>
+  page.locator('[data-slot="statut-tampon"]');
+
 /** The token the API mailed to `email`, once its .txt has reached the outbox. */
 async function confirmationTokenFor(
   email: string,
@@ -141,9 +146,9 @@ test('from the home page of a commune without an arrêté to the dossier saved b
   await expect(
     page.getByRole('heading', { level: 1, name: titre }),
   ).toBeVisible();
-  await expect(
-    page.getByText(fr.sinistres.statut[SinistreStatus.AVANT_ARRETE]),
-  ).toBeVisible();
+  await expect(statutTampon(page)).toHaveText(
+    fr.sinistres.statut[SinistreStatus.AVANT_ARRETE],
+  );
 
   await page.getByRole('button', { name: fr.dossier.enregistrer }).click();
   // Saving without a session asks for one — and the three parameters are on
@@ -214,13 +219,12 @@ test('from the home page of a commune with an arrêté to its published dossier'
       name: fr.sinistres.liste.dossierLabel(RISQUE_LABEL, AVEC_ARRETE.label),
     }),
   ).toBeVisible();
+  await expect(statutTampon(page)).toHaveText(
+    fr.sinistres.statut[SinistreStatus.ARRETE_PUBLIE],
+  );
+  // The button carried the first day of the period, not the day of the visit:
+  // the chronology of the dossier opens on it.
   await expect(
-    page.getByText(fr.sinistres.statut[SinistreStatus.ARRETE_PUBLIE]),
-  ).toBeVisible();
-  // The button carried the first day of the period, not the day of the visit.
-  await expect(
-    page.getByText(
-      fr.sinistres.liste.eventDate(formatDateFr(E2E_ARRETE.eventStart)),
-    ),
-  ).toBeVisible();
+    page.getByRole('list', { name: fr.sinistres.detail.chronologie.label }),
+  ).toContainText(formatDateShortFr(E2E_ARRETE.eventStart));
 });

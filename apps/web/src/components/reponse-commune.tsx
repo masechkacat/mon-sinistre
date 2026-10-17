@@ -151,7 +151,6 @@ function CarteArrete({
             </p>
             <DeclarationDeadlineValue
               deadline={arrete.declarationDeadline}
-              form="row"
               apercu
             />
           </div>
