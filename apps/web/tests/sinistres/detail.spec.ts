@@ -4,13 +4,18 @@ import {
   REFERENCE_DATA_STALE_AFTER_MONTHS,
   SinistreStatus,
   StepAnchor,
+  StepKind,
   StepStatus,
   toIsoDate,
   type IsoDate,
 } from '@mon-sinistre/contracts';
 import type { StepMark } from '../../src/lib/api/sinistres';
 import { dossierTitle } from '../../src/lib/dossier-title';
-import { dateParts, formatDateShortFr } from '../../src/i18n/date';
+import {
+  dateParts,
+  formatDateFr,
+  formatDateShortFr,
+} from '../../src/i18n/date';
 import { fr } from '../../src/i18n/fr';
 import { expectNoAxeViolations } from '../support/a11y';
 import { greenColours } from '../support/contrast';
@@ -67,6 +72,7 @@ const STEPS = [
 ];
 
 const badgeCopy = fr.deadlineBadge;
+const declarationCopy = fr.sinistres.detail.declaration;
 const prevueLe = (date: string) =>
   badgeCopy.prevueLe(formatDateShortFr(toIsoDate(date)));
 
@@ -100,6 +106,7 @@ const planList = (page: Page) =>
 const DECLARATION_STEP = step({
   id: 'step-declaration',
   name: 'Déclarer le sinistre à l’assureur',
+  kind: StepKind.DECLARATION,
   plannedDate: null,
   status: StepStatus.A_VENIR,
   anchor: StepAnchor.DATE_DECLARATION,
@@ -532,64 +539,69 @@ test('a declaration date counts the steps anchored on it, and clearing it takes 
     (request) =>
       request.method() === 'PATCH' && request.url().endsWith(SINISTRE_ID_1),
   );
-  await page
-    .getByLabel(fr.sinistres.detail.declaration.label)
-    .fill('2026-09-01');
-  await page
-    .getByRole('button', { name: fr.sinistres.detail.declaration.enregistrer })
+  await declarationStep.getByLabel(declarationCopy.label).fill('2026-09-01');
+  await declarationStep
+    .getByRole('button', { name: declarationCopy.enregistrer })
     .click();
 
   expect((await sent).postDataJSON()).toEqual({
     declarationDate: '2026-09-01',
   });
   await expect(page.getByRole('status')).toHaveText(
-    fr.sinistres.detail.declaration.enregistree,
+    declarationCopy.enregistree,
   );
   await expect(declarationStep).toContainText(prevueLe('2026-10-31'));
+  // The date recorded, the strip says the day instead of asking for it, and
+  // the keyboard lands on the way back rather than on <body>.
+  await expect(declarationStep).toContainText(
+    badgeCopy.fait(formatDateFr(toIsoDate('2026-09-01'))),
+  );
+  await expect(declarationStep.getByLabel(declarationCopy.label)).toHaveCount(
+    0,
+  );
+  const effacer = declarationStep.getByRole('button', {
+    name: declarationCopy.effacer,
+  });
+  await expect(effacer).toBeFocused();
 
-  await page
-    .getByRole('button', { name: fr.sinistres.detail.declaration.effacer })
-    .click();
+  await effacer.click();
 
   await expect(declarationStep).toContainText(
     fr.sinistres.detail.attentePar.DATE_DECLARATION,
   );
   await expect(declarationStep).not.toContainText(prevueLe('2026-10-31'));
-  await expect(page.getByRole('status')).toHaveText(
-    fr.sinistres.detail.declaration.effacee,
-  );
-  const field = page.getByLabel(fr.sinistres.detail.declaration.label);
+  await expect(page.getByRole('status')).toHaveText(declarationCopy.effacee);
+  const field = declarationStep.getByLabel(declarationCopy.label);
   await expect(field).toHaveValue('');
   await expect(field).toBeFocused();
 });
 
-test('a clear that fails is announced, and the typed date is not blamed for it', async ({
+test('a clear that fails is announced, and the recorded date is not blamed for it', async ({
   page,
 }) => {
   const declared = toIsoDate('2026-09-01');
   await openDetail(page, detailDeclaredOn(declared), { failing: true });
 
-  await page
-    .getByRole('button', { name: fr.sinistres.detail.declaration.effacer })
+  const declarationStep = timelineItem(page, DECLARATION_STEP.name);
+  await declarationStep
+    .getByRole('button', { name: declarationCopy.effacer })
     .click();
 
   await expect(page.getByRole('status')).toHaveText(
-    fr.sinistres.detail.declaration.effacementEchec,
+    declarationCopy.effacementEchec,
   );
-  const field = page.getByLabel(fr.sinistres.detail.declaration.label);
-  await expect(field).toHaveValue(declared);
-  await expect(field).not.toHaveAttribute('aria-invalid', 'true');
-  await expect(
-    page.getByText(fr.sinistres.detail.declaration.echec),
-  ).toHaveCount(0);
+  await expect(declarationStep).toContainText(
+    badgeCopy.fait(formatDateFr(declared)),
+  );
+  await expect(page.getByText(declarationCopy.echec)).toHaveCount(0);
 });
 
-test('the date field follows a date recorded elsewhere once the dossier is refetched', async ({
+test('the strip follows a date recorded elsewhere once the dossier is refetched', async ({
   page,
 }) => {
   await openDetail(page, detailDeclaredOn(null));
-  const field = page.getByLabel(fr.sinistres.detail.declaration.label);
-  await field.fill('2026-09-01');
+  const declarationStep = timelineItem(page, DECLARATION_STEP.name);
+  await declarationStep.getByLabel(declarationCopy.label).fill('2026-09-01');
 
   // Another device set the date meanwhile; the next refetch brings it here.
   const elsewhere = toIsoDate('2026-09-15');
@@ -604,7 +616,12 @@ test('the date field follows a date recorded elsewhere once the dossier is refet
     .getByRole('button', { name: fr.sinistres.detail.marquer.fait })
     .click();
 
-  await expect(field).toHaveValue(elsewhere);
+  await expect(declarationStep).toContainText(
+    badgeCopy.fait(formatDateFr(elsewhere)),
+  );
+  await expect(declarationStep.getByLabel(declarationCopy.label)).toHaveCount(
+    0,
+  );
 });
 
 test('deleting the dossier asks first, and cancelling gives focus back to the delete button', async ({

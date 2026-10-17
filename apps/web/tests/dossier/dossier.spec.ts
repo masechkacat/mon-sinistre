@@ -194,11 +194,13 @@ test('the containers are shown empty, and the page carries one single action', a
   await expect(
     planItem(page, APERCU_STEPS.photos).locator('[data-slot="plan-conteneur"]'),
   ).toHaveText(fr.dossier.conteneur[StepKind.PHOTOS]);
-  await expect(
-    planItem(page, APERCU_STEPS.declaration).locator(
-      '[data-slot="plan-conteneur"]',
-    ),
-  ).toHaveText(fr.dossier.conteneur[StepKind.DECLARATION]);
+  const declaration = planItem(page, APERCU_STEPS.declaration);
+  await expect(declaration.locator('[data-slot="plan-conteneur"]')).toHaveText(
+    fr.dossier.conteneur[StepKind.DECLARATION],
+  );
+  // The déclaration strip is read-only here: no date is stored to be recorded
+  // until the dossier is saved.
+  await expect(declaration.getByLabel(copy.declaration.label)).toHaveCount(0);
 
   await expect(page.getByRole('button')).toHaveCount(1);
   await expect(

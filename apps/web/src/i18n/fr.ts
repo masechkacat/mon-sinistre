@@ -529,7 +529,6 @@ export const fr = {
       marquageEchec:
         'L’étape n’a pas pu être mise à jour. Elle garde son état précédent : réessayez dans un instant.',
       declaration: {
-        heading: 'Déclaration à votre assureur',
         label: 'Date de votre déclaration à l’assureur',
         hint: 'Le jour où vous avez prévenu votre assureur du sinistre. Les dates du plan qui en dépendent se calculent à partir de ce jour.',
         requis: 'Indiquez la date de votre déclaration.',

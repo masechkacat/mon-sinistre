@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import {
   StepKind,
   StepStatus,
@@ -30,11 +31,14 @@ const stripClassName =
 export function PlanStepItem({
   step,
   isNext = false,
+  contenu,
   itemRef,
   onMark,
 }: {
   step: PlanStep;
   isNext?: boolean;
+  /** What the step's own space holds, where it is open: the déclaration date. */
+  contenu?: ReactNode;
   itemRef?: (node: HTMLLIElement | null) => void;
   onMark?: (mark: StepMark) => void;
 }) {
@@ -54,7 +58,12 @@ export function PlanStepItem({
       // strip when there is nothing to mark.
       tabIndex={onMark ? -1 : undefined}
       aria-current={isNext ? 'step' : undefined}
-      className={cn(stripClassName, 'space-y-3')}
+      className={cn(
+        stripClassName,
+        'space-y-3',
+        // The one strip drawn with a line around it (docs/design/sinistre.html).
+        step.kind === StepKind.DECLARATION && 'border-2 border-foreground',
+      )}
     >
       <p className="font-heading text-xl leading-tight font-bold sm:text-2xl">
         {step.name}
@@ -82,7 +91,10 @@ export function PlanStepItem({
         <SourceNote source={step.source} sujet={step.name} />
       ) : null}
 
-      {conteneur ? (
+      {contenu}
+
+      {/* The note says the space is not open yet: an open one has content. */}
+      {conteneur && !contenu ? (
         <p
           data-slot="plan-conteneur"
           data-kind={step.kind}
