@@ -10,6 +10,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Next.js 16 (App Router, `src/app/`), React 19, Tailwind CSS 4 (через PostCSS, без tailwind.config). Компонентная база — **shadcn/ui на Base UI**, инициализирована (конфигурация — `components.json`); при добавлении компонентов выбирать Base UI-вариант, не Radix. Отдельных библиотек примитивов сверх этого не подключать. Работа с API — **TanStack Query** (см. «Правила проекта»).
 
+Фундамент клиента (`../../docs/research/web-foundation.md`: тест-инфраструктура,
+темы, локализация, слой API) и дизайн-система
+(`../../docs/research/design-system.md`) — решения, общие для всех фич: фазы
+применяют их, не перевыбирая.
+
 ## Команды
 
 Запуск, сборка, линт и тесты — из корня (`npm run dev:web`, `npm run build`, `npm run lint`, `npm run test:web` — Playwright; `npm run test:e2e` — сквозной против реального API и базы, `playwright.e2e.config.ts`). API ожидается на http://localhost:3001. Доменная логика тестируется в API. Линтер — eslint с `eslint-config-next` (flat config в `eslint.config.mjs`).

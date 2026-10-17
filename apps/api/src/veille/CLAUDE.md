@@ -8,13 +8,13 @@
 
 ## Точки входа
 
-| Эндпоинт                          | Метод                            | Что не видно из кода                                                                    |
-| --------------------------------- | -------------------------------- | --------------------------------------------------------------------------------------- |
-| `POST /veille`                    | `VeilleService.subscribe`        | лимит писем — по запросу, не по адресу (`sendFormMail`)                                 |
-| `GET /veille/confirmation?token=` | `getConfirmationStatus`          | токен голым `@Query`, не DTO                                                            |
-| `POST /veille/confirmation`       | `confirm`                        | `classifyConfirmation` — единственный источник `pending \| active \| invalid` для обоих |
-| `POST /veille/desinscription`     | `unsubscribe`                    | единственный маршрут под `@ThrottleByToken`                                             |
-| `GET`/`POST /veille/changement`   | `getChangeStatus`, `applyChange` | удаление заявки — сам атомарный захват, второго поиска по хешу нет                      |
+| Эндпоинт                          | Метод                            | Что не видно из кода                                                                            |
+| --------------------------------- | -------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `POST /veille`                    | `VeilleService.subscribe`        | `204` и `429` не зависят от адреса — enumeration-оракула нет                                    |
+| `GET /veille/confirmation?token=` | `getConfirmationStatus`          | токен голым `@Query`, не DTO                                                                    |
+| `POST /veille/confirmation`       | `confirm`                        | `classifyConfirmation` — единственный источник `pending \| active \| invalid` для обоих         |
+| `POST /veille/desinscription`     | `unsubscribe`                    | под `@ThrottleByToken`; `POST /veille/changement` — без него (почему — research «Контракт API») |
+| `GET`/`POST /veille/changement`   | `getChangeStatus`, `applyChange` | удаление заявки — сам атомарный захват, второго поиска по хешу нет                              |
 
 ## Инварианты
 
