@@ -12,7 +12,7 @@ Query 5. Новых зависимостей — ни одной.
 
 ## Решения
 
-### Схема: `ReminderLog` по data-model § 6, три колонки `User`, отложенный индекс `Step`
+### Схема: `ReminderLog` по data-model § 6, две колонки `User`, токен на письмо
 
 **Решение:** таблица `ReminderLog` ровно в форме `data-model.md` § 6:
 `stepId → Step (cascade)`, `kind` (enum `ReminderKind { SCALE, OVERDUE }`),
@@ -24,11 +24,12 @@ null), `plannedDate date` (для какой даты шага напомина�
 частичный индекс `Step(plannedDate) where persistedStatus is null`, который
 § 5 обещал фазе напоминаний.
 
-На `User` три колонки: `remindersDisabledAt timestamptz null` (null =
-напоминания включены — умолчание PRD), `reminderUnsubscribeTokenHash text
-null unique` (null, пока ни одно письмо-напоминание не ушло) и
-`reminderFailures int default 0` (неудачных попыток отправки этому человеку
-подряд; прогон без повода для него счётчик не трогает, см. «Прогон»).
+На `User` две колонки: `remindersDisabledAt timestamptz null` (null =
+напоминания включены — умолчание PRD) и `reminderFailures int default 0`
+(неудачных попыток отправки этому человеку подряд; прогон без повода для него
+счётчик не трогает, см. «Прогон»). Хеши токенов выключения — таблица
+`ReminderUnsubscribeToken(tokenHash PK, userId → User cascade)`
+(`data-model.md` § 5): строка на каждое письмо-напоминание.
 
 **Почему:** строка `ReminderLog` — факт отправки, а не код причины: при смене
 шкалы история остаётся читаемой, а пересчёт `plannedDate` (rectificatif,
@@ -37,10 +38,12 @@ null unique` (null, пока ни одно письмо-напоминание �
 data-model от 02.08.2026. Уникальности дают идемпотентность ТЗ § 9 на уровне
 базы, а не только кода. `remindersDisabledAt` — отметка времени, а не boolean,
 по образцу `confirmedAt`: бесплатная история «с какого дня», та же семантика
-«null = действует». Хеш токена nullable, чтобы миграция не выдумывала токены
-существующим аккаунтам: он чеканится первым письмом, как у veille — при
-отправке. Счётчик сбоев на `User`, а не отдельная таблица: единственный
-читатель — порог алерта, строки-факты для него не нужны.
+«null = действует». Токены — таблицей, а не колонкой `User`: письма идут
+сериями (30/14/3, шкала декларации), и человек жмёт «выключить» в том письме,
+которое открыл, а не в последнем — единственный хеш на аккаунте делал бы
+мёртвой ссылку каждого письма, кроме последнего (§ «Токен выключения»).
+Счётчик сбоев на `User`, а не отдельная таблица: единственный читатель —
+порог алерта, строки-факты для него не нужны.
 **Отброшено:** outbox-таблица «письмо дня» (`ReminderMail(userId, day,
 sentAt, attempts)`) — вторая таблица ради «одного письма в день», которое
 `ReminderLog.sentOn` уже даёт; и её `attempts` считал бы повторы внутри дня,
@@ -49,9 +52,10 @@ sentAt, attempts)`) — вторая таблица ради «одного пи
 письма расходятся с днём реальной отправки, а уникальность по `offsetDays`
 начинает мешать досылке.
 **Как применять:** миграция `add_reminder_log` — enum, таблица, два
-`CREATE UNIQUE INDEX … WHERE kind = '…'`, индекс `Step`, три колонки `User`.
-`data-model.md` §§ 5, 6 правятся тем же коммитом (колонки `User`, индекс
-`Step` больше не «отложен»).
+`CREATE UNIQUE INDEX … WHERE kind = '…'`, индекс `Step`, две колонки `User`;
+миграция `reminder_unsubscribe_tokens` — таблица токенов. `data-model.md`
+§§ 5, 6 правятся тем же коммитом (колонки `User`, индекс `Step` больше не
+«отложен»).
 
 ### Отбор поводов: чистая функция, пороги из contracts, шкала по коду правила
 
@@ -73,12 +77,10 @@ plannedDate)`; `next` = наибольший порог шкалы, строго
   порог шкалы); повод, если `next` существует и `remaining ≤ next`; в лог
   пишется фактический `remaining`;
 - `OVERDUE` (`plannedDate < today`): повод, если `OVERDUE`-логов этой
-  `plannedDate` меньше `OVERDUE_REMINDER_MAX_COUNT` и последний `sentOn`
-  старше `today − OVERDUE_REMINDER_INTERVAL_DAYS` (или логов нет).
-
-**Исправлено при реализации (фаза 2, issue #208):** интервал просрочки
-включителен — повод возвращается на седьмой день после письма («прошло не
-меньше интервала», PRD), а не на восьмой.
+  `plannedDate` меньше `OVERDUE_REMINDER_MAX_COUNT` и с последнего `sentOn`
+  прошло не меньше `OVERDUE_REMINDER_INTERVAL_DAYS` дней — включительно, как
+  в PRD: при интервале 7 письмо уходит на седьмой день, не на восьмой (или
+  логов нет).
 
 **Почему:** «письмо, ушедшее при остатке r, закрывает все пороги ≥ r» — это и
 есть формулировка PRD «одно письмо закрывает все такие пороги», и она даёт
@@ -100,18 +102,15 @@ plannedDate)`; `next` = наибольший порог шкалы, строго
 `plannedDate ≤ today + max(...REMINDER_OFFSETS_DAYS,
 ...DECLARATION_REMINDER_OFFSETS_DAYS)` (число не пишется — считается из
 констант), `persistedStatus: null`, `sinistre.user.remindersDisabledAt: null`,
-с `deadlineRule { code, sourceUrl, sourceVerifiedAt }`, `reminderLogs`,
-`sinistre { id, eventDate, risque, commune { name, departementName }, user
-{ id, email } }`. Группировка по `user.id` — в сервисе, после отбора.
+с `deadlineRule { code }`, собственными `sourceUrl`/`sourceVerifiedAt` шага
+(письмо цитирует ту версию правила, по которой шаг датирован, а не текущую
+строку справочника), `reminderLogs`, `sinistre { id, eventDate, risque,
+commune { name, departementName }, user { id, email } }`. Группировка по
+`user.id` — в сервисе, после отбора.
 Следствие правил, которое стоит знать плану: шаги первых дней (offset 0–7 от
 `DATE_SINISTRE`) попадают под порог 30 сразу, поэтому первое письмо приходит
 утром после создания синистра и перечисляет их — это не «сводка в день
 создания» из «Не в скоупе», а штатный повод шкалы.
-
-**Исправлено при реализации (фаза 1, issue #207):** `sourceUrl` и
-`sourceVerifiedAt` читаются с самого `Step`, не с `deadlineRule` — письмо
-цитирует ту версию правила, по которой шаг датирован. Подпись риска —
-`fr.sinistres.risques` по `Sinistre.risque`.
 
 ### Прогон: `RemindersService` в `src/reminders/`, 07:00 Europe/Paris, запись после отправки
 
@@ -121,7 +120,7 @@ plannedDate)`; `next` = наибольший порог шкалы, строго
 (контроллер досье). `@Cron('0 7 * * *', { timeZone: 'Europe/Paris' })` на
 `run(options)`; `options.now` — только для тестов, как у `todayInParis`.
 Флаг `running`, как у монитора. Цикл: кандидаты → группировка по
-пользователю → для каждого в своём `try/catch`: ротация токена → сборка
+пользователю → для каждого в своём `try/catch`: чеканка токена → сборка
 письма из **текущего** состояния шагов → `MailService.send` → одна транзакция:
 вставка строк `ReminderLog` (`sentOn = today`) и `reminderFailures = 0`. На
 исключении (сборка или отправка): `reminderFailures += 1`, лог с `user.id` и
@@ -153,49 +152,43 @@ ingest'у, а второй процесс API в деплое не планир�
 запросы, не шпионится метод). Логи: «reminders: run done — users=N mails=M
 failed=K»; имён шагов, адресов и названий коммун в логе нет.
 
-### Токен выключения: ротация на отправке, хеш в базе, два эндпоинта в `reminders`
+### Токен выключения: свой у каждого письма, хеш в базе, два эндпоинта в `reminders`
 
 **Решение:** токен — `generateSecureToken`/`hashSecureToken`
-(`src/common/security/secure-token.ts`), хеш в
-`User.reminderUnsubscribeTokenHash`, plaintext существует только в момент
-сборки письма: перед каждым письмом-напоминанием токен **ротируется** в
-транзакции (`updateMany where { id, remindersDisabledAt: null }` → `count
-=== 0` значит, человек выключил напоминания между отбором и отправкой —
-письмо не уходит), как `rotateUnsubscribeToken` у veille. Эндпоинты — в
-`RemindersController`:
+(`src/common/security/secure-token.ts`), хеш — строка
+`ReminderUnsubscribeToken`, plaintext существует только в момент сборки
+письма: перед каждым письмом-напоминанием чеканится **новый** токен, прежние
+остаются действующими (`mintUnsubscribeToken`; `count where { id,
+remindersDisabledAt: null }` равен 0 — человек выключил напоминания между
+отбором и отправкой, письмо не уходит), как `VeilleUnsubscribeToken` у
+veille. Эндпоинты — в `RemindersController`:
 
 | метод и путь                   | кто                               | тело → ответ                                   |
 | ------------------------------ | --------------------------------- | ---------------------------------------------- |
 | `POST /rappels/desinscription` | `@Public()`, `@ThrottleByToken()` | `{ token }` (`TokenDto`) → 204 всегда          |
 | `PATCH /rappels`               | `JwtAuthGuard`                    | `{ enabled: boolean }` → `RemindersPreference` |
 
-`POST` — `updateMany where { reminderUnsubscribeTokenHash: hash } data
-{ remindersDisabledAt: now }`: неизвестный, уже использованный после ротации
-и чужой токен отвечают одинаково (anti-enumeration, как
-`VeilleService.unsubscribe`). `PATCH` пишет `remindersDisabledAt` по
-`req.user.id`; `GET /auth/me` начинает отдавать `remindersEnabled`.
-
-**Исправлено при реализации (фаза 4; отмечено по ревью PR 224).** Ротация
-делала мёртвой ссылку в каждом письме, кроме последнего, а письма идут сериями
-(30/14/3, шкала декларации): человек жал «выключить» в старом письме, видел
-«Rappels désactivés» и получал напоминания дальше. Вместо колонки на `User` —
-таблица `ReminderUnsubscribeToken` (data-model § 5): каждое письмо чеканит свой
-токен, `POST` выключает по любому из них. Действует врезка: колонка
-`reminderUnsubscribeTokenHash` в «Схеме» и «использованный после ротации»
-токен ниже — о прежней схеме.
+`POST` — `user.updateMany where { reminderUnsubscribeTokens: { some:
+{ tokenHash: hash } } } data { remindersDisabledAt: now }`: выключает по
+токену любого из писем; неизвестный и чужой токен отвечают одинаково
+(anti-enumeration, как `VeilleService.unsubscribe`). `PATCH` пишет
+`remindersDisabledAt` по `req.user.id`; `GET /auth/me` отдаёт
+`remindersEnabled`.
 
 **Почему:** хранить токен хешем — правило data-model § 6, а восстановить
-plaintext из хеша нельзя, поэтому стабильный хешированный токен невозможен:
-либо ротация на отправке (есть, проверена на veille, та же `secure-token`),
-либо новая схема (HMAC от `userId` с новым секретом в окружении —
-предусловие для Ralph и второй криптопримитив ради переключателя). Вред
-утечки токена — выключенные напоминания, видимые и обратимые в кабинете;
-доступа к кабинету и адреса он не даёт (критерий PRD). Оба эндпоинта в одном
-модуле: запись `remindersDisabledAt` живёт в одном сервисе, `auth` только
-читает поле — иначе две записи одного флага в двух модулях.
-**Отброшено:** ротация по расписанию отдельно от письма — ссылка в письме
-обязана совпадать с хешем в базе на момент отправки; `ACCOUNT_MAIL_UNSUBSCRIBE_PATH`
-для напоминаний — его `route.ts` отвечает no-op `200`, и докблок константы
+plaintext из хеша нельзя, поэтому один стабильный токен на аккаунт
+невозможен: либо токен на письмо (та же `secure-token`, что у veille), либо
+новая схема (HMAC от `userId` с новым секретом в окружении — предусловие для
+Ralph и второй криптопримитив ради переключателя). Вред утечки токена —
+выключенные напоминания, видимые и обратимые в кабинете; доступа к кабинету
+и адреса он не даёт (критерий PRD). Оба эндпоинта в одном модуле: запись
+`remindersDisabledAt` живёт в одном сервисе, `auth` только читает поле —
+иначе две записи одного флага в двух модулях.
+**Отброшено:** один хеш на `User` с ротацией на каждой отправке — ссылка в
+каждом письме, кроме последнего, мертва: человек жмёт «выключить» в старом
+письме, видит «Rappels désactivés» и получает напоминания дальше (§ «Схема»);
+`ACCOUNT_MAIL_UNSUBSCRIBE_PATH` для напоминаний — его `route.ts` отвечает no-op
+`200`, и докблок константы
 прямо запрещает ему обрастать страницей; письмо-напоминание — регулярное, его
 ссылка обязана что-то делать.
 **Как применять:** contracts — `REMINDER_UNSUBSCRIBE_PATH =
@@ -213,40 +206,31 @@ DTO `PATCH` — `class-validator` `@IsBoolean()`; DTO `POST` наследует
 **Решение:** `reminderMailFor(to, token, today, sinistres)` в
 `src/reminders/reminder-mail.ts` → `ComposeMailInput`; одно письмо на
 человека, внутри — по блоку на синистр: `paragraph` (коммуна через
-`communeLabel`, риск, дата события `formatFrenchDate`), `list` строк по шагам,
-`link` на `${SINISTRE_PATH}/${id}`. Строка шага: название, дата, и одно из —
-«dans N jours» / «dernier jour» (`remaining = 0`) / «en retard de N jours».
-Для шага `DECLARATION_ASSUREUR` остаток выносится отдельным `paragraph`
-(«il vous reste N jours pour déclarer…»), за ним `externalLink` на
-`sourceUrl` с датой сверки и, при `possiblyOutdated` из `toSourceReference`
+`communeLabel`, риск — `fr.sinistres.risques` по `Sinistre.risque`, дата
+события `formatFrenchDate`), `list` строк по шагам, `link` на
+`${SINISTRE_PATH}/${id}`. Строка шага: название, дата, и одно из — «dans N
+jours» / «dernier jour» (`remaining = 0`) / «en retard de N jours». Шаг
+`DECLARATION_ASSUREUR` в `list` не входит: вместо строки — отдельный
+`paragraph` («il vous reste N jours pour déclarer…»), который называет
+действие словами и несёт ту же дату (строка списка сказала бы единственный
+срок письма второй раз), за ним `externalLink` на `sourceUrl` с датой сверки
+и, при `possiblyOutdated` из `toSourceReference`
 (`src/common/source-reference.ts`), пометка «à vérifier» и предложение сверить
-с договором (`fr.mail.jorf.notification` уже содержит такую фразу —
-переиспользовать, не переписывать). Просроченный `DECLARATION_ASSUREUR`:
-«le délai est dépassé — contactez votre assureur sans attendre», без оценки
-последствий. Просроченный шаг страховщика: «le délai prévu est dépassé — il
-est utile de relancer votre assureur». Кто действует — по коду правила:
+с договором — обе фразы в `fr.mail.reminders.declaration`. Просроченный
+`DECLARATION_ASSUREUR`: «le délai est dépassé — contactez votre assureur sans
+attendre», без оценки последствий. Просроченный шаг страховщика: «en retard
+de N jours — il est utile de relancer votre assureur» («le délai prévu est
+dépassé» сказало бы «en retard» второй раз). Кто действует — по коду правила:
 набор `INSURER_RULE_CODES` рядом с кодами в `deadline-rule.seed.ts`
 (`INFORMATION_ASSUREUR`, `PROVISION_INDEMNITE`, `PROPOSITION_INDEMNISATION`,
 `REPARATION_MISSIONNEE`, `VERSEMENT_INDEMNITE`); остальное — действие
-человека. Тема: с поводом по сроку декларации — «Il vous reste N jours pour
-déclarer votre sinistre», иначе «Vos prochaines étapes». `reason` подвала:
-«vous suivez un dossier de sinistre sur Mon Sinistre»; `unsubscribePath` —
-`reminderUnsubscribePathFor(token)`. Все строки — ветка `fr.mail.reminders` в
-`src/i18n/fr.ts`.
-
-**Исправлено при реализации (фаза 1, issue #206):** фразы «à vérifier» и
-предложения сверить с договором в `fr.mail.jorf.notification` нет — там только
-`deadline` и `legifranceLink`; переиспользовать было нечего, обе фразы
-заведены в `fr.mail.reminders.declaration`. Там же шаг `DECLARATION_ASSUREUR`
-не попадает в `list`: его абзац называет действие словами и несёт ту же дату,
-а строка списка сказала бы единственный срок письма второй раз.
-
-**Исправлено при реализации (фаза 2, issue #209):** строка просроченного шага
-страховщика — «en retard de N jours — il est utile de relancer votre
-assureur»: «le délai prévu est dépassé» сказало бы «en retard» второй раз.
-Тема получила `subject.declarationOverdue` и называет ближайший ещё не
-истёкший срок декларации, а истёкший — только когда других нет: `Math.min` по
-остаткам со знаком написал бы «Il vous reste −2 jours».
+человека. Тема — по ближайшему ещё не истёкшему сроку декларации: «Il vous
+reste N jours pour déclarer votre sinistre»; когда истекли все —
+`subject.declarationOverdue` (`Math.min` по остаткам со знаком написал бы «Il
+vous reste −2 jours»); без срока декларации — «Vos prochaines étapes».
+`reason` подвала: «vous suivez un dossier de sinistre sur Mon Sinistre»;
+`unsubscribePath` — `reminderUnsubscribePathFor(token)`. Все строки — ветка
+`fr.mail.reminders` в `src/i18n/fr.ts`.
 
 **Почему:** каркас рендерит блоки в text и HTML сам, равенство ссылок двух
 версий — по построению (`src/mail/mail-message.ts`), отдельно его доказывать
@@ -302,17 +286,17 @@ URL.
 
 ## Тесты по ТЗ § 9 — где что живёт
 
-| требование                                               | спека                                                                                            |
-| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| отбор поводов по порогам, обе шкалы, `FAIT`/без даты     | `src/reminders/select-reminders.spec.ts` (юнит, без базы)                                        |
-| синистр посреди шкалы 8 → 7 → 3 → 1; смена `plannedDate` | там же                                                                                           |
-| просрочка: первый прогон, интервал, предел 4             | там же                                                                                           |
-| не больше одного письма в день, объединение синистров    | `test/integration/reminders/reminders.int-spec.ts` (`RecordingTransport`, `run({ now })` дважды) |
-| изоляция сбоя получателя, досылка, алерт после 4         | там же (транспорт, падающий на одном адресе)                                                     |
-| условные уникальности, каскад `Step → ReminderLog`       | `test/integration/reminders/reminder-log-schema.int-spec.ts`                                     |
-| токен: 204 на любой токен, ротация, `PATCH /rappels`     | `reminders.int-spec.ts`                                                                          |
-| расписание взведено                                      | `src/reminders/reminders-schedule.spec.ts`                                                       |
-| логи без адресов                                         | `captureLogs().expectNoTraceOf(email)` в int-спеке                                               |
+| требование                                                 | спека                                                                                            |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| отбор поводов по порогам, обе шкалы, `FAIT`/без даты       | `src/reminders/select-reminders.spec.ts` (юнит, без базы)                                        |
+| синистр посреди шкалы 8 → 7 → 3 → 1; смена `plannedDate`   | там же                                                                                           |
+| просрочка: первый прогон, интервал, предел 4               | там же                                                                                           |
+| не больше одного письма в день, объединение синистров      | `test/integration/reminders/reminders.int-spec.ts` (`RecordingTransport`, `run({ now })` дважды) |
+| изоляция сбоя получателя, досылка, алерт после 4           | там же (транспорт, падающий на одном адресе)                                                     |
+| условные уникальности, каскад `Step → ReminderLog`         | `test/integration/reminders/reminder-log-schema.int-spec.ts`                                     |
+| токен: 204 на любой токен, хеш из письма, `PATCH /rappels` | `reminders.int-spec.ts`                                                                          |
+| расписание взведено                                        | `src/reminders/reminders-schedule.spec.ts`                                                       |
+| логи без адресов                                           | `captureLogs().expectNoTraceOf(email)` в int-спеке                                               |
 
 ## Ограничения и риски
 
@@ -321,10 +305,6 @@ URL.
   `ReminderLog` остановят только вторую запись, не второе письмо). Станет
   актуально при горизонтальном масштабировании — тогда общий лизинг-лок
   выносится из `JorfMonitorService` в `src/common/`.
-- **Ротация убивает ссылку предыдущего письма**: one-click из позавчерашнего
-  письма отвечает 204, но ничего не меняет (хеш другой). Для ежедневных
-  писем приемлемо — то же поведение у veille; человек с кнопкой в кабинете
-  не зависит от письма.
 - **Первое письмо — утром после создания синистра** (шаги первых дней под
   порогом 30). PRD «Не в скоупе» исключает письмо в день создания, не на
   следующий; если владелец сочтёт это шумом, правится шкала в contracts, не
@@ -335,6 +315,8 @@ URL.
 - `ReminderLog` не чистится: каскад с `Step` при удалении синистра или
   аккаунта, иначе строки живут вечно. Объём — порядка десятка строк на шаг
   за весь срок досье; чистка не нужна, пока не появится читатель истории.
+  `ReminderUnsubscribeToken` — строка на письмо, каскад с `User`, без чистки
+  по той же причине (`data-model.md` § 5).
 - Переход на летнее/зимнее время: `@Cron` с `timeZone` и `todayInParis`
   работают в одном поясе, день не съезжает; проверяется существующей
   спекой `today-in-paris`.

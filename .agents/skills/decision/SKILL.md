@@ -3,7 +3,7 @@ name: decision
 description: Доводит принятое решение до ТЗ, research, плана текущей фазы, открытых issues и макета в момент принятия. Использовать в конце раунда на холсте и после мержа PR с правками по ревью — «/decision <источник> <решение>».
 argument-hint: '<источник> <решение>'
 disable-model-invocation: true
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash(git:*), Bash(gh issue list:*), Bash(gh issue view:*), Bash(gh issue edit:*), Bash(gh issue comment:*)
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash(git status:*), Bash(git switch main:*), Bash(git pull --ff-only:*), Bash(git diff:*), Bash(git add:*), Bash(git commit:*), Bash(git log:*), Bash(gh pr view:*), Bash(gh issue list:*), Bash(gh issue view:*), Bash(gh issue edit:*), Bash(gh issue comment:*)
 ---
 
 # Адресат решения
@@ -15,9 +15,11 @@ allowed-tools: Read, Write, Edit, Glob, Grep, Bash(git:*), Bash(gh issue list:*)
 
 ## Процесс
 
-1. Прочитай ТЗ, `docs/research/<фича>.md` и `docs/plan/<фича>.md` затронутой
-   фичи, `gh issue list --state open`, `docs/design/*.html`; модель данных
-   (`docs/research/data-model.md`) — если решение про сущности.
+1. Прочитай источник (ревью — `gh pr view N --comments`: там же остальные
+   решения того же ревью), раздел ТЗ, `docs/research/<фича>.md` и
+   `docs/plan/<фича>.md` затронутой фичи, `gh issue list --state open`;
+   `docs/research/data-model.md` — если решение про сущности;
+   `docs/design/<экран>.html` — если решение визуальное.
 2. Найди прежнее состояние везде, где оно записано: grep по словам решения
    и по тому, что оно отменяет (в `docs/`, `CLAUDE.md` всех уровней,
    issues). Перечисли места, включая те, где править нечего.
@@ -29,10 +31,11 @@ allowed-tools: Read, Write, Edit, Glob, Grep, Bash(git:*), Bash(gh issue list:*)
    - макет — правка `docs/design/<экран>.html`, если решение визуальное и
      умещается в правку разметки; иначе строка «макет ждёт экспорта» в
      задаче плана.
-4. После подтверждения применяй одним коммитом в `main` (переключись на него,
-   если дерево чистое; иначе остановись и скажи):
-   `docs(decision): <решение>`, в теле — источник. Issues правятся тем же
-   заходом.
+4. После подтверждения: `git switch main` и `git pull --ff-only` (дерево не
+   чистое — остановись и скажи), один коммит `docs(decision): <решение>`,
+   в теле — источник. Issues правятся после того, как коммит прошёл
+   pre-commit хук, не раньше: отклонённый коммит не должен оставить issues
+   впереди репозитория.
 
 ## Правила
 
