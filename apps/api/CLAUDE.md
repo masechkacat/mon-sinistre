@@ -17,27 +17,6 @@ NestJS 12 на **Fastify**, не Express: плагины через `app.registe
   единственная проверка типов спеков: Vitest только транспилирует (Oxc, без
   информации о типах), а `nest build` спеки и `test/` исключает.
 
-## Модули
-
-Свои `CLAUDE.md` у `src/prisma/`, `src/communes/`, `src/mail/`, `src/veille/`,
-`src/auth/`, `src/dossier/` — правила там. Решения фичи veille (схема, токены, лимит писем, чистка) —
-`../../docs/research/veille-subscription-lifecycle.md`; изменение состава
-коммун (заявка `VeilleChange`, эндпоинты `changement`) —
-`../../docs/research/veille-commune-change.md`; монитор Journal Officiel
-(источник DILA, парсинг, расписание, outbox рассылки, алерты) —
-`../../docs/research/jorf-monitor.md`; аккаунт пострадавшего (правила пароля
-CNIL, bcrypt, JWT-сессии с ротацией, глобальный guard, лимиты попыток и
-писем) — `../../docs/research/user-account.md`; синистр и план действий
-(схема `Sinistre`/`Step`/`StepTemplate`, классификация риска, привязка
-`ArreteEntry`, сроки страховщика в справочнике, outbox письма владельцу) —
-`../../docs/research/sinistre-plan.md`; напоминания по шагам (`ReminderLog`,
-отбор поводов по шкалам, прогон 07:00, токен выключения, эндпоинты
-`/rappels`) — `../../docs/research/sinistre-reminders.md`; досье без
-аккаунта (публичный модуль `src/dossier/`, ответ по коммуне и аперçу из тех
-же функций, что `SinistresService.create`, `StepKind`, `DossierEnAttente` до
-подтверждения, `409` двойника на `POST /sinistres`) —
-`../../docs/research/dossier-preliminaire.md`.
-
 ## Единственные точки входа
 
 Второй реализации не заводить — нужно тому, кто пишет **новый** модуль и в чужой
@@ -120,8 +99,6 @@ Prisma CLI, seed, скрипты `scripts/` и обвязка тестов.
   указывать `type: String, format: 'date'`). Response-класс с `implements`
   контракта нужен по-прежнему. Схему проверять на `/docs`, не в тестах.
 - Refresh-токены — в httpOnly-cookie с ротацией; access — в теле ответа.
-- Глобальный `JwtAuthGuard` через `APP_GUARD`: механика и почему —
-  `src/auth/CLAUDE.md`.
 - Доменные даты в Postgres — колонки `date`, не `timestamp`.
 - Рассылка напоминаний — `RemindersService.run` (`src/reminders/`) на
   `@nestjs/schedule`, раз в сутки, не больше одного письма пользователю в
@@ -160,4 +137,3 @@ Prisma CLI, seed, скрипты `scripts/` и обвязка тестов.
   алиасу `test/*` (tsconfig; Vitest читает его через `resolve.tsconfigPaths`), относительных путей наверх нет.
   Сам каталог `test/` в сборку не идёт: `tsconfig.build.json` исключает его и
   держит `rootDir: src`.
-- В CI понадобится сервисный Postgres 18.
