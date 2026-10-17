@@ -3,10 +3,6 @@
 **План**: docs/plan/web-foundation.md
 **Дата**: 2026-08-04
 
-> **Снапшот на дату.** Отчёт фиксирует решения на момент ресерча; расхождения
-> при реализации отмечаются врезкой «Исправлено при реализации», как в
-> docs/research/emails.md.
-
 Стек, от которого отталкиваются решения: Next.js 16.2 (App Router, `src/app/`),
 React 19.2, Tailwind CSS 4.1, TanStack Query 5.101 (установлен, не подключён),
 eslint 9 + `eslint-config-next` 16 (flat config), Node 24. Тестов и

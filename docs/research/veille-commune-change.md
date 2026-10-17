@@ -4,9 +4,6 @@
 отчёта)
 **Дата**: 2026-08-17
 
-> **Снапшот на дату.** Расхождения при реализации отмечаются врезкой
-> «Исправлено при реализации», как в docs/research/veille-subscription-lifecycle.md.
-
 Фича целиком живёт внутри уже реализованного контура veille (модуль
 `apps/api/src/veille/`, страницы `apps/web/src/app/veille/`,
 docs/research/veille-subscription-lifecycle.md — далее «lifecycle»).

@@ -3,7 +3,7 @@
 **PRD**: docs/prd/design-system.md (план фаз пишется после этого отчёта)
 **Дата**: 2026-10-04
 
-Снапшот на дату. Источник значений — чистовик Claude Design
+Источник значений — чистовик Claude Design
 <https://claude.ai/artifact/2t7HDyqpTr7v1PLwdUsAsK>; что из него переносится
 буквально, а что нет, сказано в PRD. Уже решённое и не переисследуемое:
 темы на `prefers-color-scheme` без переключателя, Playwright + axe как
