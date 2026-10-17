@@ -495,6 +495,18 @@ export const fr = {
       page: { title: 'Mon dossier' },
       timelineLabel: 'Étapes de votre dossier',
       prochaineEtape: 'Prochaine étape',
+      chronologie: {
+        label: 'Dates clés de votre dossier',
+        evenement: 'Événement',
+        arrete: 'Arrêté',
+        declaration: 'Déclaration',
+        indemnisation: 'Indemnisation',
+        attendu: 'attendu',
+        publie: 'publié',
+        refuse: 'refusé',
+        aVenir: 'à venir',
+        avantLe: (date: string) => `avant le ${date}`,
+      },
       faits: { titre: FAIT, liste: 'Étapes déjà réglées' },
       sansDateNiAncre: 'Cette étape n’a pas encore de date prévue.',
       marquer: {

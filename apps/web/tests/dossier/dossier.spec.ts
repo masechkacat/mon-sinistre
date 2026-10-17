@@ -110,11 +110,13 @@ test('arrêté attendu: the step anchored on the publication waits without a dat
   await expect(
     page.getByText(fr.sinistres.statut[SinistreStatus.AVANT_ARRETE]),
   ).toBeVisible();
-  await expect(
-    page.getByText(
-      fr.sinistres.liste.eventDate(formatDateFr(apercu.eventDate)),
-    ),
-  ).toBeVisible();
+  // The event the dossier is about is the first moment of the chronology, and
+  // an arrêté still awaited is the second.
+  const chronologie = page.getByRole('list', {
+    name: copy.chronologie.label,
+  });
+  await expect(chronologie).toContainText(formatDateShortFr(apercu.eventDate));
+  await expect(chronologie).toContainText(copy.chronologie.attendu);
 
   const declaration = planItem(page, APERCU_STEPS.declaration);
   await expect(declaration).toContainText(

@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import {
   DEADLINE_URGENT_THRESHOLD_DAYS,
   REFERENCE_DATA_STALE_AFTER_MONTHS,
@@ -92,8 +92,10 @@ function sinistreDetail(overrides: Partial<Record<string, unknown>> = {}) {
   };
 }
 
-const heroBadge = (page: Page) =>
-  page.locator('[data-slot="deadline-badge"][data-form="hero"]');
+const heroBadge = (scope: Page | Locator) =>
+  scope.locator('[data-slot="deadline-badge"][data-form="hero"]');
+const planList = (page: Page) =>
+  page.getByRole('list', { name: fr.sinistres.detail.timelineLabel });
 
 const DECLARATION_STEP = step({
   id: 'step-declaration',
@@ -193,9 +195,7 @@ test('the plan is an ordered list of what is left to do, each step with its date
 }) => {
   await openDetail(page, sinistreDetail());
 
-  const timeline = page.getByRole('list', {
-    name: fr.sinistres.detail.timelineLabel,
-  });
+  const timeline = planList(page);
   await expect(timeline.getByRole('listitem')).toHaveCount(
     Object.keys(DATE_LINES).length,
   );
@@ -220,25 +220,40 @@ test('the lines of text the badges replaced are gone from the page', async ({
   page,
 }) => {
   await openDetail(page, sinistreDetail());
-  await expect(
-    page.getByRole('list', { name: fr.sinistres.detail.timelineLabel }),
-  ).toBeVisible();
+  await expect(planList(page)).toBeVisible();
 
   for (const gone of [/Il reste/, /Date limite/, /À faire/]) {
     await expect(page.getByText(gone)).toHaveCount(0);
   }
 });
 
-test('exactly one step carries aria-current, and it is the nearest upcoming one', async ({
+test('exactly one step of the plan carries aria-current, and it is the nearest upcoming one', async ({
   page,
 }) => {
   await openDetail(page, sinistreDetail());
 
-  const current = page.locator('[aria-current="step"]');
-  await expect(current).toHaveCount(1);
-  await expect(page.locator('li[aria-current="step"]')).toContainText(
+  // Within the plan: the chronology of the head marks its own current moment.
+  const plan = planList(page);
+  await expect(plan.locator('[aria-current="step"]')).toHaveCount(1);
+  await expect(plan.locator('li[aria-current="step"]')).toContainText(
     'Envoyer les photos',
   );
+});
+
+test('the head stamps the status and holds the only badge of the page', async ({
+  page,
+}) => {
+  await openDetail(page, sinistreDetail());
+
+  const entete = page.locator('[data-slot="dossier-entete"]');
+  await expect(entete.locator('[data-slot="statut-tampon"]')).toHaveText(
+    fr.sinistres.statut[SinistreStatus.DECLARE],
+  );
+  await expect(heroBadge(entete)).toHaveCount(1);
+  // The plan says the state of its steps in the words of their date lines.
+  await expect(
+    planList(page).locator('[data-slot="deadline-badge"]'),
+  ).toHaveCount(0);
 });
 
 test('a step without a planned date is neither overdue nor the next one', async ({
@@ -373,9 +388,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
   }) => {
     await page.emulateMedia({ colorScheme });
     await openDetail(page, sinistreDetail());
-    await expect(
-      page.getByRole('list', { name: fr.sinistres.detail.timelineLabel }),
-    ).toBeVisible();
+    await expect(planList(page)).toBeVisible();
 
     await expectNoAxeViolations(page);
   });

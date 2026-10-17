@@ -31,6 +31,7 @@ import {
 import { queryKeys } from '@/lib/api/keys';
 import { useSessionGuard } from '@/lib/api/use-session-guard';
 import { cn } from '@/lib/utils';
+import { chronologiePoints } from '@/lib/dossier-chronologie';
 import { dossierTitle } from '@/lib/dossier-title';
 
 interface StepMarkRequest {
@@ -99,7 +100,15 @@ export function SinistreDetailView({ id }: { id: string }) {
         <>
           <DossierEntete
             title={dossierTitle(sinistre)}
-            statut={fr.sinistres.statut[sinistre.status]}
+            status={sinistre.status}
+            points={chronologiePoints(sinistre)}
+            badge={
+              sinistre.declarationDeadline ? (
+                <DeclarationDeadlineBlock
+                  deadline={sinistre.declarationDeadline}
+                />
+              ) : null
+            }
           />
 
           <DeclarationSection
@@ -107,10 +116,6 @@ export function SinistreDetailView({ id }: { id: string }) {
             declarationDate={sinistre.declarationDate}
             onAnnounce={setAnnouncement}
           />
-
-          {sinistre.declarationDeadline ? (
-            <DeclarationDeadlineBlock deadline={sinistre.declarationDeadline} />
-          ) : null}
 
           <DossierFeuille>
             <PlanList

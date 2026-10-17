@@ -1,4 +1,5 @@
 import type { IsoDate, Step } from '@mon-sinistre/contracts';
+import { Tampon, capsClassName } from '@/components/tampon';
 import { dateParts, formatDateFr } from '@/i18n/date';
 import { fr } from '@/i18n/fr';
 import { DeadlineBadgeState, isUrgentDeadline } from '@/lib/deadline-badge';
@@ -52,8 +53,6 @@ const perforation =
 const secondSheet =
   'shadow-[4px_4px_0_0_var(--papier),4px_4px_0_1px_var(--filet)]';
 
-const caps = 'text-[0.8125rem] font-bold tracking-wider uppercase';
-
 /**
  * The deadline of a dossier as a tear-off sheet. One form, the head of the
  * screen it belongs to: the plan says the state of its steps in the words of
@@ -98,15 +97,11 @@ export function DeadlineBadge({
           stamp itself would not clear the figure below it. */}
       {word ? (
         <div className="mb-1">
-          <p
-            className={cn(
-              caps,
-              signal,
-              stamped && 'mx-auto w-fit -rotate-4 border-2 border-current px-2',
-            )}
-          >
-            {word}
-          </p>
+          {stamped ? (
+            <Tampon className={cn(signal, 'mx-auto')}>{word}</Tampon>
+          ) : (
+            <p className={cn(capsClassName, signal)}>{word}</p>
+          )}
         </div>
       ) : null}
 
@@ -116,11 +111,15 @@ export function DeadlineBadge({
         </p>
       ) : null}
       {parts ? (
-        <p className={cn(caps, 'text-muted-foreground')}>{parts.month}</p>
+        <p className={cn(capsClassName, 'text-muted-foreground')}>
+          {parts.month}
+        </p>
       ) : null}
       <Figure text={parts?.day ?? null} signal={signal} />
       {parts ? (
-        <p className={cn(caps, 'text-muted-foreground')}>{parts.weekday}</p>
+        <p className={cn(capsClassName, 'text-muted-foreground')}>
+          {parts.weekday}
+        </p>
       ) : null}
 
       {explained && delay ? (
