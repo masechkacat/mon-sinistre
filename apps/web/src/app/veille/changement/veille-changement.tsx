@@ -96,6 +96,7 @@ export function VeilleChangement() {
             </ul>
             <Button
               type="button"
+              size="touch"
               onClick={() => applyMutation.mutate()}
               disabled={applyMutation.isPending}
             >

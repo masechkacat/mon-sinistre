@@ -128,10 +128,16 @@ for (const colorScheme of ['light', 'dark'] as const) {
       await expectHoveredAA(control);
     }
 
+    // The ground: `/espace-personnel` without the account answer renders its
+    // controls on the page itself, no sheet around them.
     await page.route(`${testApiBaseUrl}/auth/me`, (route) => route.abort());
     await page.goto('/espace-personnel');
-    await expectHoveredAA(
-      page.getByRole('link', { name: fr.compte.espacePersonnel.sinistresLink }),
+    const onGroundControls = page.locator(
+      `main :is(a, button):not(${SHEET} *)`,
     );
+    expect(await onGroundControls.count()).toBeGreaterThan(0);
+    for (const control of await onGroundControls.all()) {
+      await expectHoveredAA(control);
+    }
   });
 }

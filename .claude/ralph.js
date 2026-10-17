@@ -673,10 +673,13 @@ function dryReviewPrompt(branch) {
   );
 }
 
+const DRY_REVIEW_TIMEOUT_MS = 20 * 60 * 1000;
+
 // Сбой этого ревью PR не блокирует: дубли тогда смотрят руками.
 function dryReview(cfg, branch) {
   const args = ['-p', dryReviewPrompt(branch), '--permission-mode', 'default'];
   if (cfg.model) args.push('--model', cfg.model);
+  if (cfg.maxBudgetUsd) args.push('--max-budget-usd', String(cfg.maxBudgetUsd));
   args.push(
     '--max-turns',
     '30',
@@ -694,15 +697,51 @@ function dryReview(cfg, branch) {
     cwd: ROOT,
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'inherit'],
+    timeout: DRY_REVIEW_TIMEOUT_MS,
+    killSignal: 'SIGKILL',
   });
   const report = (res.stdout || '').trim();
-  if (res.status !== 0 || !report) {
+  if (res.error || res.status !== 0 || !report) {
+    const cause = res.error ? `: ${res.error.message}` : '';
     warn(
-      'dry-reviewer по диффу фазы не отработал — дубли на PR смотреть руками',
+      `dry-reviewer по диффу фазы не отработал${cause} — дубли на PR смотреть руками`,
     );
     return null;
   }
   return report;
+}
+
+const DRY_REVIEW_HEADING = '## dry-reviewer по диффу';
+
+const hasDryReviewComment = (comments) =>
+  comments.some((c) => (c.body || '').startsWith(DRY_REVIEW_HEADING));
+
+// Отдельно от `gh pr create`: PR мог быть открыт прошлым запуском, упавшим
+// до комментария, или руками — отчёт нужен и ему, но один раз.
+function commentDryReview(cfg, branch, url) {
+  const comments =
+    ghJson(['pr', 'view', url, '--json', 'comments', '--jq', '.comments']) ??
+    [];
+  if (hasDryReviewComment(comments)) {
+    ok('отчёт dry-reviewer уже есть в PR');
+    return;
+  }
+  const report = dryReview(cfg, branch);
+  if (!report) return;
+  try {
+    gh([
+      'pr',
+      'comment',
+      url,
+      '--body',
+      `${DRY_REVIEW_HEADING} origin/main...${branch}\n\n${report}`,
+    ]);
+    ok('отчёт dry-reviewer добавлен комментарием к PR');
+  } catch (e) {
+    warn(
+      `Комментарий к PR не добавлен: ${(e.stderr || e.message || '').trim()}`,
+    );
+  }
 }
 
 function openPullRequest(cfg, phase, milestone, branch, sessions = []) {
@@ -723,6 +762,7 @@ function openPullRequest(cfg, phase, milestone, branch, sessions = []) {
   ]);
   if (existing?.length) {
     ok(`PR уже открыт: ${existing[0].url}`);
+    commentDryReview(cfg, branch, existing[0].url);
     return existing[0].url;
   }
 
@@ -799,23 +839,7 @@ function openPullRequest(cfg, phase, milestone, branch, sessions = []) {
     );
   }
   ok(`PR открыт: ${url}`);
-  const report = dryReview(cfg, branch);
-  if (report) {
-    try {
-      gh([
-        'pr',
-        'comment',
-        url,
-        '--body',
-        `## dry-reviewer по диффу origin/main...${branch}\n\n${report}`,
-      ]);
-      ok('отчёт dry-reviewer добавлен комментарием к PR');
-    } catch (e) {
-      warn(
-        `Комментарий к PR не добавлен: ${(e.stderr || e.message || '').trim()}`,
-      );
-    }
-  }
+  commentDryReview(cfg, branch, url);
   return url;
 }
 
@@ -989,6 +1013,7 @@ export {
   closesIssue,
   dryReviewPrompt,
   fieldKey,
+  hasDryReviewComment,
   filterQueue,
   milestonePrefix,
   phaseLabel,

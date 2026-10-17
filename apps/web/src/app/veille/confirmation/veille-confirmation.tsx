@@ -80,6 +80,7 @@ export function VeilleConfirmation() {
             </p>
             <Button
               type="button"
+              size="touch"
               onClick={() => confirmMutation.mutate()}
               disabled={confirmMutation.isPending}
             >

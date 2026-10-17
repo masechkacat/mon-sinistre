@@ -20,6 +20,7 @@ import {
   checkSameBranch,
   closesIssue,
   dryReviewPrompt,
+  hasDryReviewComment,
   fieldKey,
   filterQueue,
   milestonePrefix,
@@ -374,4 +375,19 @@ test('dryReviewPrompt называет агента и дифф фазы', () =>
   const prompt = dryReviewPrompt('veille/phase-2');
   assert.match(prompt, /dry-reviewer/);
   assert.match(prompt, /origin\/main\.\.\.veille\/phase-2/);
+});
+
+test('hasDryReviewComment узнаёт свой отчёт по заголовку, не по упоминанию', () => {
+  assert.equal(hasDryReviewComment([]), false);
+  assert.equal(
+    hasDryReviewComment([{ body: 'Посмотрел отчёт dry-reviewer, ок' }]),
+    false,
+  );
+  assert.equal(
+    hasDryReviewComment([
+      { body: 'lgtm' },
+      { body: '## dry-reviewer по диффу origin/main...veille/phase-2\n\n—' },
+    ]),
+    true,
+  );
 });
