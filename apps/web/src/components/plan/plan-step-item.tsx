@@ -60,9 +60,6 @@ export function PlanStepItem({
         {step.name}
       </p>
       {step.description ? <p>{step.description}</p> : null}
-      {isNext ? (
-        <p className="text-sm font-semibold">{copy.prochaineEtape}</p>
-      ) : null}
 
       {step.plannedDate ? (
         <p className="flex flex-wrap items-baseline gap-x-3 tabular-nums">

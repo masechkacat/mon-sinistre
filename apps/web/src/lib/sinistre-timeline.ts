@@ -36,6 +36,21 @@ export function partitionSteps<T extends StepView>(
   return { open, closed };
 }
 
+/**
+ * How far the plan has come. A step set aside is counted neither as done nor
+ * out of the plan: it is still one of the steps the dossier was given, and
+ * dropping it from the total would show progress where nothing was done.
+ */
+export function progressionPlan(steps: StepView[]): {
+  faites: number;
+  total: number;
+} {
+  return {
+    faites: steps.filter(({ status }) => status === StepStatus.FAIT).length,
+    total: steps.length,
+  };
+}
+
 export function nextUpcomingStep<T extends StepView>(steps: T[]): T | null {
   let next: Dated<T> | null = null;
   for (const step of steps) {

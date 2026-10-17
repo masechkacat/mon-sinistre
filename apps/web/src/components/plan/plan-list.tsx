@@ -1,13 +1,15 @@
 import { fr } from '@/i18n/fr';
 import type { StepMark } from '@/lib/api/sinistres';
 import { nextUpcomingStep, partitionSteps } from '@/lib/sinistre-timeline';
+import { EtapeEnCours } from './etape-en-cours';
 import { FaitLigne } from './fait-ligne';
 import { PlanStepItem, type PlanStep } from './plan-step-item';
 
 /**
- * The plan of a dossier: the strips of what is left to do, then the row of
- * what is behind. Without `onMark` both are read-only — the mode `/dossier`
- * shows, where nothing is stored to be marked.
+ * The plan of a dossier: the bookmark of where it stands, the strips of what
+ * is left to do, then the row of what is behind. Without `onMark` all three
+ * are read-only — the mode `/dossier` shows, where nothing is stored to be
+ * marked.
  */
 export function PlanList<T extends PlanStep>({
   steps,
@@ -23,6 +25,7 @@ export function PlanList<T extends PlanStep>({
 
   return (
     <>
+      <EtapeEnCours etape={next} steps={steps} />
       <ol aria-label={fr.sinistres.detail.timelineLabel} className="space-y-4">
         {open.map((step) => (
           <PlanStepItem

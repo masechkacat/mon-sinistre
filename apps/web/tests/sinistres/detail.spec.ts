@@ -422,13 +422,16 @@ function timelineItem(page: Page, stepName: string) {
   return page.getByRole('listitem').filter({ hasText: stepName });
 }
 
-test('a mark is announced in a live region already on the page, and the other steps stay as they are', async ({
+test('a mark is announced in a live region already on the page, counted by the bookmark, and the other steps stay as they are', async ({
   page,
 }) => {
   await openDetail(page, sinistreDetail());
 
   const announcements = page.getByRole('status');
   await expect(announcements).toBeEmpty();
+  const bookmark = page.locator('[data-slot="etape-en-cours"]');
+  const progression = fr.sinistres.detail.etapeEnCours.progression;
+  await expect(bookmark).toContainText(progression(1, STEPS.length));
   const sibling = timelineItem(page, 'Relire le contrat');
   await sibling.evaluate((el) => {
     el.dataset.intact = 'oui';
@@ -444,6 +447,10 @@ test('a mark is announced in a live region already on the page, and the other st
   await expect(page.locator('[data-slot="plan-fait"]')).toContainText(
     'Envoyer les photos',
   );
+  // The bookmark follows the answer of the PATCH: one more step behind, and
+  // the step in hand is the next one that has a date.
+  await expect(bookmark).toContainText(progression(2, STEPS.length));
+  await expect(bookmark).toContainText('Relire le contrat');
   // The focus follows the step to the line it moved to, instead of falling
   // back to the top of the page with the strip that held it.
   await expect(timelineItem(page, 'Envoyer les photos')).toBeFocused();

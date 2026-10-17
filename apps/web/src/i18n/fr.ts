@@ -494,7 +494,12 @@ export const fr = {
     detail: {
       page: { title: 'Mon dossier' },
       timelineLabel: 'Étapes de votre dossier',
-      prochaineEtape: 'Prochaine étape',
+      etapeEnCours: {
+        titre: 'Étape en cours',
+        avancement: 'Avancement de votre plan d’actions',
+        progression: (faites: number, total: number) =>
+          `${faites} étape${faites > 1 ? 's' : ''} faite${faites > 1 ? 's' : ''} sur ${total}`,
+      },
       chronologie: {
         label: 'Dates clés de votre dossier',
         evenement: 'Événement',

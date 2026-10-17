@@ -1,6 +1,10 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { StepKind, StepStatus, type StepView } from '@mon-sinistre/contracts';
-import { closCases, planCases } from '../../src/app/test-plan/cases';
+import {
+  closCases,
+  planCases,
+  planClosCases,
+} from '../../src/app/test-plan/cases';
 import { formatDateShortFr } from '../../src/i18n/date';
 import { fr } from '../../src/i18n/fr';
 import { conteneurLabel } from '../../src/lib/plan-conteneur';
@@ -20,6 +24,8 @@ const etapes = (sheet: Locator) =>
 const strip = (sheet: Locator, step: StepView) =>
   etapes(sheet).getByRole('listitem').filter({ hasText: step.name });
 const faits = (sheet: Locator) => sheet.locator('[data-slot="plan-fait"]');
+const signet = (sheet: Locator) =>
+  sheet.locator('[data-slot="etape-en-cours"]');
 
 test('read mode: the plan is a list and holds no button at all', async ({
   page,
@@ -91,6 +97,37 @@ test('each step keeps its date, its reason for having none and its source — an
   await expect(strip(sheet, planCases[0]), planCases[0].name).toContainText(
     badgeCopy.enRetard,
   );
+});
+
+test('the bookmark names the step in hand and counts what is already behind', async ({
+  page,
+}) => {
+  await gotoPage(page, testPlan);
+
+  // The nearest step that has a date: the overdue one is behind, and the ones
+  // anchored on a date still to come have no date at all.
+  const enCours = planCases[1].name;
+  for (const [mode, cases] of [
+    ['lecture', planCases],
+    ['edition', planClosCases],
+  ] as const) {
+    const bookmark = signet(feuille(page, mode));
+    const faites = cases.filter(
+      ({ status }) => status === StepStatus.FAIT,
+    ).length;
+    // A step set aside is counted neither as done nor out of the plan, so the
+    // edition sheet has one more step in its total than marks in it.
+    await expect(bookmark, mode).toContainText(
+      copy.etapeEnCours.progression(faites, cases.length),
+    );
+    await expect(bookmark, mode).toContainText(enCours);
+    const barre = bookmark.getByRole('progressbar');
+    await expect(barre, mode).toHaveAttribute('aria-valuenow', `${faites}`);
+    await expect(barre, mode).toHaveAttribute(
+      'aria-valuemax',
+      `${cases.length}`,
+    );
+  }
 });
 
 test('a plan with nothing settled yet draws no row of what is behind', async ({
