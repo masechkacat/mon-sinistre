@@ -1,0 +1,14 @@
+diff --git a/apps/api/src/auth/auth.service.ts b/apps/api/src/auth/auth.service.ts
+--- a/apps/api/src/auth/auth.service.ts
++++ b/apps/api/src/auth/auth.service.ts
+@@ -456,7 +456,9 @@
+     });
+     if (!pending) return undefined;
+ 
+-    const codeInsee = pending.codeInsee;
++    const codeInsee =
++      resolveCurrentCode(pending.codeInsee, await loadSuccessorMap(tx)) ??
++      pending.codeInsee;
+     let sinistreId: string | undefined;
+     try {
+       const { sinistre } = await this.sinistres.create(

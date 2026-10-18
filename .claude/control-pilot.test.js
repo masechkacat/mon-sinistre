@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { parseApproval, runPilot, verifyPilot } from './control-pilot.js';
+import { hash, taskById } from './control-tasks.js';
 
 const FLAGS = [
   '--model',
@@ -96,6 +97,7 @@ else {
 test('pilot requires separate explicit limits and refuses aliases or implicit approval', () => {
   const valid = parseApproval(FLAGS);
   assert.equal(valid.maxBudgetUsd, 1);
+  assert.equal(valid.contextProfile, 'baseline');
   for (const flags of [
     FLAGS.slice(0, -1),
     [...FLAGS, '--allow-model'],
@@ -103,6 +105,8 @@ test('pilot requires separate explicit limits and refuses aliases or implicit ap
     FLAGS.map((flag) => (flag === '1' ? '0' : flag)),
     FLAGS.map((flag) => (flag === '10' ? 'NaN' : flag)),
     FLAGS.slice(0, 6).concat('--allow-model'),
+    [...FLAGS, '--context', 'unknown'],
+    [...FLAGS, '--context'],
   ])
     assert.throws(() => parseApproval(flags));
 });
@@ -113,13 +117,22 @@ test('pilot verifies a real patch, records spend and never retries the model', a
   const result = await runPilot(
     'cors-methods',
     destination,
-    parseApproval(FLAGS),
+    parseApproval([...FLAGS, '--context', 'focused']),
     f.options,
   );
   assert.equal(result.stage, 'verified_locally');
   assert.equal(result.outcome.costUsd, 0.12);
   assert.equal(result.outcome.usage.turns, 2);
-  assert.equal(result.verifications[0].result.tasks[0].outcomes[0].failed, 0);
+  assert.equal(result.contextProfile, 'focused');
+  const args = f.read().args;
+  const prompt = args[args.indexOf('-p') + 1];
+  assert.equal(result.promptSha256, hash(prompt));
+  for (const reference of taskById('cors-methods').context)
+    assert.ok(prompt.includes(reference));
+  assert.equal(result.preflight.tasks[0].outcomes.length, 2);
+  assert.deepEqual(result.verifications[0].result.tasks[0].outcomes, [
+    { variant: 'reference', passed: 1, failed: 0 },
+  ]);
   assert.equal(f.read().calls, 1);
   await assert.rejects(
     runPilot('cors-methods', destination, parseApproval(FLAGS), f.options),

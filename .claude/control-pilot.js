@@ -31,11 +31,14 @@ function parseApproval(args) {
     ['--max-turns', 'maxTurns'],
     ['--timeout-ms', 'iterationTimeoutMs'],
     ['--allow-model', 'allowModel'],
+    ['--context', 'contextProfile'],
   ]);
   for (let index = 0; index < args.length; index++) {
     const key = options.get(args[index]);
     if (!key || Object.hasOwn(approval, key))
       throw new Error(`Unknown or duplicate pilot option: ${args[index]}`);
+    if (key !== 'allowModel' && index + 1 === args.length)
+      throw new Error(`Missing value for pilot option: ${args[index]}`);
     approval[key] = key === 'allowModel' ? true : args[++index];
   }
   validateApproval(approval);
@@ -43,6 +46,9 @@ function parseApproval(args) {
 }
 
 function validateApproval(approval) {
+  approval.contextProfile ??= 'baseline';
+  if (!['baseline', 'focused'].includes(approval.contextProfile))
+    throw new Error('Context must be baseline or focused');
   if (approval.allowModel !== true)
     throw new Error('Model calls require explicit --allow-model approval');
   if (
@@ -233,6 +239,18 @@ async function runPilot(
     const preflight = await checkControls([task]);
     const prepared = prepare(task, directory);
     assert.equal(prepared.metadata.initialHead, preflight.tasks[0].initialHead);
+    const prompt = [
+      task.prompt,
+      `Файлы для исправления: ${task.paths.join(', ')}.`,
+      ...(approval.contextProfile === 'focused'
+        ? [
+            `Навигация по связанному контексту (читай по необходимости): ${task.context.join(', ')}.`,
+          ]
+        : []),
+      'Это локальный контрольный пилот, не итерация Ralph. Доступны только чтение и правка.',
+      'Не запускай команды, скиллы, субагентов и не делай коммитов. Проверки выполнит оркестратор.',
+      'Заверши сессию сразу после исправления. Не изменяй другие файлы.',
+    ].join('\n');
     const sessionId = randomUUID();
     file = path.join(store, `pilot-${sessionId}.json`);
     state = {
@@ -242,6 +260,8 @@ async function runPilot(
       directory,
       sessionId,
       model: approval.model,
+      contextProfile: approval.contextProfile,
+      promptSha256: hash(prompt),
       limits: {
         maxBudgetUsd: approval.maxBudgetUsd,
         maxTurns: approval.maxTurns,
@@ -258,13 +278,6 @@ async function runPilot(
       verifications: [],
     };
     writeState(file, state);
-    const prompt = [
-      task.prompt,
-      `Файлы для исправления: ${task.paths.join(', ')}.`,
-      'Это локальный контрольный пилот, не итерация Ralph. Доступны только чтение и правка.',
-      'Не запускай команды, скиллы, субагентов и не делай коммитов. Проверки выполнит оркестратор.',
-      'Заверши сессию сразу после исправления. Не изменяй другие файлы.',
-    ].join('\n');
     state.outcome = runIteration(
       {
         ...state.limits,
@@ -354,7 +367,7 @@ async function main(args) {
     report = await verifyPilot(target, directory === '--confirm-candidate');
   else
     throw new Error(
-      'Usage: control-pilot.js run <task> <new-directory> --model <id> --max-budget-usd <usd> --max-turns <n> --timeout-ms <ms> --allow-model | verify <pilot-journal> [--confirm-candidate]',
+      'Usage: control-pilot.js run <task> <new-directory> --model <id> --max-budget-usd <usd> --max-turns <n> --timeout-ms <ms> --allow-model [--context baseline|focused] | verify <pilot-journal> [--confirm-candidate]',
     );
   console.log(JSON.stringify(report, null, 2));
 }

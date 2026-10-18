@@ -28,6 +28,7 @@ function taskById(id) {
 }
 
 function fixPatch(task) {
+  if (task.patch) return fs.readFileSync(path.join(FIXTURES, task.patch));
   return execFileSync(
     'git',
     ['diff', `${task.fix}^`, task.fix, '--', ...task.paths],

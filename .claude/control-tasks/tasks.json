@@ -6,6 +6,10 @@
       "id": "cors-methods",
       "fix": "a14ceb9f5745231856303f95ca48d0990275d83d",
       "paths": ["apps/api/src/main.ts"],
+      "context": [
+        "apps/api/CLAUDE.md",
+        "apps/api/src/config/env.validation.ts"
+      ],
       "prompt": "Из браузера не проходят PATCH и DELETE к API: preflight не разрешает методы. Исправь конфигурацию приложения, сохранив origin и credentials и работу GET/HEAD/POST. Не меняй тесты, манифесты и механизм приёмки.",
       "script": "test",
       "spec": "src/control-cors.spec.ts",
@@ -18,6 +22,7 @@
       "id": "declaration-mark",
       "fix": "cdf07d0a6a6c7e7188a256a9a313b02397034921",
       "paths": ["apps/api/src/sinistres/sinistres.service.ts"],
+      "context": ["apps/api/CLAUDE.md", "apps/api/src/sinistres/CLAUDE.md"],
       "prompt": "PATCH шага DECLARATION позволяет рассогласовать отметку и declarationDate. Прямые отметки этого шага должны отвечать 400 без изменения данных; установка и очистка даты декларации через PATCH синистра остаются рабочими. Сохрани поведение остальных шагов и проверку принадлежности. Не меняй тесты, манифесты и механизм приёмки.",
       "script": "test:int",
       "spec": "test/integration/sinistres/sinistres.int-spec.ts",
@@ -32,6 +37,10 @@
       "id": "dossier-url",
       "fix": "10f97ca41b0d1361b5c18f0386c66c3e800ab679",
       "paths": ["apps/web/src/lib/api/dossier.ts"],
+      "context": [
+        "apps/web/CLAUDE.md",
+        "apps/api/src/dossier/dossier.controller.ts"
+      ],
       "prompt": "Предварительное досье не загружается: клиент получает 404 от API. Восстанови запрос по существующему публичному контракту API, сохранив параметры коммуны, риска и даты. Не добавляй маршрут-синоним и не подгоняй моки под ошибочный URL. Не меняй тесты, манифесты и механизм приёмки.",
       "script": "test:int",
       "spec": "test/integration/dossier/control-client.int-spec.ts",
@@ -40,6 +49,29 @@
       "tests": ["control: dossier client reaches the public API"],
       "regressionFailure": "control: dossier client reaches the public API",
       "failureIncludes": ["API error 404 on /dossier/preview?"]
+    },
+    {
+      "id": "pending-commune",
+      "fix": "4cf52f4",
+      "patch": "pending-commune.patch",
+      "paths": ["apps/api/src/auth/auth.service.ts"],
+      "context": [
+        "apps/api/src/auth/CLAUDE.md",
+        "apps/api/src/communes/CLAUDE.md",
+        "apps/api/src/sinistres/sinistres.service.ts"
+      ],
+      "prompt": "После регистрации коммуна сохранённого предварительного досье была присоединена к другой. Подтверждение аккаунта проходит, но досье исчезает вместо создания синистра на действующей коммуне. Исправь перенос досье при подтверждении, сохранив риск и дату события. Повторное подтверждение не должно создавать дубликат; закрытие коммуны без преемника не должно блокировать аккаунт. Не меняй тесты, манифесты и механизм приёмки.",
+      "script": "test:int",
+      "spec": "test/integration/auth/confirm-dossier.int-spec.ts",
+      "tests": [
+        "creates the sinistre on the successor when the stored commune has been merged since",
+        "creates nothing a second time: the repeat confirmation answers without an id",
+        "confirms the account anyway when the stored commune has been closed with no successor"
+      ],
+      "regressionFailure": "creates the sinistre on the successor when the stored commune has been merged since",
+      "failureIncludes": [
+        "Argument `where` of type SinistreWhereUniqueInput needs at least one of `id` arguments"
+      ]
     }
   ]
 }

@@ -1,0 +1,585 @@
+{
+  "version": 1,
+  "status": "completed",
+  "scope": "Local Read/Edit pilots, not complete Ralph phases",
+  "approval": {
+    "model": "claude-sonnet-5-5",
+    "maxSessions": 16,
+    "maxBudgetUsdPerSession": 1,
+    "maxTurns": 30,
+    "timeoutMs": 300000,
+    "stopOnUnknownSpend": true,
+    "additionalPaidRetries": false,
+    "publication": false
+  },
+  "design": {
+    "tasks": [
+      "cors-methods",
+      "declaration-mark",
+      "dossier-url",
+      "pending-commune"
+    ],
+    "profiles": ["baseline", "focused"],
+    "repeats": 2,
+    "order": "For each repeat, traverse tasks in listed order; baseline first when (zero-based task index + zero-based repeat) is even, focused first otherwise.",
+    "difference": "Focused adds navigation references from tasks.json; task, editable paths, fixture, tool permissions, model and limits are otherwise identical.",
+    "firstPass": "Successful model outcome and exactly one passed candidate verification, without manual edits or confirmation.",
+    "adoption": {
+      "minimumCostPerFirstPassReductionPercent": 20,
+      "minimumCheaperPairs": 7,
+      "noTaskMayLoseFirstPassSuccesses": true
+    },
+    "limitations": [
+      "Eight matched pairs are descriptive evidence, not a statistically reliable quality estimate.",
+      "The fourth task crosses auth, communes and sinistres but still requires a small local repair.",
+      "Existing repository instructions remain available to both profiles; focused is a navigation index, not a replacement system prompt.",
+      "Turn count measures the entire model session, not turns before the first edit.",
+      "Counterbalancing reduces but does not eliminate provider cache and time effects."
+    ]
+  },
+  "runs": [
+    {
+      "task": "cors-methods",
+      "contextProfile": "baseline",
+      "repeat": 1,
+      "journal": "pilot-5c650b5e-3fdf-48f4-9679-c5600b9613ff.json",
+      "initialHead": "f38ad49d4b15ecdaba31500aea492edd80259c14",
+      "promptSha256": "1ab945b53cff13d3fc13b090de6dab1d216cf215943d54637142c734192de361",
+      "patchSha256": "9a775acace515e0cf7ad74cef456d5a2a9ee9c030ac44f8d07a831db86822e9b",
+      "firstPass": true,
+      "stage": "verified_locally",
+      "costUsd": 0.023306,
+      "usage": {
+        "input": 6,
+        "cacheRead": 12560,
+        "cacheWrite": 4257,
+        "output": 501,
+        "turns": 3,
+        "context": 16823
+      },
+      "modelMs": 7882,
+      "preflightMs": 9934,
+      "verificationMs": [8481]
+    },
+    {
+      "task": "cors-methods",
+      "contextProfile": "focused",
+      "repeat": 1,
+      "journal": "pilot-fb2485e6-4cc0-4a88-a329-b4c6ec2ec6b2.json",
+      "initialHead": "f38ad49d4b15ecdaba31500aea492edd80259c14",
+      "promptSha256": "2cb88268c2c8e5753e8c8c6c826bf90413321ba0f6574a6aac208736f93e5c8a",
+      "patchSha256": "9a775acace515e0cf7ad74cef456d5a2a9ee9c030ac44f8d07a831db86822e9b",
+      "firstPass": true,
+      "stage": "verified_locally",
+      "costUsd": 0.024233900000000003,
+      "usage": {
+        "input": 6,
+        "cacheRead": 12659,
+        "cacheWrite": 4304,
+        "output": 574,
+        "turns": 3,
+        "context": 16969
+      },
+      "modelMs": 10389,
+      "preflightMs": 9924,
+      "verificationMs": [8337]
+    },
+    {
+      "task": "declaration-mark",
+      "contextProfile": "focused",
+      "repeat": 1,
+      "journal": "pilot-376deeb0-1a6f-4c05-abe9-b9fa8bc165cd.json",
+      "initialHead": "7ecd64553aeeae643447d1d3ab004e8e006e1361",
+      "promptSha256": "6e95db740aa78852d02bd17e9429247095a0a251b1e6fbc02872432a52702a1e",
+      "patchSha256": "adf1ac33118e2e6776ecde609b49f12c5819671d658e2668d6fe18225cde3214",
+      "firstPass": false,
+      "stage": "verification_failed",
+      "costUsd": 0.052511,
+      "usage": {
+        "input": 6,
+        "cacheRead": 17590,
+        "cacheWrite": 9500,
+        "output": 1274,
+        "turns": 4,
+        "context": 27096
+      },
+      "modelMs": 13605,
+      "preflightMs": 14446,
+      "verificationMs": [9627]
+    },
+    {
+      "task": "declaration-mark",
+      "contextProfile": "baseline",
+      "repeat": 1,
+      "journal": "pilot-0f7a9305-994b-4fbe-b67d-ce1e3e392aea.json",
+      "initialHead": "7ecd64553aeeae643447d1d3ab004e8e006e1361",
+      "promptSha256": "b4453a4395e619225741da7780fe360ae63f758c23625fdbf4353b1ea3cc601c",
+      "patchSha256": "69bf27080cbc21eebeb87445b79ba38eaee29989ece3ce4d769fe0f73e1c0b17",
+      "firstPass": false,
+      "stage": "verification_failed",
+      "costUsd": 0.0478048,
+      "usage": {
+        "input": 6,
+        "cacheRead": 17228,
+        "cacheWrite": 9110,
+        "output": 963,
+        "turns": 3,
+        "context": 26344
+      },
+      "modelMs": 11733,
+      "preflightMs": 14214,
+      "verificationMs": [9653]
+    },
+    {
+      "task": "dossier-url",
+      "contextProfile": "baseline",
+      "repeat": 1,
+      "journal": "pilot-037d096d-fbf5-4e17-88e8-67473d9561c1.json",
+      "initialHead": "aeeca01ac0a8ace21ad625b2226f7f9363cd9e4f",
+      "promptSha256": "5318dffd2e2ee25dab599c1807810f977f6935ba6d81c0db48471c65b126dc29",
+      "patchSha256": "715930c7ed48f37632386b3325fc2c79c77034a70b5be5aac4c83b6f02e05712",
+      "firstPass": true,
+      "stage": "verified_locally",
+      "costUsd": 0.0435614,
+      "usage": {
+        "input": 10,
+        "cacheRead": 27434,
+        "cacheWrite": 7757,
+        "output": 977,
+        "turns": 6,
+        "context": 35201
+      },
+      "modelMs": 12804,
+      "preflightMs": 19659,
+      "verificationMs": [15412]
+    },
+    {
+      "task": "dossier-url",
+      "contextProfile": "focused",
+      "repeat": 1,
+      "journal": "pilot-48fb9d39-d601-4659-998d-9418f9243b3e.json",
+      "initialHead": "aeeca01ac0a8ace21ad625b2226f7f9363cd9e4f",
+      "promptSha256": "ddc7c398ce08e3aad4af3868cfb1ea8634d971c47538533bf01352ded99ec346",
+      "patchSha256": "715930c7ed48f37632386b3325fc2c79c77034a70b5be5aac4c83b6f02e05712",
+      "firstPass": true,
+      "stage": "verified_locally",
+      "costUsd": 0.0443287,
+      "usage": {
+        "input": 6,
+        "cacheRead": 17147,
+        "cacheWrite": 8768,
+        "output": 753,
+        "turns": 5,
+        "context": 25921
+      },
+      "modelMs": 9270,
+      "preflightMs": 19859,
+      "verificationMs": [15344]
+    },
+    {
+      "task": "pending-commune",
+      "contextProfile": "focused",
+      "repeat": 1,
+      "journal": "pilot-f45dc6f8-13c4-4973-9092-25d959fec0e7.json",
+      "initialHead": "b7f65bcaac3d04dc8569ae612ce33ba939905fa6",
+      "promptSha256": "223cd3345a39897c19867f26936f7f559a519bacfc125dac7451031e8d6af09b",
+      "patchSha256": "2086e58af4ce67190f78670d4cdaa581c546eb4eba194f43d5437f2277e2099f",
+      "firstPass": true,
+      "stage": "verified_locally",
+      "costUsd": 0.16656549999999998,
+      "usage": {
+        "input": 8,
+        "cacheRead": 73455,
+        "cacheWrite": 34161,
+        "output": 2256,
+        "turns": 10,
+        "context": 107624
+      },
+      "modelMs": 24192,
+      "preflightMs": 14237,
+      "verificationMs": [9797]
+    },
+    {
+      "task": "pending-commune",
+      "contextProfile": "baseline",
+      "repeat": 1,
+      "journal": "pilot-d785d8de-502a-4319-823d-6d84541b3003.json",
+      "initialHead": "b7f65bcaac3d04dc8569ae612ce33ba939905fa6",
+      "promptSha256": "dedfe061cd79d28b724d2e978b14e3011b84eaba191a67301e2222f9b8f20082",
+      "patchSha256": "5b5a3b7303d5fcb07bdd0e1743318db53e3ed0a4ebd1758f2f127942f1553f24",
+      "firstPass": true,
+      "stage": "verified_locally",
+      "costUsd": 0.1131767,
+      "usage": {
+        "input": 8,
+        "cacheRead": 52867,
+        "cacheWrite": 23201,
+        "output": 1507,
+        "turns": 5,
+        "context": 76076
+      },
+      "modelMs": 19017,
+      "preflightMs": 16216,
+      "verificationMs": [9887]
+    },
+    {
+      "task": "cors-methods",
+      "contextProfile": "focused",
+      "repeat": 2,
+      "journal": "pilot-21ab226c-abec-41a8-bd3e-38d2084e146c.json",
+      "initialHead": "f38ad49d4b15ecdaba31500aea492edd80259c14",
+      "promptSha256": "2cb88268c2c8e5753e8c8c6c826bf90413321ba0f6574a6aac208736f93e5c8a",
+      "patchSha256": "9a775acace515e0cf7ad74cef456d5a2a9ee9c030ac44f8d07a831db86822e9b",
+      "firstPass": true,
+      "stage": "verified_locally",
+      "costUsd": 0.0240239,
+      "usage": {
+        "input": 6,
+        "cacheRead": 12659,
+        "cacheWrite": 4304,
+        "output": 553,
+        "turns": 3,
+        "context": 16969
+      },
+      "modelMs": 8471,
+      "preflightMs": 9837,
+      "verificationMs": [8311]
+    },
+    {
+      "task": "cors-methods",
+      "contextProfile": "baseline",
+      "repeat": 2,
+      "journal": "pilot-8c7ae33e-a8f1-4fef-9d49-f4977328e44f.json",
+      "initialHead": "f38ad49d4b15ecdaba31500aea492edd80259c14",
+      "promptSha256": "1ab945b53cff13d3fc13b090de6dab1d216cf215943d54637142c734192de361",
+      "patchSha256": "9a775acace515e0cf7ad74cef456d5a2a9ee9c030ac44f8d07a831db86822e9b",
+      "firstPass": true,
+      "stage": "verified_locally",
+      "costUsd": 0.023336000000000003,
+      "usage": {
+        "input": 6,
+        "cacheRead": 12560,
+        "cacheWrite": 4257,
+        "output": 504,
+        "turns": 3,
+        "context": 16823
+      },
+      "modelMs": 7987,
+      "preflightMs": 9926,
+      "verificationMs": [8392]
+    },
+    {
+      "task": "declaration-mark",
+      "contextProfile": "baseline",
+      "repeat": 2,
+      "journal": "pilot-e375d364-e547-4e41-a447-f2a3f59bd5cf.json",
+      "initialHead": "7ecd64553aeeae643447d1d3ab004e8e006e1361",
+      "promptSha256": "b4453a4395e619225741da7780fe360ae63f758c23625fdbf4353b1ea3cc601c",
+      "patchSha256": "04b0a61bf03d459a18aba4d2ea3ee73fc24edc927c74ef27ec52c6a286c15c55",
+      "firstPass": false,
+      "stage": "verification_failed",
+      "costUsd": 0.0514008,
+      "usage": {
+        "input": 6,
+        "cacheRead": 17228,
+        "cacheWrite": 9289,
+        "output": 1251,
+        "turns": 3,
+        "context": 26523
+      },
+      "modelMs": 14515,
+      "preflightMs": 14190,
+      "verificationMs": [9565]
+    },
+    {
+      "task": "declaration-mark",
+      "contextProfile": "focused",
+      "repeat": 2,
+      "journal": "pilot-5ffcf8aa-b2a3-4fd1-9d5c-aec8149ffe82.json",
+      "initialHead": "7ecd64553aeeae643447d1d3ab004e8e006e1361",
+      "promptSha256": "6e95db740aa78852d02bd17e9429247095a0a251b1e6fbc02872432a52702a1e",
+      "patchSha256": "c709178fc0ad1b6c46dd3290e7fa871ddc4e8327893164644a7456e41d25a403",
+      "firstPass": false,
+      "stage": "verification_failed",
+      "costUsd": 0.053271,
+      "usage": {
+        "input": 6,
+        "cacheRead": 17590,
+        "cacheWrite": 9550,
+        "output": 1330,
+        "turns": 4,
+        "context": 27146
+      },
+      "modelMs": 14283,
+      "preflightMs": 14138,
+      "verificationMs": [10018]
+    },
+    {
+      "task": "dossier-url",
+      "contextProfile": "focused",
+      "repeat": 2,
+      "journal": "pilot-3123bfab-6419-41c2-b569-f55bb8a47846.json",
+      "initialHead": "aeeca01ac0a8ace21ad625b2226f7f9363cd9e4f",
+      "promptSha256": "ddc7c398ce08e3aad4af3868cfb1ea8634d971c47538533bf01352ded99ec346",
+      "patchSha256": "715930c7ed48f37632386b3325fc2c79c77034a70b5be5aac4c83b6f02e05712",
+      "firstPass": true,
+      "stage": "verified_locally",
+      "costUsd": 0.0443887,
+      "usage": {
+        "input": 6,
+        "cacheRead": 17147,
+        "cacheWrite": 8768,
+        "output": 759,
+        "turns": 5,
+        "context": 25921
+      },
+      "modelMs": 10137,
+      "preflightMs": 20720,
+      "verificationMs": [15393]
+    },
+    {
+      "task": "dossier-url",
+      "contextProfile": "baseline",
+      "repeat": 2,
+      "journal": "pilot-098f962c-a38e-4fa8-87e8-c602b38e5274.json",
+      "initialHead": "aeeca01ac0a8ace21ad625b2226f7f9363cd9e4f",
+      "promptSha256": "5318dffd2e2ee25dab599c1807810f977f6935ba6d81c0db48471c65b126dc29",
+      "patchSha256": "715930c7ed48f37632386b3325fc2c79c77034a70b5be5aac4c83b6f02e05712",
+      "firstPass": true,
+      "stage": "verified_locally",
+      "costUsd": 0.04366409999999999,
+      "usage": {
+        "input": 10,
+        "cacheRead": 27421,
+        "cacheWrite": 7778,
+        "output": 979,
+        "turns": 6,
+        "context": 35209
+      },
+      "modelMs": 15157,
+      "preflightMs": 19940,
+      "verificationMs": [15156]
+    },
+    {
+      "task": "pending-commune",
+      "contextProfile": "baseline",
+      "repeat": 2,
+      "journal": "pilot-46e8ffa2-27f2-441f-a35e-8d7b2fec2500.json",
+      "initialHead": "b7f65bcaac3d04dc8569ae612ce33ba939905fa6",
+      "promptSha256": "dedfe061cd79d28b724d2e978b14e3011b84eaba191a67301e2222f9b8f20082",
+      "patchSha256": "93eafaa4725d711d8c1a09bebf3cb1ee7f49067f86329b09ff5e2efd6e96290b",
+      "firstPass": true,
+      "stage": "verified_locally",
+      "costUsd": 0.11112230000000001,
+      "usage": {
+        "input": 8,
+        "cacheRead": 52863,
+        "cacheWrite": 23035,
+        "output": 1368,
+        "turns": 5,
+        "context": 75906
+      },
+      "modelMs": 18650,
+      "preflightMs": 15831,
+      "verificationMs": [10714]
+    },
+    {
+      "task": "pending-commune",
+      "contextProfile": "focused",
+      "repeat": 2,
+      "journal": "pilot-5ad11c22-5e89-435b-8330-db367c7174f4.json",
+      "initialHead": "b7f65bcaac3d04dc8569ae612ce33ba939905fa6",
+      "promptSha256": "223cd3345a39897c19867f26936f7f559a519bacfc125dac7451031e8d6af09b",
+      "patchSha256": "93eafaa4725d711d8c1a09bebf3cb1ee7f49067f86329b09ff5e2efd6e96290b",
+      "firstPass": true,
+      "stage": "verified_locally",
+      "costUsd": 0.1585314,
+      "usage": {
+        "input": 8,
+        "cacheRead": 72934,
+        "cacheWrite": 33158,
+        "output": 1859,
+        "turns": 8,
+        "context": 106100
+      },
+      "modelMs": 18222,
+      "preflightMs": 14263,
+      "verificationMs": [9668]
+    }
+  ],
+  "conclusions": {
+    "context": {
+      "decision": "retain_baseline",
+      "profiles": {
+        "baseline": {
+          "firstPass": 6,
+          "sessions": 8,
+          "costUsd": 0.4573721,
+          "costPerFirstPassUsd": 0.07622868333333334,
+          "medianModelMs": 13659.5,
+          "medianTurns": 4
+        },
+        "focused": {
+          "firstPass": 6,
+          "sessions": 8,
+          "costUsd": 0.5678541,
+          "costPerFirstPassUsd": 0.09464235,
+          "medianModelMs": 11997,
+          "medianTurns": 4.5
+        }
+      },
+      "cheaperPairs": 0,
+      "costPerFirstPassChangePercent": 24.15582410907877,
+      "reason": "Navigation references did not satisfy the predeclared cost criteria and did not improve first-pass quality. Keep focused opt-in for reproducing the experiment, not as a Ralph default."
+    },
+    "repeatedChecks": {
+      "decision": "retain_independent_acceptance",
+      "repeatTotalsMs": [159489, 159510],
+      "reason": "The pilot already executes red/reference once before the model and candidate-only acceptance afterwards. Six commands overlap between the hook and Ralph, but worktree success does not certify the staged tree. Removing independent accepted-HEAD checks is unsafe.",
+      "nextTarget": "Tooling tests and lint dominate the measured time. Profile those commands internally before considering a cache or weaker acceptance."
+    },
+    "quality": {
+      "declarationMarkFailures": 4,
+      "reason": "Both profiles produced English exception messages instead of the existing French localization; all four candidates were rejected without manual repair.",
+      "nextHypothesis": "Task-local actionable acceptance constraints rather than additional navigation references. Not implemented or paid-tested in this experiment."
+    },
+    "validation": {
+      "apiTestsPerRound": 915,
+      "toolingTestsPerRound": 72,
+      "rounds": 2,
+      "totalPilotCostUsd": 1.0252262,
+      "manualCandidateEdits": 0,
+      "ralphDefaultsChanged": false
+    }
+  },
+  "fingerprints": {
+    ".claude/control-pilot.js": "4f05f82d5476163d08c35030c2db6bde260d2b68f94c37be96a25edbbbf0ed74",
+    ".claude/control-tasks.js": "c6370089998ca575698934b8b25b90c3939e08d6538c447899d8e79437041169",
+    ".claude/ralph.js": "da31148d6e3ec80b7f6cdb5cb2f640d3f60287befe419d866a6831f2797c0e69",
+    ".claude/ralph-state.js": "b3098832efc8f3120707d31f949cd9c1ec3cdf72a6ec4009e35679ba25cd41c5",
+    ".claude/control-tasks/tasks.json": "941badab90440d376522d8a9d8dcb9b431a5d620b93a41015ecc88a4c6b1a5fe",
+    ".claude/control-tasks/pending-commune.patch": "7d01a7ce36921bae31fee9819a1ec642dca4cfa9017339b7f419683362d73748"
+  },
+  "suiteSha256": "fac7bbeecca318e1749b2987c307d03765d7367155596cf3b0ab186c7e22fdf9",
+  "cli": "2.1.302 (Claude Code)",
+  "node": "v24.21.0",
+  "runnerRevision": "f7c3e35fbd7ebad6142f761c45e4c108bbd246c9",
+  "startedAt": "2026-10-18T19:22:02.129Z",
+  "completedAt": "2026-10-18T19:32:39.215Z",
+  "repeatedChecks": {
+    "sourceSha256": "36dde37cf47a258bf0ae71fad00b7edf40623b522d241131f57d1518be9129d5",
+    "startedAt": "2026-10-18T19:33:11.453Z",
+    "scope": "Two sequential executions of the six overlapping commands on one unchanged worktree; no model, commit, publication or proof reuse.",
+    "checks": [
+      {
+        "command": ["npm", "run", "lint"],
+        "runs": [
+          {
+            "durationMs": 44628,
+            "status": 0,
+            "signal": null,
+            "error": null
+          },
+          {
+            "durationMs": 44647,
+            "status": 0,
+            "signal": null,
+            "error": null
+          }
+        ]
+      },
+      {
+        "command": ["npm", "run", "format:check"],
+        "runs": [
+          {
+            "durationMs": 8388,
+            "status": 0,
+            "signal": null,
+            "error": null
+          },
+          {
+            "durationMs": 8819,
+            "status": 0,
+            "signal": null,
+            "error": null
+          }
+        ]
+      },
+      {
+        "command": ["npm", "run", "test"],
+        "runs": [
+          {
+            "durationMs": 7283,
+            "status": 0,
+            "signal": null,
+            "error": null
+          },
+          {
+            "durationMs": 7240,
+            "status": 0,
+            "signal": null,
+            "error": null
+          }
+        ]
+      },
+      {
+        "command": ["npm", "run", "test:tooling"],
+        "runs": [
+          {
+            "durationMs": 96516,
+            "status": 0,
+            "signal": null,
+            "error": null
+          },
+          {
+            "durationMs": 96117,
+            "status": 0,
+            "signal": null,
+            "error": null
+          }
+        ]
+      },
+      {
+        "command": ["npm", "run", "dup"],
+        "runs": [
+          {
+            "durationMs": 288,
+            "status": 0,
+            "signal": null,
+            "error": null
+          },
+          {
+            "durationMs": 300,
+            "status": 0,
+            "signal": null,
+            "error": null
+          }
+        ]
+      },
+      {
+        "command": ["npm", "run", "knip"],
+        "runs": [
+          {
+            "durationMs": 2386,
+            "status": 0,
+            "signal": null,
+            "error": null
+          },
+          {
+            "durationMs": 2387,
+            "status": 0,
+            "signal": null,
+            "error": null
+          }
+        ]
+      }
+    ],
+    "proofTransfer": {
+      "worktreePassed": true,
+      "stagedTreePassed": false,
+      "conclusion": "A worktree check does not certify the staged tree; pre-commit success cannot replace independent accepted-HEAD verification."
+    },
+    "status": "completed",
+    "completedAt": "2026-10-18T19:38:30.957Z"
+  }
+}
