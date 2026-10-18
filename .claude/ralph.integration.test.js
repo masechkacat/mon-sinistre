@@ -39,6 +39,11 @@ if (role === 'verify.cjs') {
         fs.writeFileSync('package.json', JSON.stringify(manifest));
         execFileSync('git', ['add', 'package.json']);
       }
+      if (state.protectedFile) {
+        fs.mkdirSync(path.dirname(state.protectedFile), { recursive: true });
+        fs.appendFileSync(state.protectedFile, '// altered acceptance\n');
+        execFileSync('git', ['add', state.protectedFile]);
+      }
       execFileSync('git', ['commit', '-m', 'feat: fixture\n\nCloses #1']);
     }
     if (state.agent === 'dirty') fs.writeFileSync('unfinished.txt', 'keep me');
@@ -141,6 +146,7 @@ function fixture(t, options = {}) {
       feature: 'fixture',
       phases: [1],
       maxIterations: 1,
+      stallLimit: options.stallLimit ?? 2,
       iterationTimeoutMs: options.agent === 'timeout' ? 1000 : 10000,
       verificationCommands: [['npm', 'run', 'verify']],
       project: {
@@ -289,12 +295,108 @@ test('незавершённые файлы сохраняются, а все п
 });
 
 test('кандидат не может подменить скрипт собственной приёмки', (t) => {
-  const f = fixture(t, { agent: 'change-manifest' });
-  const result = f.run();
-  expectExit(result, 1);
-  assert.match(result.stderr, /собственной приёмки/);
-  assert.equal(f.read().checks, undefined);
+  for (const options of [
+    { agent: 'change-manifest' },
+    { protectedFile: '.claude/metrics.test.js' },
+    { protectedFile: '.claude/control-tasks/oracle.spec.ts' },
+  ]) {
+    const f = fixture(t, options);
+    const result = f.run();
+    expectExit(result, 1);
+    assert.match(result.stderr, /собственной приёмки/);
+    assert.equal(f.read().checks, undefined);
+    assert.equal(f.read().done, undefined);
+    assert.equal(
+      f.git('ls-remote', '--heads', 'origin', 'fixture/phase-1'),
+      '',
+    );
+  }
+});
+
+test('опубликованный кандидат восстанавливается после мержа main, а PR получает проверенный HEAD', (t) => {
+  const f = fixture(t, { failBoard: true });
+  expectExit(f.run(), 1);
+  const original = f.journal().attempts[0];
+  assert.equal(original.stage, 'published');
+  f.git('checkout', 'main');
+  fs.writeFileSync(path.join(f.root, 'main.txt'), 'new main\n');
+  f.git('add', 'main.txt');
+  f.git('commit', '-m', 'advance main');
+  f.git('push', 'origin', 'main');
+  f.git('checkout', 'fixture/phase-1');
+  f.git('merge', 'origin/main', '-m', 'merge newer main');
+  const merged = f.git('rev-parse', 'HEAD');
+  f.update({ failBoard: false, failVerification: true });
+  expectExit(f.run('--verify-candidate'), 1);
+  assert.equal(f.journal().attempts[0].stage, 'published');
   assert.equal(f.read().done, undefined);
+  f.update({ failVerification: false });
+  expectExit(f.run('--verify-candidate'), 0);
+  assert.equal(f.journal().attempts[0].head, original.head);
+  assert.equal(f.journal().attempts[0].stage, 'complete');
+  assert.deepEqual(f.journal().attempts[0].outcome, original.outcome);
+  assert.deepEqual(
+    f.journal().attempts[0].verifications.map((check) => check.status),
+    ['passed', 'failed', 'passed'],
+  );
+  assert.equal(f.read().checks, 3);
+  assert.equal(f.git('rev-parse', 'origin/fixture/phase-1'), original.head);
+  expectExit(f.run(), 0);
+  assert.equal(f.read().checks, 3);
+  assert.equal(f.git('rev-parse', 'origin/fixture/phase-1'), merged);
+  assert.equal(f.read().agentCalls, 1);
+});
+
+test('опубликованный кандидат нельзя завершить после потери коммита в ветке или origin', (t) => {
+  for (const rewindLocal of [false, true]) {
+    const f = fixture(t, { failBoard: true });
+    expectExit(f.run(), 1);
+    const original = f.journal().attempts[0];
+    f.git(
+      '--git-dir',
+      f.remote,
+      'update-ref',
+      'refs/heads/fixture/phase-1',
+      original.before,
+    );
+    if (rewindLocal) {
+      f.git('checkout', 'main');
+      f.git('update-ref', 'refs/heads/fixture/phase-1', original.before);
+      f.git('checkout', 'fixture/phase-1');
+    }
+    f.update({ failBoard: false });
+    const result = f.run('--verify-candidate');
+    expectExit(result, 1);
+    assert.match(result.stderr, /Опубликованный кандидат отсутствует/);
+    assert.equal(f.read().done, undefined);
+    assert.equal(f.read().agentCalls, 1);
+    assert.equal(f.journal().attempts[0].head, original.head);
+  }
+});
+
+test('закрытая фаза без новых коммитов не запускает приёмку или ревью', (t) => {
+  const f = fixture(t, { done: true, failVerification: true });
+  const result = f.run();
+  expectExit(result, 0);
+  assert.match(result.stdout, /открывать нечего/);
+  assert.equal(f.read().checks, undefined);
+  assert.equal(f.read().reviews, undefined);
+  assert.equal(f.read().agentCalls, undefined);
+  assert.equal(fs.existsSync(path.join(f.root, '.git/ralph')), false);
+});
+
+test('восстановленный no_commit не расходует лимиты новых сессий запуска', (t) => {
+  const f = fixture(t, { agent: 'no-commit', stallLimit: 1 });
+  expectExit(f.run(), 1);
+  const state = f.journal();
+  state.attempts[0].stage = 'running';
+  writeState(f.journalFile(), state);
+  expectExit(f.run(), 1);
+  assert.equal(f.read().agentCalls, 2);
+  assert.deepEqual(
+    f.journal().attempts.map((a) => a.stage),
+    ['no_commit', 'no_commit'],
+  );
 });
 
 test('dry-run не пишет журнал; lock и повреждённый журнал останавливают запуск', (t) => {
@@ -314,10 +416,24 @@ test('dry-run не пишет журнал; lock и повреждённый ж�
     const result = f.run();
     expectExit(result, 1);
     assert.match(result.stderr, /уже запущен/);
+    assert.doesNotMatch(result.stderr, /Непредвиденная ошибка/);
     assert.equal(f.read().agentCalls, undefined);
   } finally {
     release();
   }
+  for (const damaged of ['', 'null', '{"pid":1}']) {
+    fs.writeFileSync(lock, damaged);
+    const result = f.run();
+    expectExit(result, 1);
+    assert.match(result.stderr, /Повреждён lock Ralph/);
+    assert.doesNotMatch(
+      result.stderr,
+      /Непредвиденная ошибка|SyntaxError|TypeError/,
+    );
+    assert.equal(fs.readFileSync(lock, 'utf8'), damaged);
+    assert.equal(f.read().agentCalls, undefined);
+  }
+  fs.unlinkSync(lock);
   const file = path.join(f.root, '.git/test-state.json');
   const state = readState(file, 'fixture/phase-1');
   writeState(file, state);

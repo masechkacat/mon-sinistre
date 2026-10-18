@@ -15,6 +15,14 @@ const isSha = (value) =>
   typeof value === 'string' && /^[a-f0-9]{40,64}$/.test(value);
 const isCount = (value) => Number.isInteger(value) && value >= 0;
 
+class RalphStop extends Error {
+  constructor(message, hint) {
+    super(message);
+    this.name = 'RalphStop';
+    this.hint = hint;
+  }
+}
+
 function stateDirectory(root) {
   return path.resolve(
     root,
@@ -109,9 +117,23 @@ function writeState(file, state) {
 
 function acquireLock(file) {
   if (fs.existsSync(file)) {
-    const owner = JSON.parse(fs.readFileSync(file, 'utf8'));
-    if (!Number.isInteger(owner.pid) || owner.pid < 1)
-      throw new Error(`Повреждён lock Ralph: ${file}`);
+    const text = fs.readFileSync(file, 'utf8');
+    let owner;
+    try {
+      owner = JSON.parse(text);
+    } catch (error) {
+      if (!(error instanceof SyntaxError)) throw error;
+    }
+    if (
+      !Number.isInteger(owner?.pid) ||
+      owner.pid < 1 ||
+      typeof owner.host !== 'string' ||
+      !owner.host
+    )
+      throw new RalphStop(
+        `Повреждён lock Ralph: ${file}`,
+        'Проверь, завершился ли прежний процесс; только после этого удали lock и повтори запуск.',
+      );
     let alive = true;
     if (owner.host === os.hostname()) {
       try {
@@ -122,7 +144,10 @@ function acquireLock(file) {
       }
     }
     if (alive)
-      throw new Error(`Ralph уже запущен: PID ${owner.pid}, ${owner.host}`);
+      throw new RalphStop(
+        `Ralph уже запущен: PID ${owner.pid}, ${owner.host}`,
+        `Дождись завершения процесса. Lock: ${file}`,
+      );
     console.warn(`Ralph: удалён lock завершившегося процесса ${owner.pid}`);
     fs.unlinkSync(file);
   }
@@ -195,6 +220,7 @@ function parseRunResult(res, sessionId) {
 }
 
 export {
+  RalphStop,
   acquireLock,
   isFinished,
   parseRunResult,

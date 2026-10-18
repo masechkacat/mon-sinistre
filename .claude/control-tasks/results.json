@@ -14,7 +14,7 @@
     "sessionId": "f2226419-1370-438a-9c0b-141103ac545d",
     "costUsd": 2.9709275000000006,
     "reportArtifact": "review.txt (session artifact)",
-    "findingsNotYetFixed": true,
+    "findingsFixedAtMeasurement": false,
     "triage": [
       {
         "finding": 1,

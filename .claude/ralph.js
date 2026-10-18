@@ -18,6 +18,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import * as metrics from './metrics.js';
 import {
+  RalphStop,
   acquireLock,
   isFinished,
   parseRunResult,
@@ -59,19 +60,6 @@ const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const step = (m) => console.log(`\n\x1b[1m${m}\x1b[0m`);
 const warn = (m) => console.log(`\x1b[33m!\x1b[0m ${m}`);
 
-/**
- * Остановка цикла. Бросается, а не `process.exit`: иначе проверки нельзя
- * покрыть тестами — они гасили бы тестовый процесс вместо возврата ошибки.
- * Печатает и выходит один обработчик внизу файла.
- */
-class RalphStop extends Error {
-  constructor(message, hint) {
-    super(message);
-    this.name = 'RalphStop';
-    this.hint = hint;
-  }
-}
-
 function fail(message, hint) {
   throw new RalphStop(message, hint);
 }
@@ -84,6 +72,9 @@ function quiet(fn) {
     return false;
   }
 }
+
+const isAncestor = (before, after) =>
+  quiet(() => git(['merge-base', '--is-ancestor', before, after]));
 
 // ─── конфигурация ─────────────────────────────────────────────────────────────
 
@@ -519,7 +510,7 @@ function requireRemoteMerged(branch) {
     git(['rev-parse', '--verify', '--quiet', `refs/remotes/${remote}`]),
   );
   if (!known) return;
-  if (quiet(() => git(['merge-base', '--is-ancestor', remote, branch]))) return;
+  if (isAncestor(remote, branch)) return;
 
   const behind = git(['rev-list', '--count', `${branch}..${remote}`]);
   fail(
@@ -534,9 +525,7 @@ function requireRemoteMerged(branch) {
  * никто не прочитает, поэтому цикл останавливается.
  */
 function requireFreshBase(branch, origin) {
-  if (
-    quiet(() => git(['merge-base', '--is-ancestor', 'origin/main', branch]))
-  ) {
+  if (isAncestor('origin/main', branch)) {
     return;
   }
   const behind = git(['rev-list', '--count', `${branch}..origin/main`]);
@@ -579,10 +568,7 @@ function checkSameBranch(now, branch) {
  * потерялась бы между бордом и планом.
  */
 function verifyCommit(before, after, issueNumber, repo, branch) {
-  checkLinearAdvance(
-    quiet(() => git(['merge-base', '--is-ancestor', before, after])),
-    branch,
-  );
+  checkLinearAdvance(isAncestor(before, after), branch);
   const count = Number(git(['rev-list', '--count', `${before}..${after}`]));
   const message = git(['log', '-1', '--format=%B', after]);
   checkIterationCommit(count, message, issueNumber, repo);
@@ -595,9 +581,7 @@ function verifyCommit(before, after, issueNumber, repo, branch) {
     'package.json',
     '**/package.json',
     '.githooks',
-    '.claude/ralph*',
-    '.claude/metrics.js',
-    '.claude/run-report.js',
+    '.claude',
   ]);
   if (protectedChanges)
     fail(
@@ -793,6 +777,23 @@ function verifyCandidate(cfg, branch, head, history, save) {
   }
 }
 
+function hasPassedVerification(cfg, head, attempt) {
+  const proof = verificationRuns(attempt).at(-1);
+  return (
+    proof?.status === 'passed' &&
+    proof.head === head &&
+    JSON.stringify(proof.commands) === JSON.stringify(cfg.verificationCommands)
+  );
+}
+
+function verifyAttempt(cfg, branch, head, attempt, save) {
+  attempt.operation = 'verification';
+  attempt.verifications ??= verificationRuns(attempt);
+  delete attempt.verification;
+  save();
+  verifyCandidate(cfg, branch, head, attempt.verifications, save);
+}
+
 function recordStop(attempt, kind, save) {
   attempt.stops ??= [];
   attempt.stops.push({ kind, at: new Date().toISOString() });
@@ -817,34 +818,46 @@ function advanceAttempt(cfg, repo, branch, board, attempt, save) {
   requireSameBranch(branch);
   const head = git(['rev-parse', branch]);
   requireCandidate(branch, head);
-  if (head === attempt.before) {
-    if (!attempt.outcome)
+  if (attempt.stage === 'published') {
+    attempt.operation = 'push';
+    if (
+      !attempt.head ||
+      !isAncestor(attempt.head, head) ||
+      !isAncestor(attempt.head, `origin/${branch}`)
+    )
       fail(
-        'Прерванная сессия не оставила результата — состояние агента неизвестно',
-        'Проверь, завершился ли процесс агента. Попытка сохранена для ручного разбора; второй агент не запускается.',
+        'Опубликованный кандидат отсутствует в локальной ветке или origin — проверь ветку',
       );
-    if (VERIFY_CANDIDATE) fail('Нет коммита-кандидата для подтверждения');
-    attempt.stage = 'no_commit';
-    recordStop(
-      attempt,
-      attempt.outcome.failureKind ||
-        (attempt.outcome.status === 'failed' ? 'failed_result' : 'no_commit'),
-      save,
-    );
-    warn(`Сессия ${attempt.sessionId} не оставила коммита`);
-    return false;
-  }
-  if (attempt.head && attempt.head !== head) {
-    if (!VERIFY_CANDIDATE || attempt.stage === 'published')
-      fail(
-        'HEAD не совпадает с сохранённым кандидатом',
-        'Проверь изменения; новый кандидат требует --verify-candidate.',
+    if (!hasPassedVerification(cfg, head, attempt))
+      verifyAttempt(cfg, branch, head, attempt, save);
+  } else {
+    if (head === attempt.before) {
+      if (!attempt.outcome)
+        fail(
+          'Прерванная сессия не оставила результата — состояние агента неизвестно',
+          'Проверь, завершился ли процесс агента. Попытка сохранена для ручного разбора; второй агент не запускается.',
+        );
+      if (VERIFY_CANDIDATE) fail('Нет коммита-кандидата для подтверждения');
+      attempt.stage = 'no_commit';
+      recordStop(
+        attempt,
+        attempt.outcome.failureKind ||
+          (attempt.outcome.status === 'failed' ? 'failed_result' : 'no_commit'),
+        save,
       );
-    attempt.approvedHead = null;
-  }
-  verifyCommit(attempt.before, head, attempt.issue, repo, branch);
-  attempt.head = head;
-  if (attempt.stage !== 'published') {
+      warn(`Сессия ${attempt.sessionId} не оставила коммита`);
+      return false;
+    }
+    if (attempt.head && attempt.head !== head) {
+      if (!VERIFY_CANDIDATE)
+        fail(
+          'HEAD не совпадает с сохранённым кандидатом',
+          'Проверь изменения; новый кандидат требует --verify-candidate.',
+        );
+      attempt.approvedHead = null;
+    }
+    verifyCommit(attempt.before, head, attempt.issue, repo, branch);
+    attempt.head = head;
     attempt.stage = 'candidate';
     if (
       attempt.outcome?.status !== 'success' ||
@@ -859,23 +872,12 @@ function advanceAttempt(cfg, repo, branch, board, attempt, save) {
       }
     }
     if (VERIFY_CANDIDATE) attempt.approvedHead = head;
-    attempt.operation = 'verification';
-    attempt.verifications ??= verificationRuns(attempt);
-    delete attempt.verification;
-    save();
-    verifyCandidate(cfg, branch, head, attempt.verifications, save);
+    verifyAttempt(cfg, branch, head, attempt, save);
     attempt.operation = 'push';
     save();
     pushBranch(branch);
     attempt.stage = 'published';
     save();
-  } else {
-    if (
-      !quiet(() =>
-        git(['merge-base', '--is-ancestor', head, `origin/${branch}`]),
-      )
-    )
-      fail('Опубликованный кандидат отсутствует в origin — проверь ветку');
   }
   attempt.operation = 'board';
   save();
@@ -989,21 +991,25 @@ function openPullRequest(cfg, phase, milestone, branch, state, save) {
 
   const head = git(['rev-parse', branch]);
   requireCandidate(branch, head);
-  const accepted = state.attempts.some((attempt) => {
-    const proof = verificationRuns(attempt).at(-1);
-    return (
-      attempt.stage === 'complete' &&
-      proof?.status === 'passed' &&
-      proof.head === head &&
-      JSON.stringify(proof.commands) ===
-        JSON.stringify(cfg.verificationCommands)
+  const commits = Number(
+    git(['rev-list', '--count', `origin/main..${branch}`]),
+  );
+  if (commits === 0) {
+    warn(
+      `В ${branch} нет коммитов относительно origin/main — открывать нечего (фаза уже смержена?)`,
     );
-  });
+    return null;
+  }
+  const accepted = state.attempts.some(
+    (attempt) =>
+      attempt.stage === 'complete' && hasPassedVerification(cfg, head, attempt),
+  );
   if (!accepted) {
     state.verifications ??= [];
     verifyCandidate(cfg, branch, head, state.verifications, save);
   }
 
+  pushBranch(branch);
   const existing = ghJson([
     'pr',
     'list',
@@ -1019,20 +1025,6 @@ function openPullRequest(cfg, phase, milestone, branch, state, save) {
     commentDryReview(cfg, branch, existing[0].url);
     return existing[0].url;
   }
-
-  // Фаза могла быть закрыта и смержена раньше: тогда коммитов относительно
-  // origin/main нет, и `gh pr create` упал бы на «No commits between».
-  const commits = Number(
-    git(['rev-list', '--count', `origin/main..${branch}`]),
-  );
-  if (commits === 0) {
-    warn(
-      `В ${branch} нет коммитов относительно origin/main — открывать нечего (фаза уже смержена?)`,
-    );
-    return null;
-  }
-
-  pushBranch(branch);
 
   const all = milestoneIssues(milestone, 'all');
 
@@ -1110,10 +1102,6 @@ function main() {
   const board = { items: boardItems(cfg), fields: resolveBoardFields(cfg) };
   const opened = [];
 
-  // Счётчики на весь запуск, а не на фазу: maxIterations — это «сколько issues
-  // за прогон», как и обещано в конфиге и CLAUDE.md. Итерация без коммита тоже
-  // израсходована (сессия оплачена), поэтому при maxIterations = 1 до stallLimit
-  // дело не доходит — он предохранитель для прогонов на несколько issues.
   let iterations = 0;
   let stall = 0;
   let previous = null;
