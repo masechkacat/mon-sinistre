@@ -704,7 +704,17 @@ function buildPrompt(cfg, phase, milestone, branch, issue) {
   ].join('\n');
 }
 
-function runIteration(cfg, prompt, sessionId) {
+function runIteration(
+  cfg,
+  prompt,
+  sessionId,
+  {
+    cwd = ROOT,
+    env = process.env,
+    extraArgs = [],
+    killSignal = 'SIGTERM',
+  } = {},
+) {
   const args = [
     '-p',
     prompt,
@@ -718,6 +728,7 @@ function runIteration(cfg, prompt, sessionId) {
   if (cfg.model) args.push('--model', cfg.model);
   if (cfg.maxBudgetUsd) args.push('--max-budget-usd', String(cfg.maxBudgetUsd));
   if (cfg.maxTurns) args.push('--max-turns', String(cfg.maxTurns));
+  args.push(...extraArgs);
   // variadic-флаги — последними: иначе они съедают следующие за ними опции
   if (cfg.disallowedTools?.length)
     args.push('--disallowedTools', ...cfg.disallowedTools);
@@ -725,12 +736,13 @@ function runIteration(cfg, prompt, sessionId) {
     args.push('--allowedTools', ...cfg.allowedTools);
 
   const res = spawnSync('claude', args, {
-    cwd: ROOT,
+    cwd,
+    env,
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'inherit'],
     maxBuffer: 32 * 1024 * 1024,
     timeout: cfg.iterationTimeoutMs,
-    killSignal: 'SIGTERM',
+    killSignal,
   });
   return parseRunResult(res, sessionId);
 }
@@ -1262,8 +1274,6 @@ if (import.meta.main) {
   }
 }
 
-// Экспорт — только для тестов (`.claude/ralph.test.js`): наружу цикл остаётся
-// одним исполняемым файлом.
 export {
   RalphStop,
   branchName,
@@ -1280,6 +1290,7 @@ export {
   phaseLabel,
   pickMilestone,
   prTitle,
+  runIteration,
   validateConfig,
   validateVerificationScripts,
 };
