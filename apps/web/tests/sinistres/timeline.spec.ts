@@ -36,7 +36,7 @@ test('a step without a planned date is never the next one', () => {
 test('an overdue, done or not-applicable step is not upcoming', () => {
   const next = nextUpcomingStep([
     step({
-      id: 'retard',
+      id: 'overdue',
       plannedDate: toIsoDate('2026-09-01'),
       status: StepStatus.EN_RETARD,
     }),

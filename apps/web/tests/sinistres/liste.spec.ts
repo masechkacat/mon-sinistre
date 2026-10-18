@@ -28,10 +28,10 @@ test('the empty state explains what to do when the caller has no sinistre yet', 
   await page.goto('/sinistres');
 
   await expect(
-    page.getByText(fr.sinistres.liste.empty.description),
+    page.getByText(fr.sinistres.list.empty.description),
   ).toBeVisible();
   await expect(
-    page.getByRole('link', { name: fr.sinistres.liste.newSinistre }),
+    page.getByRole('link', { name: fr.sinistres.list.newSinistre }),
   ).toHaveAttribute('href', '/sinistres/nouveau');
 });
 
@@ -75,18 +75,18 @@ test('lists two of the caller’s sinistres, each with its status in words and i
   // The link says « Voir mon dossier » on screen for everyone, but its name
   // carries the dossier — a links list otherwise reads the same phrase twice.
   await expect(
-    card1.getByRole('link', { name: fr.sinistres.liste.viewLinkFor(dossier1) }),
+    card1.getByRole('link', { name: fr.sinistres.list.viewLinkFor(dossier1) }),
   ).toBeVisible();
-  await expect(card1.getByText(fr.sinistres.statut.AVANT_ARRETE)).toBeVisible();
+  await expect(card1.getByText(fr.sinistres.status.AVANT_ARRETE)).toBeVisible();
   await expect(
-    card2.getByText(fr.sinistres.statut.ARRETE_PUBLIE),
+    card2.getByText(fr.sinistres.status.ARRETE_PUBLIE),
   ).toBeVisible();
 
   await expect(
-    card1.getByRole('link', { name: fr.sinistres.liste.viewLink }),
+    card1.getByRole('link', { name: fr.sinistres.list.viewLink }),
   ).toHaveAttribute('href', `/sinistres/${SINISTRE_ID_1}`);
   await expect(
-    card2.getByRole('link', { name: fr.sinistres.liste.viewLink }),
+    card2.getByRole('link', { name: fr.sinistres.list.viewLink }),
   ).toHaveAttribute('href', `/sinistres/${SINISTRE_ID_2}`);
 });
 

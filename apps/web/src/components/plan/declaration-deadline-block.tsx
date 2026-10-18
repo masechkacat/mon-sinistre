@@ -7,43 +7,43 @@ import { SourceNote } from './source-note';
 /** The déclaration deadline of a dossier, under a heading of its own. */
 export function DeclarationDeadlineBlock({
   deadline,
-  apercu = false,
+  preview = false,
 }: {
   deadline: DeclarationDeadline;
-  apercu?: boolean;
+  preview?: boolean;
 }) {
   return (
     <section className="space-y-2">
       <h2 className="text-xl font-semibold">
         {fr.sinistres.detail.deadline.heading}
       </h2>
-      <DeclarationDeadlineValue deadline={deadline} apercu={apercu} />
+      <DeclarationDeadlineValue deadline={deadline} preview={preview} />
     </section>
   );
 }
 
 /**
  * The deadline itself and its source, for a caller that labels it on its own —
- * the commune answer, where every arrêté carries one. With `apercu` — a
+ * the commune answer, where every arrêté carries one. With `preview` — a
  * dossier nobody saved yet — an expired deadline is named in words: no count
  * of the days past it and no estimate of what it costs
  * (docs/prd/dossier-preliminaire.md).
  */
 export function DeclarationDeadlineValue({
   deadline,
-  apercu = false,
+  preview = false,
 }: {
   deadline: DeclarationDeadline;
-  apercu?: boolean;
+  preview?: boolean;
 }) {
   const state = deadlineBadgeState({ daysLeft: deadline.daysLeft });
-  const expire = apercu && state === DeadlineBadgeState.enRetard;
+  const expired = preview && state === DeadlineBadgeState.overdue;
 
   return (
     <>
-      {expire ? (
-        <p data-slot="delai-expire" className="text-lg font-semibold">
-          {fr.dossier.delaiExpire}
+      {expired ? (
+        <p data-slot="deadline-expired" className="text-lg font-semibold">
+          {fr.dossier.deadlineExpired}
         </p>
       ) : (
         <DeadlineBadge
@@ -54,7 +54,7 @@ export function DeclarationDeadlineValue({
       )}
       <SourceNote
         source={deadline.source}
-        sujet={fr.sinistres.detail.deadline.heading}
+        subject={fr.sinistres.detail.deadline.heading}
       />
     </>
   );

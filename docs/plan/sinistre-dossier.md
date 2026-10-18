@@ -18,8 +18,8 @@
 **Макет:** docs/design/sinistre.html
 **Задачи:**
 
-- [ ] Лист и полосы: `DossierFeuille`, `PlanStepItem` как полоса со строкой
-      даты вместо бейджа, контейнеры без кнопок отметки, строка `FaitLigne`
+- [ ] Лист и полосы: `DossierSheet`, `PlanStepItem` как полоса со строкой
+      даты вместо бейджа, контейнеры без кнопок отметки, строка `DoneRow`
       с закрытыми шагами и «Annuler ce choix»; форма `row` бейджа удалена из
       компонента, `test-bejdz` и тестов вместе со снимками `row`.
       **Проверяется:** `tests/components/plan.spec.ts` на `/test-plan` —
@@ -28,9 +28,9 @@
       порядок плана; Exceptions: контейнер не имеет кнопок ни с `onMark`, ни
       без; `tests/components/deadline-badge.spec.ts` без `row`;
       `npm run test:web -- tests/a11y` зелёный.
-- [ ] Шапка: `StatutTampon`, `DossierChronologie` из `chronologiePoints`,
+- [ ] Шапка: `StatusStamp`, `DossierTimeline` из `timelinePoints`,
       бейдж `hero` в сетке шапки на обоих экранах.
-      **Проверяется:** `tests/components/dossier-chronologie.spec.ts` без
+      **Проверяется:** `tests/components/dossier-timeline.spec.ts` без
       браузера — Zero: синистр без arrêté и декларации даёт «attendu», «avant
       le <дедлайн>» или «à venir», «à venir»; One: `declarationDate` замещает
       дедлайн; Many: точка indemnisation берёт шаг по якорю
@@ -38,7 +38,7 @@
       `arrete` даёт дату публикации; `detail.spec.ts` — штемпель содержит слово
       статуса, в шапке ровно один `[data-form=hero]`, в `<ol>` плана бейджей
       нет.
-- [ ] Закладка «Étape en cours»: `EtapeEnCours` с `progressionPlan`.
+- [ ] Закладка «Étape en cours»: `CurrentStep` с `planProgress`.
       **Проверяется:** `tests/components/plan.spec.ts` — Zero: ни одного
       `FAIT` → «0 étapes faites sur M»; One: одна отметка → N растёт на один и
       закладка называет следующий шаг; Boundaries: `NON_APPLICABLE` не

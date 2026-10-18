@@ -41,12 +41,12 @@ export function partitionSteps<T extends StepView>(
  * out of the plan: it is still one of the steps the dossier was given, and
  * dropping it from the total would show progress where nothing was done.
  */
-export function progressionPlan(steps: StepView[]): {
-  faites: number;
+export function planProgress(steps: StepView[]): {
+  done: number;
   total: number;
 } {
   return {
-    faites: steps.filter(({ status }) => status === StepStatus.FAIT).length,
+    done: steps.filter(({ status }) => status === StepStatus.FAIT).length,
     total: steps.length,
   };
 }

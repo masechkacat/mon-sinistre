@@ -34,9 +34,9 @@ function DossierResume({ dossier }: { dossier: DossierInput }) {
   const { commune, settled } = useDossierCommune(dossier);
 
   return (
-    <p className="min-h-7 text-lg" data-testid="dossier-resume">
+    <p className="min-h-7 text-lg" data-testid="dossier-summary">
       {settled
-        ? fr.dossier.resume([
+        ? fr.dossier.summary([
             fr.sinistres.risque.options[dossier.risque].label,
             ...(commune ? [communeLabel(commune)] : []),
             formatDateFr(dossier.eventDate),

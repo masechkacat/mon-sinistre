@@ -3,8 +3,8 @@ import type { ReactNode } from 'react';
 import { fr } from '@/i18n/fr';
 import type { StepMark } from '@/lib/api/sinistres';
 import { nextUpcomingStep, partitionSteps } from '@/lib/sinistre-timeline';
-import { EtapeEnCours } from './etape-en-cours';
-import { FaitLigne } from './fait-ligne';
+import { CurrentStep } from './current-step';
+import { DoneRow } from './done-row';
 import { PlanStepItem, type PlanStep } from './plan-step-item';
 
 /**
@@ -31,21 +31,21 @@ export function PlanList<T extends PlanStep>({
 
   return (
     <>
-      <EtapeEnCours etape={next} steps={steps} />
+      <CurrentStep step={next} steps={steps} />
       <ol aria-label={fr.sinistres.detail.timelineLabel} className="space-y-4">
         {open.map((step) => (
           <PlanStepItem
             key={step.id ?? step.order}
             step={step}
             isNext={step === next}
-            contenu={step.kind === StepKind.DECLARATION ? declaration : null}
+            content={step.kind === StepKind.DECLARATION ? declaration : null}
             itemRef={itemRef && ((node) => itemRef(step, node))}
             onMark={onMark && ((mark) => onMark(step, mark))}
           />
         ))}
       </ol>
       {closed.length > 0 ? (
-        <FaitLigne
+        <DoneRow
           steps={closed}
           declaration={declaration}
           itemRef={itemRef}

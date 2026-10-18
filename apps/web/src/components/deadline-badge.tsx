@@ -1,5 +1,5 @@
 import type { IsoDate, Step } from '@mon-sinistre/contracts';
-import { Tampon, capsClassName } from '@/components/tampon';
+import { Stamp, capsClassName } from '@/components/stamp';
 import { dateParts, formatDateFr } from '@/i18n/date';
 import { fr } from '@/i18n/fr';
 import { DeadlineBadgeState, isUrgentDeadline } from '@/lib/deadline-badge';
@@ -23,14 +23,14 @@ interface Material {
 }
 
 const material: Record<DeadlineBadgeState, Material> = {
-  [DeadlineBadgeState.norme]: { dated: true },
-  [DeadlineBadgeState.derniereSemaine]: { dated: true },
-  [DeadlineBadgeState.demain]: { dated: true },
-  [DeadlineBadgeState.aujourdhui]: { dated: true },
-  [DeadlineBadgeState.enRetard]: { dated: true },
+  [DeadlineBadgeState.normal]: { dated: true },
+  [DeadlineBadgeState.lastWeek]: { dated: true },
+  [DeadlineBadgeState.tomorrow]: { dated: true },
+  [DeadlineBadgeState.today]: { dated: true },
+  [DeadlineBadgeState.overdue]: { dated: true },
   [DeadlineBadgeState.fait]: { dated: true, quiet: true, stamped: true },
-  [DeadlineBadgeState.sansObjet]: { quiet: true, dashed: true },
-  [DeadlineBadgeState.dateAVenir]: { explained: true },
+  [DeadlineBadgeState.nonApplicable]: { quiet: true, dashed: true },
+  [DeadlineBadgeState.upcomingDate]: { explained: true },
 };
 
 const copy = fr.deadlineBadge;
@@ -39,7 +39,7 @@ function stateWord(
   state: DeadlineBadgeState,
   completedAt: IsoDate | null,
 ): string | null {
-  if (state === DeadlineBadgeState.norme) return null;
+  if (state === DeadlineBadgeState.normal) return null;
   if (state === DeadlineBadgeState.fait) {
     return copy.fait(completedAt && formatDateFr(completedAt));
   }
@@ -71,9 +71,7 @@ export function DeadlineBadge({
   const parts = dated && date ? dateParts(date) : null;
   const signal = isUrgentDeadline(state) ? 'text-vermillon' : undefined;
   const countdown =
-    dated && daysLeft !== null && !stamped
-      ? copy.compteARebours(daysLeft)
-      : null;
+    dated && daysLeft !== null && !stamped ? copy.countdown(daysLeft) : null;
 
   return (
     <div
@@ -94,7 +92,7 @@ export function DeadlineBadge({
       {word ? (
         <div className="mb-1">
           {stamped ? (
-            <Tampon className={cn(signal, 'mx-auto')}>{word}</Tampon>
+            <Stamp className={cn(signal, 'mx-auto')}>{word}</Stamp>
           ) : (
             <p className={cn(capsClassName, signal)}>{word}</p>
           )}
@@ -119,7 +117,7 @@ export function DeadlineBadge({
       ) : null}
 
       {explained && delay ? (
-        <p className="mt-1 text-sm">{copy.delai(delay, anchor)}</p>
+        <p className="mt-1 text-sm">{copy.duration(delay, anchor)}</p>
       ) : null}
     </div>
   );
@@ -135,7 +133,7 @@ function Figure({ text, signal }: { text: string | null; signal?: string }) {
       )}
       aria-hidden={text === null ? true : undefined}
     >
-      {text ?? copy.sansDate}
+      {text ?? copy.noDate}
     </p>
   );
 }

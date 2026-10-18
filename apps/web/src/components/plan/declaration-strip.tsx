@@ -44,7 +44,7 @@ export function DeclarationStrip({
     mutationFn: (next: IsoDate | null) =>
       setSinistreDeclarationDate(sinistreId, next),
     onSuccess: (detail) => {
-      onAnnounce(detail.declarationDate ? copy.enregistree : copy.effacee);
+      onAnnounce(detail.declarationDate ? copy.saved : copy.cleared);
       onApplied();
       queryClient.setQueryData(queryKeys.sinistre(sinistreId), detail);
       void queryClient.invalidateQueries({
@@ -53,7 +53,7 @@ export function DeclarationStrip({
       });
     },
     onError: (_error, next) => {
-      if (next === null) onAnnounce(copy.effacementEchec);
+      if (next === null) onAnnounce(copy.clearFailure);
     },
   });
 
@@ -71,7 +71,7 @@ export function DeclarationStrip({
           focusableWhenDisabled
           onClick={() => mutation.mutate(null)}
         >
-          {copy.effacer}
+          {copy.clear}
         </Button>
       </>
     );
@@ -81,7 +81,7 @@ export function DeclarationStrip({
   // date is gone — brought by a refetch, not by that clear — so its failure
   // is not the form's to show. The API's own French sentence for a rejected
   // date is shown as is.
-  const echec = mutation.isError && mutation.variables !== null;
+  const failure = mutation.isError && mutation.variables !== null;
   const apiError =
     mutation.error instanceof ApiError && mutation.error.status === 400
       ? mutation.error.detail
@@ -90,7 +90,7 @@ export function DeclarationStrip({
   return (
     <DeclarationForm
       pending={mutation.isPending}
-      echec={echec ? (apiError ?? copy.echec) : undefined}
+      failure={failure ? (apiError ?? copy.failure) : undefined}
       onSave={(date) => mutation.mutate(date)}
       onEdit={() => {
         if (mutation.isError) mutation.reset();
@@ -101,24 +101,24 @@ export function DeclarationStrip({
 
 function DeclarationForm({
   pending,
-  echec,
+  failure,
   onSave,
   onEdit,
 }: {
   pending: boolean;
-  echec?: string;
+  failure?: string;
   onSave: (date: IsoDate) => void;
   onEdit: () => void;
 }) {
   const copy = fr.sinistres.detail.declaration;
   const [draft, setDraft] = useState('');
   const [draftError, setDraftError] = useState<string>();
-  const error = draftError ?? echec;
+  const error = draftError ?? failure;
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!isIsoDate(draft)) {
-      setDraftError(copy.requis);
+      setDraftError(copy.required);
       return;
     }
     setDraftError(undefined);
@@ -156,7 +156,7 @@ function DeclarationForm({
         disabled={pending}
         focusableWhenDisabled
       >
-        {copy.enregistrer}
+        {copy.save}
       </Button>
     </form>
   );

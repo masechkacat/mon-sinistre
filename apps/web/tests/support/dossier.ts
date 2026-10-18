@@ -152,11 +152,11 @@ export function mockCommuneArretes(
 }
 
 /**
- * The test route mounting `ReponseCommune` alone. The commune travels as JSON
+ * The test route mounting `CommuneAnswer` alone. The commune travels as JSON
  * so the fixture above stays the single one: a copy of it in `src/` would be a
  * second commune to keep in step with the mocked answer.
  */
-export function reponseCommunePath(): Route {
+export function communeAnswerPath(): Route {
   const commune = encodeURIComponent(JSON.stringify(NIMES));
-  return `/test-reponse-commune?commune=${commune}` as Route;
+  return `/test-commune-answer?commune=${commune}` as Route;
 }

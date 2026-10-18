@@ -26,21 +26,24 @@ const expected: Record<
   DeadlineBadgeState,
   { words: string[]; dated: boolean }
 > = {
-  [DeadlineBadgeState.norme]: { words: [], dated: true },
-  [DeadlineBadgeState.derniereSemaine]: {
-    words: [copy.derniereSemaine],
+  [DeadlineBadgeState.normal]: { words: [], dated: true },
+  [DeadlineBadgeState.lastWeek]: {
+    words: [copy.lastWeek],
     dated: true,
   },
-  [DeadlineBadgeState.demain]: { words: [copy.demain], dated: true },
-  [DeadlineBadgeState.aujourdhui]: { words: [copy.aujourdhui], dated: true },
-  [DeadlineBadgeState.enRetard]: { words: [copy.enRetard], dated: true },
+  [DeadlineBadgeState.tomorrow]: { words: [copy.tomorrow], dated: true },
+  [DeadlineBadgeState.today]: { words: [copy.today], dated: true },
+  [DeadlineBadgeState.overdue]: { words: [copy.overdue], dated: true },
   [DeadlineBadgeState.fait]: {
     words: [copy.fait(formatDateFr(CASE_COMPLETED_AT))],
     dated: true,
   },
-  [DeadlineBadgeState.sansObjet]: { words: [copy.sansObjet], dated: false },
-  [DeadlineBadgeState.dateAVenir]: {
-    words: [copy.dateAVenir, copy.delai(CASE_DELAY, CASE_ANCHOR)],
+  [DeadlineBadgeState.nonApplicable]: {
+    words: [copy.nonApplicable],
+    dated: false,
+  },
+  [DeadlineBadgeState.upcomingDate]: {
+    words: [copy.upcomingDate, copy.duration(CASE_DELAY, CASE_ANCHOR)],
     dated: false,
   },
 };
@@ -55,7 +58,7 @@ function expectedTexts(entry: BadgeCase): string[] {
   texts.push(parts.month, parts.day, parts.weekday);
   // A done step has nothing left to count down to.
   if (entry.daysLeft !== null && entry.state !== DeadlineBadgeState.fait) {
-    texts.push(copy.compteARebours(entry.daysLeft));
+    texts.push(copy.countdown(entry.daysLeft));
   }
   return texts;
 }
@@ -79,13 +82,13 @@ test('« date à venir » counts the window from the step’s own anchor', async
   page,
 }) => {
   await gotoPage(page, testBejdz);
-  const locator = badge(page, DeadlineBadgeState.dateAVenir);
+  const locator = badge(page, DeadlineBadgeState.upcomingDate);
   await expect(locator).toContainText('après votre déclaration');
   await expect(locator).not.toContainText('arrêté');
 });
 
 for (const colorScheme of themes) {
-  for (const colour of ['couleur', 'grayscale'] as const) {
+  for (const colour of ['colour', 'grayscale'] as const) {
     test(`snapshots: ${colorScheme} theme, ${colour}`, async ({ page }) => {
       await page.setViewportSize({ width: 1280, height: 900 });
       await page.emulateMedia({ colorScheme });

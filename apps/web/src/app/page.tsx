@@ -3,7 +3,7 @@ import { PageTitle } from '@/components/page-title';
 import { SectionHeading } from '@/components/section-heading';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { fr } from '@/i18n/fr';
-import { CommuneReponse } from './commune-reponse';
+import { CommuneLookup } from './commune-lookup';
 
 export default function Home() {
   return (
@@ -11,7 +11,7 @@ export default function Home() {
       <section className="space-y-6">
         <PageTitle>{fr.home.title}</PageTitle>
         <p className="text-lg text-muted-foreground">{fr.home.lead}</p>
-        <CommuneReponse />
+        <CommuneLookup />
       </section>
 
       <section className="space-y-4">

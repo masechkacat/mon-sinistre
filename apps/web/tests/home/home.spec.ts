@@ -13,7 +13,7 @@ import { testApiBaseUrl } from '../support/env';
 import { gotoPage, home } from '../support/pages';
 import { stringLeaves } from '../support/strings';
 
-const champ = (page: Page) => page.getByLabel(fr.home.communeLabel);
+const field = (page: Page) => page.getByLabel(fr.home.communeLabel);
 
 /** The commune answers the page asked for, collected as it asks for them. */
 function arretesDemandes(page: Page) {
@@ -50,11 +50,11 @@ test('home: the commune field asks nothing of the API before a choice', async ({
   const demandes = arretesDemandes(page);
   await gotoPage(page, home);
 
-  await expect(champ(page)).toBeVisible();
+  await expect(field(page)).toBeVisible();
   // The answer block is on screen but silent: its live region has to exist
   // before it has an answer to announce.
   await expect(
-    page.getByTestId('reponse-arretes').getByRole('status'),
+    page.getByTestId('commune-arretes').getByRole('status'),
   ).toBeEmpty();
   expect(demandes).toEqual([]);
 });
@@ -69,8 +69,8 @@ test('home: choosing a commune asks for its arrêtés and answers under the fiel
 
   await selectNimes(page, fr.home.communeLabel);
 
-  await expect(page.getByTestId('reponse-arretes')).toContainText(
-    fr.reponseCommune.trouves(1, NIMES.name),
+  await expect(page.getByTestId('commune-arretes')).toContainText(
+    fr.communeAnswer.found(1, NIMES.name),
   );
   expect(demandes).toHaveLength(1);
   expect(new URL(demandes[0]).searchParams.get('codeInsee')).toBe(
@@ -93,9 +93,9 @@ test('home: the dossier of an arrêté opens from the answer, with no address ty
   await gotoPage(page, home);
 
   await selectNimes(page, fr.home.communeLabel);
-  await page.getByRole('link', { name: fr.reponseCommune.ouvrir }).click();
+  await page.getByRole('link', { name: fr.communeAnswer.open }).click();
 
-  // Which parameters the button carries is reponse-commune.spec's business;
+  // Which parameters the button carries is commune-answer.spec's business;
   // here it is the way in from the home page that is under test.
   await expect(page).toHaveURL(
     new RegExp(`/dossier\\?.*commune=${NIMES.codeInsee}`),

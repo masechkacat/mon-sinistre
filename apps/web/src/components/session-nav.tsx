@@ -12,7 +12,7 @@ const copy = fr.layout;
 // Pages whose own login link carries the dossier parameters or the return
 // path (`dossierPath`, `suivant`): a second «Se connecter» in the header, same
 // name, would lead past them.
-const PAGES_AVEC_ENTREE: readonly DossierPage[] = [
+const PAGES_WITH_OWN_LOGIN: readonly DossierPage[] = [
   '/connexion',
   '/inscription',
 ];
@@ -23,19 +23,19 @@ const PAGES_AVEC_ENTREE: readonly DossierPage[] = [
  * move the tab order under the hands of someone already walking it.
  */
 export function SessionNav() {
-  const connecte = useSession() === 'authenticated';
+  const loggedIn = useSession() === 'authenticated';
   const pathname = usePathname();
 
-  if (!connecte && PAGES_AVEC_ENTREE.includes(pathname as DossierPage))
+  if (!loggedIn && PAGES_WITH_OWN_LOGIN.includes(pathname as DossierPage))
     return null;
 
   return (
     <nav aria-label={copy.mainNav}>
       <Link
-        href={connecte ? ESPACE_PERSONNEL_PATH : LOGIN_PATH}
+        href={loggedIn ? ESPACE_PERSONNEL_PATH : LOGIN_PATH}
         className="underline underline-offset-4"
       >
-        {connecte ? copy.espace : copy.login}
+        {loggedIn ? copy.espace : copy.login}
       </Link>
     </nav>
   );

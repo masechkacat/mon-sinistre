@@ -291,7 +291,7 @@ risque)` — запрещает законный второй дом.
 `min`/`max` периода.
 
 Экран синистра `sinistre-detail.tsx` (407 строк, всё в одном файле) делится
-на презентационные компоненты в `src/components/plan/`: `DossierEntete`
+на презентационные компоненты в `src/components/plan/`: `DossierHeader`
 (H1, статус, даты), `DeclarationDeadlineBlock`, `PlanList` (`<ol>`) и
 `PlanStepItem`, принимающие `StepView` и **необязательные** колбэки
 `onMark`; без колбэков компонент — режим чтения: кнопок нет, контейнер пуст с
@@ -347,10 +347,10 @@ connecter» переносит те же параметры в `/connexion`. `/c
 
 ### Web: главная — поле коммуны, блок ответа, строка подписки; `/veille` уходит
 
-**Решение:** главная становится клиентским экраном `CommuneReponse`:
+**Решение:** главная становится клиентским экраном `CommuneLookup`:
 `CommuneSelect` (одиночный, уже есть) → при выборе
 `useQuery(queryKeys.communeArretes(code))` на `GET /dossier/arretes` → блок
-ответа `ReponseCommune` в `src/components/reponse-commune.tsx` — список
+ответа `CommuneAnswer` в `src/components/commune-answer.tsx` — список
 entries карточками (риск, период, дата публикации, ссылка Légifrance, срок
 декларации бейджем `DeadlineBadge form="row"` или «délai expiré», отказ —
 словами) с кнопкой-ссылкой `Link` на `/dossier?...` у каждой, либо «aucun
