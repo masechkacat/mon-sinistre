@@ -2,7 +2,7 @@ import { SinistreStatus, type IsoDate } from '@mon-sinistre/contracts';
 import type { ArreteEntryOutcome } from 'src/generated/prisma/enums.js';
 
 /** The one fact `sinistreStatus` needs off a linked `ArreteEntry`. */
-export interface SinistreLink {
+interface SinistreLink {
   outcome: ArreteEntryOutcome;
 }
 

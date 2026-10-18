@@ -81,6 +81,7 @@ test('the chosen commune is not searched again as if it were a query', async ({
   // and the debounce window (250 ms) is when it would. The selected label is
   // no commune's name, so searching it answers « aucune commune » over a
   // choice the person just made.
+  // eslint-disable-next-line playwright/no-wait-for-timeout -- see above
   await page.waitForTimeout(500);
   expect(queries).not.toContain(communeLabel(NIMES));
   await expect(page.getByText(fr.commune.noneFound)).toBeHidden();

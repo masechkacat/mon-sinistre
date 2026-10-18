@@ -2,7 +2,7 @@
 
 import { useMutation } from '@tanstack/react-query';
 import Link from 'next/link';
-import { useState, type FormEvent } from 'react';
+import { useState, type SubmitEvent } from 'react';
 import type { DossierInput, RegisterInput } from '@mon-sinistre/contracts';
 import { AnnouncedResult } from '@/components/announced-result';
 import { PageContainer } from '@/components/page-container';
@@ -34,9 +34,9 @@ function DossierResume({ dossier }: { dossier: DossierInput }) {
   const { commune, settled } = useDossierCommune(dossier);
 
   return (
-    <p className="min-h-7 text-lg" data-testid="dossier-resume">
+    <p className="min-h-7 text-lg" data-testid="dossier-summary">
       {settled
-        ? fr.dossier.resume([
+        ? fr.dossier.summary([
             fr.sinistres.risque.options[dossier.risque].label,
             ...(commune ? [communeLabel(commune)] : []),
             formatDateFr(dossier.eventDate),
@@ -63,7 +63,7 @@ export function InscriptionForm({ params }: { params: DossierParams }) {
       }),
   });
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
     const trimmedEmail = email.trim();
     const nextEmailError = validateEmail(trimmedEmail, {

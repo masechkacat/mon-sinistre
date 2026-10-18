@@ -34,14 +34,14 @@ import {
 // with no date yet, one far off, one already done.
 const STEPS = [
   step({
-    id: 'step-retard',
+    id: 'step-overdue',
     name: 'Déposer la déclaration',
     plannedDate: toIsoDate('2026-10-10'),
     status: StepStatus.EN_RETARD,
     daysLeft: -3,
   }),
   step({
-    id: 'step-proche',
+    id: 'step-soon',
     name: 'Envoyer les photos',
     plannedDate: toIsoDate('2026-10-20'),
     status: StepStatus.A_FAIRE,
@@ -74,14 +74,14 @@ const STEPS = [
 const badgeCopy = fr.deadlineBadge;
 const declarationCopy = fr.sinistres.detail.declaration;
 const prevueLe = (date: string) =>
-  badgeCopy.prevueLe(formatDateShortFr(toIsoDate(date)));
+  badgeCopy.plannedOn(formatDateShortFr(toIsoDate(date)));
 
 // What the fields of each step above must reach its date line as. The done
 // step is not here: it stands in the row of what is behind, by its name alone.
-const DATE_LINES: Record<string, string[]> = {
-  'step-retard': [badgeCopy.enRetard, prevueLe('2026-10-10')],
-  'step-proche': [badgeCopy.derniereSemaine, prevueLe('2026-10-20')],
-  'step-sans-date': [fr.sinistres.detail.attentePar.DATE_ETAT_ESTIMATIF],
+const DATE_LINES: Partial<Record<string, string[]>> = {
+  'step-overdue': [badgeCopy.overdue, prevueLe('2026-10-10')],
+  'step-soon': [badgeCopy.lastWeek, prevueLe('2026-10-20')],
+  'step-sans-date': [fr.sinistres.detail.waitingFor.DATE_ETAT_ESTIMATIF],
   'step-plus-tard': [prevueLe('2026-11-12')],
 };
 
@@ -232,7 +232,7 @@ test('the plan is an ordered list of what is left to do, each step with its date
     }
   }
   // The done step is behind the plan, in the row of what is settled.
-  await expect(page.locator('[data-slot="plan-fait"]')).toContainText(
+  await expect(page.locator('[data-slot="plan-done"]')).toContainText(
     'Prévenir le voisin',
   );
 });
@@ -266,11 +266,11 @@ test('the head stamps the status and holds the only badge of the page', async ({
 }) => {
   await openDetail(page, sinistreDetail());
 
-  const entete = page.locator('[data-slot="dossier-entete"]');
-  await expect(entete.locator('[data-slot="statut-tampon"]')).toHaveText(
-    fr.sinistres.statut[SinistreStatus.DECLARE],
+  const header = page.locator('[data-slot="dossier-header"]');
+  await expect(header.locator('[data-slot="status-stamp"]')).toHaveText(
+    fr.sinistres.status[SinistreStatus.DECLARE],
   );
-  await expect(heroBadge(entete)).toHaveCount(1);
+  await expect(heroBadge(header)).toHaveCount(1);
   // The plan says the state of its steps in the words of their date lines.
   await expect(
     planList(page).locator('[data-slot="deadline-badge"]'),
@@ -286,9 +286,9 @@ test('a step without a planned date is neither overdue nor the next one', async 
     .getByRole('listitem')
     .filter({ hasText: 'Demander l’état estimatif' });
   await expect(waiting).not.toHaveAttribute('aria-current', 'step');
-  await expect(waiting).not.toContainText(badgeCopy.enRetard);
+  await expect(waiting).not.toContainText(badgeCopy.overdue);
   await expect(waiting).toContainText(
-    fr.sinistres.detail.attentePar.DATE_ETAT_ESTIMATIF,
+    fr.sinistres.detail.waitingFor.DATE_ETAT_ESTIMATIF,
   );
 });
 
@@ -307,8 +307,8 @@ test('an overdue declaration deadline is said in words, with the days past it', 
   );
 
   const hero = heroBadge(page);
-  await expect(hero).toContainText(badgeCopy.enRetard);
-  await expect(hero).toContainText(badgeCopy.compteARebours(-3));
+  await expect(hero).toContainText(badgeCopy.overdue);
+  await expect(hero).toContainText(badgeCopy.countdown(-3));
 });
 
 test('the days left before the declaration deadline are shown as a number, next to the date', async ({
@@ -317,7 +317,7 @@ test('the days left before the declaration deadline are shown as a number, next 
   await openDetail(page, sinistreDetail());
 
   const hero = heroBadge(page);
-  await expect(hero).toContainText(badgeCopy.compteARebours(14));
+  await expect(hero).toContainText(badgeCopy.countdown(14));
   await expect(hero).toContainText(dateParts(toIsoDate('2026-10-27')).day);
 });
 
@@ -334,8 +334,8 @@ test('on the last day to declare the badge says so', async ({ page }) => {
   );
 
   const hero = heroBadge(page);
-  await expect(hero).toContainText(badgeCopy.aujourdhui);
-  await expect(hero).toContainText(badgeCopy.compteARebours(0));
+  await expect(hero).toContainText(badgeCopy.today);
+  await expect(hero).toContainText(badgeCopy.countdown(0));
 });
 
 test('each calculated date links to the text it comes from and is called indicative', async ({
@@ -360,7 +360,7 @@ test('each calculated date links to the text it comes from and is called indicat
   await expect(links).toHaveCount(2);
   await expect(
     page.getByRole('link', {
-      name: fr.sinistres.detail.source.lien('Déclarer le sinistre'),
+      name: fr.sinistres.detail.source.link('Déclarer le sinistre'),
     }),
   ).toHaveAttribute('href', SOURCE.url);
   for (const link of await links.all()) {
@@ -425,17 +425,17 @@ for (const colorScheme of ['light', 'dark'] as const) {
       page,
       sinistreDetail({
         steps: STEPS.filter(({ id }) =>
-          ['step-proche', 'step-fait'].includes(id),
+          ['step-soon', 'step-fait'].includes(id),
         ),
       }),
     );
 
     // The sheet, not the plan alone: a settled step is read under it, in the
     // row of what is behind.
-    const feuille = page.locator('[data-slot="dossier-feuille"]');
-    await expect(feuille).toHaveScreenshot(`etapes-${colorScheme}.png`);
+    const sheet = page.locator('[data-slot="dossier-sheet"]');
+    await expect(sheet).toHaveScreenshot(`steps-${colorScheme}.png`);
     // Done is not a reward: nothing on the settled line lights up in green.
-    expect(await greenColours(feuille)).toEqual([]);
+    expect(await greenColours(sheet)).toEqual([]);
   });
 }
 
@@ -450,27 +450,27 @@ test('a mark is announced in a live region already on the page, counted by the b
 
   const announcements = page.getByRole('status');
   await expect(announcements).toBeEmpty();
-  const bookmark = page.locator('[data-slot="etape-en-cours"]');
-  const progression = fr.sinistres.detail.etapeEnCours.progression;
-  await expect(bookmark).toContainText(progression(1, STEPS.length));
+  const bookmark = page.locator('[data-slot="current-step"]');
+  const count = fr.sinistres.detail.currentStep.count;
+  await expect(bookmark).toContainText(count(1, STEPS.length));
   const sibling = timelineItem(page, 'Relire le contrat');
   await sibling.evaluate((el) => {
     el.dataset.intact = 'oui';
   });
 
   await timelineItem(page, 'Envoyer les photos')
-    .getByRole('button', { name: fr.sinistres.detail.marquer.fait })
+    .getByRole('button', { name: fr.sinistres.detail.mark.fait })
     .click();
 
   await expect(announcements).toHaveText(
-    fr.sinistres.detail.annonce.fait('Envoyer les photos'),
+    fr.sinistres.detail.announcement.fait('Envoyer les photos'),
   );
-  await expect(page.locator('[data-slot="plan-fait"]')).toContainText(
+  await expect(page.locator('[data-slot="plan-done"]')).toContainText(
     'Envoyer les photos',
   );
   // The bookmark follows the answer of the PATCH: one more step behind, and
   // the step in hand is the next one that has a date.
-  await expect(bookmark).toContainText(progression(2, STEPS.length));
+  await expect(bookmark).toContainText(count(2, STEPS.length));
   await expect(bookmark).toContainText('Relire le contrat');
   // The focus follows the step to the line it moved to, instead of falling
   // back to the top of the page with the strip that held it.
@@ -485,17 +485,17 @@ test('a step can be marked not applicable, and the request says so', async ({
 
   const sent = page.waitForRequest(
     (request) =>
-      request.method() === 'PATCH' && request.url().endsWith('/step-proche'),
+      request.method() === 'PATCH' && request.url().endsWith('/step-soon'),
   );
   await timelineItem(page, 'Envoyer les photos')
-    .getByRole('button', { name: fr.sinistres.detail.marquer.nonApplicable })
+    .getByRole('button', { name: fr.sinistres.detail.mark.nonApplicable })
     .click();
 
   expect((await sent).postDataJSON()).toEqual({
     status: StepStatus.NON_APPLICABLE,
   });
   await expect(page.getByRole('status')).toHaveText(
-    fr.sinistres.detail.annonce.nonApplicable('Envoyer les photos'),
+    fr.sinistres.detail.announcement.nonApplicable('Envoyer les photos'),
   );
 });
 
@@ -509,15 +509,15 @@ test('un-marking a done step sends null, and the step falls back to its computed
       request.method() === 'PATCH' && request.url().endsWith('/step-fait'),
   );
   await timelineItem(page, 'Prévenir le voisin')
-    .getByRole('button', { name: fr.sinistres.detail.marquer.annuler })
+    .getByRole('button', { name: fr.sinistres.detail.mark.cancel })
     .click();
 
   expect((await sent).postDataJSON()).toEqual({ status: null });
   await expect(page.getByRole('status')).toHaveText(
-    fr.sinistres.detail.annonce.annule('Prévenir le voisin'),
+    fr.sinistres.detail.announcement.undone('Prévenir le voisin'),
   );
   await expect(timelineItem(page, 'Prévenir le voisin')).toContainText(
-    badgeCopy.enRetard,
+    badgeCopy.overdue,
   );
 });
 
@@ -528,13 +528,13 @@ test('a mark that fails leaves the step as it was and says so in French', async 
 
   const step = timelineItem(page, 'Envoyer les photos');
   await step
-    .getByRole('button', { name: fr.sinistres.detail.marquer.fait })
+    .getByRole('button', { name: fr.sinistres.detail.mark.fait })
     .click();
 
   await expect(page.getByRole('status')).toHaveText(
-    fr.sinistres.detail.marquageEchec,
+    fr.sinistres.detail.markFailure,
   );
-  await expect(step).toContainText(badgeCopy.derniereSemaine);
+  await expect(step).toContainText(badgeCopy.lastWeek);
 });
 
 test('a declaration date closes its step and counts the steps anchored on it, and clearing it takes both back', async ({
@@ -546,9 +546,9 @@ test('a declaration date closes its step and counts the steps anchored on it, an
 
   const declarationStep = timelineItem(page, DECLARATION_STEP.name);
   const assureurStep = timelineItem(page, ASSUREUR_STEP.name);
-  const faits = page.locator('[data-slot="plan-fait"]');
+  const faits = page.locator('[data-slot="plan-done"]');
   await expect(assureurStep).toContainText(
-    fr.sinistres.detail.attentePar.DATE_DECLARATION,
+    fr.sinistres.detail.waitingFor.DATE_DECLARATION,
   );
 
   const sent = page.waitForRequest(
@@ -557,15 +557,13 @@ test('a declaration date closes its step and counts the steps anchored on it, an
   );
   await declarationStep.getByLabel(declarationCopy.label).fill('2026-09-01');
   await declarationStep
-    .getByRole('button', { name: declarationCopy.enregistrer })
+    .getByRole('button', { name: declarationCopy.save })
     .click();
 
   expect((await sent).postDataJSON()).toEqual({
     declarationDate: '2026-09-01',
   });
-  await expect(page.getByRole('status')).toHaveText(
-    declarationCopy.enregistree,
-  );
+  await expect(page.getByRole('status')).toHaveText(declarationCopy.saved);
   await expect(assureurStep).toContainText(prevueLe('2026-10-31'));
   // The date recorded, the step is behind: its line says the day instead of
   // asking for it, keeps the way back, and the keyboard follows the step
@@ -580,17 +578,17 @@ test('a declaration date closes its step and counts the steps anchored on it, an
   await expect(declarationStep).toBeFocused();
   await expect(
     declarationStep.getByRole('button', {
-      name: fr.sinistres.detail.marquer.annuler,
+      name: fr.sinistres.detail.mark.cancel,
     }),
   ).toHaveCount(0);
 
   await declarationStep
-    .getByRole('button', { name: declarationCopy.effacer })
+    .getByRole('button', { name: declarationCopy.clear })
     .click();
 
-  await expect(page.getByRole('status')).toHaveText(declarationCopy.effacee);
+  await expect(page.getByRole('status')).toHaveText(declarationCopy.cleared);
   await expect(assureurStep).toContainText(
-    fr.sinistres.detail.attentePar.DATE_DECLARATION,
+    fr.sinistres.detail.waitingFor.DATE_DECLARATION,
   );
   await expect(assureurStep).not.toContainText(prevueLe('2026-10-31'));
   await expect(faits).not.toContainText(DECLARATION_STEP.name);
@@ -608,16 +606,16 @@ test('a clear that fails is announced, and the recorded date is not blamed for i
 
   const declarationStep = timelineItem(page, DECLARATION_STEP.name);
   await declarationStep
-    .getByRole('button', { name: declarationCopy.effacer })
+    .getByRole('button', { name: declarationCopy.clear })
     .click();
 
   await expect(page.getByRole('status')).toHaveText(
-    declarationCopy.effacementEchec,
+    declarationCopy.clearFailure,
   );
   await expect(declarationStep).toContainText(
     badgeCopy.fait(formatDateFr(declared)),
   );
-  await expect(page.getByText(declarationCopy.echec)).toHaveCount(0);
+  await expect(page.getByText(declarationCopy.failure)).toHaveCount(0);
 });
 
 test('the strip follows a date recorded elsewhere once the dossier is refetched', async ({
@@ -637,7 +635,7 @@ test('the strip follows a date recorded elsewhere once the dossier is refetched'
     }),
   );
   await timelineItem(page, 'Envoyer les photos')
-    .getByRole('button', { name: fr.sinistres.detail.marquer.fait })
+    .getByRole('button', { name: fr.sinistres.detail.mark.fait })
     .click();
 
   await expect(declarationStep).toContainText(
@@ -654,14 +652,14 @@ test('deleting the dossier asks first, and cancelling gives focus back to the de
   await openDetail(page, sinistreDetail());
 
   const deleteButton = page.getByRole('button', {
-    name: fr.sinistres.detail.suppression.ouvrir,
+    name: fr.sinistres.detail.deletion.open,
   });
   await deleteButton.click();
 
   const dialog = page.getByRole('alertdialog');
-  await expect(dialog).toContainText(fr.sinistres.detail.suppression.titre);
+  await expect(dialog).toContainText(fr.sinistres.detail.deletion.title);
   await dialog
-    .getByRole('button', { name: fr.sinistres.detail.suppression.annuler })
+    .getByRole('button', { name: fr.sinistres.detail.deletion.cancel })
     .click();
 
   await expect(dialog).toBeHidden();
@@ -678,7 +676,7 @@ test('Escape closes the deletion dialog without deleting anything', async ({
   });
 
   const deleteButton = page.getByRole('button', {
-    name: fr.sinistres.detail.suppression.ouvrir,
+    name: fr.sinistres.detail.deletion.open,
   });
   await deleteButton.click();
   await expect(page.getByRole('alertdialog')).toBeVisible();
@@ -706,11 +704,11 @@ test('confirming the deletion sends DELETE and returns to the list', async ({
       request.method() === 'DELETE' && request.url().endsWith(SINISTRE_ID_1),
   );
   await page
-    .getByRole('button', { name: fr.sinistres.detail.suppression.ouvrir })
+    .getByRole('button', { name: fr.sinistres.detail.deletion.open })
     .click();
   await page
     .getByRole('alertdialog')
-    .getByRole('button', { name: fr.sinistres.detail.suppression.confirmer })
+    .getByRole('button', { name: fr.sinistres.detail.deletion.confirm })
     .click();
 
   await sent;
@@ -722,7 +720,7 @@ test('a deletion that fails says so in a live region that was in the dialog all 
 }) => {
   await openDetail(page, sinistreDetail(), { failing: true });
   await page
-    .getByRole('button', { name: fr.sinistres.detail.suppression.ouvrir })
+    .getByRole('button', { name: fr.sinistres.detail.deletion.open })
     .click();
 
   const dialog = page.getByRole('alertdialog');
@@ -731,10 +729,10 @@ test('a deletion that fails says so in a live region that was in the dialog all 
   await expect(alert).toBeEmpty();
 
   await dialog
-    .getByRole('button', { name: fr.sinistres.detail.suppression.confirmer })
+    .getByRole('button', { name: fr.sinistres.detail.deletion.confirm })
     .click();
 
-  await expect(alert).toHaveText(fr.sinistres.detail.suppression.echec);
+  await expect(alert).toHaveText(fr.sinistres.detail.deletion.failure);
   await expect(dialog).toBeVisible();
   await expect(page).toHaveURL(new RegExp(`/sinistres/${SINISTRE_ID_1}$`));
 });
@@ -745,7 +743,7 @@ test('axe: the deletion dialog is clean in the light theme', async ({
   await page.emulateMedia({ colorScheme: 'light' });
   await openDetail(page, sinistreDetail());
   await page
-    .getByRole('button', { name: fr.sinistres.detail.suppression.ouvrir })
+    .getByRole('button', { name: fr.sinistres.detail.deletion.open })
     .click();
   await expect(page.getByRole('alertdialog')).toBeVisible();
 

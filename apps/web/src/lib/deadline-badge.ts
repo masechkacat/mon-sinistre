@@ -5,14 +5,14 @@ import {
 } from '@mon-sinistre/contracts';
 
 export enum DeadlineBadgeState {
-  norme = 'norme',
-  derniereSemaine = 'derniereSemaine',
-  demain = 'demain',
-  aujourdhui = 'aujourdhui',
-  enRetard = 'enRetard',
+  normal = 'normal',
+  lastWeek = 'lastWeek',
+  tomorrow = 'tomorrow',
+  today = 'today',
+  overdue = 'overdue',
   fait = 'fait',
-  sansObjet = 'sansObjet',
-  dateAVenir = 'dateAVenir',
+  nonApplicable = 'nonApplicable',
+  upcomingDate = 'upcomingDate',
 }
 
 /**
@@ -20,10 +20,10 @@ export enum DeadlineBadgeState {
  * them in vermillon, a plan strip spells the word out on its date line.
  */
 const URGENT_STATES = [
-  DeadlineBadgeState.enRetard,
-  DeadlineBadgeState.aujourdhui,
-  DeadlineBadgeState.demain,
-  DeadlineBadgeState.derniereSemaine,
+  DeadlineBadgeState.overdue,
+  DeadlineBadgeState.today,
+  DeadlineBadgeState.tomorrow,
+  DeadlineBadgeState.lastWeek,
 ] as const;
 
 type UrgentDeadlineState = (typeof URGENT_STATES)[number];
@@ -39,12 +39,13 @@ export function deadlineBadgeState({
   daysLeft,
 }: Pick<Step, 'daysLeft'> & Partial<Pick<Step, 'status'>>): DeadlineBadgeState {
   if (status === StepStatus.FAIT) return DeadlineBadgeState.fait;
-  if (status === StepStatus.NON_APPLICABLE) return DeadlineBadgeState.sansObjet;
-  if (daysLeft === null) return DeadlineBadgeState.dateAVenir;
-  if (daysLeft < 0) return DeadlineBadgeState.enRetard;
-  if (daysLeft === 0) return DeadlineBadgeState.aujourdhui;
-  if (daysLeft === 1) return DeadlineBadgeState.demain;
+  if (status === StepStatus.NON_APPLICABLE)
+    return DeadlineBadgeState.nonApplicable;
+  if (daysLeft === null) return DeadlineBadgeState.upcomingDate;
+  if (daysLeft < 0) return DeadlineBadgeState.overdue;
+  if (daysLeft === 0) return DeadlineBadgeState.today;
+  if (daysLeft === 1) return DeadlineBadgeState.tomorrow;
   if (daysLeft <= DEADLINE_URGENT_THRESHOLD_DAYS)
-    return DeadlineBadgeState.derniereSemaine;
-  return DeadlineBadgeState.norme;
+    return DeadlineBadgeState.lastWeek;
+  return DeadlineBadgeState.normal;
 }

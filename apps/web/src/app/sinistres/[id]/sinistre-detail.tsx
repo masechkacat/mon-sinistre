@@ -7,8 +7,8 @@ import { StepKind, StepStatus } from '@mon-sinistre/contracts';
 import { PageContainer } from '@/components/page-container';
 import { DeclarationDeadlineBlock } from '@/components/plan/declaration-deadline-block';
 import { DeclarationStrip } from '@/components/plan/declaration-strip';
-import { DossierEntete } from '@/components/plan/dossier-entete';
-import { DossierFeuille } from '@/components/plan/dossier-feuille';
+import { DossierHeader } from '@/components/plan/dossier-header';
+import { DossierSheet } from '@/components/plan/dossier-sheet';
 import { PlanList } from '@/components/plan/plan-list';
 import { RequestError } from '@/components/request-error';
 import { AlertDialog, AlertDialogContent } from '@/components/ui/alert-dialog';
@@ -22,12 +22,12 @@ import {
 } from '@/lib/api/sinistres';
 import { queryKeys } from '@/lib/api/keys';
 import { useSessionGuard } from '@/lib/api/use-session-guard';
-import { chronologiePoints } from '@/lib/dossier-chronologie';
+import { timelinePoints } from '@/lib/dossier-timeline';
 import { dossierTitle } from '@/lib/dossier-title';
 
 interface StepMarkRequest {
   stepId: string;
-  etape: string;
+  stepName: string;
   status: StepMark;
 }
 
@@ -67,7 +67,7 @@ export function SinistreDetailView({ id }: { id: string }) {
         focusAfterMark.current = null;
       }
     },
-    onError: () => setAnnouncement(fr.sinistres.detail.marquageEchec),
+    onError: () => setAnnouncement(fr.sinistres.detail.markFailure),
   });
   const sinistre = query.data;
 
@@ -98,10 +98,10 @@ export function SinistreDetailView({ id }: { id: string }) {
 
       {sinistre ? (
         <>
-          <DossierEntete
+          <DossierHeader
             title={dossierTitle(sinistre)}
             status={sinistre.status}
-            points={chronologiePoints(sinistre)}
+            points={timelinePoints(sinistre)}
             badge={
               sinistre.declarationDeadline ? (
                 <DeclarationDeadlineBlock
@@ -111,7 +111,7 @@ export function SinistreDetailView({ id }: { id: string }) {
             }
           />
 
-          <DossierFeuille>
+          <DossierSheet>
             <PlanList
               steps={sinistre.steps}
               declaration={
@@ -134,12 +134,12 @@ export function SinistreDetailView({ id }: { id: string }) {
               onMark={(step, mark) =>
                 markMutation.mutate({
                   stepId: step.id,
-                  etape: step.name,
+                  stepName: step.name,
                   status: mark,
                 })
               }
             />
-          </DossierFeuille>
+          </DossierSheet>
 
           <SuppressionSection sinistreId={id} />
         </>
@@ -149,7 +149,7 @@ export function SinistreDetailView({ id }: { id: string }) {
 }
 
 function SuppressionSection({ sinistreId }: { sinistreId: string }) {
-  const copy = fr.sinistres.detail.suppression;
+  const copy = fr.sinistres.detail.deletion;
   const router = useRouter();
   const queryClient = useQueryClient();
   const mutation = useMutation({
@@ -167,23 +167,23 @@ function SuppressionSection({ sinistreId }: { sinistreId: string }) {
     <section className="border-t pt-8">
       <AlertDialog.Root>
         <AlertDialog.Trigger render={<Button variant="outline" size="touch" />}>
-          {copy.ouvrir}
+          {copy.open}
         </AlertDialog.Trigger>
         <AlertDialogContent>
           <AlertDialog.Title className="text-xl font-semibold">
-            {copy.titre}
+            {copy.title}
           </AlertDialog.Title>
           <AlertDialog.Description className="text-base">
-            {copy.texte}
+            {copy.text}
           </AlertDialog.Description>
           <p role="alert" className="min-h-5 text-sm text-destructive">
-            {mutation.isError ? copy.echec : null}
+            {mutation.isError ? copy.failure : null}
           </p>
           <div className="flex flex-wrap justify-end gap-2">
             <AlertDialog.Close
               render={<Button variant="outline" size="touch" />}
             >
-              {copy.annuler}
+              {copy.cancel}
             </AlertDialog.Close>
             <Button
               variant="outline"
@@ -191,7 +191,7 @@ function SuppressionSection({ sinistreId }: { sinistreId: string }) {
               disabled={mutation.isPending}
               onClick={() => mutation.mutate()}
             >
-              {copy.confirmer}
+              {copy.confirm}
             </Button>
           </div>
         </AlertDialogContent>
@@ -200,9 +200,9 @@ function SuppressionSection({ sinistreId }: { sinistreId: string }) {
   );
 }
 
-function markAnnouncement({ etape, status }: StepMarkRequest) {
-  const copy = fr.sinistres.detail.annonce;
-  if (status === StepStatus.FAIT) return copy.fait(etape);
-  if (status === StepStatus.NON_APPLICABLE) return copy.nonApplicable(etape);
-  return copy.annule(etape);
+function markAnnouncement({ stepName, status }: StepMarkRequest) {
+  const copy = fr.sinistres.detail.announcement;
+  if (status === StepStatus.FAIT) return copy.fait(stepName);
+  if (status === StepStatus.NON_APPLICABLE) return copy.nonApplicable(stepName);
+  return copy.undone(stepName);
 }

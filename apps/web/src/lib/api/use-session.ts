@@ -1,10 +1,12 @@
 'use client';
 
-import { useEffect, useState, useSyncExternalStore } from 'react';
+import { useEffect, useSyncExternalStore } from 'react';
 import {
   getAccessToken,
+  hasRefreshAnswered,
   refreshSession,
   subscribeAccessToken,
+  subscribeRefreshAnswered,
 } from './session';
 
 export type SessionStatus = 'checking' | 'authenticated' | 'anonymous';
@@ -24,21 +26,14 @@ export function useSession(): SessionStatus {
     getAccessToken,
     () => null,
   );
-  const [answered, setAnswered] = useState(false);
+  const answered = useSyncExternalStore(
+    subscribeRefreshAnswered,
+    hasRefreshAnswered,
+    () => false,
+  );
 
   useEffect(() => {
-    let cancelled = false;
-
-    async function check() {
-      if (!getAccessToken()) await refreshSession();
-      if (!cancelled) setAnswered(true);
-    }
-
-    check();
-
-    return () => {
-      cancelled = true;
-    };
+    if (!getAccessToken()) void refreshSession();
   }, []);
 
   if (token) return 'authenticated';

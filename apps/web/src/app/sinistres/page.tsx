@@ -1,9 +1,9 @@
 import type { Metadata } from 'next';
 import { fr } from '@/i18n/fr';
-import { SinistresListe } from './sinistres-liste';
+import { SinistresList } from './sinistres-list';
 
-export const metadata: Metadata = { title: fr.sinistres.liste.page.title };
+export const metadata: Metadata = { title: fr.sinistres.list.page.title };
 
 export default function SinistresPage() {
-  return <SinistresListe />;
+  return <SinistresList />;
 }

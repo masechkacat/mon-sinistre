@@ -13,14 +13,14 @@ test('the days left pick the state, the urgency threshold being its upper bound'
     deadlineBadgeState({ status: StepStatus.A_FAIRE, daysLeft });
 
   expect(state(DEADLINE_URGENT_THRESHOLD_DAYS + 1)).toBe(
-    DeadlineBadgeState.norme,
+    DeadlineBadgeState.normal,
   );
   expect(state(DEADLINE_URGENT_THRESHOLD_DAYS)).toBe(
-    DeadlineBadgeState.derniereSemaine,
+    DeadlineBadgeState.lastWeek,
   );
-  expect(state(1)).toBe(DeadlineBadgeState.demain);
-  expect(state(0)).toBe(DeadlineBadgeState.aujourdhui);
-  expect(state(-1)).toBe(DeadlineBadgeState.enRetard);
+  expect(state(1)).toBe(DeadlineBadgeState.tomorrow);
+  expect(state(0)).toBe(DeadlineBadgeState.today);
+  expect(state(-1)).toBe(DeadlineBadgeState.overdue);
 });
 
 test('a done step is done even with its date in the past', () => {
@@ -32,18 +32,16 @@ test('a done step is done even with its date in the past', () => {
 test('a not-applicable step is out of scope whatever its date', () => {
   expect(
     deadlineBadgeState({ status: StepStatus.NON_APPLICABLE, daysLeft: 2 }),
-  ).toBe(DeadlineBadgeState.sansObjet);
+  ).toBe(DeadlineBadgeState.nonApplicable);
 });
 
 test('a step whose anchor has not happened yet has its date to come', () => {
   expect(
     deadlineBadgeState({ status: StepStatus.A_VENIR, daysLeft: null }),
-  ).toBe(DeadlineBadgeState.dateAVenir);
+  ).toBe(DeadlineBadgeState.upcomingDate);
 });
 
 test('the declaration deadline, which is no step, is placed by its days left alone', () => {
-  expect(deadlineBadgeState({ daysLeft: 14 })).toBe(DeadlineBadgeState.norme);
-  expect(deadlineBadgeState({ daysLeft: -1 })).toBe(
-    DeadlineBadgeState.enRetard,
-  );
+  expect(deadlineBadgeState({ daysLeft: 14 })).toBe(DeadlineBadgeState.normal);
+  expect(deadlineBadgeState({ daysLeft: -1 })).toBe(DeadlineBadgeState.overdue);
 });

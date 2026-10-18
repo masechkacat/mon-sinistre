@@ -1,10 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
-import type {
-  IsoDate,
-  RemindersPreference,
-  RisqueCatnat,
-} from '@mon-sinistre/contracts';
+import { RisqueCatnat } from '@mon-sinistre/contracts';
+import type { IsoDate, RemindersPreference } from '@mon-sinistre/contracts';
+import { enumValue } from '../common/enum-value.js';
 import { errorSummary, stackOf } from 'src/common/error-report.js';
 import {
   generateSecureToken,
@@ -223,7 +221,8 @@ export class RemindersService {
       const dossier: MailDossier = recipient.sinistres.get(row.sinistre.id) ?? {
         id: row.sinistre.id,
         commune,
-        risque: fr.sinistres.risques[row.sinistre.risque as RisqueCatnat],
+        risque:
+          fr.sinistres.risques[enumValue(RisqueCatnat, row.sinistre.risque)],
         eventDate: dateToIsoDate(row.sinistre.eventDate),
         steps: [],
       };

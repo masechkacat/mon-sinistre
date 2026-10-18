@@ -7,7 +7,7 @@ import {
 } from '../../src/app/test-plan/cases';
 import { formatDateShortFr } from '../../src/i18n/date';
 import { fr } from '../../src/i18n/fr';
-import { conteneurLabel } from '../../src/lib/plan-conteneur';
+import { containerLabel } from '../../src/lib/plan-container';
 import { gotoPage, testPlan } from '../support/pages';
 
 const copy = fr.sinistres.detail;
@@ -15,25 +15,25 @@ const badgeCopy = fr.deadlineBadge;
 
 const actions = planCases.filter(({ kind }) => kind === StepKind.ACTION);
 
-const feuille = (page: Page, mode: 'lecture' | 'edition') =>
+const planSheet = (page: Page, mode: 'lecture' | 'edition') =>
   page.getByTestId(`plan-${mode}`);
 // The plan itself, not the row of what is behind it: both are lists on the
 // same sheet.
-const etapes = (sheet: Locator) =>
+const planList = (sheet: Locator) =>
   sheet.getByRole('list', { name: copy.timelineLabel });
 const strip = (sheet: Locator, step: StepView) =>
-  etapes(sheet).getByRole('listitem').filter({ hasText: step.name });
-const faits = (sheet: Locator) => sheet.locator('[data-slot="plan-fait"]');
-const signet = (sheet: Locator) =>
-  sheet.locator('[data-slot="etape-en-cours"]');
+  planList(sheet).getByRole('listitem').filter({ hasText: step.name });
+const doneRow = (sheet: Locator) => sheet.locator('[data-slot="plan-done"]');
+const bookmarkOf = (sheet: Locator) =>
+  sheet.locator('[data-slot="current-step"]');
 
 test('read mode: the plan is a list and holds no button at all', async ({
   page,
 }) => {
   await gotoPage(page, testPlan);
 
-  const sheet = feuille(page, 'lecture');
-  await expect(etapes(sheet).getByRole('listitem')).toHaveCount(
+  const sheet = planSheet(page, 'lecture');
+  await expect(planList(sheet).getByRole('listitem')).toHaveCount(
     planCases.length,
   );
   await expect(sheet.getByRole('button')).toHaveCount(0);
@@ -45,10 +45,10 @@ test('a container names what will go in it and is offered no mark, in either mod
   await gotoPage(page, testPlan);
 
   for (const mode of ['lecture', 'edition'] as const) {
-    const sheet = feuille(page, mode);
+    const sheet = planSheet(page, mode);
     for (const step of planCases) {
-      const label = conteneurLabel(step.kind);
-      const box = strip(sheet, step).locator('[data-slot="plan-conteneur"]');
+      const label = containerLabel(step.kind);
+      const box = strip(sheet, step).locator('[data-slot="plan-container"]');
       if (label === null) {
         await expect(box, `${mode} / ${step.name}`).toHaveCount(0);
         continue;
@@ -64,8 +64,8 @@ test('a container names what will go in it and is offered no mark, in either mod
   }
   // The marks the editing mode does carry belong to the action steps alone.
   await expect(
-    etapes(feuille(page, 'edition')).getByRole('button', {
-      name: copy.marquer.fait,
+    planList(planSheet(page, 'edition')).getByRole('button', {
+      name: copy.mark.fait,
     }),
   ).toHaveCount(actions.length);
 });
@@ -75,16 +75,16 @@ test('each step keeps its date, its reason for having none and its source — an
 }) => {
   await gotoPage(page, testPlan);
 
-  const sheet = feuille(page, 'lecture');
+  const sheet = planSheet(page, 'lecture');
   for (const step of planCases) {
     const ligne = strip(sheet, step);
     if (step.plannedDate) {
       await expect(ligne, step.name).toContainText(
-        badgeCopy.prevueLe(formatDateShortFr(step.plannedDate)),
+        badgeCopy.plannedOn(formatDateShortFr(step.plannedDate)),
       );
     } else {
       await expect(ligne, step.name).toContainText(
-        step.anchor ? copy.attentePar[step.anchor] : copy.sansDateNiAncre,
+        step.anchor ? copy.waitingFor[step.anchor] : copy.noDateNoAnchor,
       );
     }
     if (step.source) {
@@ -95,7 +95,7 @@ test('each step keeps its date, its reason for having none and its source — an
   // word of the date line.
   await expect(page.locator('[data-slot="deadline-badge"]')).toHaveCount(0);
   await expect(strip(sheet, planCases[0]), planCases[0].name).toContainText(
-    badgeCopy.enRetard,
+    badgeCopy.overdue,
   );
 });
 
@@ -106,32 +106,29 @@ test('the bookmark names the step in hand and counts what is already behind', as
 
   // The nearest step that has a date: the overdue one is behind, and the ones
   // anchored on a date still to come have no date at all.
-  const enCours = planCases[1].name;
+  const current = planCases[1].name;
   for (const [mode, cases] of [
     ['lecture', planCases],
     ['edition', planClosCases],
   ] as const) {
-    const bookmark = signet(feuille(page, mode));
-    const faites = cases.filter(
+    const bookmark = bookmarkOf(planSheet(page, mode));
+    const done = cases.filter(
       ({ status }) => status === StepStatus.FAIT,
     ).length;
     // A step set aside is counted neither as done nor out of the plan, so the
     // edition sheet has one more step in its total than marks in it.
     await expect(bookmark, mode).toContainText(
-      copy.etapeEnCours.progression(faites, cases.length),
+      copy.currentStep.count(done, cases.length),
     );
-    await expect(bookmark, mode).toContainText(enCours);
-    const barre = bookmark.getByRole('progressbar');
-    await expect(barre, mode).toHaveAttribute('aria-valuenow', `${faites}`);
-    await expect(barre, mode).toHaveAttribute(
-      'aria-valuemax',
-      `${cases.length}`,
-    );
+    await expect(bookmark, mode).toContainText(current);
+    const bar = bookmark.getByRole('progressbar');
+    await expect(bar, mode).toHaveAttribute('aria-valuenow', `${done}`);
+    await expect(bar, mode).toHaveAttribute('aria-valuemax', `${cases.length}`);
   }
   // The tab hangs from the top edge of the sheet, whatever margin the sheet
   // has: the two read the same token.
-  const sheet = feuille(page, 'lecture');
-  const tab = signet(sheet).getByText(copy.etapeEnCours.titre);
+  const sheet = planSheet(page, 'lecture');
+  const tab = bookmarkOf(sheet).getByText(copy.currentStep.title);
   const [sheetBox, tabBox] = await Promise.all([
     sheet.boundingBox(),
     tab.locator('xpath=..').boundingBox(),
@@ -144,7 +141,7 @@ test('a plan with nothing settled yet draws no row of what is behind', async ({
 }) => {
   await gotoPage(page, testPlan);
 
-  await expect(faits(feuille(page, 'lecture'))).toHaveCount(0);
+  await expect(doneRow(planSheet(page, 'lecture'))).toHaveCount(0);
 });
 
 test('a settled step leaves the plan for the row of what is behind, which keeps the plan order', async ({
@@ -152,8 +149,8 @@ test('a settled step leaves the plan for the row of what is behind, which keeps 
 }) => {
   await gotoPage(page, testPlan);
 
-  const sheet = feuille(page, 'edition');
-  const ligne = faits(sheet);
+  const sheet = planSheet(page, 'edition');
+  const ligne = doneRow(sheet);
   await expect(ligne.getByRole('listitem')).toHaveCount(closCases.length);
   for (const [index, step] of closCases.entries()) {
     const item = ligne.getByRole('listitem').nth(index);
@@ -162,9 +159,9 @@ test('a settled step leaves the plan for the row of what is behind, which keeps 
     // Set aside is said in words next to the name: under the heading alone
     // it would read as done.
     if (step.status === StepStatus.NON_APPLICABLE) {
-      await expect(item, step.name).toContainText(badgeCopy.sansObjet);
+      await expect(item, step.name).toContainText(badgeCopy.nonApplicable);
     } else {
-      await expect(item, step.name).not.toContainText(badgeCopy.sansObjet);
+      await expect(item, step.name).not.toContainText(badgeCopy.nonApplicable);
     }
   }
 });
@@ -174,19 +171,19 @@ test('editing mode: an action step is marked from the plan and unmarked from the
 }) => {
   await gotoPage(page, testPlan);
 
-  const sheet = feuille(page, 'edition');
+  const sheet = planSheet(page, 'edition');
   const [action] = actions;
   const marque = page.getByTestId('dernier-marquage');
 
   await strip(sheet, action)
-    .getByRole('button', { name: copy.marquer.fait })
+    .getByRole('button', { name: copy.mark.fait })
     .click();
   await expect(marque).toHaveText(`${action.order}:${StepStatus.FAIT}`);
 
-  await faits(sheet)
+  await doneRow(sheet)
     .getByRole('listitem')
     .first()
-    .getByRole('button', { name: copy.marquer.annuler })
+    .getByRole('button', { name: copy.mark.cancel })
     .click();
   await expect(marque).toHaveText(`${closCases[0].order}:`);
 });

@@ -36,8 +36,7 @@ const EVENT_DATE = toIsoDate('2026-09-20');
 
 // By its stamp, not by the words: the plan of the seeded template explains the
 // arrêté in its own steps, and the status word is in those sentences too.
-const statutTampon = (page: Page) =>
-  page.locator('[data-slot="statut-tampon"]');
+const statutTampon = (page: Page) => page.locator('[data-slot="status-stamp"]');
 
 /** The token the API mailed to `email`, once its .txt has reached the outbox. */
 async function confirmationTokenFor(
@@ -123,38 +122,33 @@ test('from the home page of a commune without an arrêté to the dossier saved b
   page,
 }) => {
   const email = `dossier-${randomUUID()}@example.fr`;
-  const titre = fr.sinistres.liste.dossierLabel(
-    RISQUE_LABEL,
-    SANS_ARRETE.label,
-  );
+  const title = fr.sinistres.list.dossierLabel(RISQUE_LABEL, SANS_ARRETE.label);
 
   await page.goto('/');
   await selectCommune(page, fr.home.communeLabel, SANS_ARRETE.name, /Lyon/);
   await expect(
-    page.getByText(fr.reponseCommune.aucun(SANS_ARRETE.name)),
+    page.getByText(fr.communeAnswer.none(SANS_ARRETE.name)),
   ).toBeVisible();
 
-  await page.getByRole('link', { name: fr.reponseCommune.preparer }).click();
+  await page.getByRole('link', { name: fr.communeAnswer.prepare }).click();
   // The commune travelled in the address; the two other parameters are asked
   // for right here, without an account.
   await page.getByRole('radio', { name: RISQUE_LABEL }).click();
   await page.getByLabel(fr.sinistres.nouveau.eventDateLabel).fill(EVENT_DATE);
-  await page
-    .getByRole('button', { name: fr.dossier.formulaire.submit })
-    .click();
+  await page.getByRole('button', { name: fr.dossier.form.submit }).click();
 
   await expect(
-    page.getByRole('heading', { level: 1, name: titre }),
+    page.getByRole('heading', { level: 1, name: title }),
   ).toBeVisible();
   await expect(statutTampon(page)).toHaveText(
-    fr.sinistres.statut[SinistreStatus.AVANT_ARRETE],
+    fr.sinistres.status[SinistreStatus.AVANT_ARRETE],
   );
 
-  await page.getByRole('button', { name: fr.dossier.enregistrer }).click();
+  await page.getByRole('button', { name: fr.dossier.save }).click();
   // Saving without a session asks for one — and the three parameters are on
   // the registration page, in words rather than as the codes of the address.
-  await expect(page.getByTestId('dossier-resume')).toHaveText(
-    fr.dossier.resume([
+  await expect(page.getByTestId('dossier-summary')).toHaveText(
+    fr.dossier.summary([
       RISQUE_LABEL,
       SANS_ARRETE.label,
       formatDateFr(EVENT_DATE),
@@ -169,7 +163,7 @@ test('from the home page of a commune without an arrêté to the dossier saved b
   await expect(page).toHaveURL(/\/sinistres\/[0-9a-f-]{36}$/);
 
   await expect(
-    page.getByRole('heading', { level: 1, name: titre }),
+    page.getByRole('heading', { level: 1, name: title }),
   ).toBeVisible();
   // The date reappears as the planned day of the first step, which is
   // anchored on the event itself (STEP_TEMPLATE_SEED, order 1).
@@ -177,7 +171,7 @@ test('from the home page of a commune without an arrêté to the dossier saved b
     name: fr.sinistres.detail.timelineLabel,
   });
   await expect(timeline.getByRole('listitem').first()).toContainText(
-    fr.deadlineBadge.prevueLe(formatDateShortFr(EVENT_DATE)),
+    fr.deadlineBadge.plannedOn(formatDateShortFr(EVENT_DATE)),
   );
 });
 
@@ -192,14 +186,14 @@ test('from the home page of a commune with an arrêté to its published dossier'
     /Marseille/,
   );
   await expect(
-    page.getByText(fr.reponseCommune.trouves(1, AVEC_ARRETE.name)),
+    page.getByText(fr.communeAnswer.found(1, AVEC_ARRETE.name)),
   ).toBeVisible();
 
   const carte = page.locator('[data-testid^="arrete-"]');
   await expect(carte).toHaveCount(1);
   await expect(
     carte.getByText(
-      fr.reponseCommune.periode(
+      fr.communeAnswer.period(
         formatDateFr(E2E_ARRETE.eventStart),
         formatDateFr(E2E_ARRETE.eventEnd),
       ),
@@ -210,21 +204,21 @@ test('from the home page of a commune with an arrêté to its published dossier'
   await expect(carte.locator('[data-slot="deadline-badge"]')).toBeVisible();
 
   await carte
-    .getByRole('link', { name: fr.reponseCommune.ouvrirPour(RISQUE_LABEL) })
+    .getByRole('link', { name: fr.communeAnswer.openFor(RISQUE_LABEL) })
     .click();
 
   await expect(
     page.getByRole('heading', {
       level: 1,
-      name: fr.sinistres.liste.dossierLabel(RISQUE_LABEL, AVEC_ARRETE.label),
+      name: fr.sinistres.list.dossierLabel(RISQUE_LABEL, AVEC_ARRETE.label),
     }),
   ).toBeVisible();
   await expect(statutTampon(page)).toHaveText(
-    fr.sinistres.statut[SinistreStatus.ARRETE_PUBLIE],
+    fr.sinistres.status[SinistreStatus.ARRETE_PUBLIE],
   );
   // The button carried the first day of the period, not the day of the visit:
   // the chronology of the dossier opens on it.
   await expect(
-    page.getByRole('list', { name: fr.sinistres.detail.chronologie.label }),
+    page.getByRole('list', { name: fr.sinistres.detail.timeline.label }),
   ).toContainText(formatDateShortFr(E2E_ARRETE.eventStart));
 });

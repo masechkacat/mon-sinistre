@@ -15,8 +15,8 @@
 
 **Решение:** лист — `data-surface="papier"` (фон `--papier`), полосы шагов —
 `color-mix(in oklch, var(--papier), var(--encre) 5%)`, земля — `--fond`.
-Загнутый угол и мягкая тень — CSS на контейнере листа (`DossierFeuille`,
-`src/components/plan/dossier-feuille.tsx`), без картинок.
+Загнутый угол и мягкая тень — CSS на контейнере листа (`DossierSheet`,
+`src/components/plan/dossier-sheet.tsx`), без картинок.
 **Почему:** в макете три тона, в палитре два; подмес чернил в бумагу уже
 применяется в кнопке `secondary` (`button.tsx`) и наследует контраст пары
 `papier`/`encre` (≥ 9:1 в обеих темах), тогда как новый токен потребовал бы
@@ -30,9 +30,9 @@
 
 ### Шапка: штемпель, хронология, бейдж
 
-**Решение:** `DossierEntete` получает три дочерних блока: `StatutTampon`
-(слово статуса из `fr.sinistres.statut`, рамка с `rotate(-3deg)`, как
-штемпель бейджа), `DossierChronologie` (четыре точки) и бейдж `hero`
+**Решение:** `DossierHeader` получает три дочерних блока: `StatusStamp`
+(слово статуса из `fr.sinistres.status`, рамка с `rotate(-3deg)`, как
+штемпель бейджа), `DossierTimeline` (четыре точки) и бейдж `hero`
 справа на десктопе, под заголовком на 320 px (`grid` с `sm:` брейкпойнтом).
 Точки хронологии и их источники:
 
@@ -50,14 +50,14 @@
 шаблона.
 **Отброшено:** расширение `GET /sinistres/:id` полем `arrete` — отдельное
 решение через `/decision`, когда понадобится дата на экране синистра.
-**Как применять:** `chronologiePoints(detail | apercu)` — чистая функция в
-`src/lib/dossier-chronologie.ts` с тестом без браузера
-(`tests/components/dossier-chronologie.spec.ts`); компонент только
+**Как применять:** `timelinePoints(detail | apercu)` — чистая функция в
+`src/lib/dossier-timeline.ts` с тестом без браузера
+(`tests/components/dossier-timeline.spec.ts`); компонент только
 рисует. Текущая точка — `aria-current="step"`.
 
 ### Закладка «Étape en cours» и прогресс
 
-**Решение:** `EtapeEnCours` над планом: имя шага из `nextUpcomingStep`
+**Решение:** `CurrentStep` над планом: имя шага из `nextUpcomingStep`
 (`src/lib/sinistre-timeline.ts`, уже есть), текст «N étapes faites sur M»
 и `<div role="progressbar" aria-valuenow={N} aria-valuemax={M}>` полосой
 `petrole`. N — шаги со `status === FAIT`, M — все шаги; `NON_APPLICABLE` не
@@ -65,7 +65,7 @@
 **Почему:** прогресс — мотивация, не блокировка (ТЗ § 3.4), одна формула в
 одном месте; `progressbar` даёт скринридеру число без второй фразы.
 **Отброшено:** `<progress>` — стилизуется плохо в обеих темах.
-**Как применять:** `progressionPlan(steps)` рядом с `nextUpcomingStep`,
+**Как применять:** `planProgress(steps)` рядом с `nextUpcomingStep`,
 тест в `tests/components/plan.spec.ts`.
 
 ### Полосы вместо карточек, бейджи только в шапке
@@ -91,7 +91,7 @@ semaine) или объяснение ожидания (`attentePar`), `SourceNot
 описанием и текстом `fr.dossier.conteneur[kind]`, без кнопок отметки в обоих
 режимах. Шаг-действие в режиме синистра несёт кнопки «Marquer comme fait» и
 «Non applicable» (как сейчас); шаги `FAIT` и `NON_APPLICABLE` уходят из
-списка в строку `FaitLigne` под планом: «Fait · 1 имя · 2 имя» с кнопкой
+списка в строку `DoneRow` под планом: «Fait · 1 имя · 2 имя» с кнопкой
 «Annuler ce choix» у каждого, кроме шага декларации — его путь назад
 «Effacer la date». `aria-current="step"` остаётся у ближайшего шага в
 списке.
@@ -107,7 +107,7 @@ semaine) или объяснение ожидания (`attentePar`), `SourceNot
 режиме синистра внутри неё форма даты из нынешней `DeclarationSection`
 (поле, «Enregistrer la date», ошибки, объявления) без собственного
 заголовка. Записанная дата закрывает шаг (API, research `sinistre-plan.md`
-«Контракт API»), и он уходит в `FaitLigne`, где его строка несёт «Fait le
+«Контракт API»), и он уходит в `DoneRow`, где его строка несёт «Fait le
 <дата>» и «Effacer la date». В режиме `/dossier` — только описание и
 ожидание даты.
 **Почему:** дата декларации — действие этого шага (ТЗ § 3.4 после 13.10);

@@ -2,7 +2,7 @@
 // authority, this only screens obviously incomplete input before the request
 // leaves the browser. Shared by every form with an email field — a second
 // copy would drift the moment one of them tightens or loosens it.
-export const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /**
  * Same required/invalid branching every email field in the app needs before

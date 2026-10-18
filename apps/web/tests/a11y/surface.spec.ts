@@ -45,7 +45,7 @@ async function gotoListe(page: Page, colorScheme: 'light' | 'dark') {
 }
 
 const newSinistreButton = (page: Page) =>
-  page.getByRole('link', { name: fr.sinistres.liste.newSinistre });
+  page.getByRole('link', { name: fr.sinistres.list.newSinistre });
 
 test('dark theme: the sheet keeps its ink, the ground gets « sur fond »', async ({
   page,
@@ -57,7 +57,7 @@ test('dark theme: the sheet keeps its ink, the ground gets « sur fond »', asyn
     'color',
     toRgb(dark['texte-sur-fond']),
   );
-  await expect(page.getByText(fr.sinistres.liste.lead)).toHaveCSS(
+  await expect(page.getByText(fr.sinistres.list.lead)).toHaveCSS(
     'color',
     toRgb(dark['secondaire-sur-fond']),
   );
@@ -93,7 +93,7 @@ test('light theme: the sheet rule changes nothing', async ({ page }) => {
     await expect(ink).toHaveCSS('color', toRgb(light.encre));
   }
   for (const secondary of [
-    page.getByText(fr.sinistres.liste.lead),
+    page.getByText(fr.sinistres.list.lead),
     page.locator(onSheet('.text-muted-foreground')),
   ]) {
     await expect(secondary).toHaveCSS('color', toRgb(light.secondaire));

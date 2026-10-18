@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState, type FormEvent } from 'react';
+import { useRef, useState, type SubmitEvent } from 'react';
 import {
   isIsoDate,
   type Commune,
@@ -9,7 +9,7 @@ import {
 import { CommuneSelect } from '@/components/commune-select';
 import { PageContainer } from '@/components/page-container';
 import { PageTitle } from '@/components/page-title';
-import { DossierExistant } from '@/components/plan/dossier-existant';
+import { ExistingDossier } from '@/components/plan/existing-dossier';
 import { RequestError } from '@/components/request-error';
 import {
   EventDateField,
@@ -61,7 +61,7 @@ export function SinistreNouveauForm() {
     if (mutation.isError) mutation.reset();
   };
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
     const nextCommuneError = commune
       ? undefined
@@ -105,10 +105,10 @@ export function SinistreNouveauForm() {
   }
 
   return (
-    <DossierExistant
+    <ExistingDossier
       conflict={conflict}
       onConfirmNew={confirmNew}
-      onCorriger={() => {
+      onEdit={() => {
         dismissConflict();
         focusFirstFieldError(formRef.current, {});
       }}
@@ -172,6 +172,6 @@ export function SinistreNouveauForm() {
           {requestFailed ? <RequestError /> : null}
         </form>
       </PageContainer>
-    </DossierExistant>
+    </ExistingDossier>
   );
 }

@@ -25,7 +25,7 @@ export const VERSEMENT_INDEMNITE_CODE = 'VERSEMENT_INDEMNITE';
 /** Those same five as a set: the délai they carry binds the insurer, not the
  * person — a property of the rule, which the reminder mail asks before it
  * suggests a relance instead of an action. */
-export const INSURER_RULE_CODES: readonly string[] = [
+const INSURER_RULE_CODES: readonly string[] = [
   INFORMATION_ASSUREUR_CODE,
   PROVISION_INDEMNITE_CODE,
   PROPOSITION_INDEMNISATION_CODE,

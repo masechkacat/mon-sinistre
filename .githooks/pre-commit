@@ -35,3 +35,5 @@ npm run test:tooling
 # Copier-coller : nouveau clone absent de .jscpd-baseline.json => refus.
 echo "pre-commit: npm run dup"
 npm run dup
+echo "pre-commit: npm run knip"
+npm run knip

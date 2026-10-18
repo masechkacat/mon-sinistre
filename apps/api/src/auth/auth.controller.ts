@@ -69,7 +69,7 @@ export const SESSION_RATE_LIMIT = { ttl: 60_000, limit: 30 } as const;
  * a confirmation link, both fit. Exported for the spec, which must not
  * restate the number.
  */
-export const AUTH_FORM_RATE_LIMIT = { ttl: 60_000, limit: 30 } as const;
+const AUTH_FORM_RATE_LIMIT = { ttl: 60_000, limit: 30 } as const;
 
 /**
  * Per-IP cap on the two endpoints that mail a third-party address (register,

@@ -2,10 +2,13 @@ import { defineConfig, globalIgnores } from 'eslint/config';
 import nextVitals from 'eslint-config-next/core-web-vitals';
 import nextTs from 'eslint-config-next/typescript';
 import i18next from 'eslint-plugin-i18next';
+import playwright from 'eslint-plugin-playwright';
+import reactYouMightNotNeedAnEffect from 'eslint-plugin-react-you-might-not-need-an-effect';
 
 export default defineConfig([
   ...nextVitals,
   ...nextTs,
+  reactYouMightNotNeedAnEffect.configs.strict,
   {
     files: ['src/**/*.tsx'],
     plugins: { i18next },
@@ -28,5 +31,90 @@ export default defineConfig([
     },
   },
   { files: ['src/i18n/**'], rules: { 'i18next/no-literal-string': 'off' } },
+  {
+    // apps/web/CLAUDE.md, «Идентификаторы — английские»: the words the code
+    // was once named with. Domain terms and route-derived names are not here.
+    rules: {
+      'id-denylist': [
+        'error',
+        ...'titre texte etape etapes echec annuler ouvrir creer corriger preciser preparer revenir enregistrer enregistrement effacer requis refus sujet inchange conteneur contenu formulaire suppression doublon annonce marquer chargement courant passe valeur prochain seul autres aucun trouves demain aujourdhui retard delai verifiee periode apercu feuille tampon entete existant chronologie statut faites signet barre bouton champ adresse resultat alerte nombre mois debut reponse lien liste avancement enCours marge connecte retour choix erreur utilisateur envoi invalide ancien supprimer libelle saisie recherche choisi choisie'.split(
+          ' ',
+        ),
+      ],
+    },
+  },
+  {
+    // The three rules of apps/web/CLAUDE.md the linter can hold: requests go
+    // through src/lib/api (one place for loading, errors and the French
+    // message), dates through src/i18n/date.ts, logging only where a route
+    // handler answers for itself.
+    files: ['src/**'],
+    rules: {
+      'no-restricted-globals': [
+        'error',
+        {
+          name: 'fetch',
+          message: 'Requests go through src/lib/api (TanStack Query).',
+        },
+      ],
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector:
+            'CallExpression[callee.property.name=/^toLocale(Date|Time)?String$/]',
+          message: 'Dates are formatted by src/i18n/date.ts.',
+        },
+      ],
+      'no-console': 'error',
+    },
+  },
+  {
+    files: ['src/lib/api/**', 'src/i18n/date.ts'],
+    rules: { 'no-restricted-globals': 'off', 'no-restricted-syntax': 'off' },
+  },
+  {
+    files: ['src/**/route.ts', 'src/lib/one-click-unsubscribe.ts'],
+    rules: { 'no-console': 'off' },
+  },
+  {
+    // Type-aware rules: the four whose findings were all real in the probe
+    // of the full strictTypeChecked set; the rest of that set was noise.
+    files: ['src/**/*.{ts,tsx}', 'tests/**/*.ts', 'e2e/**/*.ts'],
+    // The virtual file tests/a11y/i18n.spec.ts lints is in no tsconfig.
+    ignores: ['src/app/lint-smoke.tsx'],
+    languageOptions: {
+      parserOptions: {
+        projectService: true,
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
+    rules: {
+      '@typescript-eslint/no-floating-promises': 'error',
+      '@typescript-eslint/no-misused-promises': 'error',
+      '@typescript-eslint/no-deprecated': 'error',
+      '@typescript-eslint/no-unnecessary-condition': 'error',
+    },
+  },
+  {
+    files: ['tests/**/*.ts', 'e2e/**/*.ts'],
+    plugins: { playwright },
+    rules: {
+      ...playwright.configs['flat/recommended'].rules,
+      // Edge cases live inside one test, in a loop over them (root
+      // CLAUDE.md, «Тестирование»), which these two rules forbid.
+      'playwright/no-conditional-in-test': 'off',
+      'playwright/no-conditional-expect': 'off',
+      'playwright/expect-expect': [
+        'error',
+        {
+          assertFunctionNames: [
+            'expectNoAxeViolations',
+            'expectFace',
+            'expectErrorTiedTo',
+          ],
+        },
+      ],
+    },
+  },
   globalIgnores(['.next/**', 'out/**', 'next-env.d.ts']),
 ]);

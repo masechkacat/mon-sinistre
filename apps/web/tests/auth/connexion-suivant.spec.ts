@@ -63,7 +63,7 @@ test('a dossier already open for the commune is asked about instead of being dou
   await login(page, CONNEXION_DOSSIER_PATH);
 
   await expect(
-    page.getByRole('link', { name: fr.sinistres.doublon.ouvrir }),
+    page.getByRole('link', { name: fr.sinistres.duplicate.open }),
   ).toHaveAttribute('href', `/sinistres/${SINISTRE_ID_2}`);
 });
 
@@ -140,7 +140,7 @@ test('a dossier the API refuses after the login is not retried, only taken back 
   await login(page, CONNEXION_DOSSIER_PATH);
 
   await expect(
-    page.getByRole('link', { name: fr.dossier.revenir }),
+    page.getByRole('link', { name: fr.dossier.back }),
   ).toHaveAttribute('href', DOSSIER_PATH);
   await expect(
     page.getByRole('button', { name: fr.serverError.retry }),
@@ -157,9 +157,7 @@ test('“revenir et corriger” after the login goes back to the dossier, still 
   ]);
 
   await login(page, CONNEXION_DOSSIER_PATH);
-  await page
-    .getByRole('button', { name: fr.sinistres.doublon.corriger })
-    .click();
+  await page.getByRole('button', { name: fr.sinistres.duplicate.edit }).click();
 
   await expect(page).toHaveURL(DOSSIER_PATH);
 });

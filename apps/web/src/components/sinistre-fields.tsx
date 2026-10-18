@@ -21,7 +21,7 @@ import { RISQUES } from '@/lib/risques';
 import { cn } from '@/lib/utils';
 
 /** The event period of an arrêté: the date is then refined inside it only. */
-export interface EventPeriode {
+export interface EventPeriod {
   min: IsoDate;
   max: IsoDate;
 }
@@ -114,12 +114,12 @@ export function EventDateField({
   value,
   onValueChange,
   error,
-  periode,
+  period,
 }: {
   value: string;
   onValueChange: (value: string) => void;
   error?: string;
-  periode?: EventPeriode;
+  period?: EventPeriod;
 }) {
   return (
     <Field.Root invalid={Boolean(error)} className="space-y-1.5">
@@ -132,18 +132,18 @@ export function EventDateField({
           deadline runs from whatever lands here, so the order is spelled
           out rather than left to the widget. */}
       <Field.Description className="block text-sm text-muted-foreground">
-        {periode
-          ? fr.sinistres.nouveau.eventDatePeriodeHint(
-              formatDateFr(periode.min),
-              formatDateFr(periode.max),
+        {period
+          ? fr.sinistres.nouveau.eventDatePeriodHint(
+              formatDateFr(period.min),
+              formatDateFr(period.max),
             )
           : fr.sinistres.nouveau.eventDateHint}
       </Field.Description>
       <Field.Control
         type="date"
         value={value}
-        min={periode?.min}
-        max={periode?.max}
+        min={period?.min}
+        max={period?.max}
         onChange={(event) => onValueChange(event.target.value)}
         className={cn(
           inputFrameClassName,
@@ -166,17 +166,17 @@ export function EventDateField({
  */
 export function validateEventDate(
   value: string,
-  periode?: EventPeriode,
+  period?: EventPeriod,
 ): string | undefined {
   if (!value) return fr.sinistres.nouveau.eventDateRequiredError;
   if (!isIsoDate(value)) return fr.sinistres.nouveau.eventDateInvalidError;
   // `min`/`max` on the control already keep the arrows and the picker inside
   // the period, but a typed-in date lands outside it — and reads as nothing
   // happening when the submit silently refuses it.
-  if (periode && (value < periode.min || value > periode.max)) {
-    return fr.sinistres.nouveau.eventDatePeriodeError(
-      formatDateFr(periode.min),
-      formatDateFr(periode.max),
+  if (period && (value < period.min || value > period.max)) {
+    return fr.sinistres.nouveau.eventDatePeriodError(
+      formatDateFr(period.min),
+      formatDateFr(period.max),
     );
   }
   return undefined;

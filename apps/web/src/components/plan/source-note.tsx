@@ -7,21 +7,21 @@ import { fr } from '@/i18n/fr';
 
 export function SourceNote({
   source,
-  sujet,
+  subject,
 }: {
   source: SourceReference;
-  sujet: string;
+  subject: string;
 }) {
   const copy = fr.sinistres.detail.source;
   return (
     <div className="space-y-1 text-sm">
       <p>
         <a href={source.url} className="underline underline-offset-4">
-          {copy.lien(sujet)}
+          {copy.link(subject)}
         </a>
       </p>
       <p className="text-muted-foreground">
-        {copy.verifiee(formatDateFr(source.verifiedAt))}
+        {copy.verified(formatDateFr(source.verifiedAt))}
       </p>
       {source.possiblyOutdated ? (
         <p className="font-semibold">

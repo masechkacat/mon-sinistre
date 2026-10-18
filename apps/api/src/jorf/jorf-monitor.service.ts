@@ -1,11 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { basename } from 'node:path';
 import { Injectable, Logger } from '@nestjs/common';
-import type {
-  IsoDate,
-  RisqueCatnat,
-  SinistreStatus,
-} from '@mon-sinistre/contracts';
+import { RisqueCatnat, SinistreStatus } from '@mon-sinistre/contracts';
+import type { IsoDate } from '@mon-sinistre/contracts';
+import { enumValue } from '../common/enum-value.js';
 import { Cron } from '@nestjs/schedule';
 import { errorSummary, stackOf } from 'src/common/error-report.js';
 import { runGuarded } from 'src/common/scheduled-cleanup.js';
@@ -270,7 +268,7 @@ function toMatchCandidate(sinistre: {
   return {
     id: sinistre.id,
     codeInsee: sinistre.codeInsee,
-    risque: sinistre.risque as RisqueCatnat,
+    risque: enumValue(RisqueCatnat, sinistre.risque),
     eventDate: dateToIsoDate(sinistre.eventDate),
   };
 }
@@ -912,10 +910,11 @@ export class JorfMonitorService {
     const declarationDate = current.declarationDate
       ? dateToIsoDate(current.declarationDate)
       : null;
+    const status = enumValue(SinistreStatus, current.status);
     return {
-      current: current.status as SinistreStatus,
+      current: status,
       next: sinistreStatus({
-        current: current.status as SinistreStatus,
+        current: status,
         link: { outcome },
         declarationDate,
       }),

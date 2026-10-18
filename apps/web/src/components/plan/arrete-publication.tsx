@@ -14,7 +14,7 @@ export function ArretePublication({
 }) {
   return (
     <>
-      <p>{fr.dossier.publieLe(formatDateFr(arrete.publishedAt))}</p>
+      <p>{fr.dossier.publishedOn(formatDateFr(arrete.publishedAt))}</p>
       <p>
         <a href={arrete.legifranceUrl} className="underline underline-offset-4">
           {fr.dossier.legifranceLink}

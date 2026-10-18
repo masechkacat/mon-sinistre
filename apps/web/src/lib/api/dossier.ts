@@ -33,12 +33,12 @@ export function fetchCommuneArretes(code: string) {
 }
 
 export function useDossierCommune(dossier: DossierInput) {
-  const apercu = useQueryClient().getQueryData<DossierApercu>(
+  const preview = useQueryClient().getQueryData<DossierApercu>(
     queryKeys.dossierApercu(
       dossier.codeInsee,
       dossier.risque,
       dossier.eventDate,
     ),
   );
-  return useCommuneByCode(dossier.codeInsee, apercu?.commune);
+  return useCommuneByCode(dossier.codeInsee, preview?.commune);
 }

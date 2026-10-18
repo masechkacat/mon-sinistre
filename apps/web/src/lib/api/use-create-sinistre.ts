@@ -13,7 +13,7 @@ import { createSinistre, sinistreConflictOf } from './sinistres';
 
 /**
  * Saves a dossier and opens it. `conflict` is the question the API asked back
- * (the `DossierExistant` screen) and `confirmNew` answers it with the same
+ * (the `ExistingDossier` screen) and `confirmNew` answers it with the same
  * request again, this time asking for a second dossier.
  *
  * The conflict lives in state rather than being read off `mutation.error`:

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { CurrentUserResponse } from '@mon-sinistre/contracts';
 import Link from 'next/link';
@@ -14,29 +14,17 @@ import { queryKeys } from '@/lib/api/keys';
 import { updateReminders } from '@/lib/api/reminders';
 import { clearSessionAndNavigate, endSession } from '@/lib/api/session';
 import { useSessionGuard } from '@/lib/api/use-session-guard';
-import { useFocusOnSuccess } from '@/lib/use-focus-on-success';
+import { focusOnMount } from '@/lib/focus-on-mount';
 
 /** Public landing page after account deletion — no session guard, there is
  * no account left to check one against. */
 const ACCOUNT_DELETED_PATH = '/compte-supprime';
+const DELETE_PANEL_ID = 'delete-account-confirm';
 
 export function EspacePersonnel() {
   const status = useSessionGuard();
   const [confirmingDelete, setConfirmingDelete] = useState(false);
-  const confirmPanelRef = useFocusOnSuccess(confirmingDelete);
   const deleteTriggerRef = useRef<HTMLButtonElement>(null);
-  // Disclosure pattern (ARIA APG): closing the panel must return focus to
-  // the control that opened it, or a keyboard/screen-reader user is
-  // stranded at <body>. `wasConfirmingRef` distinguishes "just closed" from
-  // "never opened" — the trigger has not mounted yet on first render, so an
-  // unconditional focus on `!confirmingDelete` would steal focus on load.
-  const wasConfirmingRef = useRef(false);
-  useEffect(() => {
-    if (!confirmingDelete && wasConfirmingRef.current) {
-      deleteTriggerRef.current?.focus();
-    }
-    wasConfirmingRef.current = confirmingDelete;
-  }, [confirmingDelete]);
 
   const userQuery = useQuery({
     queryKey: queryKeys.currentUser(),
@@ -91,7 +79,11 @@ export function EspacePersonnel() {
               {fr.compte.espacePersonnel.sinistresLink}
             </Link>
 
-            <Button type="button" size="touch" onClick={() => endSession()}>
+            <Button
+              type="button"
+              size="touch"
+              onClick={() => void endSession()}
+            >
               {fr.session.logout}
             </Button>
 
@@ -99,32 +91,33 @@ export function EspacePersonnel() {
               <RemindersSection enabled={userQuery.data.remindersEnabled} />
             ) : null}
 
-            <div className="space-y-3 border-t pt-6">
-              {!confirmingDelete ? (
-                // A plain button, not <Button>: it needs a real DOM ref to
-                // receive focus back when the panel below closes (see
-                // `wasConfirmingRef` above), and the wrapper component does not
-                // forward one — `buttonVariants` keeps the same look without
-                // re-deriving it.
-                <button
-                  ref={deleteTriggerRef}
-                  type="button"
-                  className={buttonVariants({
-                    variant: 'outline',
-                    size: 'touch',
-                  })}
-                  onClick={() => setConfirmingDelete(true)}
-                >
-                  {fr.compte.espacePersonnel.deleteAccount.button}
-                </button>
-              ) : (
+            <section className="space-y-3 border-t pt-6">
+              <h2 className="text-xl font-semibold">
+                {fr.compte.espacePersonnel.deleteAccount.heading}
+              </h2>
+              {/* Disclosure (ARIA APG): the trigger stays on the page while
+                  the panel is open, so closing it hands the focus back from
+                  the event itself — no node to wait for. */}
+              <Button
+                ref={deleteTriggerRef}
+                type="button"
+                variant="outline"
+                size="touch"
+                aria-expanded={confirmingDelete}
+                aria-controls={DELETE_PANEL_ID}
+                onClick={() => setConfirmingDelete((open) => !open)}
+              >
+                {fr.compte.espacePersonnel.deleteAccount.button}
+              </Button>
+              {confirmingDelete ? (
                 // Not `role="alert"` (Alert component): that role is for
                 // time-sensitive notifications, not for a panel that itself
                 // holds the interactive controls — `role="group"` plus an
                 // explicit accessible name is the pattern for a disclosure like
-                // this one, and it is what receives focus below.
+                // this one, and it is what receives focus on opening.
                 <div
-                  ref={confirmPanelRef}
+                  id={DELETE_PANEL_ID}
+                  ref={focusOnMount}
                   tabIndex={-1}
                   role="group"
                   aria-labelledby="delete-account-warning-title"
@@ -147,12 +140,15 @@ export function EspacePersonnel() {
                         .description
                     }
                   </p>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     <Button
                       type="button"
                       variant="outline"
                       size="touch"
-                      onClick={() => setConfirmingDelete(false)}
+                      onClick={() => {
+                        setConfirmingDelete(false);
+                        deleteTriggerRef.current?.focus();
+                      }}
                       disabled={deleteMutation.isPending}
                     >
                       {fr.compte.espacePersonnel.deleteAccount.cancel}
@@ -161,6 +157,9 @@ export function EspacePersonnel() {
                       type="button"
                       variant="outline"
                       size="touch"
+                      // The longest label of the app: on a 320 px screen it
+                      // has to wrap, where a button keeps its line.
+                      className="h-auto min-h-12 shrink whitespace-normal"
                       onClick={() => deleteMutation.mutate()}
                       disabled={deleteMutation.isPending}
                     >
@@ -171,8 +170,8 @@ export function EspacePersonnel() {
                   </div>
                   {deleteMutation.isError ? <RequestError /> : null}
                 </div>
-              )}
-            </div>
+              ) : null}
+            </section>
           </div>
         )}
       </div>

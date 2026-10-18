@@ -89,8 +89,8 @@ const legifranceLink = (page: Page) =>
 const planItem = (page: Page, step: StepView) =>
   page.getByRole('listitem').filter({ hasText: step.name });
 
-async function openDossier(page: Page, apercu: DossierApercu) {
-  await mockApercu(page, apercu);
+async function openDossier(page: Page, preview: DossierApercu) {
+  await mockApercu(page, preview);
   await page.goto(DOSSIER_PATH);
   await expect(
     page.getByRole('list', { name: copy.timelineLabel }),
@@ -100,26 +100,26 @@ async function openDossier(page: Page, apercu: DossierApercu) {
 test('arrêté attendu: the step anchored on the publication waits without a date, and no deadline is shown', async ({
   page,
 }) => {
-  const apercu = apercuFixture();
-  await openDossier(page, apercu);
+  const preview = apercuFixture();
+  await openDossier(page, preview);
 
   await expect(
-    page.getByRole('heading', { level: 1, name: dossierTitle(apercu) }),
+    page.getByRole('heading', { level: 1, name: dossierTitle(preview) }),
   ).toBeVisible();
   await expect(
-    page.getByText(fr.sinistres.statut[SinistreStatus.AVANT_ARRETE]),
+    page.getByText(fr.sinistres.status[SinistreStatus.AVANT_ARRETE]),
   ).toBeVisible();
   // The event the dossier is about is the first moment of the chronology, and
   // an arrêté still awaited is the second.
-  const chronologie = page.getByRole('list', {
-    name: copy.chronologie.label,
+  const timeline = page.getByRole('list', {
+    name: copy.timeline.label,
   });
-  await expect(chronologie).toContainText(formatDateShortFr(apercu.eventDate));
-  await expect(chronologie).toContainText(copy.chronologie.attendu);
+  await expect(timeline).toContainText(formatDateShortFr(preview.eventDate));
+  await expect(timeline).toContainText(copy.timeline.expected);
 
   const declaration = planItem(page, APERCU_STEPS.declaration);
   await expect(declaration).toContainText(
-    copy.attentePar.DATE_PUBLICATION_ARRETE,
+    copy.waitingFor.DATE_PUBLICATION_ARRETE,
   );
   await expect(heroBadge(page)).toHaveCount(0);
   await expect(legifranceLink(page)).toHaveCount(0);
@@ -131,10 +131,10 @@ test('arrêté publié: the publication date, its Légifrance link and the deadl
   await openDossier(page, apercuPublie());
 
   await expect(
-    page.getByText(fr.sinistres.statut[SinistreStatus.ARRETE_PUBLIE]),
+    page.getByText(fr.sinistres.status[SinistreStatus.ARRETE_PUBLIE]),
   ).toBeVisible();
   await expect(
-    page.getByText(fr.dossier.publieLe(formatDateFr(ARRETE.publishedAt))),
+    page.getByText(fr.dossier.publishedOn(formatDateFr(ARRETE.publishedAt))),
   ).toBeVisible();
   await expect(legifranceLink(page)).toHaveAttribute(
     'href',
@@ -143,10 +143,10 @@ test('arrêté publié: the publication date, its Légifrance link and the deadl
 
   await expect(deadlineHeading(page)).toBeVisible();
   await expect(heroBadge(page)).toContainText(
-    badgeCopy.compteARebours(DEADLINE.daysLeft),
+    badgeCopy.countdown(DEADLINE.daysLeft),
   );
   await expect(planItem(page, APERCU_STEPS.declaration)).toContainText(
-    badgeCopy.prevueLe(formatDateShortFr(DEADLINE.date)),
+    badgeCopy.plannedOn(formatDateShortFr(DEADLINE.date)),
   );
 });
 
@@ -156,7 +156,7 @@ test('arrêté refusé: the refusal is named in words, with a link to the arrêt
   await openDossier(page, APERCU_REFUSE);
 
   await expect(
-    page.getByText(fr.sinistres.statut[SinistreStatus.ARRETE_REFUSE]),
+    page.getByText(fr.sinistres.status[SinistreStatus.ARRETE_REFUSE]),
   ).toBeVisible();
   await expect(legifranceLink(page)).toHaveAttribute(
     'href',
@@ -175,13 +175,13 @@ test('an expired deadline is named expired in words, with no count of the days p
   await openDossier(page, apercuPublie(DEADLINE_EXPIRE));
 
   await expect(deadlineHeading(page)).toBeVisible();
-  await expect(page.locator('[data-slot="delai-expire"]')).toHaveText(
-    fr.dossier.delaiExpire,
+  await expect(page.locator('[data-slot="deadline-expired"]')).toHaveText(
+    fr.dossier.deadlineExpired,
   );
-  expect(fr.dossier.delaiExpire).not.toMatch(/\d/);
+  expect(fr.dossier.deadlineExpired).not.toMatch(/\d/);
   await expect(heroBadge(page)).toHaveCount(0);
   await expect(planItem(page, APERCU_STEPS.declaration)).not.toContainText(
-    badgeCopy.compteARebours(DEADLINE_EXPIRE.daysLeft),
+    badgeCopy.countdown(DEADLINE_EXPIRE.daysLeft),
   );
 });
 
@@ -191,11 +191,11 @@ test('the containers are shown empty, and the page carries one single action', a
   await openDossier(page, apercuFixture());
 
   await expect(
-    planItem(page, APERCU_STEPS.photos).locator('[data-slot="plan-conteneur"]'),
-  ).toHaveText(fr.dossier.conteneur[StepKind.PHOTOS]);
+    planItem(page, APERCU_STEPS.photos).locator('[data-slot="plan-container"]'),
+  ).toHaveText(fr.dossier.container[StepKind.PHOTOS]);
   const declaration = planItem(page, APERCU_STEPS.declaration);
-  await expect(declaration.locator('[data-slot="plan-conteneur"]')).toHaveText(
-    fr.dossier.conteneur[StepKind.DECLARATION],
+  await expect(declaration.locator('[data-slot="plan-container"]')).toHaveText(
+    fr.dossier.container[StepKind.DECLARATION],
   );
   // The déclaration strip is read-only here: no date is stored to be recorded
   // until the dossier is saved.
@@ -203,7 +203,7 @@ test('the containers are shown empty, and the page carries one single action', a
 
   await expect(page.getByRole('button')).toHaveCount(1);
   await expect(
-    page.getByRole('button', { name: fr.dossier.enregistrer }),
+    page.getByRole('button', { name: fr.dossier.save }),
   ).toBeVisible();
 });
 
@@ -213,7 +213,7 @@ test('with no session, saving the dossier carries its three parameters to the re
   await mockNoSession(page);
   await openDossier(page, apercuFixture());
 
-  await page.getByRole('button', { name: fr.dossier.enregistrer }).click();
+  await page.getByRole('button', { name: fr.dossier.save }).click();
 
   await expect(page).toHaveURL(dossierPath('/inscription', APERCU_PARAMS));
 });
@@ -227,7 +227,7 @@ test('a refresh that gets no answer reports a failure rather than asking to regi
   );
   await openDossier(page, apercuFixture());
 
-  await page.getByRole('button', { name: fr.dossier.enregistrer }).click();
+  await page.getByRole('button', { name: fr.dossier.save }).click();
 
   await expect(page.getByTestId('request-error')).toBeVisible();
   await expect(page).toHaveURL(DOSSIER_PATH);
@@ -242,7 +242,7 @@ test('with a session, the same button saves the dossier and opens it as a sinist
   ]);
   await openDossier(page, apercuFixture());
 
-  await page.getByRole('button', { name: fr.dossier.enregistrer }).click();
+  await page.getByRole('button', { name: fr.dossier.save }).click();
 
   await expect(page).toHaveURL(`/sinistres/${SINISTRE_ID_1}`);
   expect(sent).toEqual([
@@ -263,10 +263,10 @@ test('a dossier already open for the commune is asked about instead of being dou
   ]);
   await openDossier(page, apercuFixture());
 
-  await page.getByRole('button', { name: fr.dossier.enregistrer }).click();
+  await page.getByRole('button', { name: fr.dossier.save }).click();
 
   await expect(
-    page.getByRole('link', { name: fr.sinistres.doublon.ouvrir }),
+    page.getByRole('link', { name: fr.sinistres.duplicate.open }),
   ).toHaveAttribute('href', `/sinistres/${SINISTRE_ID_2}`);
   await expect(
     page.getByRole('list', { name: copy.timelineLabel }),
@@ -282,15 +282,13 @@ test('“revenir et corriger” gives the aperçu back with its save button focu
   ]);
   await openDossier(page, apercuFixture());
 
-  await page.getByRole('button', { name: fr.dossier.enregistrer }).click();
-  await page
-    .getByRole('button', { name: fr.sinistres.doublon.corriger })
-    .click();
+  await page.getByRole('button', { name: fr.dossier.save }).click();
+  await page.getByRole('button', { name: fr.sinistres.duplicate.edit }).click();
 
   await expect(
-    page.getByRole('button', { name: fr.dossier.enregistrer }),
+    page.getByRole('button', { name: fr.dossier.save }),
   ).toBeFocused();
-  await expect(page.getByTestId('dossier-existant')).toHaveCount(0);
+  await expect(page.getByTestId('existing-dossier')).toHaveCount(0);
 });
 
 test('a session lost on saving sends to the login on the way back to this dossier', async ({
@@ -302,7 +300,7 @@ test('a session lost on saving sends to the login on the way back to this dossie
   );
   await openDossier(page, apercuFixture());
 
-  await page.getByRole('button', { name: fr.dossier.enregistrer }).click();
+  await page.getByRole('button', { name: fr.dossier.save }).click();
 
   await expect(page).toHaveURL(loginPathWithNext(DOSSIER_PATH));
 });
@@ -316,12 +314,12 @@ test('a save that failed stops being reported once the date is refined', async (
   ]);
   await openDossier(page, apercuPublie());
 
-  await page.getByRole('button', { name: fr.dossier.enregistrer }).click();
+  await page.getByRole('button', { name: fr.dossier.save }).click();
   await expect(page.getByTestId('request-error')).toBeVisible();
 
   await dateField(page).fill(ARRETE.eventEnd);
   await page
-    .getByRole('button', { name: fr.dossier.formulaire.preciser.submit })
+    .getByRole('button', { name: fr.dossier.form.refine.submit })
     .click();
 
   await expect(page).toHaveURL(
@@ -335,7 +333,7 @@ const communeField = (page: Page) =>
 const dateField = (page: Page) =>
   page.getByLabel(fr.sinistres.nouveau.eventDateLabel);
 const formSubmit = (page: Page) =>
-  page.getByRole('button', { name: fr.dossier.formulaire.submit });
+  page.getByRole('button', { name: fr.dossier.form.submit });
 
 test('an empty address asks for the three parameters and sends no request', async ({
   page,
@@ -350,7 +348,7 @@ test('an empty address asks for the three parameters and sends no request', asyn
   await page.goto(DOSSIER_FORM_PATH);
 
   await expect(
-    page.getByRole('heading', { level: 1, name: fr.dossier.formulaire.titre }),
+    page.getByRole('heading', { level: 1, name: fr.dossier.form.title }),
   ).toBeVisible();
   await expect(communeField(page)).toBeVisible();
   await expect(page.getByRole('radiogroup')).toBeVisible();
@@ -456,17 +454,17 @@ test('with an arrêté the date is refined inside its period, and nowhere outsid
   await expect(date).toHaveValue(APERCU_PARAMS.date);
   await expect(date).toHaveAttribute('min', ARRETE.eventStart);
   await expect(date).toHaveAttribute('max', ARRETE.eventEnd);
-  const preciser = page.getByRole('button', {
-    name: fr.dossier.formulaire.preciser.submit,
+  const refine = page.getByRole('button', {
+    name: fr.dossier.form.refine.submit,
   });
 
   await date.fill('2026-09-30');
-  await preciser.click();
+  await refine.click();
 
   await expectErrorTiedTo(
     date,
     page.getByText(
-      fr.sinistres.nouveau.eventDatePeriodeError(
+      fr.sinistres.nouveau.eventDatePeriodError(
         formatDateFr(ARRETE.eventStart),
         formatDateFr(ARRETE.eventEnd),
       ),
@@ -475,12 +473,12 @@ test('with an arrêté the date is refined inside its period, and nowhere outsid
   await expect(page).toHaveURL(DOSSIER_PATH);
 
   await date.fill(ARRETE.eventEnd);
-  await preciser.click();
+  await refine.click();
 
   await expect(page).toHaveURL(
     dossierPath('/dossier', { ...APERCU_PARAMS, date: ARRETE.eventEnd }),
   );
-  await expect(preciser).toBeFocused();
+  await expect(refine).toBeFocused();
 });
 
 test('refining the date to the one already shown says so instead of doing nothing', async ({
@@ -489,12 +487,10 @@ test('refining the date to the one already shown says so instead of doing nothin
   await openDossier(page, apercuPublie());
 
   await page
-    .getByRole('button', { name: fr.dossier.formulaire.preciser.submit })
+    .getByRole('button', { name: fr.dossier.form.refine.submit })
     .click();
 
-  await expect(
-    page.getByText(fr.dossier.formulaire.inchange.preciser),
-  ).toBeVisible();
+  await expect(page.getByText(fr.dossier.form.unchanged.refine)).toBeVisible();
   await expect(page).toHaveURL(DOSSIER_PATH);
 });
 
@@ -515,9 +511,7 @@ async function refuseApercu(page: Page) {
     });
   });
   await page.goto(DOSSIER_PATH);
-  await expect(
-    page.getByText(fr.dossier.formulaire.parametresRefuses),
-  ).toBeVisible();
+  await expect(page.getByText(fr.dossier.form.paramsRefused)).toBeVisible();
   return calls;
 }
 
@@ -549,9 +543,7 @@ test('the refused parameters sent again are named unchanged, not sent to the API
   await selectNimes(page, fr.sinistres.nouveau.communeLabel);
   await formSubmit(page).click();
 
-  await expect(
-    page.getByText(fr.dossier.formulaire.inchange.refuse),
-  ).toBeVisible();
+  await expect(page.getByText(fr.dossier.form.unchanged.refused)).toBeVisible();
   expect(calls.count).toBe(1);
 });
 
@@ -560,14 +552,14 @@ test('the address alone opens the dossier in a browser that has never seen it', 
 }) => {
   const context = await browser.newContext();
   const page = await context.newPage();
-  const apercu = apercuPublie();
-  await openDossier(page, apercu);
+  const preview = apercuPublie();
+  await openDossier(page, preview);
 
   await expect(
-    page.getByRole('heading', { level: 1, name: dossierTitle(apercu) }),
+    page.getByRole('heading', { level: 1, name: dossierTitle(preview) }),
   ).toBeVisible();
   await expect(heroBadge(page)).toContainText(
-    badgeCopy.compteARebours(DEADLINE.daysLeft),
+    badgeCopy.countdown(DEADLINE.daysLeft),
   );
   await context.close();
 });

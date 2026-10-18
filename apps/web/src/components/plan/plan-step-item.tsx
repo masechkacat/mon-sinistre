@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { formatDateShortFr } from '@/i18n/date';
 import { fr } from '@/i18n/fr';
 import { deadlineBadgeState, isUrgentDeadline } from '@/lib/deadline-badge';
-import { conteneurLabel } from '@/lib/plan-conteneur';
+import { containerLabel } from '@/lib/plan-container';
 import type { StepMark } from '@/lib/api/sinistres';
 import { cn } from '@/lib/utils';
 import { SourceNote } from './source-note';
@@ -31,24 +31,24 @@ const stripClassName =
 export function PlanStepItem({
   step,
   isNext = false,
-  contenu,
+  content,
   itemRef,
   onMark,
 }: {
   step: PlanStep;
   isNext?: boolean;
   /** What the step's own space holds, where it is open: the déclaration date. */
-  contenu?: ReactNode;
+  content?: ReactNode;
   itemRef?: (node: HTMLLIElement | null) => void;
   onMark?: (mark: StepMark) => void;
 }) {
   const copy = fr.sinistres.detail;
-  const conteneur = conteneurLabel(step.kind);
+  const container = containerLabel(step.kind);
   const state = deadlineBadgeState(step);
   // Names the step inside each button, so a reader listing the buttons can
   // tell the steps apart — the two labels repeat across the plan.
-  const sujet = (
-    <span className="sr-only">{copy.marquer.sujet(step.name)}</span>
+  const subject = (
+    <span className="sr-only">{copy.mark.subject(step.name)}</span>
   );
 
   return (
@@ -78,29 +78,29 @@ export function PlanStepItem({
             </span>
           ) : null}
           <span>
-            {fr.deadlineBadge.prevueLe(formatDateShortFr(step.plannedDate))}
+            {fr.deadlineBadge.plannedOn(formatDateShortFr(step.plannedDate))}
           </span>
         </p>
       ) : (
         <p className="text-muted-foreground">
-          {step.anchor ? copy.attentePar[step.anchor] : copy.sansDateNiAncre}
+          {step.anchor ? copy.waitingFor[step.anchor] : copy.noDateNoAnchor}
         </p>
       )}
 
       {step.plannedDate && step.source ? (
-        <SourceNote source={step.source} sujet={step.name} />
+        <SourceNote source={step.source} subject={step.name} />
       ) : null}
 
-      {contenu}
+      {content}
 
       {/* The note says the space is not open yet: an open one has content. */}
-      {conteneur && !contenu ? (
+      {container && !content ? (
         <p
-          data-slot="plan-conteneur"
+          data-slot="plan-container"
           data-kind={step.kind}
           className="border border-dashed border-border p-3 text-sm text-muted-foreground"
         >
-          {conteneur}
+          {container}
         </p>
       ) : null}
 
@@ -110,16 +110,16 @@ export function PlanStepItem({
       {onMark && step.kind === StepKind.ACTION ? (
         <div className="flex flex-wrap gap-2 pt-1">
           <Button size="touch" onClick={() => onMark(StepStatus.FAIT)}>
-            {copy.marquer.fait}
-            {sujet}
+            {copy.mark.fait}
+            {subject}
           </Button>
           <Button
             variant="outline"
             size="touch"
             onClick={() => onMark(StepStatus.NON_APPLICABLE)}
           >
-            {copy.marquer.nonApplicable}
-            {sujet}
+            {copy.mark.nonApplicable}
+            {subject}
           </Button>
         </div>
       ) : null}

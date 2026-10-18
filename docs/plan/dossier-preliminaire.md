@@ -204,7 +204,7 @@ CreateSinistreDto)`); `AuthService.register`: новый адрес — вста
 **Затрагивает:** web
 **Задачи:**
 
-- [ ] Разбор `sinistre-detail.tsx` на `src/components/plan/`: `DossierEntete`,
+- [ ] Разбор `sinistre-detail.tsx` на `src/components/plan/`: `DossierHeader`,
       `DeclarationDeadlineBlock`, `PlanList`, `PlanStepItem` принимают
       `StepView` и необязательные `onMark`; без `onMark` — кнопок нет,
       шаг с `kind !== ACTION` рендерится пустым контейнером с подписью
@@ -264,7 +264,7 @@ PRD, страница подтверждения ведёт на него, дв�
 **Задачи:**
 
 - [ ] Слой API: `createSinistre` принимает `confirmNew`, `ApiError` отдаёт
-      тело `409` как `SinistreConflict`; компонент `DossierExistant` (две
+      тело `409` как `SinistreConflict`; компонент `ExistingDossier` (две
       кнопки: открыть / créer quand même) в `src/components/plan/`;
       `/sinistres/nouveau` использует его же. **Проверяется тестами (до
       кода):** `tests/sinistres/doublon.spec.ts` — мок `409` → экран с датой
@@ -313,7 +313,7 @@ PRD, страница подтверждения ведёт на него, дв�
       **Проверяется тестами (до кода):** `tests/app/veille-api.spec.ts` —
       тело `POST /veille` содержит `communeCodes: ['30189']` и
       нормализованный email.
-- [ ] `src/components/reponse-commune.tsx` (`ReponseCommune({ commune })`):
+- [ ] `src/components/commune-answer.tsx` (`CommuneAnswer({ commune })`):
       карточка на entry — риск (`fr.sinistres.risque.options[...]` по
       `risques`, сырая формулировка в `title`), период, дата публикации,
       ссылка Légifrance, `DeadlineBadge form="row"` у `RECONNU` или «délai
@@ -322,7 +322,7 @@ PRD, страница подтверждения ведёт на него, дв�
       `risques=A,B` без `risque`); пусто → «aucun arrêté récent» и «Préparer
       mon dossier» (`/dossier?commune=`); заранее смонтированный
       `role="status"`. **Проверяется тестами (до кода):**
-      `tests/home/reponse-commune.spec.ts` по мокам — Z: пустой ответ →
+      `tests/home/commune-answer.spec.ts` по мокам — Z: пустой ответ →
       текст и кнопка «Préparer»; O: один `RECONNU` → бейдж с `daysLeft`,
       `href` кнопки содержит три параметра; M: два arrêté → две кнопки в
       порядке ответа; `REFUSE` → слово «refus», бейджа нет; `daysLeft: -3` →
@@ -335,7 +335,7 @@ PRD, страница подтверждения ведёт на него, дв�
       — O: отправка → `POST /veille` с кодом коммуны и экран успеха; E:
       пустой и невалидный email → ошибки поля, запроса нет; `429` → сообщение
       лимита как раньше.
-- [ ] Главная: `CommuneSelect` в верхнем экране, `ReponseCommune` под ним
+- [ ] Главная: `CommuneSelect` в верхнем экране, `CommuneAnswer` под ним
       после выбора, объясняющий текст ниже, раздел «Et ensuite ?» удалён;
       удаление `app/veille/page.tsx`, `veille-form.tsx`, `tests/veille/
 veille.spec.ts` и строк `fr.veille.page.*`/`fr.veille.form.*`, не

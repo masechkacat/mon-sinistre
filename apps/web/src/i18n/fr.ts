@@ -12,8 +12,7 @@ import {
 // The space before ":" and "?" is a literal U+00A0, not a typo — same
 // convention as apps/api/src/i18n/fr.ts.
 
-const A_VERIFIER_AVEC_CONTRAT =
-  'à vérifier avec votre contrat et votre assurance';
+const CHECK_WITH_CONTRACT = 'à vérifier avec votre contrat et votre assurance';
 
 const EVENT_DATE_HINT =
   'Le jour où les dégâts se sont produits : jour, mois, puis année. Par exemple 05/09/2026 pour le 5 septembre 2026.';
@@ -21,27 +20,27 @@ const EVENT_DATE_HINT =
 // Shared across veille.confirmation and veille.change below: same fact
 // (link being checked, link no longer usable, alert reaches the watched
 // communes), same wording — one string, not a fact stated twice.
-const VEILLE_LIEN_VERIFICATION_EN_COURS = 'Vérification du lien en cours…';
-const VEILLE_ALERTE_ARRETE =
+const VEILLE_LINK_VERIFYING = 'Vérification du lien en cours…';
+const VEILLE_ARRETE_ALERT =
   'Vous recevrez un message le jour même de la publication d’un arrêté de catastrophe naturelle concernant une des communes surveillées.';
 
 // Shared by every confirm-by-link screen (veille.confirmation,
 // veille.change, compte.confirmation below) — one wording per fact, not one
 // copy per feature.
-const LIEN_INVALIDE = 'Lien invalide';
-const LIEN_CONFIRMATION_INVALIDE_DESCRIPTION =
+const INVALID_LINK = 'Lien invalide';
+const INVALID_CONFIRMATION_LINK_DESCRIPTION =
   'Ce lien de confirmation n’est plus valable : il a peut-être déjà été utilisé, ou son délai de validité est dépassé.';
-const CONFIRMER = 'Confirmer';
-const ANNULER = 'Annuler';
-const CONFIRMATION_EN_COURS = 'Confirmation en cours…';
-const VERIFIEZ_BOITE_EMAIL = 'Vérifiez votre boîte e-mail';
+const CONFIRM = 'Confirmer';
+const CANCEL = 'Annuler';
+const CONFIRMING = 'Confirmation en cours…';
+const CHECK_YOUR_INBOX = 'Vérifiez votre boîte e-mail';
 
 // The two account entry points name each other, so each label is written
 // once and reused by the page it titles, by the link that leads there and by
 // the header (layout, compte.inscription, compte.connexion,
 // compte.confirmation below).
-const CREER_UN_COMPTE = 'Créer un compte';
-const SE_CONNECTER = 'Se connecter';
+const CREATE_ACCOUNT = 'Créer un compte';
+const LOG_IN = 'Se connecter';
 
 // Shared by every commune search field (veille.form's multi-select,
 // commune.select below) — one wording per fact, not one copy per feature.
@@ -79,25 +78,25 @@ const PASSWORD_REQUIRED_ERROR = 'Choisissez un mot de passe.';
 
 // Said by every screen waiting on a change it has just sent (veille.change,
 // compte.reinitialisation, compte.espacePersonnel.rappels below).
-const MODIFICATION_EN_COURS = 'Modification en cours…';
+const UPDATING = 'Modification en cours…';
 // The reminders switch is reached two ways — the link in the mail and the
 // espace personnel (compte.rappels, compte.espacePersonnel below) — and names
 // the same action on both.
-const RAPPELS_DESACTIVER = 'Désactiver les rappels';
+const REMINDERS_DISABLE = 'Désactiver les rappels';
 
-// The dossier link is written once and read twice below (sinistres.liste):
+// The dossier link is written once and read twice below (sinistres.list):
 // as the text on screen, and inside the longer name a screen reader gets.
-const VOIR_MON_DOSSIER = 'Voir mon dossier';
-const FAIT = 'Fait';
+const VIEW_MY_DOSSIER = 'Voir mon dossier';
+const DONE = 'Fait';
 
-const PREPARER_MON_DOSSIER = 'Préparer mon dossier';
-const OUVRIR_MON_DOSSIER = 'Ouvrir mon dossier';
-const EVENEMENT_DU = (date: string) => `Événement du ${date}`;
+const PREPARE_MY_DOSSIER = 'Préparer mon dossier';
+const OPEN_MY_DOSSIER = 'Ouvrir mon dossier';
+const EVENT_OF = (date: string) => `Événement du ${date}`;
 
-const conteneurVide = (contenu: string) =>
-  `${contenu} : cet espace n’est pas encore ouvert.`;
+const emptyContainer = (content: string) =>
+  `${content} : cet espace n’est pas encore ouvert.`;
 
-const apresAncre: Record<StepAnchor, string> = {
+const afterAnchor: Record<StepAnchor, string> = {
   [StepAnchor.DATE_SINISTRE]: 'après le sinistre',
   [StepAnchor.DATE_PUBLICATION_ARRETE]: 'après l’arrêté',
   [StepAnchor.DATE_DECLARATION]: 'après votre déclaration',
@@ -114,7 +113,7 @@ export const fr = {
       'Veille des arrêtés de catastrophe naturelle et suivi du sinistre',
     skipToContent: 'Aller au contenu principal',
     mainNav: 'Navigation principale',
-    login: SE_CONNECTER,
+    login: LOG_IN,
     espace: 'Mon espace',
     legalNav: 'Informations légales',
   },
@@ -143,7 +142,7 @@ export const fr = {
     doesNot: {
       heading: 'Ce que Mon Sinistre ne fait pas',
       items: [
-        `Ne donne pas de conseils juridiques : les dates calculées sont indicatives, ${A_VERIFIER_AVEC_CONTRAT}.`,
+        `Ne donne pas de conseils juridiques : les dates calculées sont indicatives, ${CHECK_WITH_CONTRACT}.`,
         'N’écrit jamais à votre assurance à votre place : vous gardez la main sur toutes vos démarches.',
       ],
     },
@@ -154,46 +153,46 @@ export const fr = {
     clearSelection: 'Effacer la commune sélectionnée',
     selected: (label: string) => `Commune sélectionnée : ${label}`,
   },
-  reponseCommune: {
+  communeAnswer: {
     testPage: 'Arrêtés d’une commune',
-    chargement: 'Recherche des arrêtés…',
-    trouves: (nombre: number, commune: string) =>
-      `${nombre} arrêté${nombre > 1 ? 's' : ''} trouvé${nombre > 1 ? 's' : ''} pour ${commune}.`,
-    aucun: (commune: string) => `Aucun arrêté récent pour ${commune}.`,
-    aucunSuite: (mois: number) =>
-      `Aucune catastrophe naturelle n’a été reconnue pour cette commune depuis ${mois} mois. Un arrêté peut paraître plusieurs semaines après l’événement : si vous avez des dégâts, vous pouvez préparer votre dossier dès maintenant.`,
-    preparer: PREPARER_MON_DOSSIER,
-    periode: (debut: string, fin: string) =>
-      debut === fin ? EVENEMENT_DU(debut) : `${EVENEMENT_DU(debut)} au ${fin}`,
-    refus:
+    loading: 'Recherche des arrêtés…',
+    found: (count: number, commune: string) =>
+      `${count} arrêté${count > 1 ? 's' : ''} trouvé${count > 1 ? 's' : ''} pour ${commune}.`,
+    none: (commune: string) => `Aucun arrêté récent pour ${commune}.`,
+    noneSince: (months: number) =>
+      `Aucune catastrophe naturelle n’a été reconnue pour cette commune depuis ${months} mois. Un arrêté peut paraître plusieurs semaines après l’événement : si vous avez des dégâts, vous pouvez préparer votre dossier dès maintenant.`,
+    prepare: PREPARE_MY_DOSSIER,
+    period: (start: string, end: string) =>
+      start === end ? EVENT_OF(start) : `${EVENT_OF(start)} au ${end}`,
+    refusal:
       'Reconnaissance refusée : l’État n’a pas reconnu cet événement comme catastrophe naturelle pour cette commune.',
-    ouvrir: OUVRIR_MON_DOSSIER,
-    ouvrirPour: (arrete: string) => `${OUVRIR_MON_DOSSIER} : ${arrete}`,
+    open: OPEN_MY_DOSSIER,
+    openFor: (arrete: string) => `${OPEN_MY_DOSSIER} : ${arrete}`,
   },
   deadlineBadge: {
-    derniereSemaine: 'Dernière semaine',
-    demain: 'Demain',
-    aujourdhui: 'Aujourd’hui, dernier délai',
-    enRetard: 'En retard',
-    fait: (date: string | null) => (date ? `${FAIT} le ${date}` : FAIT),
-    sansObjet: 'Sans objet',
-    dateAVenir: 'Date à venir',
-    prevueLe: (date: string) => `Prévue le ${date}`,
-    delai: (
+    lastWeek: 'Dernière semaine',
+    tomorrow: 'Demain',
+    today: 'Aujourd’hui, dernier délai',
+    overdue: 'En retard',
+    fait: (date: string | null) => (date ? `${DONE} le ${date}` : DONE),
+    nonApplicable: 'Sans objet',
+    upcomingDate: 'Date à venir',
+    plannedOn: (date: string) => `Prévue le ${date}`,
+    duration: (
       { value, unit }: { value: number; unit: DurationUnit },
       anchor: StepAnchor | null,
     ) => {
-      const duree =
+      const duration =
         unit === DurationUnit.MONTHS
           ? `${value} mois`
           : `${value} jour${value === 1 ? '' : 's'}`;
-      return anchor ? `${duree} ${apresAncre[anchor]}` : duree;
+      return anchor ? `${duration} ${afterAnchor[anchor]}` : duration;
     },
-    compteARebours: (daysLeft: number) => {
+    countdown: (daysLeft: number) => {
       if (daysLeft === 0) return 'Jour J';
       return daysLeft > 0 ? `J-${daysLeft}` : `J+${-daysLeft}`;
     },
-    sansDate: '—',
+    noDate: '—',
     testPage: 'Badge de délai',
   },
   veille: {
@@ -213,43 +212,43 @@ export const fr = {
       submit: 'Être prévenu·e',
     },
     confirmationSent: {
-      title: VERIFIEZ_BOITE_EMAIL,
+      title: CHECK_YOUR_INBOX,
       description:
         'Un e-mail de confirmation vient de vous être envoyé. Ouvrez-le et cliquez sur le lien qu’il contient pour activer votre veille.',
     },
     confirmation: {
       page: { title: 'Confirmer votre inscription' },
-      loading: VEILLE_LIEN_VERIFICATION_EN_COURS,
+      loading: VEILLE_LINK_VERIFYING,
       pending: {
         description:
           'Pour activer votre veille, confirmez que cette adresse e-mail est bien la vôtre.',
       },
-      confirmButton: CONFIRMER,
-      confirming: CONFIRMATION_EN_COURS,
+      confirmButton: CONFIRM,
+      confirming: CONFIRMING,
       active: {
         title: 'Votre veille est active',
-        description: VEILLE_ALERTE_ARRETE,
+        description: VEILLE_ARRETE_ALERT,
       },
       invalid: {
-        title: LIEN_INVALIDE,
-        description: LIEN_CONFIRMATION_INVALIDE_DESCRIPTION,
+        title: INVALID_LINK,
+        description: INVALID_CONFIRMATION_LINK_DESCRIPTION,
       },
     },
     change: {
       page: { title: 'Confirmer la modification de votre veille' },
-      loading: VEILLE_LIEN_VERIFICATION_EN_COURS,
+      loading: VEILLE_LINK_VERIFYING,
       pending: {
         description:
           'Voici la nouvelle liste des communes surveillées. Pour l’appliquer, confirmez la modification.',
       },
       confirmButton: 'Confirmer la modification',
-      confirming: MODIFICATION_EN_COURS,
+      confirming: UPDATING,
       applied: {
         title: 'Modification appliquée',
-        description: `La liste des communes surveillées a été mise à jour. ${VEILLE_ALERTE_ARRETE}`,
+        description: `La liste des communes surveillées a été mise à jour. ${VEILLE_ARRETE_ALERT}`,
       },
       invalid: {
-        title: LIEN_INVALIDE,
+        title: INVALID_LINK,
         description:
           'Ce lien de modification n’est plus valable : il a peut-être déjà été utilisé, ou son délai de validité est dépassé.',
       },
@@ -271,7 +270,7 @@ export const fr = {
   },
   compte: {
     inscription: {
-      page: { title: CREER_UN_COMPTE },
+      page: { title: CREATE_ACCOUNT },
       lead: 'Créez votre compte pour accéder à votre espace personnel et suivre votre sinistre.',
       emailLabel: EMAIL_LABEL,
       emailPlaceholder: EMAIL_PLACEHOLDER,
@@ -286,9 +285,9 @@ export const fr = {
       submit: 'Créer mon compte',
       submitting: 'Création en cours…',
       alreadyRegistered: 'Vous avez déjà un compte ?',
-      loginLink: SE_CONNECTER,
+      loginLink: LOG_IN,
       confirmationSent: {
-        title: VERIFIEZ_BOITE_EMAIL,
+        title: CHECK_YOUR_INBOX,
         description:
           'Un e-mail de confirmation vient de vous être envoyé. Ouvrez-le et cliquez sur le lien qu’il contient, puis confirmez pour activer votre compte.',
       },
@@ -299,21 +298,21 @@ export const fr = {
         description:
           'Pour activer votre compte, confirmez que vous êtes bien à l’origine de cette inscription.',
       },
-      confirmButton: CONFIRMER,
-      confirming: CONFIRMATION_EN_COURS,
+      confirmButton: CONFIRM,
+      confirming: CONFIRMING,
       confirmed: {
         title: 'Compte activé',
         description:
           'Votre compte est activé. Vous pouvez maintenant vous connecter.',
       },
-      loginLink: SE_CONNECTER,
+      loginLink: LOG_IN,
       invalid: {
-        title: LIEN_INVALIDE,
-        description: LIEN_CONFIRMATION_INVALIDE_DESCRIPTION,
+        title: INVALID_LINK,
+        description: INVALID_CONFIRMATION_LINK_DESCRIPTION,
       },
     },
     connexion: {
-      page: { title: SE_CONNECTER },
+      page: { title: LOG_IN },
       lead: 'Connectez-vous pour accéder à votre espace personnel.',
       emailLabel: EMAIL_LABEL,
       emailPlaceholder: EMAIL_PLACEHOLDER,
@@ -321,12 +320,12 @@ export const fr = {
       emailInvalidError: EMAIL_INVALID_ERROR,
       passwordLabel: 'Mot de passe',
       passwordRequiredError: 'Indiquez votre mot de passe.',
-      submit: SE_CONNECTER,
+      submit: LOG_IN,
       submitting: 'Connexion en cours…',
       invalidError: 'Adresse e-mail ou mot de passe incorrect.',
       forgotPasswordLink: 'Mot de passe oublié ?',
       noAccount: 'Pas encore de compte ?',
-      registerLink: CREER_UN_COMPTE,
+      registerLink: CREATE_ACCOUNT,
     },
     motDePasseOublie: {
       page: { title: 'Mot de passe oublié' },
@@ -338,7 +337,7 @@ export const fr = {
       submit: 'Envoyer le lien',
       submitting: 'Envoi en cours…',
       sent: {
-        title: VERIFIEZ_BOITE_EMAIL,
+        title: CHECK_YOUR_INBOX,
         description:
           'Si cette adresse correspond à un compte, vous allez recevoir un e-mail contenant un lien pour choisir un nouveau mot de passe.',
       },
@@ -350,9 +349,9 @@ export const fr = {
       passwordRequiredError: PASSWORD_REQUIRED_ERROR,
       passwordRequirementsError: PASSWORD_REQUIREMENTS,
       submit: 'Changer mon mot de passe',
-      submitting: MODIFICATION_EN_COURS,
+      submitting: UPDATING,
       invalid: {
-        title: LIEN_INVALIDE,
+        title: INVALID_LINK,
         description:
           'Ce lien de réinitialisation n’est plus valable : il a peut-être déjà été utilisé, ou son délai de validité est dépassé.',
       },
@@ -363,13 +362,14 @@ export const fr = {
       sinistresLink: 'Voir mes sinistres',
       emailLabel: `${EMAIL_LABEL} :`,
       deleteAccount: {
+        heading: 'Suppression du compte',
         button: 'Supprimer mon compte',
         warning: {
           title: 'Supprimer définitivement votre compte ?',
           description:
             'Cette action est immédiate et irréversible : votre compte et toutes les données associées seront supprimés. Vous pourrez créer un nouveau compte avec la même adresse e-mail si vous le souhaitez.',
         },
-        cancel: ANNULER,
+        cancel: CANCEL,
         confirm: 'Supprimer définitivement mon compte',
         deleting: 'Suppression en cours…',
       },
@@ -379,9 +379,9 @@ export const fr = {
           'Vous recevez un e-mail quand une date de vos dossiers approche ou vient de passer.',
         disabled:
           'Vous ne recevez pas de rappels par e-mail. Les dates restent visibles dans vos dossiers.',
-        disable: RAPPELS_DESACTIVER,
+        disable: REMINDERS_DISABLE,
         enable: 'Réactiver les rappels',
-        updating: MODIFICATION_EN_COURS,
+        updating: UPDATING,
       },
     },
     rappels: {
@@ -389,7 +389,7 @@ export const fr = {
         page: { title: 'Ne plus recevoir de rappels' },
         description:
           'Vous ne recevrez plus de message vous rappelant les dates à ne pas laisser passer pour vos sinistres. Ces dates restent visibles dans votre espace personnel.',
-        unsubscribeButton: RAPPELS_DESACTIVER,
+        unsubscribeButton: REMINDERS_DISABLE,
         unsubscribing: 'Désactivation en cours…',
         done: {
           title: 'Rappels désactivés',
@@ -450,26 +450,26 @@ export const fr = {
         'Vérifiez l’année : elle doit comporter quatre chiffres.',
       // Replaces the hint above instead of adding to it: the field carries a
       // single description, and the order of the fields belongs in both.
-      eventDatePeriodeHint: (debut: string, fin: string) =>
-        `${EVENT_DATE_HINT} L’arrêté couvre les événements du ${debut} au ${fin} : indiquez le jour exact dans cette période.`,
-      eventDatePeriodeError: (debut: string, fin: string) =>
-        `Indiquez une date entre le ${debut} et le ${fin}.`,
+      eventDatePeriodHint: (start: string, end: string) =>
+        `${EVENT_DATE_HINT} L’arrêté couvre les événements du ${start} au ${end} : indiquez le jour exact dans cette période.`,
+      eventDatePeriodError: (start: string, end: string) =>
+        `Indiquez une date entre le ${start} et le ${end}.`,
       submit: 'Créer mon dossier',
       submitting: 'Création en cours…',
     },
-    doublon: {
-      titre: 'Vous avez déjà un dossier pour cette commune',
-      texte: (date: string) =>
+    duplicate: {
+      title: 'Vous avez déjà un dossier pour cette commune',
+      text: (date: string) =>
         `Un dossier est déjà ouvert pour cette commune et ce type de risque, pour un événement du ${date}. Vous pouvez l’ouvrir, ou créer un second dossier s’il s’agit d’un autre événement.`,
-      ouvrir: 'Ouvrir ce dossier',
-      creer: 'Créer un second dossier',
-      corriger: 'Revenir et corriger',
+      open: 'Ouvrir ce dossier',
+      create: 'Créer un second dossier',
+      edit: 'Revenir et corriger',
     },
     // Values are the letter of SinistreStatus (root CLAUDE.md, «Не
     // дублировать»); labels are the only French text a status carries — the
     // list screen shows the status in words, not only via colour (WCAG 2.1
     // AA, apps/web/CLAUDE.md).
-    statut: {
+    status: {
       [SinistreStatus.AVANT_ARRETE]: 'En attente de la publication d’un arrêté',
       [SinistreStatus.ARRETE_PUBLIE]: 'Arrêté publié',
       [SinistreStatus.ARRETE_REFUSE]: 'Arrêté refusé pour cette commune',
@@ -477,7 +477,7 @@ export const fr = {
       [SinistreStatus.CLOS]: 'Dossier clos',
       [SinistreStatus.SANS_SUITE]: 'Sans suite',
     },
-    liste: {
+    list: {
       page: { title: 'Mes sinistres' },
       lead: 'Retrouvez ici les dossiers que vous avez créés et leur avancement.',
       newSinistre: 'Déclarer un sinistre',
@@ -485,73 +485,72 @@ export const fr = {
         description:
           'Vous n’avez pas encore de dossier. Créez-en un pour recevoir votre plan d’actions après une catastrophe naturelle : démarches, délais et rappels.',
       },
-      eventDate: EVENEMENT_DU,
+      eventDate: EVENT_OF,
       dossierLabel: (risque: string, commune: string) =>
         `${risque} — ${commune}`,
-      viewLink: VOIR_MON_DOSSIER,
-      viewLinkFor: (dossier: string) => `${VOIR_MON_DOSSIER} : ${dossier}`,
+      viewLink: VIEW_MY_DOSSIER,
+      viewLinkFor: (dossier: string) => `${VIEW_MY_DOSSIER} : ${dossier}`,
     },
     detail: {
       page: { title: 'Mon dossier' },
       timelineLabel: 'Étapes de votre dossier',
-      etapeEnCours: {
-        titre: 'Étape en cours',
-        avancement: 'Avancement de votre plan d’actions',
-        progression: (faites: number, total: number) =>
-          `${faites} étape${faites > 1 ? 's' : ''} faite${faites > 1 ? 's' : ''} sur ${total}`,
+      currentStep: {
+        title: 'Étape en cours',
+        progress: 'Avancement de votre plan d’actions',
+        count: (done: number, total: number) =>
+          `${done} étape${done > 1 ? 's' : ''} faite${done > 1 ? 's' : ''} sur ${total}`,
       },
-      chronologie: {
+      timeline: {
         label: 'Dates clés de votre dossier',
-        evenement: 'Événement',
+        event: 'Événement',
         arrete: 'Arrêté',
         declaration: 'Déclaration',
         indemnisation: 'Indemnisation',
-        attendu: 'attendu',
-        publie: 'publié',
-        refuse: 'refusé',
-        aVenir: 'à venir',
-        avantLe: (date: string) => `avant le ${date}`,
+        expected: 'attendu',
+        published: 'publié',
+        refused: 'refusé',
+        upcoming: 'à venir',
+        before: (date: string) => `avant le ${date}`,
       },
-      faits: { titre: FAIT, liste: 'Étapes déjà réglées' },
-      sansDateNiAncre: 'Cette étape n’a pas encore de date prévue.',
-      marquer: {
+      done: { title: DONE, list: 'Étapes déjà réglées' },
+      noDateNoAnchor: 'Cette étape n’a pas encore de date prévue.',
+      mark: {
         fait: 'Marquer comme fait',
         nonApplicable: 'Non applicable',
-        annuler: 'Annuler ce choix',
-        sujet: (etape: string) => `, pour « ${etape} »`,
+        cancel: 'Annuler ce choix',
+        subject: (step: string) => `, pour « ${step} »`,
       },
-      annonce: {
-        fait: (etape: string) => `« ${etape} » est marqué comme fait.`,
-        nonApplicable: (etape: string) =>
-          `« ${etape} » est marqué comme non applicable.`,
-        annule: (etape: string) => `Le choix pour « ${etape} » est annulé.`,
+      announcement: {
+        fait: (step: string) => `« ${step} » est marqué comme fait.`,
+        nonApplicable: (step: string) =>
+          `« ${step} » est marqué comme non applicable.`,
+        undone: (step: string) => `Le choix pour « ${step} » est annulé.`,
       },
-      marquageEchec:
+      markFailure:
         'L’étape n’a pas pu être mise à jour. Elle garde son état précédent : réessayez dans un instant.',
       declaration: {
         label: 'Date de votre déclaration à l’assureur',
         hint: 'Le jour où vous avez prévenu votre assureur du sinistre. Les dates du plan qui en dépendent se calculent à partir de ce jour.',
-        requis: 'Indiquez la date de votre déclaration.',
-        echec:
+        required: 'Indiquez la date de votre déclaration.',
+        failure:
           'La date n’a pas pu être enregistrée. Vérifiez-la et réessayez dans un instant.',
-        enregistrer: 'Enregistrer la date',
-        enregistree: 'La date de déclaration est enregistrée.',
-        effacer: 'Effacer la date',
-        effacee: 'La date de déclaration est effacée.',
-        effacementEchec:
+        save: 'Enregistrer la date',
+        saved: 'La date de déclaration est enregistrée.',
+        clear: 'Effacer la date',
+        cleared: 'La date de déclaration est effacée.',
+        clearFailure:
           'La date n’a pas pu être effacée. Elle est toujours enregistrée : réessayez dans un instant.',
       },
-      suppression: {
-        ouvrir: 'Supprimer ce dossier',
-        titre: 'Supprimer ce dossier ?',
-        texte:
-          'Le dossier, son plan et ses dates seront effacés définitivement. Cette action ne peut pas être annulée.',
-        confirmer: 'Supprimer définitivement',
-        annuler: ANNULER,
-        echec:
+      deletion: {
+        open: 'Supprimer ce dossier',
+        title: 'Supprimer ce dossier ?',
+        text: 'Le dossier, son plan et ses dates seront effacés définitivement. Cette action ne peut pas être annulée.',
+        confirm: 'Supprimer définitivement',
+        cancel: CANCEL,
+        failure:
           'Le dossier n’a pas pu être supprimé. Il est toujours là : réessayez dans un instant.',
       },
-      attentePar: {
+      waitingFor: {
         [StepAnchor.DATE_SINISTRE]:
           'La date de cette étape n’a pas pu être calculée. Vérifiez le délai avec votre assureur.',
         [StepAnchor.DATE_PUBLICATION_ARRETE]:
@@ -569,54 +568,54 @@ export const fr = {
         heading: 'Délai de déclaration à votre assureur',
       },
       source: {
-        lien: (sujet: string) => `Voir le texte de référence : ${sujet}`,
-        verifiee: (date: string) => `Source vérifiée le ${date}.`,
+        link: (subject: string) => `Voir le texte de référence : ${subject}`,
+        verified: (date: string) => `Source vérifiée le ${date}.`,
         outdated: (months: number) =>
           `Source non revérifiée depuis plus de ${months} mois : la date peut avoir changé.`,
-        indicative: `Date indicative, ${A_VERIFIER_AVEC_CONTRAT}.`,
+        indicative: `Date indicative, ${CHECK_WITH_CONTRACT}.`,
       },
     },
   },
   dossier: {
     page: { title: 'Aperçu de mon dossier' },
     testPage: 'Plan du dossier',
-    chargement: 'Chargement de votre dossier…',
-    publieLe: (date: string) => `Publié au Journal officiel le ${date}`,
+    loading: 'Chargement de votre dossier…',
+    publishedOn: (date: string) => `Publié au Journal officiel le ${date}`,
     legifranceLink: 'Consulter l’arrêté sur Légifrance',
-    delaiExpire: 'Délai expiré',
-    enregistrer: 'Enregistrer ce dossier',
-    enregistrement: 'Enregistrement du dossier…',
-    echecApresConnexion:
+    deadlineExpired: 'Délai expiré',
+    save: 'Enregistrer ce dossier',
+    saving: 'Enregistrement du dossier…',
+    failureAfterLogin:
       'Vous êtes bien connecté, mais votre dossier n’a pas pu être enregistré.',
-    revenir: 'Revenir à mon dossier',
-    resume: (parts: readonly string[]) =>
+    back: 'Revenir à mon dossier',
+    summary: (parts: readonly string[]) =>
       `Votre dossier : ${parts.join(' · ')}`,
-    formulaire: {
-      titre: PREPARER_MON_DOSSIER,
+    form: {
+      title: PREPARE_MY_DOSSIER,
       lead: 'Indiquez ce qui manque : votre plan d’actions s’affiche aussitôt, sans compte ni inscription.',
       submit: 'Voir mon plan d’actions',
-      parametresRefuses:
+      paramsRefused:
         'Ces informations n’ont pas pu être utilisées. Vérifiez la commune, le risque et la date de l’événement, puis réessayez.',
-      preciser: {
-        titre: 'Préciser la date de l’événement',
+      refine: {
+        title: 'Préciser la date de l’événement',
         submit: 'Mettre à jour la date',
       },
-      inchange: {
-        refuse:
+      unchanged: {
+        refused:
           'Ce sont les informations qui n’ont pas pu être utilisées : modifiez la commune, le risque ou la date.',
-        preciser:
+        refine:
           'C’est déjà la date de ce dossier : choisissez-en une autre dans la période pour mettre le plan à jour.',
       },
     },
-    conteneur: {
-      [StepKind.PHOTOS]: conteneurVide('Photos et vidéos des dégâts'),
-      [StepKind.JUSTIFICATIFS]: conteneurVide(
+    container: {
+      [StepKind.PHOTOS]: emptyContainer('Photos et vidéos des dégâts'),
+      [StepKind.JUSTIFICATIFS]: emptyContainer(
         'Factures, devis et autres justificatifs',
       ),
-      [StepKind.OBJETS]: conteneurVide(
+      [StepKind.OBJETS]: emptyContainer(
         'Liste des objets endommagés et de leur valeur',
       ),
-      [StepKind.DECLARATION]: conteneurVide(
+      [StepKind.DECLARATION]: emptyContainer(
         'Date de votre déclaration à l’assureur',
       ),
     },

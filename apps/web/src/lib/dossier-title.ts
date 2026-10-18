@@ -7,7 +7,7 @@ export function dossierTitle({
   commune,
   risque,
 }: Pick<Sinistre, 'commune' | 'risque'>): string {
-  return fr.sinistres.liste.dossierLabel(
+  return fr.sinistres.list.dossierLabel(
     fr.sinistres.risque.options[risque].label,
     communeLabel(commune),
   );

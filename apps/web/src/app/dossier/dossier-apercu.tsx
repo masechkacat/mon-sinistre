@@ -2,7 +2,7 @@
 
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useRef, useState, type FormEvent } from 'react';
+import { useRef, useState, type SubmitEvent } from 'react';
 import {
   ArreteEntryOutcome,
   isIsoDate,
@@ -14,9 +14,9 @@ import { PageContainer } from '@/components/page-container';
 import { PageTitle } from '@/components/page-title';
 import { ArretePublication } from '@/components/plan/arrete-publication';
 import { DeclarationDeadlineBlock } from '@/components/plan/declaration-deadline-block';
-import { DossierEntete } from '@/components/plan/dossier-entete';
-import { DossierExistant } from '@/components/plan/dossier-existant';
-import { DossierFeuille } from '@/components/plan/dossier-feuille';
+import { DossierHeader } from '@/components/plan/dossier-header';
+import { ExistingDossier } from '@/components/plan/existing-dossier';
+import { DossierSheet } from '@/components/plan/dossier-sheet';
 import { PlanList } from '@/components/plan/plan-list';
 import { RequestError } from '@/components/request-error';
 import { SectionHeading } from '@/components/section-heading';
@@ -25,7 +25,7 @@ import {
   RisqueField,
   focusFirstFieldError,
   validateEventDate,
-  type EventPeriode,
+  type EventPeriod,
   type SinistreFieldErrors,
 } from '@/components/sinistre-fields';
 import { Button } from '@/components/ui/button';
@@ -35,7 +35,7 @@ import { fetchDossierApercu } from '@/lib/api/dossier';
 import { queryKeys } from '@/lib/api/keys';
 import { getAccessToken, refreshSession } from '@/lib/api/session';
 import { useCreateSinistre } from '@/lib/api/use-create-sinistre';
-import { chronologiePoints } from '@/lib/dossier-chronologie';
+import { timelinePoints } from '@/lib/dossier-timeline';
 import {
   dossierInput,
   dossierPath,
@@ -65,8 +65,8 @@ export function DossierApercuView() {
     />
   ) : (
     <PageContainer className="space-y-8">
-      <FormulaireEntete />
-      <Formulaire params={params} risqueOptions={risqueOptions} />
+      <FormHeader />
+      <DossierForm params={params} risqueOptions={risqueOptions} />
     </PageContainer>
   );
 }
@@ -81,7 +81,7 @@ function Apercu({
   const router = useRouter();
   const { mutation, conflict, failed, confirmNew, dismissConflict } =
     useCreateSinistre(dossierInput(params));
-  const [enregistrement, setEnregistrement] = useState(false);
+  const [saving, setSaving] = useState(false);
   // Keyed on the address like the hook's own answers: `Apercu` outlives a
   // change of it (`keepPreviousData`), and a failure must not outlive the
   // dossier it was about.
@@ -99,15 +99,15 @@ function Apercu({
     // the new aperçu loads would drop the focus to the top of the page.
     placeholderData: keepPreviousData,
   });
-  const apercu = query.data;
+  const preview = query.data;
 
   // A 400 is this endpoint's way of saying the address cannot be previewed —
   // an unknown commune, a future date — so the way out is the form, not the
   // "try again later" of a failed request.
-  const refuse = query.error instanceof ApiError && query.error.status === 400;
+  const refused = query.error instanceof ApiError && query.error.status === 400;
 
-  const enregistrer = async () => {
-    setEnregistrement(true);
+  const save = async () => {
+    setSaving(true);
     setSessionEchecPour(undefined);
     try {
       const session = getAccessToken() ? 'open' : await refreshSession();
@@ -122,18 +122,18 @@ function Apercu({
       // Answered on screen by the hook: the conflict around this page, any
       // other failure under the button.
     } finally {
-      setEnregistrement(false);
+      setSaving(false);
     }
   };
 
   return (
-    <DossierExistant
+    <ExistingDossier
       conflict={conflict}
       onConfirmNew={confirmNew}
-      onCorriger={() => {
+      onEdit={() => {
         dismissConflict();
         ecranRef.current
-          ?.querySelector<HTMLElement>('input[type="date"], [data-enregistrer]')
+          ?.querySelector<HTMLElement>('input[type="date"], [data-save]')
           ?.focus();
       }}
       pending={mutation.isPending}
@@ -148,59 +148,61 @@ function Apercu({
           role="status"
           className={cn(
             'min-h-7 text-lg',
-            refuse ? 'text-destructive' : 'text-muted-foreground',
+            refused ? 'text-destructive' : 'text-muted-foreground',
           )}
         >
           {query.isPending || query.isPlaceholderData
-            ? fr.dossier.chargement
+            ? fr.dossier.loading
             : null}
-          {refuse ? fr.dossier.formulaire.parametresRefuses : null}
+          {refused ? fr.dossier.form.paramsRefused : null}
         </p>
 
-        {query.isError && !refuse ? <RequestError /> : null}
+        {query.isError && !refused ? <RequestError /> : null}
 
-        {refuse ? (
+        {refused ? (
           <>
-            <FormulaireEntete />
-            <Formulaire params={params} risqueOptions={risqueOptions} refuse />
+            <FormHeader />
+            <DossierForm
+              params={params}
+              risqueOptions={risqueOptions}
+              refused
+            />
           </>
         ) : null}
 
-        {apercu ? (
+        {preview ? (
           <>
-            <DossierEntete
-              title={dossierTitle(apercu)}
-              status={apercu.status}
-              points={chronologiePoints(apercu)}
+            <DossierHeader
+              title={dossierTitle(preview)}
+              status={preview.status}
+              points={timelinePoints(preview)}
               badge={
-                apercu.declarationDeadline ? (
+                preview.declarationDeadline ? (
                   <DeclarationDeadlineBlock
-                    deadline={apercu.declarationDeadline}
-                    apercu
+                    deadline={preview.declarationDeadline}
+                    preview
                   />
                 ) : null
               }
             >
-              {apercu.arrete ? (
-                <ArretePublication arrete={apercu.arrete} />
+              {preview.arrete ? (
+                <ArretePublication arrete={preview.arrete} />
               ) : null}
-            </DossierEntete>
+            </DossierHeader>
 
             {/* With a recognised arrêté the event date is no longer asked but
               refined: the visitor arrived from the commune answer with the
               first day of the period, and only the days it covers can anchor
               the plan (PRD, «Ouvrir mon dossier»). */}
-            {apercu.arrete?.outcome === ArreteEntryOutcome.RECONNU ? (
+            {preview.arrete?.outcome === ArreteEntryOutcome.RECONNU ? (
               <section className="space-y-4">
-                <SectionHeading>
-                  {fr.dossier.formulaire.preciser.titre}
-                </SectionHeading>
-                <Formulaire
+                <SectionHeading>{fr.dossier.form.refine.title}</SectionHeading>
+                <DossierForm
                   params={params}
                   risqueOptions={risqueOptions}
-                  periode={{
-                    min: apercu.arrete.eventStart,
-                    max: apercu.arrete.eventEnd,
+                  period={{
+                    min: preview.arrete.eventStart,
+                    max: preview.arrete.eventEnd,
                   }}
                 />
               </section>
@@ -208,53 +210,49 @@ function Apercu({
 
             {/* No onMark: nothing is stored to be marked until the dossier is
               saved, so the plan is read-only here. */}
-            <DossierFeuille>
-              <PlanList steps={apercu.steps} />
-            </DossierFeuille>
+            <DossierSheet>
+              <PlanList steps={preview.steps} />
+            </DossierSheet>
 
             <Button
               size="touch"
-              onClick={() => enregistrer()}
-              disabled={enregistrement}
-              data-enregistrer
+              onClick={() => void save()}
+              disabled={saving}
+              data-save
             >
-              {enregistrement
-                ? fr.dossier.enregistrement
-                : fr.dossier.enregistrer}
+              {saving ? fr.dossier.saving : fr.dossier.save}
             </Button>
 
             {failed || sessionEchec ? <RequestError /> : null}
           </>
         ) : null}
       </PageContainer>
-    </DossierExistant>
+    </ExistingDossier>
   );
 }
 
-function FormulaireEntete() {
+function FormHeader() {
   return (
     <section className="space-y-4">
-      <PageTitle>{fr.dossier.formulaire.titre}</PageTitle>
-      <p className="text-lg text-muted-foreground">
-        {fr.dossier.formulaire.lead}
-      </p>
+      <PageTitle>{fr.dossier.form.title}</PageTitle>
+      <p className="text-lg text-muted-foreground">{fr.dossier.form.lead}</p>
     </section>
   );
 }
 
-function Formulaire({
+function DossierForm({
   params,
   risqueOptions,
-  refuse,
-  periode,
+  refused,
+  period,
 }: {
   /** What the address already says: a parameter answered there is not asked. */
   params: DossierParams;
   risqueOptions: readonly RisqueCatnat[];
   /** The API refused this address: every field is asked again. */
-  refuse?: boolean;
+  refused?: boolean;
   /** Set on the aperçu screen: the date is then a refinement, not a question. */
-  periode?: EventPeriode;
+  period?: EventPeriod;
 }) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
@@ -268,22 +266,22 @@ function Formulaire({
   );
   const [eventDate, setEventDate] = useState<string>(params.date ?? '');
   const [errors, setErrors] = useState<SinistreFieldErrors>({});
-  const [inchange, setInchange] = useState(false);
-  const clearError = (champ: keyof SinistreFieldErrors) => {
-    setInchange(false);
-    setErrors((previous) => ({ ...previous, [champ]: undefined }));
+  const [unchanged, setUnchanged] = useState(false);
+  const clearError = (field: keyof SinistreFieldErrors) => {
+    setUnchanged(false);
+    setErrors((previous) => ({ ...previous, [field]: undefined }));
   };
 
   // A refusal does not say which of the three it is about, so all three are
   // asked again — the commune included: only its code travelled in the
   // address, and the picker answers with a commune, not a code.
   const demande = {
-    commune: refuse || !params.commune,
-    risque: refuse || !params.risque,
-    date: refuse || !params.date || Boolean(periode),
+    commune: refused || !params.commune,
+    risque: refused || !params.risque,
+    date: refused || !params.date || Boolean(period),
   };
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
     const next: SinistreFieldErrors = {
       commune:
@@ -294,7 +292,7 @@ function Formulaire({
         demande.risque && !risque
           ? fr.sinistres.risque.requiredError
           : undefined,
-      eventDate: validateEventDate(eventDate, periode),
+      eventDate: validateEventDate(eventDate, period),
     };
     setErrors(next);
     if (
@@ -307,7 +305,7 @@ function Formulaire({
       return;
     }
 
-    const reponse = {
+    const answer = {
       commune: commune?.codeInsee ?? params.commune,
       risque: risque ?? params.risque,
       date: eventDate,
@@ -315,11 +313,11 @@ function Formulaire({
     // The same three values again: `replace` would navigate nowhere, and a
     // refusal would only be refused again.
     if (
-      reponse.commune === params.commune &&
-      reponse.risque === params.risque &&
-      reponse.date === params.date
+      answer.commune === params.commune &&
+      answer.risque === params.risque &&
+      answer.date === params.date
     ) {
-      setInchange(true);
+      setUnchanged(true);
       return;
     }
 
@@ -327,7 +325,7 @@ function Formulaire({
     // answered, and the back button belongs to the page the visitor came
     // from. `risques`, the hint of a multi-risk arrêté, has done its job and
     // is left behind.
-    router.replace(dossierPath('/dossier', reponse));
+    router.replace(dossierPath('/dossier', answer));
   };
 
   return (
@@ -368,7 +366,7 @@ function Formulaire({
             setEventDate(next);
             clearError('eventDate');
           }}
-          periode={periode}
+          period={period}
           error={errors.eventDate}
         />
       ) : null}
@@ -376,15 +374,13 @@ function Formulaire({
       <Button
         type="submit"
         size="touch"
-        variant={periode ? 'outline' : 'default'}
+        variant={period ? 'outline' : 'default'}
       >
-        {periode
-          ? fr.dossier.formulaire.preciser.submit
-          : fr.dossier.formulaire.submit}
+        {period ? fr.dossier.form.refine.submit : fr.dossier.form.submit}
       </Button>
       <p role="status" className="text-lg text-destructive">
-        {inchange && refuse ? fr.dossier.formulaire.inchange.refuse : null}
-        {inchange && !refuse ? fr.dossier.formulaire.inchange.preciser : null}
+        {unchanged && refused ? fr.dossier.form.unchanged.refused : null}
+        {unchanged && !refused ? fr.dossier.form.unchanged.refine : null}
       </p>
     </form>
   );

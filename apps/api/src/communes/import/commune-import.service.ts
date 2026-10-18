@@ -21,7 +21,7 @@ export interface CommuneImportResult {
  * Upserts run in chunks of this size (Promise.allSettled inside a chunk,
  * chunks sequentially) — docs/research/commune-referential.md.
  */
-export const IMPORT_CHUNK_SIZE = 500;
+const IMPORT_CHUNK_SIZE = 500;
 
 /**
  * Idempotent COG import: upsert by codeInsee, never deletes codes that

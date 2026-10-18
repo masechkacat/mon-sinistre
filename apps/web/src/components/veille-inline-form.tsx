@@ -1,7 +1,7 @@
 'use client';
 
 import { useMutation } from '@tanstack/react-query';
-import { useEffect, useState, type FormEvent } from 'react';
+import { useState, type SubmitEvent } from 'react';
 import type { Commune } from '@mon-sinistre/contracts';
 import { AnnouncedResult } from '@/components/announced-result';
 import { PrivacyNote } from '@/components/privacy-note';
@@ -20,15 +20,16 @@ export function VeilleInlineForm({ commune }: { commune: Commune }) {
   const [emailError, setEmailError] = useState<string>();
 
   const mutation = useMutation({
-    mutationFn: (value: string) => subscribeVeille(value, [commune.codeInsee]),
+    mutationFn: ({ email, codeInsee }: { email: string; codeInsee: string }) =>
+      subscribeVeille(email, [codeInsee]),
   });
-  // A subscription confirmed for one commune must not stay on screen as the
-  // answer for the next; the address typed is kept, the visitor is still
-  // the same.
-  const { reset } = mutation;
-  useEffect(() => reset(), [commune.codeInsee, reset]);
+  // The outcome belongs to the commune it was asked for: another commune
+  // picked above gets the form again, with the address still typed, since
+  // the visitor is the same.
+  const asked = mutation.variables?.codeInsee === commune.codeInsee;
+  const confirmed = asked && mutation.isSuccess;
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
     const nextEmailError = validateEmail(email.trim(), {
       required: copy.form.emailRequiredError,
@@ -38,13 +39,13 @@ export function VeilleInlineForm({ commune }: { commune: Commune }) {
     setEmailError(nextEmailError);
     if (nextEmailError) return;
 
-    mutation.mutate(email);
+    mutation.mutate({ email, codeInsee: commune.codeInsee });
   };
 
   return (
     <AnnouncedResult
-      result={mutation.isSuccess ? copy.confirmationSent : undefined}
-      announce={mutation.isSuccess}
+      result={confirmed ? copy.confirmationSent : undefined}
+      announce={confirmed}
       testId="veille-inline-confirmation"
       inline
     >
@@ -55,7 +56,7 @@ export function VeilleInlineForm({ commune }: { commune: Commune }) {
           className="space-y-4"
           onSubmit={handleSubmit}
           noValidate
-          aria-busy={mutation.isPending}
+          aria-busy={asked && mutation.isPending}
         >
           <EmailField
             label={copy.form.emailLabel}
@@ -77,12 +78,14 @@ export function VeilleInlineForm({ commune }: { commune: Commune }) {
             type="submit"
             variant="outline"
             size="touch"
-            disabled={mutation.isPending}
+            disabled={asked && mutation.isPending}
           >
-            {mutation.isPending ? copy.form.submitting : copy.inline.submit}
+            {asked && mutation.isPending
+              ? copy.form.submitting
+              : copy.inline.submit}
           </Button>
 
-          {mutation.isError ? <RequestError /> : null}
+          {asked && mutation.isError ? <RequestError /> : null}
         </form>
       </section>
     </AnnouncedResult>

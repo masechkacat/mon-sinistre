@@ -1,11 +1,14 @@
 import { Injectable, Logger } from '@nestjs/common';
 import {
-  type ArreteEntryOutcome,
+  ArreteEntryOutcome,
   COMMUNE_ARRETES_WINDOW_MONTHS,
-  type CommuneArrete,
-  type CommuneArretes,
-  type DossierApercu,
 } from '@mon-sinistre/contracts';
+import type {
+  CommuneArrete,
+  CommuneArretes,
+  DossierApercu,
+} from '@mon-sinistre/contracts';
+import { enumValue } from '../common/enum-value.js';
 import { todayInParis } from 'src/common/time/today-in-paris.js';
 import { requireActiveCommune } from 'src/communes/active-commune.js';
 import { codesMergedInto } from 'src/communes/codes-merged-into.js';
@@ -120,7 +123,7 @@ export class DossierService {
           risques: [...classifyRisques(entry.risque)],
           eventStart: dateToIsoDate(entry.eventStart),
           eventEnd: dateToIsoDate(entry.eventEnd),
-          outcome: entry.outcome as ArreteEntryOutcome,
+          outcome: enumValue(ArreteEntryOutcome, entry.outcome),
           declarationDeadline: rule
             ? toDeclarationDeadline(
                 legalStepDate(publishedAt, rule),
@@ -139,7 +142,7 @@ function arreteOf(match: MatchedArrete): NonNullable<DossierApercu['arrete']> {
   return {
     publishedAt: match.publishedAt,
     legifranceUrl: match.legifranceUrl,
-    outcome: match.outcome as ArreteEntryOutcome,
+    outcome: enumValue(ArreteEntryOutcome, match.outcome),
     eventStart: match.eventStart,
     eventEnd: match.eventEnd,
   };

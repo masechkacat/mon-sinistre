@@ -5,14 +5,15 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import {
-  SinistreStatus,
-  type IsoDate,
-  type SinistreConflict,
-  type SinistreDetail,
-  type SinistreSummary,
-  type Step,
+import { SinistreStatus } from '@mon-sinistre/contracts';
+import type {
+  IsoDate,
+  SinistreConflict,
+  SinistreDetail,
+  SinistreSummary,
+  Step,
 } from '@mon-sinistre/contracts';
+import { enumValue } from '../common/enum-value.js';
 import type { Prisma } from 'src/generated/prisma/client.js';
 import type { StepPersistedStatus } from 'src/generated/prisma/enums.js';
 import { DeadlineRuleService } from 'src/deadline-rules/deadline-rule.service.js';
@@ -275,7 +276,7 @@ export class SinistresService {
         ? dateToIsoDate(sinistre.arreteEntry.arrete.publishedAt)
         : null;
       const status = sinistreStatus({
-        current: sinistre.status as SinistreStatus,
+        current: enumValue(SinistreStatus, sinistre.status),
         link: sinistre.arreteEntry
           ? { outcome: sinistre.arreteEntry.outcome }
           : null,

@@ -103,12 +103,12 @@ export function apercuFixture(
 }
 
 /** The only request the dossier page sends on load. */
-export function mockApercu(page: Page, apercu: DossierApercu) {
+export function mockApercu(page: Page, preview: DossierApercu) {
   return page.route(`${testApiBaseUrl}/dossier/apercu**`, (route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify(apercu),
+      body: JSON.stringify(preview),
     }),
   );
 }
@@ -152,11 +152,11 @@ export function mockCommuneArretes(
 }
 
 /**
- * The test route mounting `ReponseCommune` alone. The commune travels as JSON
+ * The test route mounting `CommuneAnswer` alone. The commune travels as JSON
  * so the fixture above stays the single one: a copy of it in `src/` would be a
  * second commune to keep in step with the mocked answer.
  */
-export function reponseCommunePath(): Route {
+export function communeAnswerPath(): Route {
   const commune = encodeURIComponent(JSON.stringify(NIMES));
-  return `/test-reponse-commune?commune=${commune}` as Route;
+  return `/test-commune-answer?commune=${commune}` as Route;
 }

@@ -23,7 +23,7 @@ const EMAIL = 'sinistre@example.fr';
 /** The registration a visitor reaches from « Enregistrer ce dossier ». */
 const INSCRIPTION_DOSSIER_PATH = dossierPath('/inscription', APERCU_PARAMS);
 
-const RESUME = fr.dossier.resume([
+const RESUME = fr.dossier.summary([
   fr.sinistres.risque.options[APERCU_PARAMS.risque].label,
   communeLabel(NIMES),
   formatDateFr(APERCU_PARAMS.date),
@@ -62,7 +62,7 @@ test('the registration summarises the dossier of the address and sends its three
   const sent = await register(page);
   await openInscription(page, INSCRIPTION_DOSSIER_PATH);
 
-  await expect(page.getByTestId('dossier-resume')).toHaveText(RESUME);
+  await expect(page.getByTestId('dossier-summary')).toHaveText(RESUME);
 
   await submit(page);
 
@@ -85,7 +85,7 @@ test('without parameters the registration carries no dossier and shows no summar
   const sent = await register(page);
   await openInscription(page, '/inscription');
 
-  await expect(page.getByTestId('dossier-resume')).toHaveCount(0);
+  await expect(page.getByTestId('dossier-summary')).toHaveCount(0);
 
   await submit(page);
 
@@ -100,12 +100,12 @@ test('the summary is written once, when the name of the commune is known', async
 
   // Appending the commune to a line already read would go unannounced, so
   // nothing is written until the name is there — the room for it is.
-  const resume = page.getByTestId('dossier-resume');
-  await expect(resume).toBeEmpty();
+  const summary = page.getByTestId('dossier-summary');
+  await expect(summary).toBeEmpty();
 
   held.release();
 
-  await expect(resume).toHaveText(RESUME);
+  await expect(summary).toHaveText(RESUME);
 });
 
 test('coming from the dossier, the summary names the commune without asking the referential', async ({
@@ -120,11 +120,11 @@ test('coming from the dossier, the summary names the commune without asking the 
   await mockApercu(page, apercuFixture());
   await page.goto(DOSSIER_PATH);
 
-  await page.getByRole('button', { name: fr.dossier.enregistrer }).click();
+  await page.getByRole('button', { name: fr.dossier.save }).click();
 
   await expect(page).toHaveURL(INSCRIPTION_DOSSIER_PATH);
   // The aperçu the person just left already named the commune.
-  await expect(page.getByTestId('dossier-resume')).toHaveText(RESUME);
+  await expect(page.getByTestId('dossier-summary')).toHaveText(RESUME);
   expect(searches).toBe(0);
 });
 

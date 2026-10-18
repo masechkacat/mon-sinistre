@@ -16,7 +16,7 @@ import { sinistreStatus } from './sinistre-status.js';
 import type { StepViewRow } from './to-sinistre-detail.js';
 
 /** A snapshot as `Step.create` takes it: `plannedDate` in the column's type. */
-export interface StepCreateRow extends Omit<StepSnapshot, 'plannedDate'> {
+interface StepCreateRow extends Omit<StepSnapshot, 'plannedDate'> {
   plannedDate: Date | null;
   /** Nothing is marked on a step this fresh. */
   persistedStatus: null;
@@ -34,7 +34,7 @@ export interface PlannedStep {
 }
 
 /** The `CATNAT` plan for a set of anchor dates. */
-export async function snapshotPlan(
+async function snapshotPlan(
   prisma: Pick<PrismaService, 'stepTemplate'>,
   deadlineRules: DeadlineRuleService,
   anchorDates: Partial<Record<StepAnchor, IsoDate>>,
