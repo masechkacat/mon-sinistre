@@ -8,6 +8,17 @@
   "maxTurns": 150,
   "permissionMode": "acceptEdits",
   "prType": "feat",
+  "verificationCommands": [
+    ["npm", "run", "build"],
+    ["npm", "run", "lint"],
+    ["npm", "run", "format:check"],
+    ["npm", "run", "test"],
+    ["npm", "run", "test:tooling"],
+    ["npm", "run", "dup"],
+    ["npm", "run", "knip"],
+    ["npm", "run", "test:web"],
+    ["npm", "run", "test:e2e"]
+  ],
   "project": {
     "number": 2,
     "owner": "masechkacat",
@@ -31,6 +42,7 @@
     "Bash(npm run lint:*)",
     "Bash(npm run test:tooling)",
     "Bash(npm run test:web)",
+    "Bash(npm run test:e2e)",
     "mcp__playwright__*",
     "Bash(npm run build:contracts)",
     "Bash(npm run db:up)",

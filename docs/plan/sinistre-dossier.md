@@ -54,7 +54,7 @@
       date», поля ввода нет; `tests/dossier` — на `/dossier` формы нет;
       `npm run test:e2e` зелёный.
 
-**Когда готова:** `npm run test:web` зелёный со свежими снимками
-`etapes-{light,dark}.png` и `hero/*`; `npm run test:e2e` зелёный;
-`npm run test:web -- tests/a11y` зелёный на 320 px и 200 % в обеих темах;
-`/ui-review` чисто на `/sinistres/[id]` и `/dossier`.
+**Когда готова:** автоматическая приёмка `verificationCommands` в
+`.claude/ralph.config.json` зелёная, снимки `etapes-{light,dark}.png` и
+`hero/*` актуальны; `/ui-review` чисто на `/sinistres/[id]` и `/dossier`
+на 320 px и при 200 % масштабе в обеих темах.

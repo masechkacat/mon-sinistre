@@ -46,8 +46,9 @@ function usageOfTranscript(text) {
     let entry;
     try {
       entry = JSON.parse(line);
-    } catch {
-      continue;
+    } catch (error) {
+      if (!(error instanceof SyntaxError)) throw error;
+      return null;
     }
     const usage = entry.type === 'assistant' && entry.message?.usage;
     if (!usage) continue;
@@ -63,7 +64,7 @@ function usageOfTranscript(text) {
       (usage.input_tokens || 0);
     sum.output += usage.output_tokens || 0;
   }
-  return sum;
+  return sum.turns ? sum : null;
 }
 
 function addUsage(a, b) {
@@ -85,9 +86,11 @@ function sessionTranscripts(dir, id) {
 }
 
 function sessionUsage(dir, id) {
-  return sessionTranscripts(dir, id)
-    .map((f) => usageOfTranscript(fs.readFileSync(f, 'utf8')))
-    .reduce(addUsage, EMPTY_USAGE);
+  if (!fs.existsSync(path.join(dir, `${id}.jsonl`))) return null;
+  const usages = sessionTranscripts(dir, id).map((f) =>
+    usageOfTranscript(fs.readFileSync(f, 'utf8')),
+  );
+  return usages.includes(null) ? null : usages.reduce(addUsage, EMPTY_USAGE);
 }
 
 function averageUsage(usages) {
@@ -183,7 +186,7 @@ function mergedPullRequests(limit) {
 const millions = (n) => `${(n / 1e6).toFixed(1)} млн`;
 
 /** Строки для тела PR и для консоли — один формат. */
-function formatReport({ usage, sessions, ratios, review }) {
+function formatReport({ usage, sessions, missing = 0, costs, ratios, review }) {
   const lines = [];
   if (usage && sessions > 0)
     lines.push(
@@ -191,6 +194,20 @@ function formatReport({ usage, sessions, ratios, review }) {
         `${usage.turns} ходов, ${millions(usage.output)} на выходе ` +
         `(среднее по ${sessions} сессиям)`,
     );
+  if (missing)
+    lines.push(
+      `- Нет данных о токенах: ${missing} из ${sessions + missing} сессий`,
+    );
+  if (costs?.length) {
+    const known = costs.filter((cost) => cost !== null);
+    lines.push(
+      `- Стоимость попыток (оценка CLI): ` +
+        (known.length
+          ? `$${known.reduce((sum, cost) => sum + cost, 0).toFixed(2)}`
+          : 'нет данных') +
+        `; учтено ${known.length} из ${costs.length} сессий`,
+    );
+  }
   if (ratios)
     lines.push(
       `- Тесты к коду: ` +
@@ -216,12 +233,17 @@ function parseArgs(argv) {
 }
 
 /** Строки отчёта: для консоли и для тела PR фазы (`ralph.js`). */
-function report({ sessions = [], prs = 0, root = ROOT }) {
+function report({ sessions = [], attempts, prs = 0, root = ROOT }) {
   const dir = transcriptsDir(root);
-  const usages = sessions.map((id) => sessionUsage(dir, id));
+  const usages = attempts
+    ? attempts.map((attempt) => attempt.outcome?.usage ?? null)
+    : sessions.map((id) => sessionUsage(dir, id));
+  const known = usages.filter((usage) => usage !== null);
   return formatReport({
-    usage: averageUsage(usages),
-    sessions: usages.length,
+    usage: averageUsage(known),
+    sessions: known.length,
+    missing: usages.length - known.length,
+    costs: attempts?.map((attempt) => attempt.outcome?.costUsd ?? null),
     ratios: testCodeRatio(root),
     review: prs ? reviewFixShare(mergedPullRequests(prs)) : null,
   });

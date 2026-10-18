@@ -3,9 +3,8 @@
  *
  * Запуск: npm run test:tooling (или `node --test .claude/`).
  *
- * Здесь только то, что не ходит в сеть и в git: разбор названий milestone,
- * очередь, распознавание трейлера, валидация конфига. Всё остальное в
- * `ralph.js` — обёртки над `git`/`gh`, они проверяются прогоном `--dry-run`.
+ * Сценарии исполнения с настоящим локальным Git и подменой внешних CLI —
+ * `ralph.integration.test.js`.
  */
 
 import test from 'node:test';
@@ -28,6 +27,7 @@ import {
   pickMilestone,
   prTitle,
   validateConfig,
+  validateVerificationScripts,
 } from './ralph.js';
 
 const REPO = 'masechkacat/mon-sinistre';
@@ -37,6 +37,7 @@ function config(overrides = {}) {
   return {
     feature: 'commune-referential',
     phases: [3],
+    verificationCommands: [['npm', 'run', 'test:tooling']],
     project: {
       number: 2,
       owner: 'masechkacat',
@@ -273,6 +274,22 @@ test('checkIterationCommit останавливает цикл на чужом �
   );
 });
 
+test('checkIterationCommit отвергает вторую закрывающую ссылку в любом месте', () => {
+  for (const second of [
+    'Fixes #13',
+    `Resolves ${REPO}#13`,
+    'Closes https://github.com/other/repo/issues/13',
+    'Closes #12',
+  ])
+    assert.throws(
+      () => checkIterationCommit(1, `${second}\n\nCloses #12`, 12, REPO),
+      /ровно одна/,
+    );
+  assert.doesNotThrow(() =>
+    checkIterationCommit(1, 'Closes #12, #13\nCloses #<N>', 12, REPO),
+  );
+});
+
 test('checkLinearAdvance пропускает обычное продвижение ветки', () => {
   assert.doesNotThrow(() =>
     checkLinearAdvance(true, 'commune-referential/phase-3'),
@@ -321,6 +338,32 @@ test('validateConfig отбивает лимиты не-числом и не-ц�
   );
   assert.throws(() => validateConfig(config({ stallLimit: 0 })), /stallLimit/);
   assert.throws(() => validateConfig(config({ phases: ['3'] })), /phases/);
+  for (const key of ['maxTurns', 'maxBudgetUsd', 'iterationTimeoutMs']) {
+    for (const value of [-1, 0, '5', NaN, Infinity])
+      assert.throws(
+        () => validateConfig(config({ [key]: value })),
+        new RegExp(key),
+      );
+  }
+  assert.equal(validateConfig(config({ maxBudgetUsd: 0.5 })).maxBudgetUsd, 0.5);
+});
+
+test('приёмка требует существующие npm-скрипты без shell-команд', () => {
+  for (const commands of [[], ['npm test'], [['sh', '-c', 'npm test']]])
+    assert.throws(
+      () => validateConfig(config({ verificationCommands: commands })),
+      /verificationCommands/,
+    );
+  const { verificationCommands } = validateConfig(config());
+  assert.throws(
+    () => validateVerificationScripts(verificationCommands, { scripts: {} }),
+    /test:tooling/,
+  );
+  assert.doesNotThrow(() =>
+    validateVerificationScripts(verificationCommands, {
+      scripts: { 'test:tooling': 'node --test' },
+    }),
+  );
 });
 
 test('validateConfig подставляет prType и отбивает пустой', () => {
@@ -372,22 +415,21 @@ test('prTitle берёт тип коммита из конфига', () => {
 });
 
 test('dryReviewPrompt называет агента и дифф фазы', () => {
-  const prompt = dryReviewPrompt('veille/phase-2');
+  const prompt = dryReviewPrompt('abc...def');
   assert.match(prompt, /dry-reviewer/);
-  assert.match(prompt, /origin\/main\.\.\.veille\/phase-2/);
+  assert.match(prompt, /abc\.\.\.def/);
 });
 
-test('hasDryReviewComment узнаёт свой отчёт по заголовку, не по упоминанию', () => {
-  assert.equal(hasDryReviewComment([]), false);
-  assert.equal(
-    hasDryReviewComment([{ body: 'Посмотрел отчёт dry-reviewer, ок' }]),
-    false,
-  );
-  assert.equal(
-    hasDryReviewComment([
-      { body: 'lgtm' },
-      { body: '## dry-reviewer по диффу origin/main...veille/phase-2\n\n—' },
-    ]),
-    true,
-  );
+test('hasDryReviewComment принимает только отчёт по тем же base и head SHA', () => {
+  const comments = [
+    { body: 'Посмотрел отчёт dry-reviewer, ок' },
+    { body: '## dry-reviewer по диффу origin/main...veille/phase-2\n\n—' },
+  ];
+  assert.equal(hasDryReviewComment(comments, 'base', 'head'), false);
+  comments.push({
+    body: '## dry-reviewer по диффу base...head\n<!-- ralph-dry-review:base:head -->\n\n—',
+  });
+  assert.equal(hasDryReviewComment(comments, 'base', 'head'), true);
+  assert.equal(hasDryReviewComment(comments, 'base', 'new-head'), false);
+  assert.equal(hasDryReviewComment(comments, 'new-base', 'head'), false);
 });
