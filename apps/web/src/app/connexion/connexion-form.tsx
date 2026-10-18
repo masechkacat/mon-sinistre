@@ -9,7 +9,7 @@ import type { LoginResponse } from '@mon-sinistre/contracts';
 import { Alert, AlertTitle } from '@/components/ui/alert';
 import { PageContainer } from '@/components/page-container';
 import { PageTitle } from '@/components/page-title';
-import { DossierExistant } from '@/components/plan/dossier-existant';
+import { ExistingDossier } from '@/components/plan/existing-dossier';
 import { RequestError } from '@/components/request-error';
 import { EmailField, PasswordField } from '@/components/text-field';
 import { Button, buttonVariants } from '@/components/ui/button';
@@ -22,7 +22,7 @@ import {
   type DossierParams,
 } from '@/lib/dossier-params';
 import { validateEmail } from '@/lib/email-pattern';
-import { useFocusOnSuccess } from '@/lib/use-focus-on-success';
+import { focusOnMount } from '@/lib/focus-on-mount';
 import { fr } from '@/i18n/fr';
 
 interface LoginInput {
@@ -39,15 +39,14 @@ export function ConnexionForm({
 }) {
   const router = useRouter();
   const dossier = dossierInput(params);
-  const retourDossier = dossierPath('/dossier', params);
+  const backToDossier = dossierPath('/dossier', params);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [emailError, setEmailError] = useState<string>();
   const [passwordError, setPasswordError] = useState<string>();
 
-  const enregistrement = useCreateSinistre();
-  const echecRef = useFocusOnSuccess(enregistrement.failed);
+  const creation = useCreateSinistre();
 
   const mutation = useMutation({
     mutationFn: (input: LoginInput) =>
@@ -59,7 +58,7 @@ export function ConnexionForm({
     onSuccess: (data) => {
       setAccessToken(data.accessToken);
       if (dossier) {
-        enregistrement.mutation.mutate(dossier);
+        creation.mutation.mutate(dossier);
         return;
       }
       router.push(suivant ?? ESPACE_PERSONNEL_PATH);
@@ -91,18 +90,18 @@ export function ConnexionForm({
     mutation.isError &&
     mutation.error instanceof ApiError &&
     mutation.error.status === 401;
-  const connecte = mutation.isSuccess && dossier !== undefined;
-  const enregistrementRefuse =
-    enregistrement.mutation.error instanceof ApiError &&
-    enregistrement.mutation.error.status === 400;
+  const loggedIn = mutation.isSuccess && dossier !== undefined;
+  const creationRefused =
+    creation.mutation.error instanceof ApiError &&
+    creation.mutation.error.status === 400;
 
   return (
-    <DossierExistant
-      conflict={enregistrement.conflict}
-      onConfirmNew={enregistrement.confirmNew}
-      onCorriger={() => router.push(retourDossier)}
-      pending={enregistrement.mutation.isPending}
-      failed={enregistrement.failed}
+    <ExistingDossier
+      conflict={creation.conflict}
+      onConfirmNew={creation.confirmNew}
+      onEdit={() => router.push(backToDossier)}
+      pending={creation.mutation.isPending}
+      failed={creation.failed}
     >
       <PageContainer className="space-y-8">
         <section className="space-y-4">
@@ -116,38 +115,40 @@ export function ConnexionForm({
           role="status"
           className="text-lg text-muted-foreground empty:sr-only"
         >
-          {connecte && enregistrement.mutation.isPending
-            ? fr.dossier.enregistrement
-            : null}
+          {loggedIn && creation.mutation.isPending ? fr.dossier.saving : null}
         </p>
 
-        {connecte && enregistrement.failed ? (
-          <div ref={echecRef} tabIndex={-1} className="space-y-6 outline-none">
-            <p className="text-lg">{fr.dossier.echecApresConnexion}</p>
+        {loggedIn && creation.failed ? (
+          <div
+            ref={focusOnMount}
+            tabIndex={-1}
+            className="space-y-6 outline-none"
+          >
+            <p className="text-lg">{fr.dossier.failureAfterLogin}</p>
             <RequestError />
             <div className="flex flex-wrap gap-4">
-              {enregistrementRefuse ? null : (
+              {creationRefused ? null : (
                 <Button
                   size="touch"
-                  onClick={() => enregistrement.mutation.mutate(dossier)}
+                  onClick={() => creation.mutation.mutate(dossier)}
                 >
                   {fr.serverError.retry}
                 </Button>
               )}
               <Link
-                href={retourDossier}
+                href={backToDossier}
                 className={buttonVariants({
                   size: 'touch',
-                  variant: enregistrementRefuse ? 'default' : 'outline',
+                  variant: creationRefused ? 'default' : 'outline',
                 })}
               >
-                {fr.dossier.revenir}
+                {fr.dossier.back}
               </Link>
             </div>
           </div>
         ) : null}
 
-        {connecte ? null : (
+        {loggedIn ? null : (
           <form
             className="space-y-6"
             onSubmit={handleSubmit}
@@ -210,6 +211,6 @@ export function ConnexionForm({
           </form>
         )}
       </PageContainer>
-    </DossierExistant>
+    </ExistingDossier>
   );
 }

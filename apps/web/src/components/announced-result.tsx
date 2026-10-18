@@ -2,7 +2,7 @@
 
 import type { ReactNode } from 'react';
 import { MessageScreen } from '@/components/message-screen';
-import { useFocusOnSuccess } from '@/lib/use-focus-on-success';
+import { focusOnMount } from '@/lib/focus-on-mount';
 
 /**
  * The two ends of a form/action flow: `children` while the action has no
@@ -34,7 +34,6 @@ export function AnnouncedResult({
   inline?: boolean;
   children: ReactNode;
 }) {
-  const resultRef = useFocusOnSuccess(announce && result !== undefined);
   return (
     <>
       <div role="status" className="sr-only">
@@ -42,7 +41,7 @@ export function AnnouncedResult({
       </div>
       {result ? (
         <div
-          ref={resultRef}
+          ref={announce ? focusOnMount : undefined}
           tabIndex={-1}
           data-testid={testId}
           className="outline-none"

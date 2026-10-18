@@ -108,6 +108,23 @@ export type RefreshOutcome = 'open' | 'none' | 'failed';
 
 let refreshInFlight: Promise<RefreshOutcome> | null = null;
 
+// Whether a silent refresh has answered since this module was loaded — a
+// hard reload starts it over, a client-side navigation keeps the answer, as
+// it keeps the token. Read through `useSyncExternalStore` by the hooks below.
+let refreshAnswered = false;
+const refreshListeners = new Set<() => void>();
+
+export function subscribeRefreshAnswered(listener: () => void): () => void {
+  refreshListeners.add(listener);
+  return () => {
+    refreshListeners.delete(listener);
+  };
+}
+
+export function hasRefreshAnswered(): boolean {
+  return refreshAnswered;
+}
+
 async function requestRefresh(): Promise<RefreshOutcome> {
   // A refusal clears only the token the request set out with: a login that
   // landed meanwhile (the header's page-load refresh racing the form on
@@ -149,6 +166,8 @@ export function refreshSession(): Promise<RefreshOutcome> {
   if (!refreshInFlight) {
     refreshInFlight = requestRefresh().finally(() => {
       refreshInFlight = null;
+      refreshAnswered = true;
+      for (const listener of refreshListeners) listener();
     });
   }
   return refreshInFlight;

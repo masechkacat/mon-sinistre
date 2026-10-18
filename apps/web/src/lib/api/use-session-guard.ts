@@ -1,7 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { getAccessToken, redirectToLogin, refreshSession } from './session';
+import { useEffect, useSyncExternalStore } from 'react';
+import {
+  getAccessToken,
+  redirectToLogin,
+  refreshSession,
+  subscribeAccessToken,
+} from './session';
 
 export type SessionGuardStatus = 'checking' | 'authenticated';
 
@@ -20,26 +25,19 @@ export type SessionGuardStatus = 'checking' | 'authenticated';
  *   fresh `pageshow` is the only signal that fires on that path.
  */
 export function useSessionGuard(): SessionGuardStatus {
-  const [status, setStatus] = useState<SessionGuardStatus>(
-    getAccessToken() ? 'authenticated' : 'checking',
+  const token = useSyncExternalStore(
+    subscribeAccessToken,
+    getAccessToken,
+    () => null,
   );
 
   useEffect(() => {
     let cancelled = false;
 
     async function check() {
-      if (getAccessToken()) {
-        setStatus('authenticated');
-        return;
-      }
-      setStatus('checking');
+      if (getAccessToken()) return;
       const outcome = await refreshSession();
-      if (cancelled) return;
-      if (outcome === 'open') {
-        setStatus('authenticated');
-      } else {
-        redirectToLogin();
-      }
+      if (!cancelled && outcome !== 'open') redirectToLogin();
     }
 
     check();
@@ -55,5 +53,5 @@ export function useSessionGuard(): SessionGuardStatus {
     };
   }, []);
 
-  return status;
+  return token ? 'authenticated' : 'checking';
 }
