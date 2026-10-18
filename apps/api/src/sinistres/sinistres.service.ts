@@ -328,7 +328,9 @@ export class SinistresService {
   }
 
   /** `completedAt` follows `status`: set on mark (FAIT or NON_APPLICABLE
-   * alike), cleared on unmark. Ownership in the read and the idempotent
+   * alike), cleared on unmark. The `DECLARATION` step is not marked here at
+   * all: its mark is the date {@link update} records, and a mark beside it
+   * would let the two disagree. Ownership in the read and the idempotent
    * re-mark — docs/research/sinistre-plan.md, «Контракт API». The read and
    * the write share a transaction for the same reason as
    * `AuthService.refresh`'s rotation: a second concurrent PATCH landing
@@ -347,6 +349,9 @@ export class SinistresService {
       });
       if (!current) {
         throw new NotFoundException();
+      }
+      if (current.kind === 'DECLARATION') {
+        throw new BadRequestException(fr.sinistres.declarationStepMarkedByDate);
       }
       if (current.persistedStatus === status) {
         return toStepResponse(current, today);

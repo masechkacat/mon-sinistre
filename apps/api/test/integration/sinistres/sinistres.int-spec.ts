@@ -7,6 +7,7 @@ import { fr } from 'src/i18n/fr.js';
 import { PrismaService } from 'src/prisma/prisma.service.js';
 import {
   DECLARATION_ASSUREUR_CODE,
+  INFORMATION_ASSUREUR_CODE,
   PROVISION_INDEMNITE_CODE,
   seedDeadlineRules,
 } from 'src/deadline-rules/deadline-rule.seed.js';
@@ -91,6 +92,16 @@ describe('SinistresController (integration)', () => {
       },
     });
     return JSON.parse(res.payload) as SinistreWithDetail;
+  }
+
+  async function informRule() {
+    const rule = await prisma.deadlineRule.findFirst({
+      where: { code: INFORMATION_ASSUREUR_CODE },
+    });
+    if (!rule) {
+      throw new Error('INFORMATION_ASSUREUR rule was not seeded');
+    }
+    return rule;
   }
 
   /** The one step with `anchor` and a non-null `source` — a legal step
@@ -632,16 +643,9 @@ describe('SinistresController (integration)', () => {
     it('answers the patched step with its rule window on both the no-change and the update path', async () => {
       const email = await createUser(prisma);
       const headers = await bearerFor(email);
-      const rule = await prisma.deadlineRule.findFirstOrThrow({
-        where: { code: DECLARATION_ASSUREUR_CODE },
-      });
+      const rule = await informRule();
       const sinistre = await createSinistre(headers);
-      const target = sinistre.steps.find(
-        (s) => s.anchor === 'DATE_PUBLICATION_ARRETE',
-      );
-      if (!target) {
-        throw new Error('fixture has no DATE_PUBLICATION_ARRETE step');
-      }
+      const target = legalStepOf(sinistre, 'DATE_DECLARATION');
 
       const expected = { value: rule.duration, unit: rule.unit };
       for (const status of [null, 'FAIT']) {
@@ -656,6 +660,31 @@ describe('SinistresController (integration)', () => {
         };
         expect(patched.delay).toEqual(expected);
       }
+    });
+
+    it('refuses to mark the DECLARATION step, whose mark is the declaration date, and leaves it unchanged', async () => {
+      const email = await createUser(prisma);
+      const headers = await bearerFor(email);
+      const sinistre = await createSinistre(headers);
+      const target = sinistre.steps.find((s) => s.kind === 'DECLARATION');
+      if (!target) {
+        throw new Error('fixture has no DECLARATION step');
+      }
+
+      const res = await app.inject({
+        method: 'PATCH',
+        url: `/sinistres/${sinistre.id}/etapes/${target.id}`,
+        headers,
+        payload: { status: 'FAIT' },
+      });
+
+      expect(res.statusCode).toBe(400);
+      expect(res.payload).toContain(fr.sinistres.declarationStepMarkedByDate);
+      const after = await reread(headers, sinistre.id);
+      expect(after.steps.find((s) => s.id === target.id)).toMatchObject({
+        status: target.status,
+        completedAt: null,
+      });
     });
 
     it('returns the computed status when the mark is removed', async () => {
@@ -780,16 +809,6 @@ describe('SinistresController (integration)', () => {
         headers,
       });
       return JSON.parse(res.payload) as SinistreWithDetail;
-    }
-
-    async function informRule() {
-      const rule = await prisma.deadlineRule.findFirst({
-        where: { code: 'INFORMATION_ASSUREUR' },
-      });
-      if (!rule) {
-        throw new Error('INFORMATION_ASSUREUR rule was not seeded');
-      }
-      return rule;
     }
 
     /** Links a sinistre to a RECONNU entry directly through Prisma — Фаза 3
