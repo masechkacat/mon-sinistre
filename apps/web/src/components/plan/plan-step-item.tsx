@@ -1,14 +1,17 @@
+import type { ReactNode } from 'react';
 import {
+  StepKind,
   StepStatus,
   type IsoDate,
   type StepView,
 } from '@mon-sinistre/contracts';
-import { DeadlineBadge } from '@/components/deadline-badge';
 import { Button } from '@/components/ui/button';
+import { formatDateShortFr } from '@/i18n/date';
 import { fr } from '@/i18n/fr';
-import { DeadlineBadgeState, deadlineBadgeState } from '@/lib/deadline-badge';
+import { deadlineBadgeState, isUrgentDeadline } from '@/lib/deadline-badge';
 import { conteneurLabel } from '@/lib/plan-conteneur';
 import type { StepMark } from '@/lib/api/sinistres';
+import { cn } from '@/lib/utils';
 import { SourceNote } from './source-note';
 
 /**
@@ -21,27 +24,29 @@ export interface PlanStep extends StepView {
   completedAt?: IsoDate | null;
 }
 
+/** One strip of paper on the sheet — the tone the plan is written in. */
+const stripClassName =
+  'bg-[color-mix(in_oklch,var(--papier),var(--encre)_5%)] p-5 sm:p-6';
+
 export function PlanStepItem({
   step,
   isNext = false,
+  contenu,
   itemRef,
   onMark,
-  apercu = false,
 }: {
   step: PlanStep;
   isNext?: boolean;
+  /** What the step's own space holds, where it is open: the déclaration date. */
+  contenu?: ReactNode;
   itemRef?: (node: HTMLLIElement | null) => void;
   onMark?: (mark: StepMark) => void;
-  apercu?: boolean;
 }) {
   const copy = fr.sinistres.detail;
   const conteneur = conteneurLabel(step.kind);
   const state = deadlineBadgeState(step);
-  const isClosed =
-    step.status === StepStatus.FAIT ||
-    step.status === StepStatus.NON_APPLICABLE;
   // Names the step inside each button, so a reader listing the buttons can
-  // tell the steps apart — the three labels repeat across the timeline.
+  // tell the steps apart — the two labels repeat across the plan.
   const sujet = (
     <span className="sr-only">{copy.marquer.sujet(step.name)}</span>
   );
@@ -50,66 +55,73 @@ export function PlanStepItem({
     <li
       ref={itemRef}
       // The focus target a successful mark returns to; nothing focuses the
-      // item when there is nothing to mark.
+      // strip when there is nothing to mark.
       tabIndex={onMark ? -1 : undefined}
       aria-current={isNext ? 'step' : undefined}
-      className="space-y-2 rounded-lg border p-4"
+      className={cn(
+        stripClassName,
+        'space-y-3',
+        // The one strip drawn with a line around it (docs/design/sinistre.html).
+        step.kind === StepKind.DECLARATION && 'border-2 border-foreground',
+      )}
     >
-      <p className="text-lg font-medium">{step.name}</p>
-      {isNext ? (
-        <p className="text-sm font-semibold">{copy.prochaineEtape}</p>
-      ) : null}
-      <DeadlineBadge
-        form="row"
-        state={state}
-        date={step.plannedDate}
-        daysLeft={
-          apercu && state === DeadlineBadgeState.enRetard ? null : step.daysLeft
-        }
-        completedAt={step.completedAt}
-        delay={step.delay}
-        anchor={step.anchor}
-      />
-      {step.plannedDate && step.source && !isClosed ? (
-        <SourceNote source={step.source} sujet={step.name} />
-      ) : null}
-      {!step.plannedDate && !isClosed ? (
-        <p className="text-sm text-muted-foreground">
+      <p className="font-heading text-xl leading-tight font-bold sm:text-2xl">
+        {step.name}
+      </p>
+      {step.description ? <p>{step.description}</p> : null}
+
+      {step.plannedDate ? (
+        <p className="flex flex-wrap items-baseline gap-x-3 tabular-nums">
+          {isUrgentDeadline(state) ? (
+            <span className="font-bold text-vermillon">
+              {fr.deadlineBadge[state]}
+            </span>
+          ) : null}
+          <span>
+            {fr.deadlineBadge.prevueLe(formatDateShortFr(step.plannedDate))}
+          </span>
+        </p>
+      ) : (
+        <p className="text-muted-foreground">
           {step.anchor ? copy.attentePar[step.anchor] : copy.sansDateNiAncre}
         </p>
+      )}
+
+      {step.plannedDate && step.source ? (
+        <SourceNote source={step.source} sujet={step.name} />
       ) : null}
-      {onMark ? (
-        <div className="flex flex-wrap gap-2 pt-2">
-          {isClosed ? (
-            <Button variant="outline" size="touch" onClick={() => onMark(null)}>
-              {copy.marquer.annuler}
-              {sujet}
-            </Button>
-          ) : (
-            <>
-              <Button size="touch" onClick={() => onMark(StepStatus.FAIT)}>
-                {copy.marquer.fait}
-                {sujet}
-              </Button>
-              <Button
-                variant="outline"
-                size="touch"
-                onClick={() => onMark(StepStatus.NON_APPLICABLE)}
-              >
-                {copy.marquer.nonApplicable}
-                {sujet}
-              </Button>
-            </>
-          )}
-        </div>
-      ) : conteneur ? (
+
+      {contenu}
+
+      {/* The note says the space is not open yet: an open one has content. */}
+      {conteneur && !contenu ? (
         <p
           data-slot="plan-conteneur"
           data-kind={step.kind}
-          className="rounded-md border border-dashed border-border p-3 text-sm text-muted-foreground"
+          className="border border-dashed border-border p-3 text-sm text-muted-foreground"
         >
           {conteneur}
         </p>
+      ) : null}
+
+      {/* Only a step that is an action of its own can be closed: a container
+          holds what the dossier gathers, and closing it empty would say the
+          damage was listed when it was not (ТЗ § 3.4). */}
+      {onMark && step.kind === StepKind.ACTION ? (
+        <div className="flex flex-wrap gap-2 pt-1">
+          <Button size="touch" onClick={() => onMark(StepStatus.FAIT)}>
+            {copy.marquer.fait}
+            {sujet}
+          </Button>
+          <Button
+            variant="outline"
+            size="touch"
+            onClick={() => onMark(StepStatus.NON_APPLICABLE)}
+          >
+            {copy.marquer.nonApplicable}
+            {sujet}
+          </Button>
+        </div>
       ) : null}
     </li>
   );

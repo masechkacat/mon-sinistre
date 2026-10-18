@@ -123,7 +123,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
   }) => {
     await gotoListe(page, colorScheme);
     const onSheetControls = page.locator(onSheet('a, button'));
-    expect(await onSheetControls.count()).toBeGreaterThan(0);
+    await expect(onSheetControls.first()).toBeVisible();
     for (const control of await onSheetControls.all()) {
       await expectHoveredAA(control);
     }
@@ -135,7 +135,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
     const onGroundControls = page.locator(
       `main :is(a, button):not(${SHEET} *)`,
     );
-    expect(await onGroundControls.count()).toBeGreaterThan(0);
+    await expect(onGroundControls.first()).toBeVisible();
     for (const control of await onGroundControls.all()) {
       await expectHoveredAA(control);
     }

@@ -16,6 +16,7 @@ import { ArretePublication } from '@/components/plan/arrete-publication';
 import { DeclarationDeadlineBlock } from '@/components/plan/declaration-deadline-block';
 import { DossierEntete } from '@/components/plan/dossier-entete';
 import { DossierExistant } from '@/components/plan/dossier-existant';
+import { DossierFeuille } from '@/components/plan/dossier-feuille';
 import { PlanList } from '@/components/plan/plan-list';
 import { RequestError } from '@/components/request-error';
 import { SectionHeading } from '@/components/section-heading';
@@ -28,13 +29,13 @@ import {
   type SinistreFieldErrors,
 } from '@/components/sinistre-fields';
 import { Button } from '@/components/ui/button';
-import { formatDateFr } from '@/i18n/date';
 import { fr } from '@/i18n/fr';
 import { ApiError } from '@/lib/api/client';
 import { fetchDossierApercu } from '@/lib/api/dossier';
 import { queryKeys } from '@/lib/api/keys';
 import { getAccessToken, refreshSession } from '@/lib/api/session';
 import { useCreateSinistre } from '@/lib/api/use-create-sinistre';
+import { chronologiePoints } from '@/lib/dossier-chronologie';
 import {
   dossierInput,
   dossierPath,
@@ -169,11 +170,17 @@ function Apercu({
           <>
             <DossierEntete
               title={dossierTitle(apercu)}
-              statut={fr.sinistres.statut[apercu.status]}
+              status={apercu.status}
+              points={chronologiePoints(apercu)}
+              badge={
+                apercu.declarationDeadline ? (
+                  <DeclarationDeadlineBlock
+                    deadline={apercu.declarationDeadline}
+                    apercu
+                  />
+                ) : null
+              }
             >
-              <p>
-                {fr.sinistres.liste.eventDate(formatDateFr(apercu.eventDate))}
-              </p>
               {apercu.arrete ? (
                 <ArretePublication arrete={apercu.arrete} />
               ) : null}
@@ -199,16 +206,11 @@ function Apercu({
               </section>
             ) : null}
 
-            {apercu.declarationDeadline ? (
-              <DeclarationDeadlineBlock
-                deadline={apercu.declarationDeadline}
-                apercu
-              />
-            ) : null}
-
             {/* No onMark: nothing is stored to be marked until the dossier is
               saved, so the plan is read-only here. */}
-            <PlanList steps={apercu.steps} apercu />
+            <DossierFeuille>
+              <PlanList steps={apercu.steps} />
+            </DossierFeuille>
 
             <Button
               size="touch"

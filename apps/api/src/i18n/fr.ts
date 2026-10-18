@@ -91,6 +91,8 @@ export const fr = {
       'La date de déclaration ne peut pas être postérieure à aujourd’hui.',
     declarationDateBeforeEvent:
       'La date de déclaration ne peut pas être antérieure à la date de l’événement.',
+    declarationStepMarkedByDate:
+      'Cette étape se termine en indiquant la date de votre déclaration à l’assureur.',
     unknownCommune: 'Commune inconnue.',
   },
   mail: {

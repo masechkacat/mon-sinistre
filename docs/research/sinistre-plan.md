@@ -404,14 +404,14 @@ rectificatif, признавший коммуну позже, обошёл бы 
 **Решение:** ресурс `/sinistres`, всё под глобальным `JwtAuthGuard` (без
 `@Public()`):
 
-| метод и путь                          | тело / ответ                                                      |
-| ------------------------------------- | ----------------------------------------------------------------- |
-| `POST /sinistres`                     | `{ codeInsee, risque, eventDate }` → 201 `SinistreDetail`         |
-| `GET /sinistres`                      | → `SinistreSummary[]`                                             |
-| `GET /sinistres/:id`                  | → `SinistreDetail` (синистр + шаги + arrêté + сроки)              |
-| `PATCH /sinistres/:id`                | `{ declarationDate: IsoDate \| null }` → `SinistreDetail`         |
-| `DELETE /sinistres/:id`               | → 204                                                             |
-| `PATCH /sinistres/:id/etapes/:stepId` | `{ status: 'FAIT' \| 'NON_APPLICABLE' \| null }` → `StepResponse` |
+| метод и путь                          | тело / ответ                                                                                       |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `POST /sinistres`                     | `{ codeInsee, risque, eventDate }` → 201 `SinistreDetail`                                          |
+| `GET /sinistres`                      | → `SinistreSummary[]`                                                                              |
+| `GET /sinistres/:id`                  | → `SinistreDetail` (синистр + шаги + arrêté + сроки)                                               |
+| `PATCH /sinistres/:id`                | `{ declarationDate: IsoDate \| null }` → `SinistreDetail`; закрывает и открывает шаг `DECLARATION` |
+| `DELETE /sinistres/:id`               | → 204                                                                                              |
+| `PATCH /sinistres/:id/etapes/:stepId` | `{ status: 'FAIT' \| 'NON_APPLICABLE' \| null }` → `StepResponse`                                  |
 
 **Почему:** дата декларации — поле синистра, а не отдельный ресурс: её указание
 и очистка это одно и то же изменение одного поля, а статус — следствие, а не
@@ -422,6 +422,11 @@ rectificatif, признавший коммуну позже, обошёл бы 
 по привязке, а без привязки — `AVANT_ARRETE`. Безусловное «очистка →
 `ARRETE_PUBLIE`» соврало бы про непривязанный синистр, что arrêté по нему
 опубликован, а безусловный пересчёт вернул бы закрытое досье в живой статус.
+Дата — и отметка шага `kind === DECLARATION`: запись даты ставит ему `FAIT` с
+`completedAt` = дата декларации, очистка снимает отметку; кнопок у этого
+шага на клиенте нет (research `sinistre-dossier.md`), а `PATCH` его шага
+отвечает 400 — иначе дата и отметка могли бы разойтись, а записанная дата
+оставляла бы шаг открытым и через 30 дней — «en retard».
 **Как применять:** принадлежность — в условии запроса, всегда: чтение —
 `findFirst({ where: { id, userId } })`, шаг — `findFirst({ where: { id: stepId,
 sinistre: { id, userId } } })` в транзакции, отсутствие строки → 404. Отметка

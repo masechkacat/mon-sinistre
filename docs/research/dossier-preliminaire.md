@@ -194,10 +194,8 @@ les factures et justificatifs» → `JUSTIFICATIFS`, 7 «Déclarer le sinistre»
 свойство шага.
 **Как применять:** `data-model.md` § 3 (StepTemplate) и § 5 (Step) — тем же
 коммитом; `seedStepTemplates` идемпотентен (upsert по `(planKey, order)`),
-`kind` входит в `update`. На экране синистра `kind` в этой фиче **не меняет
-поведения**: кнопки отметки остаются у всех шагов (PRD). На странице досье
-шаг с `kind !== ACTION` рендерится пустым контейнером с подписью из
-`fr.dossier.conteneur[kind]` и без кнопок.
+`kind` входит в `update`. Что `kind` меняет на экранах — research
+`sinistre-dossier.md`, «Контейнеры, строка „Fait“, отметки».
 
 ### Три параметра до подтверждения: таблица `DossierEnAttente`
 

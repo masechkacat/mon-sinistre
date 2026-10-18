@@ -1,9 +1,10 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import {
   DEADLINE_URGENT_THRESHOLD_DAYS,
   REFERENCE_DATA_STALE_AFTER_MONTHS,
   SinistreStatus,
   StepAnchor,
+  StepKind,
   StepStatus,
   toIsoDate,
   type IsoDate,
@@ -71,27 +72,17 @@ const STEPS = [
 ];
 
 const badgeCopy = fr.deadlineBadge;
+const declarationCopy = fr.sinistres.detail.declaration;
 const prevueLe = (date: string) =>
   badgeCopy.prevueLe(formatDateShortFr(toIsoDate(date)));
 
-// What the fields of each step above must reach the badge as.
-const BADGE_TEXTS: Record<string, string[]> = {
-  'step-retard': [
-    badgeCopy.enRetard,
-    badgeCopy.compteARebours(-3),
-    prevueLe('2026-10-10'),
-  ],
-  'step-proche': [
-    badgeCopy.derniereSemaine,
-    badgeCopy.compteARebours(DEADLINE_URGENT_THRESHOLD_DAYS),
-    prevueLe('2026-10-20'),
-  ],
-  'step-sans-date': [badgeCopy.dateAVenir],
-  'step-plus-tard': [badgeCopy.compteARebours(30), prevueLe('2026-11-12')],
-  'step-fait': [
-    badgeCopy.fait(formatDateFr(toIsoDate('2026-10-08'))),
-    prevueLe('2026-10-10'),
-  ],
+// What the fields of each step above must reach its date line as. The done
+// step is not here: it stands in the row of what is behind, by its name alone.
+const DATE_LINES: Record<string, string[]> = {
+  'step-retard': [badgeCopy.enRetard, prevueLe('2026-10-10')],
+  'step-proche': [badgeCopy.derniereSemaine, prevueLe('2026-10-20')],
+  'step-sans-date': [fr.sinistres.detail.attentePar.DATE_ETAT_ESTIMATIF],
+  'step-plus-tard': [prevueLe('2026-11-12')],
 };
 
 function sinistreDetail(overrides: Partial<Record<string, unknown>> = {}) {
@@ -107,19 +98,31 @@ function sinistreDetail(overrides: Partial<Record<string, unknown>> = {}) {
   };
 }
 
-const heroBadge = (page: Page) =>
-  page.locator('[data-slot="deadline-badge"][data-form="hero"]');
+const heroBadge = (scope: Page | Locator) =>
+  scope.locator('[data-slot="deadline-badge"]');
+const planList = (page: Page) =>
+  page.getByRole('list', { name: fr.sinistres.detail.timelineLabel });
 
 const DECLARATION_STEP = step({
   id: 'step-declaration',
   name: 'Déclarer le sinistre à l’assureur',
+  kind: StepKind.DECLARATION,
+  plannedDate: toIsoDate('2026-10-27'),
+  status: StepStatus.A_FAIRE,
+  anchor: StepAnchor.DATE_PUBLICATION_ARRETE,
+  daysLeft: 14,
+});
+const ASSUREUR_STEP = step({
+  id: 'step-assureur',
+  name: 'L’assureur précise la procédure',
   plannedDate: null,
   status: StepStatus.A_VENIR,
   anchor: StepAnchor.DATE_DECLARATION,
 });
 
-// What the API answers once a declaration date is set or cleared: the step
-// anchored on it takes a date only while the date is there.
+// What the API answers once a declaration date is set or cleared: the date
+// closes the déclaration step on that day, and the step anchored on it takes
+// a date only while the date is there.
 function detailDeclaredOn(declarationDate: IsoDate | null) {
   return sinistreDetail({
     declarationDate,
@@ -127,6 +130,11 @@ function detailDeclaredOn(declarationDate: IsoDate | null) {
       ...STEPS,
       {
         ...DECLARATION_STEP,
+        status: declarationDate ? StepStatus.FAIT : DECLARATION_STEP.status,
+        completedAt: declarationDate,
+      },
+      {
+        ...ASSUREUR_STEP,
         plannedDate: declarationDate ? toIsoDate('2026-10-31') : null,
         daysLeft: declarationDate ? 18 : null,
       },
@@ -203,46 +211,70 @@ async function openDetail(
   await page.goto(`/sinistres/${SINISTRE_ID_1}`);
 }
 
-test('the plan is an ordered list with one item per step, each state named by its badge', async ({
+test('the plan is an ordered list of what is left to do, each step with its date line', async ({
   page,
 }) => {
   await openDetail(page, sinistreDetail());
 
-  const timeline = page.getByRole('list', {
-    name: fr.sinistres.detail.timelineLabel,
-  });
-  await expect(timeline.getByRole('listitem')).toHaveCount(STEPS.length);
+  const timeline = planList(page);
+  await expect(timeline.getByRole('listitem')).toHaveCount(
+    Object.keys(DATE_LINES).length,
+  );
   for (const item of STEPS) {
-    const card = timeline.getByRole('listitem').filter({ hasText: item.name });
-    for (const text of BADGE_TEXTS[item.id]) {
-      await expect(card, item.id).toContainText(text);
+    const texts = DATE_LINES[item.id];
+    const strip = timeline.getByRole('listitem').filter({ hasText: item.name });
+    if (!texts) {
+      await expect(strip, item.id).toHaveCount(0);
+      continue;
+    }
+    for (const text of texts) {
+      await expect(strip, item.id).toContainText(text);
     }
   }
+  // The done step is behind the plan, in the row of what is settled.
+  await expect(page.locator('[data-slot="plan-fait"]')).toContainText(
+    'Prévenir le voisin',
+  );
 });
 
 test('the lines of text the badges replaced are gone from the page', async ({
   page,
 }) => {
   await openDetail(page, sinistreDetail());
-  await expect(
-    page.getByRole('list', { name: fr.sinistres.detail.timelineLabel }),
-  ).toBeVisible();
+  await expect(planList(page)).toBeVisible();
 
   for (const gone of [/Il reste/, /Date limite/, /À faire/]) {
     await expect(page.getByText(gone)).toHaveCount(0);
   }
 });
 
-test('exactly one step carries aria-current, and it is the nearest upcoming one', async ({
+test('exactly one step of the plan carries aria-current, and it is the nearest upcoming one', async ({
   page,
 }) => {
   await openDetail(page, sinistreDetail());
 
-  const current = page.locator('[aria-current="step"]');
-  await expect(current).toHaveCount(1);
-  await expect(page.locator('li[aria-current="step"]')).toContainText(
+  // Within the plan: the chronology of the head marks its own current moment.
+  const plan = planList(page);
+  await expect(plan.locator('[aria-current="step"]')).toHaveCount(1);
+  await expect(plan.locator('li[aria-current="step"]')).toContainText(
     'Envoyer les photos',
   );
+});
+
+test('the head stamps the status and holds the only badge of the page', async ({
+  page,
+}) => {
+  await openDetail(page, sinistreDetail());
+
+  const entete = page.locator('[data-slot="dossier-entete"]');
+  await expect(entete.locator('[data-slot="statut-tampon"]')).toHaveText(
+    fr.sinistres.statut[SinistreStatus.DECLARE],
+  );
+  await expect(heroBadge(entete)).toHaveCount(1);
+  // The plan says the state of its steps in the words of their date lines.
+  await expect(
+    planList(page).locator('[data-slot="deadline-badge"]'),
+  ).toHaveCount(0);
 });
 
 test('a step without a planned date is neither overdue nor the next one', async ({
@@ -377,9 +409,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
   }) => {
     await page.emulateMedia({ colorScheme });
     await openDetail(page, sinistreDetail());
-    await expect(
-      page.getByRole('list', { name: fr.sinistres.detail.timelineLabel }),
-    ).toBeVisible();
+    await expect(planList(page)).toBeVisible();
 
     await expectNoAxeViolations(page);
   });
@@ -400,12 +430,12 @@ for (const colorScheme of ['light', 'dark'] as const) {
       }),
     );
 
-    const timeline = page.getByRole('list', {
-      name: fr.sinistres.detail.timelineLabel,
-    });
-    await expect(timeline).toHaveScreenshot(`etapes-${colorScheme}.png`);
-    // Done is not a reward: nothing on the settled card lights up in green.
-    expect(await greenColours(timeline)).toEqual([]);
+    // The sheet, not the plan alone: a settled step is read under it, in the
+    // row of what is behind.
+    const feuille = page.locator('[data-slot="dossier-feuille"]');
+    await expect(feuille).toHaveScreenshot(`etapes-${colorScheme}.png`);
+    // Done is not a reward: nothing on the settled line lights up in green.
+    expect(await greenColours(feuille)).toEqual([]);
   });
 }
 
@@ -413,13 +443,16 @@ function timelineItem(page: Page, stepName: string) {
   return page.getByRole('listitem').filter({ hasText: stepName });
 }
 
-test('a mark is announced in a live region already on the page, and the other steps stay as they are', async ({
+test('a mark is announced in a live region already on the page, counted by the bookmark, and the other steps stay as they are', async ({
   page,
 }) => {
   await openDetail(page, sinistreDetail());
 
   const announcements = page.getByRole('status');
   await expect(announcements).toBeEmpty();
+  const bookmark = page.locator('[data-slot="etape-en-cours"]');
+  const progression = fr.sinistres.detail.etapeEnCours.progression;
+  await expect(bookmark).toContainText(progression(1, STEPS.length));
   const sibling = timelineItem(page, 'Relire le contrat');
   await sibling.evaluate((el) => {
     el.dataset.intact = 'oui';
@@ -432,9 +465,15 @@ test('a mark is announced in a live region already on the page, and the other st
   await expect(announcements).toHaveText(
     fr.sinistres.detail.annonce.fait('Envoyer les photos'),
   );
-  await expect(timelineItem(page, 'Envoyer les photos')).toContainText(
-    badgeCopy.fait(null),
+  await expect(page.locator('[data-slot="plan-fait"]')).toContainText(
+    'Envoyer les photos',
   );
+  // The bookmark follows the answer of the PATCH: one more step behind, and
+  // the step in hand is the next one that has a date.
+  await expect(bookmark).toContainText(progression(2, STEPS.length));
+  await expect(bookmark).toContainText('Relire le contrat');
+  // The focus follows the step to the line it moved to, instead of falling
+  // back to the top of the page with the strip that held it.
   await expect(timelineItem(page, 'Envoyer les photos')).toBeFocused();
   await expect(sibling).toHaveAttribute('data-intact', 'oui');
 });
@@ -498,7 +537,7 @@ test('a mark that fails leaves the step as it was and says so in French', async 
   await expect(step).toContainText(badgeCopy.derniereSemaine);
 });
 
-test('a declaration date counts the steps anchored on it, and clearing it takes the dates back', async ({
+test('a declaration date closes its step and counts the steps anchored on it, and clearing it takes both back', async ({
   page,
 }) => {
   await openDetail(page, detailDeclaredOn(null), {
@@ -506,7 +545,9 @@ test('a declaration date counts the steps anchored on it, and clearing it takes 
   });
 
   const declarationStep = timelineItem(page, DECLARATION_STEP.name);
-  await expect(declarationStep).toContainText(
+  const assureurStep = timelineItem(page, ASSUREUR_STEP.name);
+  const faits = page.locator('[data-slot="plan-fait"]');
+  await expect(assureurStep).toContainText(
     fr.sinistres.detail.attentePar.DATE_DECLARATION,
   );
 
@@ -514,64 +555,77 @@ test('a declaration date counts the steps anchored on it, and clearing it takes 
     (request) =>
       request.method() === 'PATCH' && request.url().endsWith(SINISTRE_ID_1),
   );
-  await page
-    .getByLabel(fr.sinistres.detail.declaration.label)
-    .fill('2026-09-01');
-  await page
-    .getByRole('button', { name: fr.sinistres.detail.declaration.enregistrer })
+  await declarationStep.getByLabel(declarationCopy.label).fill('2026-09-01');
+  await declarationStep
+    .getByRole('button', { name: declarationCopy.enregistrer })
     .click();
 
   expect((await sent).postDataJSON()).toEqual({
     declarationDate: '2026-09-01',
   });
   await expect(page.getByRole('status')).toHaveText(
-    fr.sinistres.detail.declaration.enregistree,
+    declarationCopy.enregistree,
   );
-  await expect(declarationStep).toContainText(prevueLe('2026-10-31'));
+  await expect(assureurStep).toContainText(prevueLe('2026-10-31'));
+  // The date recorded, the step is behind: its line says the day instead of
+  // asking for it, keeps the way back, and the keyboard follows the step
+  // rather than falling to <body> — as after a mark.
+  await expect(faits).toContainText(DECLARATION_STEP.name);
+  await expect(declarationStep).toContainText(
+    badgeCopy.fait(formatDateFr(toIsoDate('2026-09-01'))),
+  );
+  await expect(declarationStep.getByLabel(declarationCopy.label)).toHaveCount(
+    0,
+  );
+  await expect(declarationStep).toBeFocused();
+  await expect(
+    declarationStep.getByRole('button', {
+      name: fr.sinistres.detail.marquer.annuler,
+    }),
+  ).toHaveCount(0);
 
-  await page
-    .getByRole('button', { name: fr.sinistres.detail.declaration.effacer })
+  await declarationStep
+    .getByRole('button', { name: declarationCopy.effacer })
     .click();
 
-  await expect(declarationStep).toContainText(
+  await expect(page.getByRole('status')).toHaveText(declarationCopy.effacee);
+  await expect(assureurStep).toContainText(
     fr.sinistres.detail.attentePar.DATE_DECLARATION,
   );
-  await expect(declarationStep).not.toContainText(prevueLe('2026-10-31'));
-  await expect(page.getByRole('status')).toHaveText(
-    fr.sinistres.detail.declaration.effacee,
+  await expect(assureurStep).not.toContainText(prevueLe('2026-10-31'));
+  await expect(faits).not.toContainText(DECLARATION_STEP.name);
+  await expect(declarationStep.getByLabel(declarationCopy.label)).toHaveValue(
+    '',
   );
-  const field = page.getByLabel(fr.sinistres.detail.declaration.label);
-  await expect(field).toHaveValue('');
-  await expect(field).toBeFocused();
+  await expect(declarationStep).toBeFocused();
 });
 
-test('a clear that fails is announced, and the typed date is not blamed for it', async ({
+test('a clear that fails is announced, and the recorded date is not blamed for it', async ({
   page,
 }) => {
   const declared = toIsoDate('2026-09-01');
   await openDetail(page, detailDeclaredOn(declared), { failing: true });
 
-  await page
-    .getByRole('button', { name: fr.sinistres.detail.declaration.effacer })
+  const declarationStep = timelineItem(page, DECLARATION_STEP.name);
+  await declarationStep
+    .getByRole('button', { name: declarationCopy.effacer })
     .click();
 
   await expect(page.getByRole('status')).toHaveText(
-    fr.sinistres.detail.declaration.effacementEchec,
+    declarationCopy.effacementEchec,
   );
-  const field = page.getByLabel(fr.sinistres.detail.declaration.label);
-  await expect(field).toHaveValue(declared);
-  await expect(field).not.toHaveAttribute('aria-invalid', 'true');
-  await expect(
-    page.getByText(fr.sinistres.detail.declaration.echec),
-  ).toHaveCount(0);
+  await expect(declarationStep).toContainText(
+    badgeCopy.fait(formatDateFr(declared)),
+  );
+  await expect(page.getByText(declarationCopy.echec)).toHaveCount(0);
 });
 
-test('the date field follows a date recorded elsewhere once the dossier is refetched', async ({
+test('the strip follows a date recorded elsewhere once the dossier is refetched', async ({
   page,
 }) => {
   await openDetail(page, detailDeclaredOn(null));
-  const field = page.getByLabel(fr.sinistres.detail.declaration.label);
-  await field.fill('2026-09-01');
+  const declarationStep = timelineItem(page, DECLARATION_STEP.name);
+  await declarationStep.getByLabel(declarationCopy.label).fill('2026-09-01');
 
   // Another device set the date meanwhile; the next refetch brings it here.
   const elsewhere = toIsoDate('2026-09-15');
@@ -586,7 +640,12 @@ test('the date field follows a date recorded elsewhere once the dossier is refet
     .getByRole('button', { name: fr.sinistres.detail.marquer.fait })
     .click();
 
-  await expect(field).toHaveValue(elsewhere);
+  await expect(declarationStep).toContainText(
+    badgeCopy.fait(formatDateFr(elsewhere)),
+  );
+  await expect(declarationStep.getByLabel(declarationCopy.label)).toHaveCount(
+    0,
+  );
 });
 
 test('deleting the dossier asks first, and cancelling gives focus back to the delete button', async ({

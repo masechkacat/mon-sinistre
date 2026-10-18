@@ -7,6 +7,7 @@ import { fr } from 'src/i18n/fr.js';
 import { PrismaService } from 'src/prisma/prisma.service.js';
 import {
   DECLARATION_ASSUREUR_CODE,
+  INFORMATION_ASSUREUR_CODE,
   PROVISION_INDEMNITE_CODE,
   seedDeadlineRules,
 } from 'src/deadline-rules/deadline-rule.seed.js';
@@ -34,7 +35,9 @@ interface SinistreWithDetail extends SinistreWithSteps {
   steps: {
     id: string;
     anchor: string | null;
+    kind: string;
     status: string;
+    completedAt: string | null;
     plannedDate: string | null;
     source: { url: string } | null;
     daysLeft: number | null;
@@ -76,7 +79,7 @@ describe('SinistresController (integration)', () => {
     headers: ReturnType<typeof withBearer>,
     eventDate = '2026-06-01',
     confirmNew?: boolean,
-  ): Promise<SinistreWithSteps> {
+  ): Promise<SinistreWithDetail> {
     const res = await app.inject({
       method: 'POST',
       url: '/sinistres',
@@ -88,7 +91,17 @@ describe('SinistresController (integration)', () => {
         confirmNew,
       },
     });
-    return JSON.parse(res.payload) as SinistreWithSteps;
+    return JSON.parse(res.payload) as SinistreWithDetail;
+  }
+
+  async function informRule() {
+    const rule = await prisma.deadlineRule.findFirst({
+      where: { code: INFORMATION_ASSUREUR_CODE },
+    });
+    if (!rule) {
+      throw new Error('INFORMATION_ASSUREUR rule was not seeded');
+    }
+    return rule;
   }
 
   /** The one step with `anchor` and a non-null `source` — a legal step
@@ -630,16 +643,9 @@ describe('SinistresController (integration)', () => {
     it('answers the patched step with its rule window on both the no-change and the update path', async () => {
       const email = await createUser(prisma);
       const headers = await bearerFor(email);
-      const rule = await prisma.deadlineRule.findFirstOrThrow({
-        where: { code: DECLARATION_ASSUREUR_CODE },
-      });
+      const rule = await informRule();
       const sinistre = await createSinistre(headers);
-      const target = sinistre.steps.find(
-        (s) => s.anchor === 'DATE_PUBLICATION_ARRETE',
-      );
-      if (!target) {
-        throw new Error('fixture has no DATE_PUBLICATION_ARRETE step');
-      }
+      const target = legalStepOf(sinistre, 'DATE_DECLARATION');
 
       const expected = { value: rule.duration, unit: rule.unit };
       for (const status of [null, 'FAIT']) {
@@ -654,6 +660,31 @@ describe('SinistresController (integration)', () => {
         };
         expect(patched.delay).toEqual(expected);
       }
+    });
+
+    it('refuses to mark the DECLARATION step, whose mark is the declaration date, and leaves it unchanged', async () => {
+      const email = await createUser(prisma);
+      const headers = await bearerFor(email);
+      const sinistre = await createSinistre(headers);
+      const target = sinistre.steps.find((s) => s.kind === 'DECLARATION');
+      if (!target) {
+        throw new Error('fixture has no DECLARATION step');
+      }
+
+      const res = await app.inject({
+        method: 'PATCH',
+        url: `/sinistres/${sinistre.id}/etapes/${target.id}`,
+        headers,
+        payload: { status: 'FAIT' },
+      });
+
+      expect(res.statusCode).toBe(400);
+      expect(res.payload).toContain(fr.sinistres.declarationStepMarkedByDate);
+      const after = await reread(headers, sinistre.id);
+      expect(after.steps.find((s) => s.id === target.id)).toMatchObject({
+        status: target.status,
+        completedAt: null,
+      });
     });
 
     it('returns the computed status when the mark is removed', async () => {
@@ -754,6 +785,20 @@ describe('SinistresController (integration)', () => {
 
   // PATCH /sinistres/:id, docs/plan/sinistre-plan.md, Фаза 2 (issue #153).
   describe('PATCH /sinistres/:id', () => {
+    /** The one request this describe is about, with the owner's headers. */
+    function patchDeclaration(
+      headers: ReturnType<typeof withBearer>,
+      sinistreId: string,
+      declarationDate: string | null,
+    ) {
+      return app.inject({
+        method: 'PATCH',
+        url: `/sinistres/${sinistreId}`,
+        headers,
+        payload: { declarationDate },
+      });
+    }
+
     async function reread(
       headers: ReturnType<typeof withBearer>,
       sinistreId: string,
@@ -764,16 +809,6 @@ describe('SinistresController (integration)', () => {
         headers,
       });
       return JSON.parse(res.payload) as SinistreWithDetail;
-    }
-
-    async function informRule() {
-      const rule = await prisma.deadlineRule.findFirst({
-        where: { code: 'INFORMATION_ASSUREUR' },
-      });
-      if (!rule) {
-        throw new Error('INFORMATION_ASSUREUR rule was not seeded');
-      }
-      return rule;
     }
 
     /** Links a sinistre to a RECONNU entry directly through Prisma — Фаза 3
@@ -804,13 +839,16 @@ describe('SinistresController (integration)', () => {
       const email = await createUser(prisma);
       const headers = await bearerFor(email);
       const sinistre = await createSinistre(headers);
+      const declarationStepOf = (body: SinistreWithDetail) => {
+        const step = body.steps.find((s) => s.kind === 'DECLARATION');
+        if (!step) {
+          throw new Error('fixture has no DECLARATION step');
+        }
+        return step;
+      };
+      const before = declarationStepOf(sinistre);
 
-      const setRes = await app.inject({
-        method: 'PATCH',
-        url: `/sinistres/${sinistre.id}`,
-        headers,
-        payload: { declarationDate: '2026-06-10' },
-      });
+      const setRes = await patchDeclaration(headers, sinistre.id, '2026-06-10');
 
       expect(setRes.statusCode).toBe(200);
       const declared = JSON.parse(setRes.payload) as SinistreWithDetail;
@@ -821,18 +859,23 @@ describe('SinistresController (integration)', () => {
       // declaration against (docs/research/sinistre-plan.md, «Опорная дата
       // DATE_DECLARATION»).
       expect(legalStepOf(declared, 'DATE_DECLARATION').plannedDate).toBeNull();
-
-      const clearRes = await app.inject({
-        method: 'PATCH',
-        url: `/sinistres/${sinistre.id}`,
-        headers,
-        payload: { declarationDate: null },
+      // The date is the mark of the déclaration step: done on the day
+      // declared, not on the day it was typed in.
+      expect(declarationStepOf(declared)).toMatchObject({
+        status: 'FAIT',
+        completedAt: '2026-06-10',
       });
+
+      const clearRes = await patchDeclaration(headers, sinistre.id, null);
 
       expect(clearRes.statusCode).toBe(200);
       const cleared = JSON.parse(clearRes.payload) as SinistreWithDetail;
       expect(cleared.status).toBe('AVANT_ARRETE');
       expect(cleared.declarationDate).toBeNull();
+      expect(declarationStepOf(cleared)).toMatchObject({
+        status: before.status,
+        completedAt: null,
+      });
     });
 
     it('dates the DATE_DECLARATION steps once the sinistre is linked, then clearing removes those dates and returns to ARRETE_PUBLIE (critère PRD № 18)', async () => {
@@ -842,12 +885,7 @@ describe('SinistresController (integration)', () => {
       const rule = await informRule();
       await linkToReconnuEntry(sinistre.id, '2026-07-10');
 
-      const setRes = await app.inject({
-        method: 'PATCH',
-        url: `/sinistres/${sinistre.id}`,
-        headers,
-        payload: { declarationDate: '2026-07-20' },
-      });
+      const setRes = await patchDeclaration(headers, sinistre.id, '2026-07-20');
 
       expect(setRes.statusCode).toBe(200);
       const declared = JSON.parse(setRes.payload) as SinistreWithDetail;
@@ -856,12 +894,7 @@ describe('SinistresController (integration)', () => {
         resolveDeadline(toIsoDate('2026-07-20'), rule.duration, rule.unit),
       );
 
-      const clearRes = await app.inject({
-        method: 'PATCH',
-        url: `/sinistres/${sinistre.id}`,
-        headers,
-        payload: { declarationDate: null },
-      });
+      const clearRes = await patchDeclaration(headers, sinistre.id, null);
 
       expect(clearRes.statusCode).toBe(200);
       const cleared = JSON.parse(clearRes.payload) as SinistreWithDetail;
@@ -877,12 +910,7 @@ describe('SinistresController (integration)', () => {
       const rule = await informRule();
       await linkToReconnuEntry(sinistre.id, '2026-07-10');
 
-      const res = await app.inject({
-        method: 'PATCH',
-        url: `/sinistres/${sinistre.id}`,
-        headers,
-        payload: { declarationDate: '2026-06-15' },
-      });
+      const res = await patchDeclaration(headers, sinistre.id, '2026-06-15');
 
       expect(res.statusCode).toBe(200);
       const body = JSON.parse(res.payload) as SinistreWithDetail;
@@ -904,12 +932,7 @@ describe('SinistresController (integration)', () => {
       const sinistre = await createSinistre(headers);
       const tomorrow = tomorrowInParis();
 
-      const res = await app.inject({
-        method: 'PATCH',
-        url: `/sinistres/${sinistre.id}`,
-        headers,
-        payload: { declarationDate: tomorrow },
-      });
+      const res = await patchDeclaration(headers, sinistre.id, tomorrow);
 
       expect(res.statusCode).toBe(400);
       expect(res.payload).toContain(fr.sinistres.declarationDateInFuture);
@@ -921,12 +944,7 @@ describe('SinistresController (integration)', () => {
       const sinistre = await createSinistre(headers);
 
       const [malformed, missing] = await Promise.all([
-        app.inject({
-          method: 'PATCH',
-          url: `/sinistres/${sinistre.id}`,
-          headers,
-          payload: { declarationDate: '2026-02-30' },
-        }),
+        patchDeclaration(headers, sinistre.id, '2026-02-30'),
         app.inject({
           method: 'PATCH',
           url: `/sinistres/${sinistre.id}`,
@@ -949,12 +967,7 @@ describe('SinistresController (integration)', () => {
       const headers = await bearerFor(email);
       const sinistre = await createSinistre(headers, '2026-06-01');
 
-      const res = await app.inject({
-        method: 'PATCH',
-        url: `/sinistres/${sinistre.id}`,
-        headers,
-        payload: { declarationDate: '2025-06-20' },
-      });
+      const res = await patchDeclaration(headers, sinistre.id, '2025-06-20');
 
       expect(res.statusCode).toBe(400);
       expect(res.payload).toContain(fr.sinistres.declarationDateBeforeEvent);
@@ -972,12 +985,7 @@ describe('SinistresController (integration)', () => {
         data: { status: 'CLOS' },
       });
 
-      const res = await app.inject({
-        method: 'PATCH',
-        url: `/sinistres/${sinistre.id}`,
-        headers,
-        payload: { declarationDate: '2026-06-20' },
-      });
+      const res = await patchDeclaration(headers, sinistre.id, '2026-06-20');
 
       expect(res.statusCode).toBe(200);
       const body = JSON.parse(res.payload) as SinistreWithDetail;
@@ -1002,12 +1010,7 @@ describe('SinistresController (integration)', () => {
         },
       });
 
-      const res = await app.inject({
-        method: 'PATCH',
-        url: `/sinistres/${sinistre.id}`,
-        headers,
-        payload: { declarationDate: '2026-06-20' },
-      });
+      const res = await patchDeclaration(headers, sinistre.id, '2026-06-20');
 
       expect(res.statusCode).toBe(200);
       const body = JSON.parse(res.payload) as SinistreWithDetail;

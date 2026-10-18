@@ -1,8 +1,5 @@
 import type { DeclarationDeadline } from '@mon-sinistre/contracts';
-import {
-  DeadlineBadge,
-  type DeadlineBadgeProps,
-} from '@/components/deadline-badge';
+import { DeadlineBadge } from '@/components/deadline-badge';
 import { fr } from '@/i18n/fr';
 import { DeadlineBadgeState, deadlineBadgeState } from '@/lib/deadline-badge';
 import { SourceNote } from './source-note';
@@ -20,11 +17,7 @@ export function DeclarationDeadlineBlock({
       <h2 className="text-xl font-semibold">
         {fr.sinistres.detail.deadline.heading}
       </h2>
-      <DeclarationDeadlineValue
-        deadline={deadline}
-        form="hero"
-        apercu={apercu}
-      />
+      <DeclarationDeadlineValue deadline={deadline} apercu={apercu} />
     </section>
   );
 }
@@ -38,11 +31,9 @@ export function DeclarationDeadlineBlock({
  */
 export function DeclarationDeadlineValue({
   deadline,
-  form,
   apercu = false,
 }: {
   deadline: DeclarationDeadline;
-  form: DeadlineBadgeProps['form'];
   apercu?: boolean;
 }) {
   const state = deadlineBadgeState({ daysLeft: deadline.daysLeft });
@@ -56,7 +47,6 @@ export function DeclarationDeadlineValue({
         </p>
       ) : (
         <DeadlineBadge
-          form={form}
           state={state}
           date={deadline.date}
           daysLeft={deadline.daysLeft}

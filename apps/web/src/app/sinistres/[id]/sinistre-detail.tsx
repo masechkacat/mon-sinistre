@@ -1,35 +1,28 @@
 'use client';
 
-import { Field } from '@base-ui/react/field';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
-import { useRef, useState, type FormEvent } from 'react';
-import { StepStatus, isIsoDate, type IsoDate } from '@mon-sinistre/contracts';
-import { FieldError } from '@/components/field-error';
+import { useEffect, useRef, useState } from 'react';
+import { StepKind, StepStatus } from '@mon-sinistre/contracts';
 import { PageContainer } from '@/components/page-container';
 import { DeclarationDeadlineBlock } from '@/components/plan/declaration-deadline-block';
+import { DeclarationStrip } from '@/components/plan/declaration-strip';
 import { DossierEntete } from '@/components/plan/dossier-entete';
+import { DossierFeuille } from '@/components/plan/dossier-feuille';
 import { PlanList } from '@/components/plan/plan-list';
 import { RequestError } from '@/components/request-error';
 import { AlertDialog, AlertDialogContent } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
-import {
-  inputControlClassName,
-  inputFrameClassName,
-  inputFrameInvalidClassName,
-} from '@/components/ui/input';
 import { fr } from '@/i18n/fr';
-import { ApiError } from '@/lib/api/client';
 import {
   deleteSinistre,
   fetchSinistre,
-  setSinistreDeclarationDate,
   setSinistreStepStatus,
   type StepMark,
 } from '@/lib/api/sinistres';
 import { queryKeys } from '@/lib/api/keys';
 import { useSessionGuard } from '@/lib/api/use-session-guard';
-import { cn } from '@/lib/utils';
+import { chronologiePoints } from '@/lib/dossier-chronologie';
 import { dossierTitle } from '@/lib/dossier-title';
 
 interface StepMarkRequest {
@@ -50,21 +43,41 @@ export function SinistreDetailView({ id }: { id: string }) {
   // a failure of one mark must not be overwritten by a later mark's result.
   const [announcement, setAnnouncement] = useState<string | null>(null);
   const stepItems = useRef(new Map<string, HTMLLIElement>());
+  // The step a successful mark — or the déclaration date, which marks its
+  // step — gives the focus back to. A marked step trades the plan for the row
+  // of what is behind — and comes back when the mark is undone — so the node
+  // that held the focus is gone by then: the focus can only follow once the
+  // answer is rendered, hence the effect below.
+  const focusAfterMark = useRef<string | null>(null);
   const markMutation = useMutation({
     mutationFn: ({ stepId, status: mark }: StepMarkRequest) =>
       setSinistreStepStatus(id, stepId, mark),
-    onSuccess: (_step, mark) => {
+    onSuccess: async (_step, mark) => {
       setAnnouncement(markAnnouncement(mark));
-      // The step's `li` stays mounted across the refetch, so focus survives
-      // it; the buttons that held focus are replaced by the refetch.
-      stepItems.current.get(mark.stepId)?.focus();
-      return queryClient.invalidateQueries({
+      focusAfterMark.current = mark.stepId;
+      await queryClient.invalidateQueries({
         queryKey: queryKeys.sinistre(id),
       });
+      // A refetch that failed renders nothing new, so the effect below has
+      // not consumed the target: left in place, it would move the focus on
+      // the next unrelated update of the dossier.
+      if (
+        queryClient.getQueryState(queryKeys.sinistre(id))?.status === 'error'
+      ) {
+        focusAfterMark.current = null;
+      }
     },
     onError: () => setAnnouncement(fr.sinistres.detail.marquageEchec),
   });
   const sinistre = query.data;
+
+  useEffect(() => {
+    const stepId = focusAfterMark.current;
+    const node = stepId === null ? null : stepItems.current.get(stepId);
+    if (!node) return;
+    focusAfterMark.current = null;
+    node.focus();
+  }, [sinistre]);
 
   return (
     <PageContainer className="space-y-8">
@@ -87,146 +100,51 @@ export function SinistreDetailView({ id }: { id: string }) {
         <>
           <DossierEntete
             title={dossierTitle(sinistre)}
-            statut={fr.sinistres.statut[sinistre.status]}
-          />
-
-          <DeclarationSection
-            sinistreId={id}
-            declarationDate={sinistre.declarationDate}
-            onAnnounce={setAnnouncement}
-          />
-
-          {sinistre.declarationDeadline ? (
-            <DeclarationDeadlineBlock deadline={sinistre.declarationDeadline} />
-          ) : null}
-
-          <PlanList
-            steps={sinistre.steps}
-            itemRef={(step, node) => {
-              if (node) stepItems.current.set(step.id, node);
-              else stepItems.current.delete(step.id);
-            }}
-            onMark={(step, mark) =>
-              markMutation.mutate({
-                stepId: step.id,
-                etape: step.name,
-                status: mark,
-              })
+            status={sinistre.status}
+            points={chronologiePoints(sinistre)}
+            badge={
+              sinistre.declarationDeadline ? (
+                <DeclarationDeadlineBlock
+                  deadline={sinistre.declarationDeadline}
+                />
+              ) : null
             }
           />
+
+          <DossierFeuille>
+            <PlanList
+              steps={sinistre.steps}
+              declaration={
+                <DeclarationStrip
+                  sinistreId={id}
+                  declarationDate={sinistre.declarationDate}
+                  onAnnounce={setAnnouncement}
+                  onApplied={() => {
+                    focusAfterMark.current =
+                      sinistre.steps.find(
+                        (step) => step.kind === StepKind.DECLARATION,
+                      )?.id ?? null;
+                  }}
+                />
+              }
+              itemRef={(step, node) => {
+                if (node) stepItems.current.set(step.id, node);
+                else stepItems.current.delete(step.id);
+              }}
+              onMark={(step, mark) =>
+                markMutation.mutate({
+                  stepId: step.id,
+                  etape: step.name,
+                  status: mark,
+                })
+              }
+            />
+          </DossierFeuille>
 
           <SuppressionSection sinistreId={id} />
         </>
       ) : null}
     </PageContainer>
-  );
-}
-
-function DeclarationSection({
-  sinistreId,
-  declarationDate,
-  onAnnounce,
-}: {
-  sinistreId: string;
-  declarationDate: IsoDate | null;
-  onAnnounce: (message: string) => void;
-}) {
-  const copy = fr.sinistres.detail.declaration;
-  const queryClient = useQueryClient();
-  const inputRef = useRef<HTMLInputElement>(null);
-  const [draft, setDraft] = useState(declarationDate ?? '');
-  const [draftError, setDraftError] = useState<string>();
-  // The field follows the server value: a date set or cleared elsewhere
-  // arrives with the next refetch and must replace what was typed here.
-  const [syncedDate, setSyncedDate] = useState(declarationDate);
-  if (syncedDate !== declarationDate) {
-    setSyncedDate(declarationDate);
-    setDraft(declarationDate ?? '');
-  }
-  const mutation = useMutation({
-    mutationFn: (next: IsoDate | null) =>
-      setSinistreDeclarationDate(sinistreId, next),
-    onSuccess: (detail) => {
-      queryClient.setQueryData(queryKeys.sinistre(sinistreId), detail);
-      void queryClient.invalidateQueries({
-        queryKey: queryKeys.sinistres(),
-        exact: true,
-      });
-      onAnnounce(detail.declarationDate ? copy.enregistree : copy.effacee);
-      if (!detail.declarationDate) inputRef.current?.focus();
-    },
-    onError: (_error, next) => {
-      if (next === null) onAnnounce(copy.effacementEchec);
-    },
-  });
-
-  // A failed save belongs to the field; a failed clear is announced above,
-  // since the typed value is not what went wrong.
-  const saveFailed = mutation.isError && mutation.variables !== null;
-  // The API's own French sentence for a rejected date, shown as is.
-  const apiError =
-    mutation.error instanceof ApiError && mutation.error.status === 400
-      ? mutation.error.detail
-      : undefined;
-  const error =
-    draftError ?? (saveFailed ? (apiError ?? copy.echec) : undefined);
-
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!isIsoDate(draft)) {
-      setDraftError(copy.requis);
-      return;
-    }
-    setDraftError(undefined);
-    mutation.mutate(draft);
-  };
-
-  return (
-    <section className="space-y-4">
-      <h2 className="text-xl font-semibold">{copy.heading}</h2>
-      <form className="space-y-4" onSubmit={handleSubmit} noValidate>
-        <Field.Root invalid={Boolean(error)} className="space-y-1.5">
-          <Field.Label className="block text-sm font-medium">
-            {copy.label}
-          </Field.Label>
-          <Field.Description className="block text-sm text-muted-foreground">
-            {copy.hint}
-          </Field.Description>
-          <Field.Control
-            ref={inputRef}
-            type="date"
-            value={draft}
-            onChange={(event) => {
-              setDraft(event.target.value);
-              setDraftError(undefined);
-              if (mutation.isError) mutation.reset();
-            }}
-            className={cn(
-              inputFrameClassName,
-              inputControlClassName,
-              error && inputFrameInvalidClassName,
-            )}
-          />
-          <FieldError error={error} />
-        </Field.Root>
-        <div className="flex flex-wrap gap-2">
-          <Button type="submit" size="touch" disabled={mutation.isPending}>
-            {copy.enregistrer}
-          </Button>
-          {declarationDate ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="touch"
-              disabled={mutation.isPending}
-              onClick={() => mutation.mutate(null)}
-            >
-              {copy.effacer}
-            </Button>
-          ) : null}
-        </div>
-      </form>
-    </section>
   );
 }
 

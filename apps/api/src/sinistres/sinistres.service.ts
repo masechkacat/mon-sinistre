@@ -245,10 +245,12 @@ export class SinistresService {
    * status is decided (docs/research/sinistre-plan.md, «Контракт API»), and
    * the `DATE_DECLARATION` steps' `plannedDate` is recomputed off the same
    * anchor — set on a date, cleared back to null when the date is cleared
-   * and nothing else resolves it. Same reason for the transaction as {@link
-   * updateStep}: a concurrent second write landing between the read and the
-   * writes below must not hand this request back a status or a step date it
-   * never wrote.
+   * and nothing else resolves it. The date is also the mark of the
+   * `DECLARATION` step: recording it closes that step on the day declared,
+   * clearing it reopens it — there is no button for that step on the client.
+   * Same reason for the transaction as {@link updateStep}: a concurrent
+   * second write landing between the read and the writes below must not hand
+   * this request back a status or a step date it never wrote.
    */
   async update(
     userId: string,
@@ -290,6 +292,15 @@ export class SinistresService {
         },
       });
 
+      await tx.step.updateMany({
+        where: { sinistreId: id, kind: 'DECLARATION', fromTemplate: true },
+        data: declarationDate
+          ? {
+              persistedStatus: 'FAIT',
+              completedAt: isoDateToDate(declarationDate),
+            }
+          : { persistedStatus: null, completedAt: null },
+      });
       await recomputeDeclarationSteps(tx, id, {
         eventDate,
         declarationDate,
@@ -317,7 +328,9 @@ export class SinistresService {
   }
 
   /** `completedAt` follows `status`: set on mark (FAIT or NON_APPLICABLE
-   * alike), cleared on unmark. Ownership in the read and the idempotent
+   * alike), cleared on unmark. The `DECLARATION` step is not marked here at
+   * all: its mark is the date {@link update} records, and a mark beside it
+   * would let the two disagree. Ownership in the read and the idempotent
    * re-mark — docs/research/sinistre-plan.md, «Контракт API». The read and
    * the write share a transaction for the same reason as
    * `AuthService.refresh`'s rotation: a second concurrent PATCH landing
@@ -336,6 +349,9 @@ export class SinistresService {
       });
       if (!current) {
         throw new NotFoundException();
+      }
+      if (current.kind === 'DECLARATION') {
+        throw new BadRequestException(fr.sinistres.declarationStepMarkedByDate);
       }
       if (current.persistedStatus === status) {
         return toStepResponse(current, today);
