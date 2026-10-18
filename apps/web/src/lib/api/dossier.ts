@@ -24,7 +24,7 @@ export function fetchDossierApercu({
     risque,
     eventDate: date,
   });
-  return apiFetch<DossierApercu>(`/dossier/preview?${query.toString()}`);
+  return apiFetch<DossierApercu>(`/dossier/apercu?${query.toString()}`);
 }
 
 export function fetchCommuneArretes(code: string) {

@@ -339,7 +339,7 @@ test('an empty address asks for the three parameters and sends no request', asyn
   page,
 }) => {
   let apercuCalled = false;
-  await page.route(`${testApiBaseUrl}/dossier/preview**`, (route) => {
+  await page.route(`${testApiBaseUrl}/dossier/apercu**`, (route) => {
     apercuCalled = true;
     return route.fulfill({ status: 200, body: '{}' });
   });
@@ -498,7 +498,7 @@ test('refining the date to the one already shown says so instead of doing nothin
 async function refuseApercu(page: Page) {
   const calls = { count: 0 };
   await page.route(`${testApiBaseUrl}/communes**`, mockCommuneSearch);
-  await page.route(`${testApiBaseUrl}/dossier/preview**`, (route) => {
+  await page.route(`${testApiBaseUrl}/dossier/apercu**`, (route) => {
     calls.count += 1;
     return route.fulfill({
       status: 400,
@@ -567,7 +567,7 @@ test('the address alone opens the dossier in a browser that has never seen it', 
 test('a failed request says so in French instead of showing an empty plan', async ({
   page,
 }) => {
-  await page.route(/\/dossier\/preview/, (route) =>
+  await page.route(/\/dossier\/apercu/, (route) =>
     route.fulfill({ status: 500 }),
   );
   await page.goto(DOSSIER_PATH);
