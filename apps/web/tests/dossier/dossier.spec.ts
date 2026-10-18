@@ -80,8 +80,7 @@ const DEADLINE_EXPIRE: DeclarationDeadline = {
   source: SOURCE,
 };
 
-const heroBadge = (page: Page) =>
-  page.locator('[data-slot="deadline-badge"][data-form="hero"]');
+const heroBadge = (page: Page) => page.locator('[data-slot="deadline-badge"]');
 // By role, not by text: the source link under the block repeats the heading.
 const deadlineHeading = (page: Page) =>
   page.getByRole('heading', { name: copy.deadline.heading });

@@ -1,4 +1,4 @@
-import { StepKind } from '@mon-sinistre/contracts';
+import { StepKind, StepStatus } from '@mon-sinistre/contracts';
 import type { ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { fr } from '@/i18n/fr';
@@ -48,6 +48,9 @@ export function FaitLigne<T extends PlanStep>({
               {index + 1}
             </span>
             <span>{step.name}</span>
+            {step.status === StepStatus.NON_APPLICABLE ? (
+              <span>{fr.deadlineBadge.sansObjet}</span>
+            ) : null}
             {step.kind === StepKind.DECLARATION ? (
               declaration
             ) : onMark ? (

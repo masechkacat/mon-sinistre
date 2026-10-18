@@ -52,12 +52,20 @@ export function SinistreDetailView({ id }: { id: string }) {
   const markMutation = useMutation({
     mutationFn: ({ stepId, status: mark }: StepMarkRequest) =>
       setSinistreStepStatus(id, stepId, mark),
-    onSuccess: (_step, mark) => {
+    onSuccess: async (_step, mark) => {
       setAnnouncement(markAnnouncement(mark));
       focusAfterMark.current = mark.stepId;
-      return queryClient.invalidateQueries({
+      await queryClient.invalidateQueries({
         queryKey: queryKeys.sinistre(id),
       });
+      // A refetch that failed renders nothing new, so the effect below has
+      // not consumed the target: left in place, it would move the focus on
+      // the next unrelated update of the dossier.
+      if (
+        queryClient.getQueryState(queryKeys.sinistre(id))?.status === 'error'
+      ) {
+        focusAfterMark.current = null;
+      }
     },
     onError: () => setAnnouncement(fr.sinistres.detail.marquageEchec),
   });

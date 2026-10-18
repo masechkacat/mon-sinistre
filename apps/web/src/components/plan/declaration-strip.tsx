@@ -77,9 +77,11 @@ export function DeclarationStrip({
     );
   }
 
-  // Every failure the form can see is a failed save: a clear that fails leaves
-  // the date recorded, and the strip then shows the date instead of the form.
-  // The API's own French sentence for a rejected date is shown as is.
+  // A clear that failed keeps the date, and the form only mounts once the
+  // date is gone — brought by a refetch, not by that clear — so its failure
+  // is not the form's to show. The API's own French sentence for a rejected
+  // date is shown as is.
+  const echec = mutation.isError && mutation.variables !== null;
   const apiError =
     mutation.error instanceof ApiError && mutation.error.status === 400
       ? mutation.error.detail
@@ -88,7 +90,7 @@ export function DeclarationStrip({
   return (
     <DeclarationForm
       pending={mutation.isPending}
-      echec={mutation.isError ? (apiError ?? copy.echec) : undefined}
+      echec={echec ? (apiError ?? copy.echec) : undefined}
       onSave={(date) => mutation.mutate(date)}
       onEdit={() => {
         if (mutation.isError) mutation.reset();

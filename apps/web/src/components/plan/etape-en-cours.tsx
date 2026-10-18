@@ -31,9 +31,9 @@ export function EtapeEnCours({
       {etape ? (
         <p
           className={cn(
-            // Pulled up by the padding of the sheet, so the tab hangs from its
+            // Pulled up by the margin of the sheet, so the tab hangs from its
             // top edge instead of floating under it.
-            '-mt-6 bg-primary px-5 pt-4 pb-3 text-primary-foreground sm:-mt-10',
+            '-mt-(--marge-feuille) bg-primary px-5 pt-4 pb-3 text-primary-foreground',
             'shadow-[0_2px_0_color-mix(in_oklch,var(--petrole),var(--encre)_45%)]',
           )}
         >

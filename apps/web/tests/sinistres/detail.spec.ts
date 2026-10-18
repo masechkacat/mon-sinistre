@@ -99,7 +99,7 @@ function sinistreDetail(overrides: Partial<Record<string, unknown>> = {}) {
 }
 
 const heroBadge = (scope: Page | Locator) =>
-  scope.locator('[data-slot="deadline-badge"][data-form="hero"]');
+  scope.locator('[data-slot="deadline-badge"]');
 const planList = (page: Page) =>
   page.getByRole('list', { name: fr.sinistres.detail.timelineLabel });
 

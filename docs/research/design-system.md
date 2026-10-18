@@ -192,7 +192,7 @@ derniereSemaine, 1 → demain, 0 → aujourdhui, −1 → enRetard, FAIT с −3
 ### Компонент бейджа
 
 **Решение:** серверный компонент `apps/web/src/components/deadline-badge.tsx`
-в одной форме (`hero`, `data-form="hero"`) и с одним состоянием на входе;
+в одной форме и с одним состоянием на входе;
 материал — CSS: перфорация `radial-gradient` точками по верхней кромке,
 второй лист — `box-shadow` со смещением, штемпель — рамка и `rotate(-4deg)`,
 sans objet — `border-dashed`. Число — `font-heading` (Newsreader) с

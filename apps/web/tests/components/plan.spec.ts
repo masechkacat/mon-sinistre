@@ -128,6 +128,15 @@ test('the bookmark names the step in hand and counts what is already behind', as
       `${cases.length}`,
     );
   }
+  // The tab hangs from the top edge of the sheet, whatever margin the sheet
+  // has: the two read the same token.
+  const sheet = feuille(page, 'lecture');
+  const tab = signet(sheet).getByText(copy.etapeEnCours.titre);
+  const [sheetBox, tabBox] = await Promise.all([
+    sheet.boundingBox(),
+    tab.locator('xpath=..').boundingBox(),
+  ]);
+  expect(tabBox?.y).toBeCloseTo(sheetBox?.y ?? NaN, 0);
 });
 
 test('a plan with nothing settled yet draws no row of what is behind', async ({
@@ -147,11 +156,16 @@ test('a settled step leaves the plan for the row of what is behind, which keeps 
   const ligne = faits(sheet);
   await expect(ligne.getByRole('listitem')).toHaveCount(closCases.length);
   for (const [index, step] of closCases.entries()) {
-    await expect(
-      ligne.getByRole('listitem').nth(index),
-      step.name,
-    ).toContainText(step.name);
+    const item = ligne.getByRole('listitem').nth(index);
+    await expect(item, step.name).toContainText(step.name);
     await expect(strip(sheet, step), step.name).toHaveCount(0);
+    // Set aside is said in words next to the name: under the heading alone
+    // it would read as done.
+    if (step.status === StepStatus.NON_APPLICABLE) {
+      await expect(item, step.name).toContainText(badgeCopy.sansObjet);
+    } else {
+      await expect(item, step.name).not.toContainText(badgeCopy.sansObjet);
+    }
   }
 });
 

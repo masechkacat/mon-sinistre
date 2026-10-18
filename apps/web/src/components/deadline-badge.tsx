@@ -79,10 +79,6 @@ export function DeadlineBadge({
     <div
       data-slot="deadline-badge"
       data-surface="papier"
-      // Constant, and not dropped with the second form: the head of a dossier
-      // is where a badge is allowed to be, and the tests of both screens count
-      // the hero badges they see.
-      data-form="hero"
       data-state={state}
       className={cn(
         perforation,
