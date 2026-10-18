@@ -255,6 +255,7 @@ async function runPilot(
       stage: 'running',
       startedAt: new Date().toISOString(),
       outcome: null,
+      modelPatchSha256: null,
       verifications: [],
     };
     writeState(file, state);
@@ -265,7 +266,7 @@ async function runPilot(
       'Не запускай команды, скиллы, субагентов и не делай коммитов. Проверки выполнит оркестратор.',
       'Заверши сессию сразу после исправления. Не изменяй другие файлы.',
     ].join('\n');
-    state.outcome = runIteration(
+    state.outcome = await runIteration(
       {
         ...state.limits,
         model: approval.model,
@@ -280,7 +281,6 @@ async function runPilot(
       {
         cwd: prepared.repo,
         env: modelEnvironment(env),
-        killSignal: 'SIGKILL',
         extraArgs: [
           '--tools',
           'Read,Edit',
@@ -299,7 +299,13 @@ async function runPilot(
     state.stage =
       state.outcome.status === 'success' ? 'candidate' : 'model_failed';
     writeState(file, state);
-    saveCandidatePatch(state, file, candidate(state));
+    const patch = candidate(state);
+    fs.writeFileSync(file.replace(/\.json$/, '.model.patch'), patch, {
+      flag: 'wx',
+      mode: 0o600,
+    });
+    state.modelPatchSha256 = hash(patch);
+    saveCandidatePatch(state, file, patch);
     writeState(file, state);
     if (state.outcome.status !== 'success')
       throw new Error(

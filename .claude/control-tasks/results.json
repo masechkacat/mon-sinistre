@@ -15,38 +15,7 @@
     "costUsd": 2.9709275000000006,
     "reportArtifact": "review.txt (session artifact)",
     "findingsFixedAtMeasurement": false,
-    "triage": [
-      {
-        "finding": 1,
-        "disposition": "not_a_local_pilot_blocker",
-        "reason": "Stopping on red acceptance is intentional; ralph.md still requires checking changed behavior. The local pilot does not use the issue/commit/publication loop."
-      },
-      {
-        "finding": 2,
-        "disposition": "confirmed_by_inspection",
-        "summary": "A published candidate cannot resume after its branch merges a newer main."
-      },
-      {
-        "finding": 3,
-        "disposition": "confirmed_by_inspection",
-        "summary": "The protected-path guard omits metrics.test.js and run-report.test.js."
-      },
-      {
-        "finding": 4,
-        "disposition": "needs_regression_test",
-        "summary": "Phase verification precedes the no-commits check."
-      },
-      {
-        "finding": 5,
-        "disposition": "needs_regression_test_and_counter_scope_clarification",
-        "summary": "A restored no-commit result does not increment the current invocation's stall counter."
-      },
-      {
-        "finding": 6,
-        "disposition": "diagnostic_followup",
-        "summary": "Malformed locks and existing locks stop execution but use generic exception diagnostics."
-      }
-    ]
+    "discussion": "https://github.com/masechkacat/mon-sinistre/pull/300#issuecomment-6255220237"
   },
   "tasks": [
     {

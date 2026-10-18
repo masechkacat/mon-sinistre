@@ -3,8 +3,9 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
-import { execFileSync, spawnSync } from 'node:child_process';
-import { stateDirectory } from './ralph-state.js';
+import { execFileSync } from 'node:child_process';
+import { stateDirectory, writeState } from './ralph-state.js';
+import { runProcess } from './process-runner.js';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
 const FIXTURES = path.join(import.meta.dirname, 'control-tasks');
@@ -126,17 +127,21 @@ function testResults(report, task, regressed) {
   assert.equal(report.numRuntimeErrorTestSuites ?? 0, 0);
 }
 
-function run(command, args, options = {}) {
-  return execFileSync(command, args, {
-    encoding: 'utf8',
-    stdio: ['ignore', 'pipe', 'pipe'],
+async function run(command, args, options = {}) {
+  const result = await runProcess(command, args, {
     timeout: CHECK_TIMEOUT_MS,
     ...options,
-  }).trim();
+  });
+  if (result.error) throw result.error;
+  if (result.status !== 0)
+    throw new Error(
+      `${command} failed (exit=${result.status}, signal=${result.signal})\n${result.stdout}\n${result.stderr}`,
+    );
+  return result.stdout.trim();
 }
 
 async function database() {
-  const image = run('docker', [
+  const image = await run('docker', [
     'image',
     'inspect',
     'postgres:18-alpine',
@@ -144,7 +149,7 @@ async function database() {
     '{{.Id}}',
   ]);
   const password = randomBytes(24).toString('hex');
-  const id = run('docker', [
+  const id = await run('docker', [
     'run',
     '--detach',
     '--rm',
@@ -165,15 +170,12 @@ async function database() {
   try {
     let ready = false;
     for (let attempt = 0; attempt < 60; attempt++) {
-      const probe = spawnSync('docker', [
-        'exec',
-        id,
-        'pg_isready',
-        '-U',
-        'postgres',
-        '-d',
-        'controls',
-      ]);
+      const probe = await runProcess(
+        'docker',
+        ['exec', id, 'pg_isready', '-U', 'postgres', '-d', 'controls'],
+        { timeout: 5000 },
+      );
+      if (probe.error) throw probe.error;
       if (probe.status === 0) {
         ready = true;
         break;
@@ -181,7 +183,9 @@ async function database() {
       await new Promise((resolve) => setTimeout(resolve, 500));
     }
     if (!ready) throw new Error('Control PostgreSQL did not become ready');
-    const port = run('docker', ['port', id, '5432/tcp']).split(':').at(-1);
+    const port = (await run('docker', ['port', id, '5432/tcp']))
+      .split(':')
+      .at(-1);
     return {
       image,
       close,
@@ -194,7 +198,7 @@ async function database() {
       },
     };
   } catch (error) {
-    close();
+    await close();
     throw error;
   }
 }
@@ -253,7 +257,7 @@ async function checkControls(tasks, candidatePatch) {
         'ACCOUNT_EMAIL_HASH_SECRET',
       ])
         env[key] = randomBytes(32).toString('hex');
-      run(
+      await run(
         'npm',
         ['run', 'prisma:generate', '--workspace', '@mon-sinistre/api'],
         { cwd: repo, env },
@@ -291,7 +295,7 @@ async function checkControls(tasks, candidatePatch) {
             include: [path.join(repo, 'apps', workspace, file)],
           }),
         );
-        run(
+        await run(
           process.execPath,
           [
             path.join(ROOT, 'node_modules/typescript/bin/tsc'),
@@ -302,9 +306,7 @@ async function checkControls(tasks, candidatePatch) {
         );
       }
       const reportFile = path.join(destination, 'vitest.json');
-      const filter = task.tests
-        .map((name) => name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
-        .join('|');
+      const filter = task.tests.map(RegExp.escape).join('|');
       const outcomes = [];
       for (const regressed of candidatePatch === undefined
         ? [true, false]
@@ -312,7 +314,7 @@ async function checkControls(tasks, candidatePatch) {
         if (!regressed && candidatePatch === undefined)
           apply(repo, fixPatch(task));
         fs.rmSync(reportFile, { force: true });
-        const result = spawnSync(
+        const result = await runProcess(
           'npm',
           [
             'run',
@@ -330,7 +332,6 @@ async function checkControls(tasks, candidatePatch) {
           {
             cwd: repo,
             env,
-            encoding: 'utf8',
             timeout: CHECK_TIMEOUT_MS,
             maxBuffer: 8 * 1024 * 1024,
           },
@@ -360,7 +361,7 @@ async function checkControls(tasks, candidatePatch) {
         }
       }
       results.push({ ...metadata, outcomes });
-      db?.close();
+      await db?.close();
       db = undefined;
     }
     return {
@@ -376,14 +377,14 @@ async function checkControls(tasks, candidatePatch) {
       runnerSha256: hash(fs.readFileSync(import.meta.filename)),
       suiteSha256,
       node: process.version,
-      npm: run('npm', ['--version']),
+      npm: await run('npm', ['--version']),
       databaseImage,
       recovery: null,
       tasks: results,
     };
   } finally {
     try {
-      db?.close();
+      await db?.close();
     } finally {
       fs.rmSync(directory, { recursive: true, force: true });
     }
@@ -392,6 +393,34 @@ async function checkControls(tasks, candidatePatch) {
 
 function controlDirectory() {
   return path.join(path.dirname(stateDirectory(ROOT)), 'harness-controls');
+}
+
+async function finishSelfCheck(
+  report,
+  file,
+  runRecovery = () =>
+    run(process.execPath, ['--test', '.claude/ralph.integration.test.js'], {
+      cwd: ROOT,
+    }),
+) {
+  report.status = 'running';
+  report.completedAt = null;
+  report.recovery = { agent: 'stub', remote: 'local-bare', passed: null };
+  writeState(file, report);
+  try {
+    await runRecovery();
+    report.recovery.passed = true;
+    report.status = 'passed';
+  } catch (error) {
+    report.recovery.passed = false;
+    report.recovery.error = error.message;
+    report.recovery.errorCode = error.code ?? null;
+    report.status = 'failed';
+    throw error;
+  } finally {
+    report.completedAt = new Date().toISOString();
+    writeState(file, report);
+  }
 }
 
 async function main(args) {
@@ -409,15 +438,10 @@ async function main(args) {
   } else if (command === 'self-check' && args.length <= 2) {
     const tasks = id && id !== 'all' ? [taskById(id)] : suite.tasks;
     const report = await checkControls(tasks);
-    run(process.execPath, ['--test', '.claude/ralph.integration.test.js'], {
-      cwd: ROOT,
-    });
-    report.recovery = { agent: 'stub', remote: 'local-bare', passed: true };
-    report.completedAt = new Date().toISOString();
     const folder = controlDirectory();
-    fs.mkdirSync(folder, { recursive: true });
     const file = path.join(folder, `check-${Date.now()}.json`);
-    fs.writeFileSync(file, JSON.stringify(report, null, 2) + '\n');
+    console.error(`Self-check report: ${file}`);
+    await finishSelfCheck(report, file);
     console.log(JSON.stringify({ file, ...report }, null, 2));
   } else {
     throw new Error(
@@ -435,6 +459,7 @@ if (import.meta.main)
 export {
   checkControls,
   controlDirectory,
+  finishSelfCheck,
   gitEnvironment,
   hash,
   prepare,

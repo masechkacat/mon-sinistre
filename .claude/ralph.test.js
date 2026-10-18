@@ -20,6 +20,7 @@ import {
   closesIssue,
   dryReviewPrompt,
   hasDryReviewComment,
+  isVerificationInput,
   fieldKey,
   filterQueue,
   milestonePrefix,
@@ -31,6 +32,37 @@ import {
 } from './ralph.js';
 
 const REPO = 'masechkacat/mon-sinistre';
+
+test('входы приёмки защищены в корне и workspaces, но не доменный код', () => {
+  for (const file of [
+    'package-lock.json',
+    '.npmrc',
+    '.githooks/pre-commit',
+    '.jscpd-baseline.json',
+    'knip.jsonc',
+    '.gitignore',
+    '.gitattributes',
+    '.prettierrc.json',
+    '.prettierignore',
+    'tsconfig.base.json',
+    'apps/api/eslint.config.mjs',
+    'apps/api/tsconfig.build.json',
+    'apps/api/vitest.config.int.ts',
+    'apps/api/nest-cli.json',
+    'apps/api/prisma.config.ts',
+    'apps/api/test/setup/int.global-setup.ts',
+    'apps/web/next.config.ts',
+    'apps/web/postcss.config.mjs',
+    'apps/web/playwright.e2e.config.ts',
+    'apps/web/tests/support/env.ts',
+  ])
+    assert.equal(isVerificationInput(file), true, file);
+  for (const file of [
+    'apps/api/src/config/env.validation.ts',
+    'apps/api/src/example.spec.ts',
+  ])
+    assert.equal(isVerificationInput(file), false, file);
+});
 
 /** Конфиг-минимум: тесты правят от него только то, что проверяют. */
 function config(overrides = {}) {
@@ -432,4 +464,12 @@ test('hasDryReviewComment принимает только отчёт по тем
   assert.equal(hasDryReviewComment(comments, 'base', 'head'), true);
   assert.equal(hasDryReviewComment(comments, 'base', 'new-head'), false);
   assert.equal(hasDryReviewComment(comments, 'new-base', 'head'), false);
+  assert.equal(
+    hasDryReviewComment(
+      [{ body: comments.at(-1).body.replaceAll('\n', '\r\n') }],
+      'base',
+      'head',
+    ),
+    true,
+  );
 });

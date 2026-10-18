@@ -4,7 +4,41 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import test from 'node:test';
-import { prepare, suite, taskById, testResults } from './control-tasks.js';
+import {
+  finishSelfCheck,
+  prepare,
+  suite,
+  taskById,
+  testResults,
+} from './control-tasks.js';
+
+test('self-check сохраняет контроли до recovery и явный итог при сбое или timeout', async (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'control-report-'));
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  const file = path.join(directory, 'check.json');
+  const tasks = [
+    { task: 'completed-control', outcomes: [{ passed: 1, failed: 0 }] },
+  ];
+  for (const code of [null, 'ETIMEDOUT', 'EIO']) {
+    const report = { tasks, modelCalls: 0 };
+    const checking = finishSelfCheck(report, file, async () => {
+      const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
+      assert.deepEqual(saved.tasks, tasks);
+      assert.equal(saved.status, 'running');
+      assert.equal(saved.recovery.passed, null);
+      if (code) throw Object.assign(new Error('Recovery failed'), { code });
+    });
+    if (code) await assert.rejects(checking, { code });
+    else await checking;
+    const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
+    assert.deepEqual(saved.tasks, tasks);
+    assert.equal(saved.status, code ? 'failed' : 'passed');
+    assert.equal(saved.recovery.passed, !code);
+    assert.equal(saved.recovery.errorCode, code || undefined);
+    assert.ok(saved.completedAt);
+    assert.equal(saved.modelCalls, 0);
+  }
+});
 
 test('controls reproduce the same initial commit without history or remotes', (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'control-prepare-'));

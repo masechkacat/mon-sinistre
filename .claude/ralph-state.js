@@ -180,12 +180,20 @@ function acquireLock(file) {
   let released = false;
   return () => {
     if (released) return;
-    if (fs.readFileSync(file, 'utf8') !== identity)
+    try {
+      if (fs.readFileSync(file, 'utf8') !== identity)
+        throw new RalphStop(
+          `Нельзя освободить ${file}: владелец lock изменился`,
+          'Lock сохранён; проверь, какой процесс им владеет.',
+        );
+      fs.unlinkSync(file);
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
       throw new RalphStop(
-        `Нельзя освободить ${file}: владелец lock изменился`,
-        'Lock сохранён; проверь, какой процесс им владеет.',
+        `Нельзя освободить ${file}: lock удалён`,
+        'Проверь все запуски Ralph и кто удалил lock перед повторным запуском.',
       );
-    fs.unlinkSync(file);
+    }
     released = true;
   };
 }
@@ -235,6 +243,7 @@ function parseRunResult(res, sessionId) {
           ? `${result.subtype}; exit=${res.status}`
           : 'Нет корректного JSON-result этой сессии'),
     exitCode: res.status,
+    errorCode: res.error?.code ?? null,
     usage: completeUsage
       ? {
           ...counts,

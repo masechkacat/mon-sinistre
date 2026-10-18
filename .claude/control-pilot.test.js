@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { parseApproval, runPilot, verifyPilot } from './control-pilot.js';
+import { hash } from './control-tasks.js';
 
 const FLAGS = [
   '--model',
@@ -22,6 +23,7 @@ function fixture(t, behavior = 'success') {
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
   const bin = path.join(directory, 'bin');
   fs.mkdirSync(bin);
+  fs.writeFileSync(path.join(bin, 'package.json'), '{"type":"commonjs"}');
   const control = path.join(bin, 'control.json');
   fs.writeFileSync(control, JSON.stringify({ behavior, calls: 0 }));
   fs.writeFileSync(
@@ -118,8 +120,15 @@ test('pilot verifies a real patch, records spend and never retries the model', a
   );
   assert.equal(result.stage, 'verified_locally');
   assert.equal(result.outcome.costUsd, 0.12);
+  assert.equal(result.outcome.errorCode, null);
   assert.equal(result.outcome.usage.turns, 2);
   assert.equal(result.verifications[0].result.tasks[0].outcomes[0].failed, 0);
+  const modelFile = result.file.replace(/\.json$/, '.model.patch');
+  const candidateFile = result.file.replace(/\.json$/, '.patch');
+  const modelPatch = fs.readFileSync(modelFile);
+  assert.equal(result.modelPatchSha256, hash(modelPatch));
+  assert.equal(result.patchSha256, result.modelPatchSha256);
+  assert.deepEqual(fs.readFileSync(candidateFile), modelPatch);
   assert.equal(f.read().calls, 1);
   await assert.rejects(
     runPilot('cors-methods', destination, parseApproval(FLAGS), f.options),
@@ -130,6 +139,26 @@ test('pilot verifies a real patch, records spend and never retries the model', a
   assert.equal(f.read().calls, 1);
   fs.appendFileSync(path.join(destination, 'repo/apps/api/src/main.ts'), '\n');
   await assert.rejects(verifyPilot(result.file), /confirm-candidate/);
+  const confirmed = await verifyPilot(result.file, true);
+  assert.equal(confirmed.verifications.length, 3);
+  assert.deepEqual(confirmed.verifications.slice(0, 2), resumed.verifications);
+  assert.equal(confirmed.modelPatchSha256, result.modelPatchSha256);
+  assert.deepEqual(fs.readFileSync(modelFile), modelPatch);
+  assert.notEqual(confirmed.patchSha256, confirmed.modelPatchSha256);
+  assert.equal(hash(fs.readFileSync(candidateFile)), confirmed.patchSha256);
+  assert.equal(confirmed.approvedPatchSha256, confirmed.patchSha256);
+
+  const legacy = f.journal().state;
+  delete legacy.modelPatchSha256;
+  fs.writeFileSync(result.file, JSON.stringify(legacy));
+  fs.renameSync(
+    modelFile,
+    result.file.replace(/\.json$/, '.manual-backup.patch'),
+  );
+  const rechecked = await verifyPilot(result.file, true);
+  assert.equal(rechecked.modelPatchSha256, undefined);
+  assert.equal(fs.existsSync(modelFile), false);
+  assert.equal(rechecked.patchSha256, confirmed.patchSha256);
   assert.equal(f.read().calls, 1);
 });
 
@@ -167,11 +196,23 @@ test('failed or lost CLI results preserve the patch until explicit free confirma
     const { file, state } = f.journal();
     assert.equal(state.stage, 'model_failed');
     assert.equal(state.verifications.length, 0);
+    const modelFile = file.replace(/\.json$/, '.model.patch');
+    const modelPatch = fs.readFileSync(modelFile);
+    assert.equal(state.modelPatchSha256, hash(modelPatch));
     assert.ok(fs.statSync(file.replace(/\.json$/, '.patch')).size > 0);
     await assert.rejects(verifyPilot(file), /confirm-candidate/);
+    fs.appendFileSync(
+      path.join(destination, 'repo/apps/api/src/main.ts'),
+      '\n',
+    );
     const verified = await verifyPilot(file, true);
     assert.equal(verified.stage, 'verified_locally');
     assert.equal(verified.outcome.status, 'failed');
+    assert.deepEqual(verified.outcome, state.outcome);
+    assert.deepEqual(verified.stops, state.stops);
+    assert.equal(verified.modelPatchSha256, state.modelPatchSha256);
+    assert.deepEqual(fs.readFileSync(modelFile), modelPatch);
+    assert.notEqual(verified.patchSha256, state.modelPatchSha256);
     assert.equal(verified.approvedPatchSha256, verified.patchSha256);
     assert.equal(f.read().calls, 1);
     if (behavior === 'invalid') {

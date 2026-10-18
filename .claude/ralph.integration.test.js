@@ -126,6 +126,7 @@ function fixture(t, options = {}) {
   for (const name of [
     'ralph.js',
     'ralph-state.js',
+    'process-runner.js',
     'metrics.js',
     'run-report.js',
   ])
@@ -135,6 +136,17 @@ function fixture(t, options = {}) {
     );
   for (const name of ['gh', 'claude'])
     fs.writeFileSync(path.join(bin, name), COMMAND, { mode: 0o755 });
+  if (options.launchError) {
+    const gitPath = env.PATH.split(path.delimiter)
+      .map((directory) => path.join(directory, 'git'))
+      .find((file) => fs.existsSync(file));
+    fs.symlinkSync(gitPath, path.join(bin, 'git'));
+    fs.symlinkSync(process.execPath, path.join(bin, 'node'));
+    env.PATH = bin;
+    if (options.launchError === 'ENOENT')
+      fs.unlinkSync(path.join(bin, 'claude'));
+    else fs.chmodSync(path.join(bin, 'claude'), 0o644);
+  }
   fs.writeFileSync(path.join(root, 'verify.cjs'), COMMAND);
   fs.writeFileSync(
     path.join(root, 'package.json'),
@@ -145,7 +157,7 @@ function fixture(t, options = {}) {
     JSON.stringify({
       feature: 'fixture',
       phases: [1],
-      maxIterations: 1,
+      maxIterations: options.maxIterations ?? 1,
       stallLimit: options.stallLimit ?? 2,
       iterationTimeoutMs: options.agent === 'timeout' ? 1000 : 10000,
       verificationCommands: [['npm', 'run', 'verify']],
@@ -205,14 +217,42 @@ function expectExit(result, code) {
   assert.equal(result.status, code, result.stdout + result.stderr);
 }
 
-function advanceMain(f) {
+test('ошибка запуска Claude сохраняется и останавливает цикл без повторов', (t) => {
+  for (const code of ['ENOENT', 'EACCES']) {
+    const f = fixture(t, { launchError: code, maxIterations: 3 });
+    const result = f.run();
+    expectExit(result, 1);
+    assert.match(result.stderr, /Ошибка процесса Claude/);
+    assert.equal(f.journal().attempts.length, 1);
+    const attempt = f.journal().attempts[0];
+    assert.equal(attempt.outcome.errorCode, code);
+    assert.equal(attempt.outcome.costUsd, null);
+    assert.equal(attempt.stops.at(-1).kind, 'process_error');
+    assert.equal(f.read().agentCalls, undefined);
+    assert.equal(f.read().checks, undefined);
+    assert.equal(f.read().done, undefined);
+  }
+});
+
+function advanceMain(f, change) {
   f.git('checkout', 'main');
   fs.writeFileSync(path.join(f.root, 'main.txt'), 'new main\n');
   fs.appendFileSync(path.join(f.root, '.claude/metrics.js'), '\n');
-  f.git('add', 'main.txt', '.claude/metrics.js');
+  change?.();
+  f.git('add', '.');
   f.git('commit', '-m', 'advance main');
   f.git('push', 'origin', 'main');
   f.git('checkout', 'fixture/phase-1');
+}
+
+function preparePhase(f) {
+  f.git('checkout', '-b', 'fixture/phase-1');
+  const file = path.join(f.root, 'package.json');
+  const manifest = JSON.parse(fs.readFileSync(file, 'utf8'));
+  manifest.dependencies = { 'human-approved-fixture': '1.0.0' };
+  fs.writeFileSync(file, JSON.stringify(manifest));
+  f.git('add', 'package.json');
+  f.git('commit', '-m', 'human phase preparation');
 }
 
 test('ошибка, повреждённый result и timeout сохраняют кандидат до подтверждения', (t) => {
@@ -309,6 +349,12 @@ test('кандидат не может подменить скрипт собс�
     { agent: 'change-manifest' },
     { protectedFile: '.claude/metrics.test.js' },
     { protectedFile: '.claude/control-tasks/oracle.spec.ts' },
+    { protectedFile: '.jscpd-baseline.json' },
+    { protectedFile: 'knip.jsonc' },
+    { protectedFile: 'apps/api/vitest.config.ts' },
+    { protectedFile: 'apps/web/playwright.e2e.config.ts' },
+    { protectedFile: 'package-lock.json' },
+    { protectedFile: '.npmrc' },
   ]) {
     const f = fixture(t, options);
     const result = f.run();
@@ -325,12 +371,15 @@ test('кандидат не может подменить скрипт собс�
 
 test('опубликованный кандидат восстанавливается после мержа main, а PR получает проверенный HEAD', (t) => {
   const f = fixture(t, { failBoard: true });
+  preparePhase(f);
   expectExit(f.run(), 1);
   const original = f.journal().attempts[0];
   assert.equal(original.stage, 'published');
   advanceMain(f);
   f.git('merge', 'origin/main', '-m', 'merge newer main');
   const merged = f.git('rev-parse', 'HEAD');
+  expectExit(f.run(), 1);
+  assert.equal(f.read().checks, 1);
   f.update({ failBoard: false, failVerification: true });
   expectExit(f.run('--verify-candidate'), 1);
   assert.equal(f.journal().attempts[0].stage, 'published');
@@ -355,6 +404,7 @@ test('опубликованный кандидат восстанавливае
 test('неопубликованный кандидат после сбоя приёмки или push принимает мерж main только с подтверждением', (t) => {
   for (const failVerification of [true, false]) {
     const f = fixture(t, { failVerification });
+    preparePhase(f);
     const hook = path.join(f.remote, 'hooks/pre-receive');
     if (!failVerification)
       fs.writeFileSync(hook, '#!/bin/sh\nexit 1\n', { mode: 0o755 });
@@ -392,27 +442,67 @@ test('неопубликованный кандидат после сбоя пр
 });
 
 test('подтверждение интеграции main не разрешает лишний коммит или подмену приёмки в мерже', (t) => {
-  for (const tamperMerge of [false, true]) {
-    const f = fixture(t, { failVerification: true });
-    expectExit(f.run(), 1);
-    if (tamperMerge) {
-      advanceMain(f);
-      f.git('merge', '--no-commit', 'origin/main');
-      fs.appendFileSync(path.join(f.root, '.claude/metrics.js'), '\n');
-      f.git('add', '.claude/metrics.js');
-    } else {
-      fs.appendFileSync(path.join(f.root, 'feature.txt'), 'extra change\n');
-      f.git('add', 'feature.txt');
+  for (const published of [false, true]) {
+    for (const tamperMerge of [false, true]) {
+      const f = fixture(t, {
+        failVerification: !published,
+        failBoard: published,
+      });
+      expectExit(f.run(), 1);
+      if (tamperMerge) {
+        advanceMain(f);
+        f.git('merge', '--no-commit', 'origin/main');
+        fs.appendFileSync(path.join(f.root, '.claude/metrics.js'), '\n');
+        f.git('add', '.claude/metrics.js');
+      } else {
+        fs.appendFileSync(path.join(f.root, 'feature.txt'), 'extra change\n');
+        f.git('add', 'feature.txt');
+      }
+      f.git('commit', '-m', 'unexpected candidate change');
+      const result = f.run('--verify-candidate');
+      expectExit(result, 1);
+      assert.match(
+        result.stderr,
+        tamperMerge ? /собственной приёмки/ : /только мерж/,
+      );
+      assert.equal(f.read().checks, 1);
+      assert.equal(f.read().done, undefined);
+      assert.equal(f.read().agentCalls, 1);
     }
-    f.git('commit', '-m', 'unexpected candidate change');
-    const result = f.run('--verify-candidate');
-    expectExit(result, 1);
-    assert.match(
-      result.stderr,
-      tamperMerge ? /собственной приёмки/ : /только мерж/,
+  }
+});
+
+test('ручное разрешение конфликта допускается только вне механизма приёмки', (t) => {
+  for (const protectedConflict of [false, true]) {
+    const f = fixture(t, { failVerification: true });
+    preparePhase(f);
+    expectExit(f.run(), 1);
+    const file = path.join(
+      f.root,
+      protectedConflict ? 'package.json' : 'feature.txt',
     );
-    assert.equal(f.read().checks, 1);
-    assert.equal(f.read().done, undefined);
+    const phaseContents = fs.readFileSync(file, 'utf8');
+    advanceMain(f, () => {
+      fs.writeFileSync(
+        file,
+        protectedConflict
+          ? JSON.stringify({
+              ...JSON.parse(fs.readFileSync(file, 'utf8')),
+              description: 'main',
+            })
+          : 'different main implementation\n',
+      );
+    });
+    assert.throws(() => f.git('merge', 'origin/main'));
+    fs.writeFileSync(file, phaseContents);
+    f.git('add', '.');
+    f.git('commit', '-m', 'resolve main integration');
+    f.update({ failVerification: false });
+    const result = f.run('--verify-candidate');
+    expectExit(result, protectedConflict ? 1 : 0);
+    if (protectedConflict)
+      assert.match(result.stderr, /Конфликт в механизме приёмки/);
+    assert.equal(f.read().done, protectedConflict ? undefined : true);
     assert.equal(f.read().agentCalls, 1);
   }
 });
