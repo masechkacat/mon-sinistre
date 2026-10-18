@@ -20,7 +20,8 @@ export function PlanList<T extends PlanStep>({
   onMark,
 }: {
   steps: T[];
-  /** The déclaration date, inside the strip of the step that asks for it. */
+  /** The déclaration date, inside the strip of the step that asks for it —
+   * or on its line once recorded, since the date is what closes that step. */
   declaration?: ReactNode;
   itemRef?: (step: T, node: HTMLLIElement | null) => void;
   onMark?: (step: T, mark: StepMark) => void;
@@ -44,7 +45,12 @@ export function PlanList<T extends PlanStep>({
         ))}
       </ol>
       {closed.length > 0 ? (
-        <FaitLigne steps={closed} itemRef={itemRef} onMark={onMark} />
+        <FaitLigne
+          steps={closed}
+          declaration={declaration}
+          itemRef={itemRef}
+          onMark={onMark}
+        />
       ) : null}
     </>
   );

@@ -2,13 +2,7 @@
 
 import { Field } from '@base-ui/react/field';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import {
-  useEffect,
-  useRef,
-  useState,
-  type FormEvent,
-  type RefObject,
-} from 'react';
+import { useState, type FormEvent } from 'react';
 import { isIsoDate, type IsoDate } from '@mon-sinistre/contracts';
 import { FieldError } from '@/components/field-error';
 import { Button } from '@/components/ui/button';
@@ -25,60 +19,50 @@ import { setSinistreDeclarationDate } from '@/lib/api/sinistres';
 import { cn } from '@/lib/utils';
 
 /**
- * The déclaration date inside the strip of the step it belongs to: the field
- * while nothing is recorded, then the day it was done and the way back. The
- * date is the action of this step (ТЗ § 3.4), so it has no heading of its own.
+ * The déclaration date of the step it belongs to: the field in the strip
+ * while nothing is recorded, then — the date being what closes the step — the
+ * day it was done and the way back, on the step's line in the row of what is
+ * behind. The date is the action of this step (ТЗ § 3.4), so it has no
+ * heading of its own. The step changes lists with the date, and this strip
+ * is remounted with it, so the focus after a save or a clear is the step's
+ * own, placed by `onApplied` like the focus after a mark.
  */
 export function DeclarationStrip({
   sinistreId,
   declarationDate,
   onAnnounce,
+  onApplied,
 }: {
   sinistreId: string;
   declarationDate: IsoDate | null;
   onAnnounce: (message: string) => void;
+  onApplied: () => void;
 }) {
   const copy = fr.sinistres.detail.declaration;
   const queryClient = useQueryClient();
-  const fieldRef = useRef<HTMLInputElement>(null);
-  const effacerRef = useRef<HTMLButtonElement>(null);
-  // The strip trades the form for the recorded date and back, so the control
-  // that was acted on is gone by the time the answer is rendered: the focus
-  // can only follow once its replacement is mounted, hence the effect below.
-  const focusApres = useRef<'champ' | 'effacer' | null>(null);
   const mutation = useMutation({
     mutationFn: (next: IsoDate | null) =>
       setSinistreDeclarationDate(sinistreId, next),
     onSuccess: (detail) => {
+      onAnnounce(detail.declarationDate ? copy.enregistree : copy.effacee);
+      onApplied();
       queryClient.setQueryData(queryKeys.sinistre(sinistreId), detail);
       void queryClient.invalidateQueries({
         queryKey: queryKeys.sinistres(),
         exact: true,
       });
-      onAnnounce(detail.declarationDate ? copy.enregistree : copy.effacee);
-      focusApres.current = detail.declarationDate ? 'effacer' : 'champ';
     },
     onError: (_error, next) => {
       if (next === null) onAnnounce(copy.effacementEchec);
     },
   });
 
-  useEffect(() => {
-    const cible = focusApres.current;
-    if (!cible) return;
-    focusApres.current = null;
-    (cible === 'champ' ? fieldRef.current : effacerRef.current)?.focus();
-  }, [declarationDate]);
-
   if (declarationDate) {
     return (
-      <div className="flex flex-wrap items-baseline gap-x-6 gap-y-2">
-        <p className="font-bold">
-          {fr.deadlineBadge.fait(formatDateFr(declarationDate))}
-        </p>
+      <>
+        <span>{fr.deadlineBadge.fait(formatDateFr(declarationDate))}</span>
         <Button
-          ref={effacerRef}
-          variant="outline"
+          variant="link"
           size="touch"
           disabled={mutation.isPending}
           // The control disables itself mid-action: a plain `disabled` would
@@ -89,7 +73,7 @@ export function DeclarationStrip({
         >
           {copy.effacer}
         </Button>
-      </div>
+      </>
     );
   }
 
@@ -103,7 +87,6 @@ export function DeclarationStrip({
 
   return (
     <DeclarationForm
-      fieldRef={fieldRef}
       pending={mutation.isPending}
       echec={mutation.isError ? (apiError ?? copy.echec) : undefined}
       onSave={(date) => mutation.mutate(date)}
@@ -115,13 +98,11 @@ export function DeclarationStrip({
 }
 
 function DeclarationForm({
-  fieldRef,
   pending,
   echec,
   onSave,
   onEdit,
 }: {
-  fieldRef: RefObject<HTMLInputElement | null>;
   pending: boolean;
   echec?: string;
   onSave: (date: IsoDate) => void;
@@ -152,7 +133,6 @@ function DeclarationForm({
           {copy.hint}
         </Field.Description>
         <Field.Control
-          ref={fieldRef}
           type="date"
           value={draft}
           onChange={(event) => {

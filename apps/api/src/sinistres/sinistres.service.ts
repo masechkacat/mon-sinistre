@@ -245,10 +245,12 @@ export class SinistresService {
    * status is decided (docs/research/sinistre-plan.md, «Контракт API»), and
    * the `DATE_DECLARATION` steps' `plannedDate` is recomputed off the same
    * anchor — set on a date, cleared back to null when the date is cleared
-   * and nothing else resolves it. Same reason for the transaction as {@link
-   * updateStep}: a concurrent second write landing between the read and the
-   * writes below must not hand this request back a status or a step date it
-   * never wrote.
+   * and nothing else resolves it. The date is also the mark of the
+   * `DECLARATION` step: recording it closes that step on the day declared,
+   * clearing it reopens it — there is no button for that step on the client.
+   * Same reason for the transaction as {@link updateStep}: a concurrent
+   * second write landing between the read and the writes below must not hand
+   * this request back a status or a step date it never wrote.
    */
   async update(
     userId: string,
@@ -290,6 +292,15 @@ export class SinistresService {
         },
       });
 
+      await tx.step.updateMany({
+        where: { sinistreId: id, kind: 'DECLARATION', fromTemplate: true },
+        data: declarationDate
+          ? {
+              persistedStatus: 'FAIT',
+              completedAt: isoDateToDate(declarationDate),
+            }
+          : { persistedStatus: null, completedAt: null },
+      });
       await recomputeDeclarationSteps(tx, id, {
         eventDate,
         declarationDate,

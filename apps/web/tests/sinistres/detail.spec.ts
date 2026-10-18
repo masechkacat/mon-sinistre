@@ -107,13 +107,22 @@ const DECLARATION_STEP = step({
   id: 'step-declaration',
   name: 'Déclarer le sinistre à l’assureur',
   kind: StepKind.DECLARATION,
+  plannedDate: toIsoDate('2026-10-27'),
+  status: StepStatus.A_FAIRE,
+  anchor: StepAnchor.DATE_PUBLICATION_ARRETE,
+  daysLeft: 14,
+});
+const ASSUREUR_STEP = step({
+  id: 'step-assureur',
+  name: 'L’assureur précise la procédure',
   plannedDate: null,
   status: StepStatus.A_VENIR,
   anchor: StepAnchor.DATE_DECLARATION,
 });
 
-// What the API answers once a declaration date is set or cleared: the step
-// anchored on it takes a date only while the date is there.
+// What the API answers once a declaration date is set or cleared: the date
+// closes the déclaration step on that day, and the step anchored on it takes
+// a date only while the date is there.
 function detailDeclaredOn(declarationDate: IsoDate | null) {
   return sinistreDetail({
     declarationDate,
@@ -121,6 +130,11 @@ function detailDeclaredOn(declarationDate: IsoDate | null) {
       ...STEPS,
       {
         ...DECLARATION_STEP,
+        status: declarationDate ? StepStatus.FAIT : DECLARATION_STEP.status,
+        completedAt: declarationDate,
+      },
+      {
+        ...ASSUREUR_STEP,
         plannedDate: declarationDate ? toIsoDate('2026-10-31') : null,
         daysLeft: declarationDate ? 18 : null,
       },
@@ -523,7 +537,7 @@ test('a mark that fails leaves the step as it was and says so in French', async 
   await expect(step).toContainText(badgeCopy.derniereSemaine);
 });
 
-test('a declaration date counts the steps anchored on it, and clearing it takes the dates back', async ({
+test('a declaration date closes its step and counts the steps anchored on it, and clearing it takes both back', async ({
   page,
 }) => {
   await openDetail(page, detailDeclaredOn(null), {
@@ -531,7 +545,9 @@ test('a declaration date counts the steps anchored on it, and clearing it takes 
   });
 
   const declarationStep = timelineItem(page, DECLARATION_STEP.name);
-  await expect(declarationStep).toContainText(
+  const assureurStep = timelineItem(page, ASSUREUR_STEP.name);
+  const faits = page.locator('[data-slot="plan-fait"]');
+  await expect(assureurStep).toContainText(
     fr.sinistres.detail.attentePar.DATE_DECLARATION,
   );
 
@@ -550,30 +566,38 @@ test('a declaration date counts the steps anchored on it, and clearing it takes 
   await expect(page.getByRole('status')).toHaveText(
     declarationCopy.enregistree,
   );
-  await expect(declarationStep).toContainText(prevueLe('2026-10-31'));
-  // The date recorded, the strip says the day instead of asking for it, and
-  // the keyboard lands on the way back rather than on <body>.
+  await expect(assureurStep).toContainText(prevueLe('2026-10-31'));
+  // The date recorded, the step is behind: its line says the day instead of
+  // asking for it, keeps the way back, and the keyboard follows the step
+  // rather than falling to <body> — as after a mark.
+  await expect(faits).toContainText(DECLARATION_STEP.name);
   await expect(declarationStep).toContainText(
     badgeCopy.fait(formatDateFr(toIsoDate('2026-09-01'))),
   );
   await expect(declarationStep.getByLabel(declarationCopy.label)).toHaveCount(
     0,
   );
-  const effacer = declarationStep.getByRole('button', {
-    name: declarationCopy.effacer,
-  });
-  await expect(effacer).toBeFocused();
+  await expect(declarationStep).toBeFocused();
+  await expect(
+    declarationStep.getByRole('button', {
+      name: fr.sinistres.detail.marquer.annuler,
+    }),
+  ).toHaveCount(0);
 
-  await effacer.click();
+  await declarationStep
+    .getByRole('button', { name: declarationCopy.effacer })
+    .click();
 
-  await expect(declarationStep).toContainText(
+  await expect(page.getByRole('status')).toHaveText(declarationCopy.effacee);
+  await expect(assureurStep).toContainText(
     fr.sinistres.detail.attentePar.DATE_DECLARATION,
   );
-  await expect(declarationStep).not.toContainText(prevueLe('2026-10-31'));
-  await expect(page.getByRole('status')).toHaveText(declarationCopy.effacee);
-  const field = declarationStep.getByLabel(declarationCopy.label);
-  await expect(field).toHaveValue('');
-  await expect(field).toBeFocused();
+  await expect(assureurStep).not.toContainText(prevueLe('2026-10-31'));
+  await expect(faits).not.toContainText(DECLARATION_STEP.name);
+  await expect(declarationStep.getByLabel(declarationCopy.label)).toHaveValue(
+    '',
+  );
+  await expect(declarationStep).toBeFocused();
 });
 
 test('a clear that fails is announced, and the recorded date is not blamed for it', async ({

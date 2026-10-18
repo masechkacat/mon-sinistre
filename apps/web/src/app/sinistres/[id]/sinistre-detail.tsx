@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
-import { StepStatus } from '@mon-sinistre/contracts';
+import { StepKind, StepStatus } from '@mon-sinistre/contracts';
 import { PageContainer } from '@/components/page-container';
 import { DeclarationDeadlineBlock } from '@/components/plan/declaration-deadline-block';
 import { DeclarationStrip } from '@/components/plan/declaration-strip';
@@ -43,10 +43,11 @@ export function SinistreDetailView({ id }: { id: string }) {
   // a failure of one mark must not be overwritten by a later mark's result.
   const [announcement, setAnnouncement] = useState<string | null>(null);
   const stepItems = useRef(new Map<string, HTMLLIElement>());
-  // The step a successful mark gives the focus back to. A marked step trades
-  // the plan for the row of what is behind — and comes back when the mark is
-  // undone — so the node that held the focus is gone by then: the focus can
-  // only follow once the answer is rendered, hence the effect below.
+  // The step a successful mark — or the déclaration date, which marks its
+  // step — gives the focus back to. A marked step trades the plan for the row
+  // of what is behind — and comes back when the mark is undone — so the node
+  // that held the focus is gone by then: the focus can only follow once the
+  // answer is rendered, hence the effect below.
   const focusAfterMark = useRef<string | null>(null);
   const markMutation = useMutation({
     mutationFn: ({ stepId, status: mark }: StepMarkRequest) =>
@@ -110,6 +111,12 @@ export function SinistreDetailView({ id }: { id: string }) {
                   sinistreId={id}
                   declarationDate={sinistre.declarationDate}
                   onAnnounce={setAnnouncement}
+                  onApplied={() => {
+                    focusAfterMark.current =
+                      sinistre.steps.find(
+                        (step) => step.kind === StepKind.DECLARATION,
+                      )?.id ?? null;
+                  }}
                 />
               }
               itemRef={(step, node) => {
