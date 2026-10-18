@@ -163,4 +163,33 @@ test('parseArgs читает сессии и число PR', () => {
     prs: 5,
   });
   assert.deepEqual(parseArgs([]), { sessions: [], prs: 0 });
+  assert.deepEqual(parseArgs(['--prs']), { sessions: [], prs: 20 });
+  assert.deepEqual(
+    parseArgs([
+      '--runs',
+      'new/phase-1,new/phase-2',
+      '--compare',
+      'old/phase-1',
+      '--json',
+    ]),
+    {
+      sessions: [],
+      prs: 0,
+      runs: ['new/phase-1', 'new/phase-2'],
+      compare: ['old/phase-1'],
+      json: true,
+    },
+  );
+  for (const args of [
+    ['--runs'],
+    ['--compare', 'base'],
+    ['--json'],
+    ['--runs', 'a,,b'],
+    ['--runs', 'a', '--list-runs'],
+    ['--runs', 'a', '--prs'],
+    ['--prs', 'zero'],
+    ['--json', '--json'],
+    ['--unknown'],
+  ])
+    assert.throws(() => parseArgs(args), Error);
 });

@@ -118,7 +118,12 @@ function fixture(t, options = {}) {
   git('config', 'user.email', 'ralph@example.invalid');
   git('config', 'core.hooksPath', '/dev/null');
   fs.mkdirSync(path.join(root, '.claude'));
-  for (const name of ['ralph.js', 'ralph-state.js', 'metrics.js'])
+  for (const name of [
+    'ralph.js',
+    'ralph-state.js',
+    'metrics.js',
+    'run-report.js',
+  ])
     fs.copyFileSync(
       path.join(import.meta.dirname, name),
       path.join(root, '.claude', name),
@@ -178,6 +183,13 @@ function fixture(t, options = {}) {
         encoding: 'utf8',
         timeout: 30000,
       }),
+    metrics: (...args) =>
+      spawnSync(process.execPath, ['.claude/metrics.js', ...args], {
+        cwd: root,
+        env,
+        encoding: 'utf8',
+        timeout: 10000,
+      }),
     journal: () => JSON.parse(fs.readFileSync(journalFile(), 'utf8')),
   };
 }
@@ -232,6 +244,16 @@ test('красная приёмка, сбои push и доски возобно�
   assert.equal(f.read().done, true);
   expectExit(f.run(), 0);
   assert.equal(f.read().reviews, 1);
+  const report = f.metrics('--runs', 'all', '--json');
+  expectExit(report, 0);
+  const data = JSON.parse(report.stdout).current;
+  assert.deepEqual(data.stops, { verification: 1, push: 1, board: 1 });
+  assert.equal(data.tasks.accepted, 1);
+  assert.equal(data.costUsd.perAcceptedTask, 0.25);
+  assert.equal(data.timeMs.verification.total, 3);
+  assert.equal(data.timeMs.verification.known, 3);
+  assert.ok(data.timeMs.toAcceptance.median >= data.timeMs.agent.value);
+  assert.equal(data.coverage.stopHistory.known, 1);
 });
 
 test('незавершённые файлы сохраняются, а все попытки остаются в журнале', (t) => {
@@ -279,6 +301,12 @@ test('dry-run не пишет журнал; lock и повреждённый ж�
   const f = fixture(t);
   expectExit(f.run('--dry-run'), 0);
   assert.equal(f.git('branch', '--show-current'), 'main');
+  assert.equal(fs.existsSync(path.join(f.root, '.git/ralph')), false);
+  const empty = f.metrics('--list-runs', '--json');
+  expectExit(empty, 0);
+  assert.deepEqual(JSON.parse(empty.stdout), { version: 1, runs: [] });
+  expectExit(f.metrics('--runs', 'all'), 1);
+  expectExit(f.metrics('--runs', 'missing/phase-1'), 1);
   assert.equal(fs.existsSync(path.join(f.root, '.git/ralph')), false);
   const lock = path.join(f.root, '.git/ralph.lock');
   const release = acquireLock(lock);

@@ -6,6 +6,7 @@
  * Запуск: node .claude/metrics.js [--sessions <id,id,…>] [--prs <N>]
  *   --sessions — транскрипты сессий Ralph (id задаёт сам цикл);
  *   --prs      — сколько последних смерженных PR считать (по умолчанию 20).
+ * Локальные выборки --runs/--compare — docs/research/harness-v2.md.
  * Без флагов — только отношение тестов к коду.
  */
 
@@ -13,6 +14,12 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
+import {
+  buildRunReport,
+  formatRunReport,
+  listRuns,
+  loadRuns,
+} from './run-report.js';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
 
@@ -224,11 +231,40 @@ function formatReport({ usage, sessions, missing = 0, costs, ratios, review }) {
 
 function parseArgs(argv) {
   const args = { sessions: [], prs: 0 };
+  const seen = new Set();
   for (let i = 0; i < argv.length; i++) {
-    if (argv[i] === '--sessions')
-      args.sessions = (argv[++i] || '').split(',').filter(Boolean);
-    else if (argv[i] === '--prs') args.prs = Number(argv[++i]) || 20;
+    const flag = argv[i];
+    if (seen.has(flag)) throw new Error(`Повторён аргумент ${flag}`);
+    seen.add(flag);
+    if (flag === '--json') args.json = true;
+    else if (flag === '--list-runs') args.listRuns = true;
+    else if (flag === '--prs') {
+      const value = argv[i + 1];
+      args.prs = !value || value.startsWith('--') ? 20 : Number(argv[++i]);
+      if (!Number.isInteger(args.prs) || args.prs < 1)
+        throw new Error('--prs требует положительное целое число');
+    } else if (['--sessions', '--runs', '--compare'].includes(flag)) {
+      const value = argv[++i];
+      if (
+        !value ||
+        value.startsWith('--') ||
+        value.split(',').some((v) => !v.trim())
+      )
+        throw new Error(`${flag} требует непустой список через запятую`);
+      args[flag.slice(2)] = value.split(',').map((v) => v.trim());
+    } else throw new Error(`Неизвестный аргумент ${flag}`);
   }
+  if (args.compare && !args.runs)
+    throw new Error('--compare требует текущую выборку --runs');
+  if (args.json && !args.runs && !args.listRuns)
+    throw new Error('--json используется с --runs или --list-runs');
+  if (
+    (args.runs || args.listRuns) &&
+    (args.sessions.length || args.prs || (args.runs && args.listRuns))
+  )
+    throw new Error(
+      'Журналы --runs/--list-runs не смешиваются с --sessions/--prs или друг с другом',
+    );
   return args;
 }
 
@@ -249,8 +285,37 @@ function report({ sessions = [], attempts, prs = 0, root = ROOT }) {
   });
 }
 
-if (import.meta.main)
-  console.log(report(parseArgs(process.argv.slice(2))).join('\n'));
+if (import.meta.main) {
+  try {
+    const args = parseArgs(process.argv.slice(2));
+    if (args.listRuns) {
+      const runs = listRuns(ROOT).map((run) => ({
+        branch: run.branch,
+        attempts: run.attempts.length,
+      }));
+      console.log(
+        args.json
+          ? JSON.stringify({ version: 1, runs }, null, 2)
+          : runs
+              .map((run) => `${run.branch}: ${run.attempts} попыток`)
+              .join('\n') || 'Нет сохранённых журналов Ralph',
+      );
+    } else if (args.runs) {
+      const result = buildRunReport(
+        loadRuns(ROOT, args.runs),
+        args.compare ? loadRuns(ROOT, args.compare) : undefined,
+      );
+      console.log(
+        args.json
+          ? JSON.stringify(result, null, 2)
+          : formatRunReport(result).join('\n'),
+      );
+    } else console.log(report(args).join('\n'));
+  } catch (error) {
+    console.error(`Метрики: ${error.message}`);
+    process.exitCode = 1;
+  }
+}
 
 export {
   averageUsage,

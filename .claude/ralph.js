@@ -13,7 +13,7 @@
  */
 
 import { execFileSync, spawnSync } from 'node:child_process';
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import * as metrics from './metrics.js';
@@ -22,6 +22,8 @@ import {
   isFinished,
   parseRunResult,
   readState,
+  statePath,
+  verificationRuns,
   writeState,
 } from './ralph-state.js';
 
@@ -595,6 +597,7 @@ function verifyCommit(before, after, issueNumber, repo, branch) {
     '.githooks',
     '.claude/ralph*',
     '.claude/metrics.js',
+    '.claude/run-report.js',
   ]);
   if (protectedChanges)
     fail(
@@ -740,26 +743,65 @@ function requireCandidate(branch, head) {
     fail('Рабочее дерево не чистое — незавершённые изменения сохранены');
 }
 
-function verifyCandidate(cfg, branch, head) {
+function verifyCandidate(cfg, branch, head, history, save) {
   requireCandidate(branch, head);
-  for (const [command, ...args] of cfg.verificationCommands) {
-    step(`Приёмка ${head.slice(0, 8)}: ${command} ${args.join(' ')}`);
-    const res = spawnSync(command, args, {
-      cwd: ROOT,
-      stdio: 'inherit',
-      timeout: cfg.iterationTimeoutMs,
-      killSignal: 'SIGTERM',
-    });
-    if (res.error || res.status !== 0)
-      fail(
-        `Приёмка не пройдена: ${command} ${args.join(' ')}`,
-        res.error?.message || `exit=${res.status}, signal=${res.signal}`,
-      );
-    requireCandidate(branch, head);
+  const check = {
+    head,
+    commands: cfg.verificationCommands,
+    startedAt: new Date().toISOString(),
+    status: 'running',
+  };
+  history.push(check);
+  save();
+  try {
+    for (const [command, ...args] of cfg.verificationCommands) {
+      step(`Приёмка ${head.slice(0, 8)}: ${command} ${args.join(' ')}`);
+      const res = spawnSync(command, args, {
+        cwd: ROOT,
+        stdio: 'inherit',
+        timeout: cfg.iterationTimeoutMs,
+        killSignal: 'SIGTERM',
+      });
+      if (res.error || res.status !== 0) {
+        check.failedCommand = [command, ...args];
+        fail(
+          `Приёмка не пройдена: ${command} ${args.join(' ')}`,
+          res.error?.message || `exit=${res.status}, signal=${res.signal}`,
+        );
+      }
+      requireCandidate(branch, head);
+    }
+    check.status = 'passed';
+  } catch (error) {
+    check.status = 'failed';
+    throw error;
+  } finally {
+    check.completedAt = new Date().toISOString();
+    save();
   }
 }
 
+function recordStop(attempt, kind, save) {
+  attempt.stops ??= [];
+  attempt.stops.push({ kind, at: new Date().toISOString() });
+  save();
+}
+
 function finishAttempt(cfg, repo, branch, board, attempt, save) {
+  attempt.operation = 'candidate';
+  try {
+    return advanceAttempt(cfg, repo, branch, board, attempt, save);
+  } catch (error) {
+    const kind =
+      attempt.operation === 'candidate' && attempt.outcome?.status === 'failed'
+        ? attempt.outcome.failureKind || 'failed_result'
+        : attempt.operation;
+    recordStop(attempt, kind, save);
+    throw error;
+  }
+}
+
+function advanceAttempt(cfg, repo, branch, board, attempt, save) {
   requireSameBranch(branch);
   const head = git(['rev-parse', branch]);
   requireCandidate(branch, head);
@@ -771,7 +813,12 @@ function finishAttempt(cfg, repo, branch, board, attempt, save) {
       );
     if (VERIFY_CANDIDATE) fail('Нет коммита-кандидата для подтверждения');
     attempt.stage = 'no_commit';
-    save();
+    recordStop(
+      attempt,
+      attempt.outcome.failureKind ||
+        (attempt.outcome.status === 'failed' ? 'failed_result' : 'no_commit'),
+      save,
+    );
     warn(`Сессия ${attempt.sessionId} не оставила коммита`);
     return false;
   }
@@ -800,13 +847,12 @@ function finishAttempt(cfg, repo, branch, board, attempt, save) {
       }
     }
     if (VERIFY_CANDIDATE) attempt.approvedHead = head;
+    attempt.operation = 'verification';
+    attempt.verifications ??= verificationRuns(attempt);
+    delete attempt.verification;
     save();
-    verifyCandidate(cfg, branch, head);
-    attempt.verification = {
-      head,
-      commands: cfg.verificationCommands,
-      completedAt: new Date().toISOString(),
-    };
+    verifyCandidate(cfg, branch, head, attempt.verifications, save);
+    attempt.operation = 'push';
     save();
     pushBranch(branch);
     attempt.stage = 'published';
@@ -819,8 +865,12 @@ function finishAttempt(cfg, repo, branch, board, attempt, save) {
     )
       fail('Опубликованный кандидат отсутствует в origin — проверь ветку');
   }
+  attempt.operation = 'board';
+  save();
   moveToInReview(cfg, board, attempt.issue);
   attempt.stage = 'complete';
+  attempt.completedAt = new Date().toISOString();
+  attempt.operation = null;
   save();
   return true;
 }
@@ -919,7 +969,7 @@ function commentDryReview(cfg, branch, url) {
   }
 }
 
-function openPullRequest(cfg, phase, milestone, branch, attempts = []) {
+function openPullRequest(cfg, phase, milestone, branch, state, save) {
   if (DRY_RUN) {
     ok(`здесь был бы push ветки ${branch} и PR в main — в dry-run пропущено`);
     return null;
@@ -927,14 +977,20 @@ function openPullRequest(cfg, phase, milestone, branch, attempts = []) {
 
   const head = git(['rev-parse', branch]);
   requireCandidate(branch, head);
-  const accepted = attempts.some(
-    (attempt) =>
+  const accepted = state.attempts.some((attempt) => {
+    const proof = verificationRuns(attempt).at(-1);
+    return (
       attempt.stage === 'complete' &&
-      attempt.verification?.head === head &&
-      JSON.stringify(attempt.verification.commands) ===
-        JSON.stringify(cfg.verificationCommands),
-  );
-  if (!accepted) verifyCandidate(cfg, branch, head);
+      proof?.status === 'passed' &&
+      proof.head === head &&
+      JSON.stringify(proof.commands) ===
+        JSON.stringify(cfg.verificationCommands)
+    );
+  });
+  if (!accepted) {
+    state.verifications ??= [];
+    verifyCandidate(cfg, branch, head, state.verifications, save);
+  }
 
   const existing = ghJson([
     'pr',
@@ -999,7 +1055,7 @@ function openPullRequest(cfg, phase, milestone, branch, attempts = []) {
     `- PRD: \`docs/prd/${cfg.feature}.md\``,
     `- Research: \`docs/research/${cfg.feature}.md\``,
     `- Текст (\`*.md\`): +${mdAdded}/−${mdDeleted} строк к \`origin/main\``,
-    ...metrics.report({ attempts, root: ROOT }),
+    ...metrics.report({ attempts: state.attempts, root: ROOT }),
     '',
     '_Собрано Ralph Loop (`.claude/ralph.js`), по одному коммиту на issue._',
   ].join('\n');
@@ -1036,6 +1092,7 @@ function main() {
   if (VERIFY_CANDIDATE && cfg.phases.length !== 1)
     fail('--verify-candidate требует ровно одну фазу в конфигурации');
   preflight(cfg);
+  const runnerRevision = git(['rev-parse', 'HEAD']);
 
   const repo = repoSlug();
   const board = { items: boardItems(cfg), fields: resolveBoardFields(cfg) };
@@ -1069,14 +1126,7 @@ function main() {
     fetchOrigin();
     ensureBranch(branch);
     previous = { phase, milestone };
-    const stateFile = path.resolve(
-      ROOT,
-      git([
-        'rev-parse',
-        '--git-path',
-        `ralph/${createHash('sha256').update(branch).digest('hex')}.json`,
-      ]),
-    );
+    const stateFile = statePath(ROOT, branch);
     const state = readState(stateFile, branch);
     const save = () => writeState(stateFile, state);
     const pending = state.attempts.at(-1);
@@ -1098,13 +1148,7 @@ function main() {
 
       if (queue.length === 0) {
         step(`Фаза ${phase} закрыта — открываю PR`);
-        const url = openPullRequest(
-          cfg,
-          phase,
-          milestone,
-          branch,
-          state.attempts,
-        );
+        const url = openPullRequest(cfg, phase, milestone, branch, state, save);
         if (url) opened.push(url);
         break;
       }
@@ -1139,6 +1183,10 @@ function main() {
         stage: 'running',
         outcome: null,
         startedAt: new Date().toISOString(),
+        telemetryVersion: 2,
+        runnerRevision,
+        model: cfg.model ?? null,
+        stops: [],
       };
       state.attempts.push(attempt);
       save();

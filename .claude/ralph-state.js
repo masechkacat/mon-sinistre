@@ -1,6 +1,8 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 
 const STAGES = new Set([
   'running',
@@ -13,18 +15,57 @@ const isSha = (value) =>
   typeof value === 'string' && /^[a-f0-9]{40,64}$/.test(value);
 const isCount = (value) => Number.isInteger(value) && value >= 0;
 
+function stateDirectory(root) {
+  return path.resolve(
+    root,
+    execFileSync('git', ['rev-parse', '--git-path', 'ralph'], {
+      cwd: root,
+      encoding: 'utf8',
+    }).trim(),
+  );
+}
+
+function statePath(root, branch) {
+  return path.join(
+    stateDirectory(root),
+    `${createHash('sha256').update(branch).digest('hex')}.json`,
+  );
+}
+
+function verificationRuns(attempt) {
+  if (attempt.verifications) return attempt.verifications;
+  return attempt.verification
+    ? [{ ...attempt.verification, status: 'passed' }]
+    : [];
+}
+
 function readState(file, branch) {
   let text;
   try {
     text = fs.readFileSync(file, 'utf8');
   } catch (error) {
-    if (error.code !== 'ENOENT') throw error;
+    if (error.code !== 'ENOENT' || branch === undefined) throw error;
     return { version: 1, branch, attempts: [] };
   }
-  const state = JSON.parse(text);
+  let state;
+  try {
+    state = JSON.parse(text);
+  } catch (error) {
+    if (!(error instanceof SyntaxError)) throw error;
+    throw new SyntaxError(
+      `Не удалось прочитать журнал ${file}: ${error.message}`,
+      {
+        cause: error,
+      },
+    );
+  }
   if (
     state?.version !== 1 ||
-    state.branch !== branch ||
+    typeof state.branch !== 'string' ||
+    !state.branch ||
+    (branch !== undefined && state.branch !== branch) ||
+    (state.verifications !== undefined &&
+      !Array.isArray(state.verifications)) ||
     !Array.isArray(state.attempts) ||
     !state.attempts.every(
       (a) =>
@@ -34,6 +75,12 @@ function readState(file, branch) {
         isSha(a.before) &&
         (a.head === null || isSha(a.head)) &&
         STAGES.has(a.stage) &&
+        (a.verifications === undefined || Array.isArray(a.verifications)) &&
+        (a.stops === undefined ||
+          (Array.isArray(a.stops) &&
+            a.stops.every(
+              (stop) => typeof stop?.kind === 'string' && stop.kind,
+            ))) &&
         (a.outcome === null ||
           ['success', 'failed'].includes(a.outcome?.status)),
     ) ||
@@ -113,6 +160,17 @@ function parseRunResult(res, sessionId) {
   const completeUsage = counts && Object.values(counts).every(isCount);
   return {
     status: success ? 'success' : 'failed',
+    failureKind: success
+      ? null
+      : res.error?.code === 'ETIMEDOUT'
+        ? 'timeout'
+        : res.error || res.signal
+          ? 'process_error'
+          : !valid
+            ? 'invalid_result'
+            : result.is_error
+              ? 'model_error'
+              : 'process_error',
     reason: success
       ? null
       : res.error?.message ||
@@ -136,4 +194,13 @@ function parseRunResult(res, sessionId) {
   };
 }
 
-export { acquireLock, isFinished, parseRunResult, readState, writeState };
+export {
+  acquireLock,
+  isFinished,
+  parseRunResult,
+  readState,
+  stateDirectory,
+  statePath,
+  verificationRuns,
+  writeState,
+};
