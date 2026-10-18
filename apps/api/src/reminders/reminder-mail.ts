@@ -41,7 +41,7 @@ export interface ReminderSinistreForMail {
   readonly steps: readonly ReminderStepForMail[];
 }
 
-export const reminderUnsubscribePathFor = (unsubscribeToken: string): string =>
+const reminderUnsubscribePathFor = (unsubscribeToken: string): string =>
   `${REMINDER_UNSUBSCRIBE_PATH}?token=${unsubscribeToken}`;
 
 /**

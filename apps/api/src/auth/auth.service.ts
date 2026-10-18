@@ -73,7 +73,7 @@ const nextPasswordResetExpiresAt = (): Date =>
  * that too — this is the second lock, not the first).
  */
 export const TOKEN_TYPE = { access: 'access', refresh: 'refresh' } as const;
-export type TokenType = (typeof TOKEN_TYPE)[keyof typeof TOKEN_TYPE];
+type TokenType = (typeof TOKEN_TYPE)[keyof typeof TOKEN_TYPE];
 
 export interface TokenPayload {
   sub: string;

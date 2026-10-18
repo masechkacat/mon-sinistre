@@ -1,0 +1,21 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "workspaces": {
+    ".": {
+      // `.claude/*.test.js` runs under `node --test` (npm run test:tooling),
+      // which knip has no plugin for.
+      "entry": [".claude/*.test.js"],
+      "project": [".claude/**/*.js"],
+    },
+    "apps/api": {
+      // Seeds the e2e database from a shell command in
+      // apps/web/playwright.e2e.config.ts, where knip cannot follow it.
+      "entry": ["src/main.ts", "scripts/e2e-seed.ts"],
+      // The generated client (src/generated, not in git) imports its runtime
+      // from here.
+      "ignoreDependencies": ["@prisma/client"],
+    },
+    "apps/web": {},
+    "packages/contracts": {},
+  },
+}

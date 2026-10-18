@@ -237,8 +237,6 @@ export {
   parseArgs,
   report,
   reviewFixShare,
-  sessionUsage,
-  testCodeRatio,
   transcriptsDir,
   usageOfTranscript,
 };

@@ -4,7 +4,7 @@
  * holds by construction: both renderers must emit the same block.
  */
 
-export interface MailAddress {
+interface MailAddress {
   readonly name: string;
   readonly email: string;
 }

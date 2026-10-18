@@ -31,7 +31,7 @@ export const GEO_API_COMMUNES_URL =
 export const MIN_EXPECTED_COMMUNES = 30_000;
 
 /** One ~4 MB response for the whole country; generous timeout for slow links. */
-export const GEO_API_TIMEOUT_MS = 60_000;
+const GEO_API_TIMEOUT_MS = 60_000;
 
 const isNonEmptyString = (value: unknown): value is string =>
   typeof value === 'string' && value.length > 0;

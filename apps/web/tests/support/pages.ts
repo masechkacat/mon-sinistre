@@ -37,7 +37,7 @@ export const testPlan = {
 // The public dossier of three parameters in the address. Its h1 names the
 // dossier the aperçu answers with, so gotoPage's generic gate already waits
 // for the screen the mock below stands for — no `ready` of its own.
-export const dossier = {
+const dossier = {
   path: DOSSIER_PATH,
   status: 200,
   mockApi: (page: Page) => mockApercu(page, apercuFixture()),
@@ -69,19 +69,19 @@ export const veilleConfirmation = {
 } as const;
 // No mockApi: unlike the confirmation page, this one calls the API only on
 // the button click, never on load — nothing to intercept for a plain visit.
-export const veilleDesinscriptionConfirmer = {
+const veilleDesinscriptionConfirmer = {
   path: '/veille/desinscription/confirmer?token=invalide' as Route,
   status: 200,
 } as const;
 // The other screen of the same component — no mockApi for the reason above.
-export const rappelsDesinscriptionConfirmer = {
+const rappelsDesinscriptionConfirmer = {
   path: `${REMINDER_UNSUBSCRIBE_PATH}/confirmer?token=invalide` as Route,
   status: 200,
 } as const;
 // Same rationale as veilleConfirmation above: the status GET fires on load,
 // so it needs a mock to reach "lien invalide" instead of the RequestError
 // screen this suite is not meant to cover.
-export const veilleChange = {
+const veilleChange = {
   path: '/veille/changement?token=invalide' as Route,
   status: 200,
   ready: (page: Page) =>
@@ -105,24 +105,24 @@ export const connexion = {
   path: '/connexion' satisfies Route,
   status: 200,
 } as const;
-export const compteSupprime = {
+const compteSupprime = {
   path: '/compte-supprime' satisfies Route,
   status: 200,
 } as const;
 // Unlike veilleConfirmation, no mockApi: nothing fires on load (see
 // CompteConfirmation's own docblock) — the button is on screen from the
 // first paint, no in-flight request for a shared suite to race.
-export const confirmation = {
+const confirmation = {
   path: '/confirmation?token=invalide' as Route,
   status: 200,
 } as const;
-export const motDePasseOublie = {
+const motDePasseOublie = {
   path: '/mot-de-passe-oublie' satisfies Route,
   status: 200,
 } as const;
 // Same rationale as confirmation above: the form's own POST is the only
 // request ReinitialisationForm ever sends, never on load.
-export const reinitialisation = {
+const reinitialisation = {
   path: '/reinitialisation?token=invalide' as Route,
   status: 200,
 } as const;

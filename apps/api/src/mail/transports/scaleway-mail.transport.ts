@@ -4,7 +4,7 @@ import type { MailMessage } from 'src/mail/mail-message.js';
 import type { MailTransport } from 'src/mail/mail-transport.js';
 
 /** The region is part of the URL, not a setting: addresses stay in the EU. */
-export const SCALEWAY_TEM_REGION = 'fr-par';
+const SCALEWAY_TEM_REGION = 'fr-par';
 
 export const SCALEWAY_TEM_URL = `https://api.scaleway.com/transactional-email/v1alpha1/regions/${SCALEWAY_TEM_REGION}/emails`;
 
