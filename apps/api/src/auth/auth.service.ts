@@ -17,13 +17,16 @@ import {
   ACCOUNT_REGISTRATION_MAIL_LIMIT,
   LOGIN_ATTEMPT_LIMIT,
   PASSWORD_RESET_TTL_HOURS,
+  RisqueCatnat,
   SESSION_INACTIVITY_DAYS,
-  type AccountConfirmationResponse,
-  type CurrentUserResponse,
-  type LoginResponse,
-  type ResetPasswordResponse,
-  type RisqueCatnat,
 } from '@mon-sinistre/contracts';
+import type {
+  AccountConfirmationResponse,
+  CurrentUserResponse,
+  LoginResponse,
+  ResetPasswordResponse,
+} from '@mon-sinistre/contracts';
+import { enumValue } from '../common/enum-value.js';
 import { withAdvisoryLock } from 'src/common/advisory-lock.js';
 import { errorSummary } from 'src/common/error-report.js';
 import { requireActiveCommune } from 'src/communes/active-commune.js';
@@ -462,7 +465,7 @@ export class AuthService {
         userId,
         {
           codeInsee,
-          risque: pending.risque as RisqueCatnat,
+          risque: enumValue(RisqueCatnat, pending.risque),
           eventDate: dateToIsoDate(pending.eventDate),
         },
         tx,

@@ -1,18 +1,21 @@
 import {
+  DurationUnit,
   RisqueCatnat,
   SinistreStatus,
   StepAnchor,
   StepKind,
-  type Commune,
-  type DeclarationDeadline,
-  type DurationUnit,
-  type IsoDate,
-  type SinistreDetail,
-  type SinistreSummary,
-  type SourceReference,
-  type Step,
-  type StepView,
 } from '@mon-sinistre/contracts';
+import type {
+  Commune,
+  DeclarationDeadline,
+  IsoDate,
+  SinistreDetail,
+  SinistreSummary,
+  SourceReference,
+  Step,
+  StepView,
+} from '@mon-sinistre/contracts';
+import { enumValue } from '../common/enum-value.js';
 import type { StepPersistedStatus } from 'src/generated/prisma/enums.js';
 import { toSourceReference } from 'src/common/source-reference.js';
 import { isDeclarationRule } from 'src/deadline-rules/deadline-rule.seed.js';
@@ -68,19 +71,19 @@ export function toStepView(step: StepViewRow, today: IsoDate): StepView {
   return {
     name: step.name,
     description: step.description,
-    kind: step.kind as StepKind,
+    kind: enumValue(StepKind, step.kind),
     plannedDate,
     status: stepStatus(
       { plannedDate, persistedStatus: step.persistedStatus },
       today,
     ),
-    anchor: step.anchor as StepAnchor | null,
+    anchor: step.anchor === null ? null : enumValue(StepAnchor, step.anchor),
     source: citedSourceOf(step, today),
     daysLeft: plannedDate ? daysBetween(today, plannedDate) : null,
     delay: step.deadlineRule
       ? {
           value: step.deadlineRule.duration,
-          unit: step.deadlineRule.unit as DurationUnit,
+          unit: enumValue(DurationUnit, step.deadlineRule.unit),
         }
       : null,
     order: step.order,
@@ -127,13 +130,13 @@ export function toSinistreSummary(sinistre: SinistreRow): SinistreSummary {
   return {
     id: sinistre.id,
     commune: sinistre.commune,
-    risque: sinistre.risque as RisqueCatnat,
+    risque: enumValue(RisqueCatnat, sinistre.risque),
     eventDate: dateToIsoDate(sinistre.eventDate),
     arreteEntryId: sinistre.arreteEntryId,
     declarationDate: sinistre.declarationDate
       ? dateToIsoDate(sinistre.declarationDate)
       : null,
-    status: sinistre.status as SinistreStatus,
+    status: enumValue(SinistreStatus, sinistre.status),
     createdAt: sinistre.createdAt.toISOString(),
   };
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState, type FormEvent } from 'react';
+import { useRef, useState, type SubmitEvent } from 'react';
 import {
   isIsoDate,
   type Commune,
@@ -61,7 +61,7 @@ export function SinistreNouveauForm() {
     if (mutation.isError) mutation.reset();
   };
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
     const nextCommuneError = commune
       ? undefined

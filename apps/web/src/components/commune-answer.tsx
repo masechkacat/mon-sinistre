@@ -185,12 +185,11 @@ function risquesTitle({ risqueLabel, risques }: CommuneArrete): string {
  * and asked for otherwise (`parseRisqueOptions`).
  */
 function dossierLink(commune: Commune, arrete: CommuneArrete) {
-  const [risque, ...others] = arrete.risques;
-  const single = risque !== undefined && others.length === 0;
+  const single = arrete.risques.length === 1;
 
   return dossierPath('/dossier', {
     commune: commune.codeInsee,
-    risque: single ? risque : undefined,
+    risque: single ? arrete.risques[0] : undefined,
     risques: single ? undefined : arrete.risques,
     date: arrete.eventStart,
   });

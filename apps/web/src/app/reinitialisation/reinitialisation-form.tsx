@@ -2,7 +2,7 @@
 
 import { useMutation } from '@tanstack/react-query';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useState, type FormEvent } from 'react';
+import { useState, type SubmitEvent } from 'react';
 import type {
   PasswordResetStatus,
   ResetPasswordResponse,
@@ -57,7 +57,7 @@ export function ReinitialisationForm() {
   const result =
     status === 'invalid' ? fr.compte.reinitialisation.invalid : undefined;
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
     const nextPasswordError = validatePassword(password, {
       required: fr.compte.reinitialisation.passwordRequiredError,

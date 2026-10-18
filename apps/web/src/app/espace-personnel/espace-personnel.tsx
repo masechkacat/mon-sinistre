@@ -79,7 +79,11 @@ export function EspacePersonnel() {
               {fr.compte.espacePersonnel.sinistresLink}
             </Link>
 
-            <Button type="button" size="touch" onClick={() => endSession()}>
+            <Button
+              type="button"
+              size="touch"
+              onClick={() => void endSession()}
+            >
               {fr.session.logout}
             </Button>
 

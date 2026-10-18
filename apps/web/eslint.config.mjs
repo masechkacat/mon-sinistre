@@ -2,6 +2,7 @@ import { defineConfig, globalIgnores } from 'eslint/config';
 import nextVitals from 'eslint-config-next/core-web-vitals';
 import nextTs from 'eslint-config-next/typescript';
 import i18next from 'eslint-plugin-i18next';
+import playwright from 'eslint-plugin-playwright';
 import reactYouMightNotNeedAnEffect from 'eslint-plugin-react-you-might-not-need-an-effect';
 
 export default defineConfig([
@@ -74,6 +75,46 @@ export default defineConfig([
   {
     files: ['src/**/route.ts', 'src/lib/one-click-unsubscribe.ts'],
     rules: { 'no-console': 'off' },
+  },
+  {
+    // Type-aware rules: the four whose findings were all real in the probe
+    // of the full strictTypeChecked set; the rest of that set was noise.
+    files: ['src/**/*.{ts,tsx}', 'tests/**/*.ts', 'e2e/**/*.ts'],
+    // The virtual file tests/a11y/i18n.spec.ts lints is in no tsconfig.
+    ignores: ['src/app/lint-smoke.tsx'],
+    languageOptions: {
+      parserOptions: {
+        projectService: true,
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
+    rules: {
+      '@typescript-eslint/no-floating-promises': 'error',
+      '@typescript-eslint/no-misused-promises': 'error',
+      '@typescript-eslint/no-deprecated': 'error',
+      '@typescript-eslint/no-unnecessary-condition': 'error',
+    },
+  },
+  {
+    files: ['tests/**/*.ts', 'e2e/**/*.ts'],
+    plugins: { playwright },
+    rules: {
+      ...playwright.configs['flat/recommended'].rules,
+      // Edge cases live inside one test, in a loop over them (root
+      // CLAUDE.md, «Тестирование»), which these two rules forbid.
+      'playwright/no-conditional-in-test': 'off',
+      'playwright/no-conditional-expect': 'off',
+      'playwright/expect-expect': [
+        'error',
+        {
+          assertFunctionNames: [
+            'expectNoAxeViolations',
+            'expectFace',
+            'expectErrorTiedTo',
+          ],
+        },
+      ],
+    },
   },
   globalIgnores(['.next/**', 'out/**', 'next-env.d.ts']),
 ]);

@@ -1,7 +1,7 @@
 'use client';
 
 import { useMutation } from '@tanstack/react-query';
-import { useState, type FormEvent } from 'react';
+import { useState, type SubmitEvent } from 'react';
 import type { Commune } from '@mon-sinistre/contracts';
 import { AnnouncedResult } from '@/components/announced-result';
 import { PrivacyNote } from '@/components/privacy-note';
@@ -29,7 +29,7 @@ export function VeilleInlineForm({ commune }: { commune: Commune }) {
   const asked = mutation.variables?.codeInsee === commune.codeInsee;
   const confirmed = asked && mutation.isSuccess;
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
     const nextEmailError = validateEmail(email.trim(), {
       required: copy.form.emailRequiredError,

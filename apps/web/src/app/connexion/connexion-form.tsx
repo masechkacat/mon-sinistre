@@ -4,7 +4,7 @@ import { useMutation } from '@tanstack/react-query';
 import type { Route } from 'next';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState, type FormEvent } from 'react';
+import { useState, type SubmitEvent } from 'react';
 import type { LoginResponse } from '@mon-sinistre/contracts';
 import { Alert, AlertTitle } from '@/components/ui/alert';
 import { PageContainer } from '@/components/page-container';
@@ -65,7 +65,7 @@ export function ConnexionForm({
     },
   });
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
     const trimmedEmail = email.trim();
     const nextEmailError = validateEmail(trimmedEmail, {

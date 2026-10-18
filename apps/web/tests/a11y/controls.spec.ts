@@ -11,7 +11,7 @@ const shortPrimaryControls = (page: Page) =>
       .map((el) => {
         const { width, height } = el.getBoundingClientRect();
         return {
-          label: el.textContent?.trim().slice(0, 40) ?? '',
+          label: el.textContent.trim().slice(0, 40),
           width,
           height: Math.round(height),
           fontSize: parseFloat(getComputedStyle(el).fontSize),

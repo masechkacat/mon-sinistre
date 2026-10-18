@@ -2,7 +2,7 @@
 
 import { useMutation } from '@tanstack/react-query';
 import Link from 'next/link';
-import { useState, type FormEvent } from 'react';
+import { useState, type SubmitEvent } from 'react';
 import type { DossierInput, RegisterInput } from '@mon-sinistre/contracts';
 import { AnnouncedResult } from '@/components/announced-result';
 import { PageContainer } from '@/components/page-container';
@@ -63,7 +63,7 @@ export function InscriptionForm({ params }: { params: DossierParams }) {
       }),
   });
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
     const trimmedEmail = email.trim();
     const nextEmailError = validateEmail(trimmedEmail, {

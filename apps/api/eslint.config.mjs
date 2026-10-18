@@ -24,6 +24,7 @@ export default tseslint.config(
   {
     rules: {
       '@typescript-eslint/no-floating-promises': 'error',
+      '@typescript-eslint/no-unsafe-enum-assignment': 'error',
       // Application logs go through Logger only (CLAUDE.md, «Правила проекта»).
       'no-console': 'error',
     },

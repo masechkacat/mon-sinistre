@@ -78,7 +78,7 @@ const prevueLe = (date: string) =>
 
 // What the fields of each step above must reach its date line as. The done
 // step is not here: it stands in the row of what is behind, by its name alone.
-const DATE_LINES: Record<string, string[]> = {
+const DATE_LINES: Partial<Record<string, string[]>> = {
   'step-overdue': [badgeCopy.overdue, prevueLe('2026-10-10')],
   'step-soon': [badgeCopy.lastWeek, prevueLe('2026-10-20')],
   'step-sans-date': [fr.sinistres.detail.waitingFor.DATE_ETAT_ESTIMATIF],

@@ -2,7 +2,7 @@
 
 import { Field } from '@base-ui/react/field';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState, type FormEvent } from 'react';
+import { useState, type SubmitEvent } from 'react';
 import { isIsoDate, type IsoDate } from '@mon-sinistre/contracts';
 import { FieldError } from '@/components/field-error';
 import { Button } from '@/components/ui/button';
@@ -115,7 +115,7 @@ function DeclarationForm({
   const [draftError, setDraftError] = useState<string>();
   const error = draftError ?? failure;
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!isIsoDate(draft)) {
       setDraftError(copy.required);

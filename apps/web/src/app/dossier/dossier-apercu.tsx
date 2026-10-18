@@ -2,7 +2,7 @@
 
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useRef, useState, type FormEvent } from 'react';
+import { useRef, useState, type SubmitEvent } from 'react';
 import {
   ArreteEntryOutcome,
   isIsoDate,
@@ -216,7 +216,7 @@ function Apercu({
 
             <Button
               size="touch"
-              onClick={() => save()}
+              onClick={() => void save()}
               disabled={saving}
               data-save
             >
@@ -281,7 +281,7 @@ function DossierForm({
     date: refused || !params.date || Boolean(period),
   };
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
     const next: SinistreFieldErrors = {
       commune:

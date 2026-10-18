@@ -40,10 +40,10 @@ export function useSessionGuard(): SessionGuardStatus {
       if (!cancelled && outcome !== 'open') redirectToLogin();
     }
 
-    check();
+    void check();
 
     function handlePageShow(event: PageTransitionEvent) {
-      if (event.persisted) check();
+      if (event.persisted) void check();
     }
     window.addEventListener('pageshow', handlePageShow);
 
