@@ -205,6 +205,16 @@ function expectExit(result, code) {
   assert.equal(result.status, code, result.stdout + result.stderr);
 }
 
+function advanceMain(f) {
+  f.git('checkout', 'main');
+  fs.writeFileSync(path.join(f.root, 'main.txt'), 'new main\n');
+  fs.appendFileSync(path.join(f.root, '.claude/metrics.js'), '\n');
+  f.git('add', 'main.txt', '.claude/metrics.js');
+  f.git('commit', '-m', 'advance main');
+  f.git('push', 'origin', 'main');
+  f.git('checkout', 'fixture/phase-1');
+}
+
 test('ошибка, повреждённый result и timeout сохраняют кандидат до подтверждения', (t) => {
   for (const agent of ['failure', 'exit-error', 'invalid-json', 'timeout']) {
     const f = fixture(t, { agent });
@@ -318,12 +328,7 @@ test('опубликованный кандидат восстанавливае
   expectExit(f.run(), 1);
   const original = f.journal().attempts[0];
   assert.equal(original.stage, 'published');
-  f.git('checkout', 'main');
-  fs.writeFileSync(path.join(f.root, 'main.txt'), 'new main\n');
-  f.git('add', 'main.txt');
-  f.git('commit', '-m', 'advance main');
-  f.git('push', 'origin', 'main');
-  f.git('checkout', 'fixture/phase-1');
+  advanceMain(f);
   f.git('merge', 'origin/main', '-m', 'merge newer main');
   const merged = f.git('rev-parse', 'HEAD');
   f.update({ failBoard: false, failVerification: true });
@@ -345,6 +350,71 @@ test('опубликованный кандидат восстанавливае
   assert.equal(f.read().checks, 3);
   assert.equal(f.git('rev-parse', 'origin/fixture/phase-1'), merged);
   assert.equal(f.read().agentCalls, 1);
+});
+
+test('неопубликованный кандидат после сбоя приёмки или push принимает мерж main только с подтверждением', (t) => {
+  for (const failVerification of [true, false]) {
+    const f = fixture(t, { failVerification });
+    const hook = path.join(f.remote, 'hooks/pre-receive');
+    if (!failVerification)
+      fs.writeFileSync(hook, '#!/bin/sh\nexit 1\n', { mode: 0o755 });
+    expectExit(f.run(), 1);
+    const original = f.journal().attempts[0];
+    assert.equal(original.stage, 'candidate');
+    if (failVerification) {
+      const legacy = f.journal();
+      delete legacy.attempts[0].commitHead;
+      writeState(f.journalFile(), legacy);
+    }
+    if (!failVerification) fs.unlinkSync(hook);
+    advanceMain(f);
+    expectExit(f.run(), 1);
+    f.git('merge', 'origin/main', '-m', 'merge newer main');
+    const merged = f.git('rev-parse', 'HEAD');
+    expectExit(f.run(), 1);
+    assert.equal(f.read().checks, 1);
+    assert.equal(f.read().done, undefined);
+    f.update({ failVerification: true });
+    expectExit(f.run('--verify-candidate'), 1);
+    assert.equal(f.read().checks, 2);
+    assert.equal(f.read().done, undefined);
+    f.update({ failVerification: false });
+    expectExit(f.run(), 0);
+    const recovered = f.journal().attempts[0];
+    assert.equal(recovered.stage, 'complete');
+    assert.equal(recovered.commitHead, original.head);
+    assert.equal(recovered.head, merged);
+    assert.deepEqual(recovered.outcome, original.outcome);
+    assert.equal(f.git('rev-parse', 'origin/fixture/phase-1'), merged);
+    assert.equal(f.read().checks, 3);
+    assert.equal(f.read().agentCalls, 1);
+  }
+});
+
+test('подтверждение интеграции main не разрешает лишний коммит или подмену приёмки в мерже', (t) => {
+  for (const tamperMerge of [false, true]) {
+    const f = fixture(t, { failVerification: true });
+    expectExit(f.run(), 1);
+    if (tamperMerge) {
+      advanceMain(f);
+      f.git('merge', '--no-commit', 'origin/main');
+      fs.appendFileSync(path.join(f.root, '.claude/metrics.js'), '\n');
+      f.git('add', '.claude/metrics.js');
+    } else {
+      fs.appendFileSync(path.join(f.root, 'feature.txt'), 'extra change\n');
+      f.git('add', 'feature.txt');
+    }
+    f.git('commit', '-m', 'unexpected candidate change');
+    const result = f.run('--verify-candidate');
+    expectExit(result, 1);
+    assert.match(
+      result.stderr,
+      tamperMerge ? /собственной приёмки/ : /только мерж/,
+    );
+    assert.equal(f.read().checks, 1);
+    assert.equal(f.read().done, undefined);
+    assert.equal(f.read().agentCalls, 1);
+  }
 });
 
 test('опубликованный кандидат нельзя завершить после потери коммита в ветке или origin', (t) => {
@@ -441,4 +511,47 @@ test('dry-run не пишет журнал; lock и повреждённый ж�
   assert.throws(() => readState(file, 'another-branch'), /журнал/);
   fs.writeFileSync(file, '{');
   assert.throws(() => readState(file, state.branch), SyntaxError);
+});
+
+test('захват устаревшего lock сериализован, а освобождение привязано к владельцу', (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'ralph-lock-'));
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  const file = path.join(directory, 'lock');
+  const dead = spawnSync(process.execPath, ['-e', '']).pid;
+  fs.writeFileSync(file, JSON.stringify({ pid: dead, host: os.hostname() }));
+  const kill = process.kill.bind(process);
+  let contender;
+  t.mock.method(process, 'kill', (pid, signal) => {
+    if (pid === dead && !contender) {
+      contender = spawnSync(
+        process.execPath,
+        [
+          '--input-type=module',
+          '-e',
+          `import { acquireLock } from ${JSON.stringify(new URL('./ralph-state.js', import.meta.url).href)};
+         try { acquireLock(${JSON.stringify(file)}); }
+         catch (error) { console.error(error.message); process.exitCode = 1; }`,
+        ],
+        { encoding: 'utf8' },
+      );
+    }
+    return kill(pid, signal);
+  });
+  const release = acquireLock(file);
+  expectExit(contender, 1);
+  assert.match(contender.stderr, /Захват lock уже выполняется/);
+  release();
+  const next = acquireLock(file);
+  const owner = fs.readFileSync(file, 'utf8');
+  release();
+  assert.equal(fs.readFileSync(file, 'utf8'), owner);
+  fs.writeFileSync(
+    file,
+    JSON.stringify({ pid: process.pid, host: os.hostname() }),
+  );
+  assert.throws(next, /владелец lock изменился/);
+  assert.ok(fs.existsSync(file));
+  fs.mkdirSync(`${file}.guard`);
+  assert.throws(() => acquireLock(file), /Захват lock уже выполняется/);
+  assert.ok(fs.existsSync(`${file}.guard`));
 });

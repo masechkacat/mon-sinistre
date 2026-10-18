@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 
 const STAGES = new Set([
@@ -82,6 +82,7 @@ function readState(file, branch) {
         typeof a.sessionId === 'string' &&
         isSha(a.before) &&
         (a.head === null || isSha(a.head)) &&
+        (a.commitHead === undefined || isSha(a.commitHead)) &&
         STAGES.has(a.stage) &&
         (a.verifications === undefined || Array.isArray(a.verifications)) &&
         (a.stops === undefined ||
@@ -116,47 +117,77 @@ function writeState(file, state) {
 }
 
 function acquireLock(file) {
-  if (fs.existsSync(file)) {
-    const text = fs.readFileSync(file, 'utf8');
-    let owner;
-    try {
-      owner = JSON.parse(text);
-    } catch (error) {
-      if (!(error instanceof SyntaxError)) throw error;
-    }
-    if (
-      !Number.isInteger(owner?.pid) ||
-      owner.pid < 1 ||
-      typeof owner.host !== 'string' ||
-      !owner.host
-    )
-      throw new RalphStop(
-        `Повреждён lock Ralph: ${file}`,
-        'Проверь, завершился ли прежний процесс; только после этого удали lock и повтори запуск.',
-      );
-    let alive = true;
-    if (owner.host === os.hostname()) {
-      try {
-        process.kill(owner.pid, 0);
-      } catch (error) {
-        if (error.code !== 'ESRCH') throw error;
-        alive = false;
-      }
-    }
-    if (alive)
-      throw new RalphStop(
-        `Ralph уже запущен: PID ${owner.pid}, ${owner.host}`,
-        `Дождись завершения процесса. Lock: ${file}`,
-      );
-    console.warn(`Ralph: удалён lock завершившегося процесса ${owner.pid}`);
-    fs.unlinkSync(file);
+  const guard = `${file}.guard`;
+  const identity = JSON.stringify({
+    pid: process.pid,
+    host: os.hostname(),
+    token: randomUUID(),
+  });
+  try {
+    fs.mkdirSync(guard, { mode: 0o700 });
+  } catch (error) {
+    if (error.code !== 'EEXIST') throw error;
+    throw new RalphStop(
+      `Захват lock уже выполняется: ${file}`,
+      `Повтори позже. Если процесс оборвался на захвате, проверь все запуски и только затем удали ${guard}.`,
+    );
   }
-  fs.writeFileSync(
-    file,
-    JSON.stringify({ pid: process.pid, host: os.hostname() }),
-    { flag: 'wx', mode: 0o600 },
-  );
-  return () => fs.unlinkSync(file);
+  try {
+    let text;
+    try {
+      text = fs.readFileSync(file, 'utf8');
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+    }
+    if (text !== undefined) {
+      let owner;
+      try {
+        owner = JSON.parse(text);
+      } catch (error) {
+        if (!(error instanceof SyntaxError)) throw error;
+      }
+      if (
+        !Number.isInteger(owner?.pid) ||
+        owner.pid < 1 ||
+        typeof owner.host !== 'string' ||
+        !owner.host
+      )
+        throw new RalphStop(
+          `Повреждён lock Ralph: ${file}`,
+          'Проверь, завершился ли прежний процесс; только после этого удали lock и повтори запуск.',
+        );
+      let alive = true;
+      if (owner.host === os.hostname()) {
+        try {
+          process.kill(owner.pid, 0);
+        } catch (error) {
+          if (error.code !== 'ESRCH') throw error;
+          alive = false;
+        }
+      }
+      if (alive)
+        throw new RalphStop(
+          `Ralph уже запущен: PID ${owner.pid}, ${owner.host}`,
+          `Дождись завершения процесса. Lock: ${file}`,
+        );
+      console.warn(`Ralph: удалён lock завершившегося процесса ${owner.pid}`);
+      fs.unlinkSync(file);
+    }
+    fs.writeFileSync(file, identity, { flag: 'wx', mode: 0o600 });
+  } finally {
+    fs.rmdirSync(guard);
+  }
+  let released = false;
+  return () => {
+    if (released) return;
+    if (fs.readFileSync(file, 'utf8') !== identity)
+      throw new RalphStop(
+        `Нельзя освободить ${file}: владелец lock изменился`,
+        'Lock сохранён; проверь, какой процесс им владеет.',
+      );
+    fs.unlinkSync(file);
+    released = true;
+  };
 }
 
 function parseRunResult(res, sessionId) {

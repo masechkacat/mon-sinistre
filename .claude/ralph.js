@@ -572,6 +572,10 @@ function verifyCommit(before, after, issueNumber, repo, branch) {
   const count = Number(git(['rev-list', '--count', `${before}..${after}`]));
   const message = git(['log', '-1', '--format=%B', after]);
   checkIterationCommit(count, message, issueNumber, repo);
+  requireUnchangedVerification(before, after);
+}
+
+function requireUnchangedVerification(before, after) {
   const protectedChanges = git([
     'diff',
     '--name-only',
@@ -856,7 +860,42 @@ function advanceAttempt(cfg, repo, branch, board, attempt, save) {
         );
       attempt.approvedHead = null;
     }
-    verifyCommit(attempt.before, head, attempt.issue, repo, branch);
+    const commitHead =
+      git(['rev-parse', `${head}^`]) === attempt.before
+        ? head
+        : (attempt.commitHead ?? attempt.head ?? head);
+    verifyCommit(attempt.before, commitHead, attempt.issue, repo, branch);
+    if (commitHead !== head) {
+      if (!VERIFY_CANDIDATE && attempt.approvedHead !== head)
+        fail('Интеграция main требует --verify-candidate');
+      checkLinearAdvance(isAncestor(commitHead, head), branch);
+      let previous = commitHead;
+      const merges = git([
+        'rev-list',
+        '--first-parent',
+        '--reverse',
+        `${commitHead}..${head}`,
+      ]).split('\n');
+      for (const merge of merges) {
+        const [commit, first, incoming, ...extra] = git([
+          'rev-list',
+          '--parents',
+          '-n',
+          '1',
+          merge,
+        ]).split(' ');
+        if (
+          first !== previous ||
+          !incoming ||
+          extra.length ||
+          !isAncestor(incoming, 'origin/main')
+        )
+          fail('После коммита задачи разрешён только мерж origin/main');
+        requireUnchangedVerification(incoming, commit);
+        previous = commit;
+      }
+    }
+    attempt.commitHead = commitHead;
     attempt.head = head;
     attempt.stage = 'candidate';
     if (
@@ -1258,7 +1297,11 @@ if (import.meta.main) {
   } catch (e) {
     abort(e);
   } finally {
-    release?.();
+    try {
+      release?.();
+    } catch (e) {
+      abort(e);
+    }
   }
 }
 
