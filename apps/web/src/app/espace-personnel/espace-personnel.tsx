@@ -136,7 +136,7 @@ export function EspacePersonnel() {
                         .description
                     }
                   </p>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     <Button
                       type="button"
                       variant="outline"
@@ -153,6 +153,9 @@ export function EspacePersonnel() {
                       type="button"
                       variant="outline"
                       size="touch"
+                      // The longest label of the app: on a 320 px screen it
+                      // has to wrap, where a button keeps its line.
+                      className="h-auto min-h-12 shrink whitespace-normal"
                       onClick={() => deleteMutation.mutate()}
                       disabled={deleteMutation.isPending}
                     >
