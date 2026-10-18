@@ -161,8 +161,8 @@ function acquireLock(file) {
         try {
           process.kill(owner.pid, 0);
         } catch (error) {
-          if (error.code !== 'ESRCH') throw error;
-          alive = false;
+          if (error.code === 'ESRCH') alive = false;
+          else if (error.code !== 'EPERM') throw error;
         }
       }
       if (alive)

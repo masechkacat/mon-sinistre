@@ -206,6 +206,7 @@ async function database() {
 async function checkControls(tasks, candidatePatch) {
   if (candidatePatch !== undefined && tasks.length !== 1)
     throw new Error('Candidate verification requires one control task');
+  requireControlCheckout();
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-controls-'));
   let db;
   let databaseImage = null;
@@ -220,11 +221,6 @@ async function checkControls(tasks, candidatePatch) {
       const destination = path.join(directory, task.id);
       const { repo, metadata } = prepare(task, destination);
       if (candidatePatch !== undefined) apply(repo, candidatePatch);
-      assert.equal(
-        metadata.lockSha256,
-        hash(fs.readFileSync(path.join(ROOT, 'package-lock.json'))),
-        'Install the pinned dependencies before checking controls',
-      );
       fs.symlinkSync(
         path.join(ROOT, 'node_modules'),
         path.join(repo, 'node_modules'),
@@ -269,31 +265,7 @@ async function checkControls(tasks, candidatePatch) {
         if (workspace === 'web') env.TSX_TSCONFIG_PATH = config;
         fs.writeFileSync(
           config,
-          JSON.stringify({
-            extends: path.join(repo, 'apps', workspace, 'tsconfig.json'),
-            compilerOptions: {
-              noEmit: true,
-              rootDir: repo,
-              module: 'esnext',
-              moduleResolution: 'bundler',
-              lib:
-                workspace === 'web'
-                  ? ['esnext', 'dom', 'dom.iterable']
-                  : ['esnext'],
-              incremental: false,
-              jsx: 'react-jsx',
-              typeRoots: [path.join(repo, 'node_modules/@types')],
-              paths: {
-                'src/*': [path.join(repo, 'apps/api/src/*')],
-                'test/*': [path.join(repo, 'apps/api/test/*')],
-                '@/*': [path.join(repo, 'apps/web/src/*')],
-                '@mon-sinistre/contracts': [
-                  path.join(repo, 'packages/contracts/src/index.ts'),
-                ],
-              },
-            },
-            include: [path.join(repo, 'apps', workspace, file)],
-          }),
+          JSON.stringify(oracleConfig(repo, workspace, file)),
         );
         await run(
           process.execPath,
@@ -395,6 +367,46 @@ function controlDirectory() {
   return path.join(path.dirname(stateDirectory(ROOT)), 'harness-controls');
 }
 
+function requireControlCheckout(root = ROOT) {
+  const expected = hash(
+    execFileSync('git', ['show', `${suite.base}:package-lock.json`], {
+      cwd: ROOT,
+    }),
+  );
+  const actual = hash(fs.readFileSync(path.join(root, 'package-lock.json')));
+  if (expected !== actual)
+    throw new Error(
+      `Control suite ${suite.version} requires a checkout with the lockfile from ${suite.base}. ` +
+        `Expected SHA-256 ${expected}, got ${actual}. Installing dependencies alone cannot fix this mismatch. ` +
+        'Use a compatible runner revision in a separate worktree; see docs/research/harness-v2.md#control-checkout.',
+    );
+}
+
+function oracleConfig(repo, workspace, file) {
+  return {
+    extends: path.join(repo, 'apps', workspace, 'tsconfig.json'),
+    compilerOptions: {
+      noEmit: true,
+      rootDir: repo,
+      module: 'esnext',
+      moduleResolution: 'bundler',
+      lib: workspace === 'web' ? ['esnext', 'dom', 'dom.iterable'] : ['esnext'],
+      incremental: false,
+      jsx: 'react-jsx',
+      typeRoots: [path.join(repo, 'node_modules/@types')],
+      paths: {
+        'src/*': [path.join(repo, 'apps/api/src/*')],
+        'test/*': [path.join(repo, 'apps/api/test/*')],
+        '@/*': [path.join(repo, 'apps/web/src/*')],
+        '@mon-sinistre/contracts': [
+          path.join(repo, 'packages/contracts/src/index.ts'),
+        ],
+      },
+    },
+    include: [path.join(repo, 'apps', workspace, file)],
+  };
+}
+
 async function finishSelfCheck(
   report,
   file,
@@ -463,6 +475,8 @@ export {
   gitEnvironment,
   hash,
   prepare,
+  requireControlCheckout,
+  oracleConfig,
   suite,
   suiteSha256,
   taskById,

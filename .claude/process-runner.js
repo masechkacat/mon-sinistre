@@ -3,6 +3,7 @@ import { performance } from 'node:perf_hooks';
 
 const DEFAULT_MAX_BUFFER = 32 * 1024 * 1024;
 const MAX_TIMEOUT = 2 ** 31 - 1;
+const EXIT_DRAIN_TIMEOUT_MS = 1000;
 const SUPERVISOR = String.raw`
 const { spawn } = require('node:child_process');
 // Keep the group leader alive until cleanup, so its PID cannot be reused.
@@ -118,6 +119,9 @@ export async function runProcess(command, args = [], options = {}) {
           }
         }
       }
+      clearTimeout(timer);
+      // A descendant outside the group may retain a pipe after the command exits.
+      timer = setTimeout(finish, EXIT_DRAIN_TIMEOUT_MS);
     };
     const expire = () => {
       if (settled) return;
@@ -212,7 +216,7 @@ export async function runProcess(command, args = [], options = {}) {
       if (!reported) signal = exitSignal;
     });
     child.once('close', () => {
-      if (!settled && performance.now() >= deadline) expire();
+      if (!settled && !stopping && performance.now() >= deadline) expire();
       else finish();
     });
   });

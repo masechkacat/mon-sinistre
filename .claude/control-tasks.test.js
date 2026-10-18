@@ -7,10 +7,80 @@ import test from 'node:test';
 import {
   finishSelfCheck,
   prepare,
+  requireControlCheckout,
+  oracleConfig,
   suite,
   taskById,
   testResults,
 } from './control-tasks.js';
+import { runProcess } from './process-runner.js';
+
+test('control checkout mismatch requires a compatible revision, not another install', (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'control-lock-'));
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  const lock = path.join(directory, 'package-lock.json');
+  fs.writeFileSync(
+    lock,
+    execFileSync('git', ['show', `${suite.base}:package-lock.json`]),
+  );
+  requireControlCheckout(directory);
+  fs.writeFileSync(lock, '{}\n');
+  assert.throws(
+    () => requireControlCheckout(directory),
+    /Installing dependencies alone cannot fix.*separate worktree/,
+  );
+});
+
+test('Vitest and web tsx resolve contracts from the fixture despite workspace symlinks', async (t) => {
+  const directory = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'control-resolution-'),
+  );
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  const { repo } = prepare(
+    taskById('dossier-url'),
+    path.join(directory, 'fixture'),
+  );
+  const modules = path.resolve(import.meta.dirname, '../node_modules');
+  fs.symlinkSync(modules, path.join(repo, 'node_modules'), 'dir');
+  fs.appendFileSync(
+    path.join(repo, 'packages/contracts/src/index.ts'),
+    '\nexport const CONTROL_FIXTURE_MARKER = "fixture-only";\n',
+  );
+  fs.writeFileSync(
+    path.join(repo, 'apps/api/src/control-resolution.spec.ts'),
+    `
+    import { test, expect } from 'vitest';
+    import { CONTROL_FIXTURE_MARKER } from '@mon-sinistre/contracts';
+    test('fixture contracts', () => expect(CONTROL_FIXTURE_MARKER).toBe('fixture-only'));
+  `,
+  );
+  const api = await runProcess(
+    process.execPath,
+    [
+      path.join(modules, 'vitest/vitest.mjs'),
+      'run',
+      'src/control-resolution.spec.ts',
+    ],
+    { cwd: path.join(repo, 'apps/api'), timeout: 30000 },
+  );
+  assert.equal(api.error, undefined);
+  assert.equal(api.status, 0, api.stdout + api.stderr);
+  const file = 'control-resolution.ts';
+  fs.writeFileSync(
+    path.join(repo, 'apps/web', file),
+    'import { CONTROL_FIXTURE_MARKER } from "@mon-sinistre/contracts"; console.log(CONTROL_FIXTURE_MARKER);\n',
+  );
+  const config = path.join(directory, 'tsconfig-web.json');
+  fs.writeFileSync(config, JSON.stringify(oracleConfig(repo, 'web', file)));
+  const web = await runProcess(process.execPath, ['--import', 'tsx', file], {
+    cwd: path.join(repo, 'apps/web'),
+    env: { ...process.env, TSX_TSCONFIG_PATH: config },
+    timeout: 30000,
+  });
+  assert.equal(web.error, undefined);
+  assert.equal(web.status, 0, web.stderr);
+  assert.equal(web.stdout.trim(), 'fixture-only');
+});
 
 test('self-check сохраняет контроли до recovery и явный итог при сбое или timeout', async (t) => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'control-report-'));

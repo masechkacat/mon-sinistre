@@ -171,6 +171,25 @@ test('kills background writers on parent exit even when they inherit captured pi
   );
 });
 
+test('an escaped pipe holder does not turn a complete large result into a timeout', async (t) => {
+  t.after(() => delay(2600));
+  const escaped = `setTimeout(() => process.exit(0), 2500); process.send('ready'); process.disconnect();`;
+  const source = `
+    const { spawn } = require('node:child_process');
+    const child = spawn(process.execPath, ['--eval', ${JSON.stringify(escaped)}],
+      { detached: true, stdio: ['ignore', 'inherit', 'inherit', 'ipc'] });
+    child.once('message', () => process.stdout.write(
+      JSON.stringify({ result: 'x'.repeat(2 * 1024 * 1024) }), () => process.exit(0)));
+  `;
+  const started = Date.now();
+  const result = await node(source, { timeout: 5000 });
+  assert.equal(result.error, undefined);
+  assert.equal(result.status, 0);
+  assert.equal(result.signal, null);
+  assert.equal(JSON.parse(result.stdout).result.length, 2 * 1024 * 1024);
+  assert.ok(Date.now() - started < 2000, 'waited for escaped pipe EOF');
+});
+
 test('timeout does not signal the caller or an unrelated process', async (t) => {
   let unrelated;
   let closed;

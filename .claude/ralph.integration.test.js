@@ -45,8 +45,12 @@ if (role === 'verify.cjs') {
         execFileSync('git', ['add', state.protectedFile]);
       }
       execFileSync('git', ['commit', '-m', 'feat: fixture\n\nCloses #1']);
+      if (state.extraCommit) {
+        fs.appendFileSync('feature.txt', 'extra\n');
+        execFileSync('git', ['commit', '-am', 'extra commit']);
+      }
     }
-    if (state.agent === 'dirty') fs.writeFileSync('unfinished.txt', 'keep me');
+    if (state.agent === 'dirty' || state.dirty) fs.writeFileSync('unfinished.txt', 'keep me');
     if (state.agent === 'timeout') {
       setTimeout(() => {}, 10000);
     } else if (state.agent === 'invalid-json') {
@@ -260,6 +264,7 @@ test('ошибка, повреждённый result и timeout сохраняю�
     const f = fixture(t, { agent });
     expectExit(f.run(), 1);
     assert.equal(f.journal().attempts[0].stage, 'candidate');
+    assert.equal(f.journal().attempts[0].stops.at(-1).kind, 'model_result');
     assert.equal(f.read().checks, undefined);
     assert.equal(f.read().done, undefined);
     assert.equal(
@@ -369,6 +374,23 @@ test('кандидат не может подменить скрипт собс�
   }
 });
 
+test('нарушение требований к кандидату не подменяется исходной ошибкой модели', (t) => {
+  for (const options of [
+    { dirty: true },
+    { extraCommit: true },
+    { protectedFile: '.claude/metrics.js' },
+  ]) {
+    const f = fixture(t, { agent: 'failure', ...options });
+    expectExit(f.run(), 1);
+    const attempt = f.journal().attempts[0];
+    assert.equal(attempt.outcome.failureKind, 'model_error');
+    assert.equal(attempt.stops.at(-1).kind, 'candidate');
+    const report = f.metrics('--runs', 'all', '--json');
+    expectExit(report, 0);
+    assert.deepEqual(JSON.parse(report.stdout).current.stops, { candidate: 1 });
+  }
+});
+
 test('опубликованный кандидат восстанавливается после мержа main, а PR получает проверенный HEAD', (t) => {
   const f = fixture(t, { failBoard: true });
   preparePhase(f);
@@ -465,6 +487,7 @@ test('подтверждение интеграции main не разрешае
         result.stderr,
         tamperMerge ? /собственной приёмки/ : /только мерж/,
       );
+      assert.equal(f.journal().attempts[0].stops.at(-1).kind, 'candidate');
       assert.equal(f.read().checks, 1);
       assert.equal(f.read().done, undefined);
       assert.equal(f.read().agentCalls, 1);
@@ -543,6 +566,33 @@ test('закрытая фаза без новых коммитов не запу
   assert.equal(f.read().reviews, undefined);
   assert.equal(f.read().agentCalls, undefined);
   assert.equal(fs.existsSync(path.join(f.root, '.git/ralph')), false);
+});
+
+test('фазовая приёмка переиспользуется только для проверенного HEAD и команд', (t) => {
+  const f = fixture(t, { done: true });
+  preparePhase(f);
+  expectExit(f.run(), 0);
+  expectExit(f.run(), 0);
+  assert.equal(f.read().checks, 1);
+  const state = f.journal();
+  state.verifications.at(-1).commands = [['npm', 'run', 'obsolete']];
+  writeState(f.journalFile(), state);
+  expectExit(f.run(), 0);
+  assert.equal(f.read().checks, 2);
+  fs.writeFileSync(path.join(f.root, 'human.txt'), 'another change\n');
+  f.git('add', 'human.txt');
+  f.git('commit', '-m', 'human follow-up');
+  f.update({ failVerification: true });
+  expectExit(f.run(), 1);
+  f.update({ failVerification: false });
+  expectExit(f.run(), 0);
+  expectExit(f.run(), 0);
+  assert.equal(f.read().checks, 4);
+  assert.deepEqual(
+    f.journal().verifications.map((check) => check.status),
+    ['passed', 'passed', 'failed', 'passed'],
+  );
+  assert.equal(f.read().agentCalls, undefined);
 });
 
 test('восстановленный no_commit не расходует лимиты новых сессий запуска', (t) => {

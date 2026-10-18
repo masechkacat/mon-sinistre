@@ -687,7 +687,6 @@ function verifyIntegration(anchor, head, attempt) {
     requireUnchangedVerification(tree, commit);
     previous = commit;
   }
-  attempt.approvedHead = head;
 }
 
 /**
@@ -896,11 +895,7 @@ async function finishAttempt(cfg, repo, branch, board, attempt, save) {
   try {
     return await advanceAttempt(cfg, repo, branch, board, attempt, save);
   } catch (error) {
-    const kind =
-      attempt.operation === 'candidate' && attempt.outcome?.status === 'failed'
-        ? attempt.outcome.failureKind || 'failed_result'
-        : attempt.operation;
-    recordStop(attempt, kind, save);
+    recordStop(attempt, attempt.operation, save);
     throw error;
   }
 }
@@ -909,8 +904,8 @@ async function advanceAttempt(cfg, repo, branch, board, attempt, save) {
   requireSameBranch(branch);
   const head = git(['rev-parse', branch]);
   requireCandidate(branch, head);
-  if (attempt.stage === 'published') {
-    attempt.operation = 'push';
+  const published = attempt.stage === 'published';
+  if (published) {
     if (
       !attempt.head ||
       !isAncestor(attempt.head, head) ||
@@ -920,8 +915,6 @@ async function advanceAttempt(cfg, repo, branch, board, attempt, save) {
         'Опубликованный кандидат отсутствует в локальной ветке или origin — проверь ветку',
       );
     verifyIntegration(attempt.head, head, attempt);
-    if (!hasPassedVerification(cfg, head, attempt))
-      await verifyAttempt(cfg, branch, head, attempt, save);
   } else {
     if (head === attempt.before) {
       if (!attempt.outcome)
@@ -959,18 +952,21 @@ async function advanceAttempt(cfg, repo, branch, board, attempt, save) {
     attempt.stage = 'candidate';
     if (
       attempt.outcome?.status !== 'success' &&
-      attempt.approvedHead !== head
+      attempt.approvedHead !== head &&
+      !VERIFY_CANDIDATE
     ) {
-      if (!VERIFY_CANDIDATE && attempt.approvedHead !== head) {
-        save();
-        fail(
-          `Сессия прервана или завершилась ошибкой: ${attempt.outcome?.reason || 'результат неизвестен'}`,
-          'Кандидат сохранён. Проверь его и запусти node .claude/ralph.js --verify-candidate.',
-        );
-      }
+      attempt.operation = 'model_result';
+      save();
+      fail(
+        `Сессия прервана или завершилась ошибкой: ${attempt.outcome?.reason || 'результат неизвестен'}`,
+        'Кандидат сохранён. Проверь его и запусти node .claude/ralph.js --verify-candidate.',
+      );
     }
-    if (VERIFY_CANDIDATE) attempt.approvedHead = head;
+  }
+  if (VERIFY_CANDIDATE) attempt.approvedHead = head;
+  if (!published || !hasPassedVerification(cfg, head, attempt))
     await verifyAttempt(cfg, branch, head, attempt, save);
+  if (!published) {
     attempt.operation = 'push';
     save();
     pushBranch(branch);
@@ -1098,10 +1094,13 @@ async function openPullRequest(cfg, phase, milestone, branch, state, save) {
     );
     return null;
   }
-  const accepted = state.attempts.some(
-    (attempt) =>
-      attempt.stage === 'complete' && hasPassedVerification(cfg, head, attempt),
-  );
+  const accepted =
+    hasPassedVerification(cfg, head, state) ||
+    state.attempts.some(
+      (attempt) =>
+        attempt.stage === 'complete' &&
+        hasPassedVerification(cfg, head, attempt),
+    );
   if (!accepted) {
     state.verifications ??= [];
     await verifyCandidate(cfg, branch, head, state.verifications, save);

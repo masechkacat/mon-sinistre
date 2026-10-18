@@ -1,8 +1,32 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import test from 'node:test';
 import { acquireLock, parseRunResult, RalphStop } from './ralph-state.js';
+
+test('EPERM means a live lock owner; unrelated probe failures remain errors', (t) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'lock-permission-'));
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  const file = path.join(directory, 'lock');
+  const identity = JSON.stringify({ pid: process.pid, host: os.hostname() });
+  fs.writeFileSync(file, identity);
+  let code = 'EPERM';
+  t.mock.method(process, 'kill', (pid, signal) => {
+    assert.equal(pid, process.pid);
+    assert.equal(signal, 0);
+    throw Object.assign(new Error('probe failure'), { code });
+  });
+  assert.throws(
+    () => acquireLock(file),
+    (error) =>
+      error instanceof RalphStop && /Ralph уже запущен/.test(error.message),
+  );
+  code = 'EIO';
+  assert.throws(() => acquireLock(file), { code });
+  assert.equal(fs.readFileSync(file, 'utf8'), identity);
+  assert.equal(fs.existsSync(`${file}.guard`), false);
+});
 
 test('process error codes survive parsing without inventing spend', () => {
   for (const code of ['ENOENT', 'ENOBUFS', 'ETIMEDOUT', undefined]) {
