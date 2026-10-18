@@ -34,6 +34,7 @@ async function bootstrap() {
   app.enableCors({
     origin: config.get('FRONTEND_URL', { infer: true }),
     credentials: true,
+    methods: ['GET', 'HEAD', 'POST', 'PATCH', 'DELETE'],
   });
 
   app.useGlobalPipes(createGlobalValidationPipe());
