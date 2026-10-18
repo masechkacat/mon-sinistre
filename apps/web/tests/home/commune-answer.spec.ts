@@ -18,7 +18,7 @@ import {
 } from '../support/dossier';
 
 const copy = fr.communeAnswer;
-const ouvrir = { name: new RegExp(copy.open) };
+const openLink = { name: new RegExp(copy.open) };
 /** The cards of the answer, apart from the lists of the page around them. */
 const cartes = (page: Page) => page.getByTestId(/^arrete-/);
 /** The announcement of the answer, apart from the subscription line's own
@@ -45,7 +45,7 @@ test('a commune with no recent arrêté is told so, and the dossier stays on off
     'href',
     `/dossier?commune=${NIMES.codeInsee}`,
   );
-  await expect(page.getByRole('link', ouvrir)).toHaveCount(0);
+  await expect(page.getByRole('link', openLink)).toHaveCount(0);
   await expectNoAxeViolations(page);
 });
 
@@ -76,7 +76,7 @@ test('a recognised arrêté is shown with its deadline and opens its own dossier
     fr.deadlineBadge.countdown(DEADLINE.daysLeft),
   );
 
-  const params = await hrefParams(page.getByRole('link', ouvrir));
+  const params = await hrefParams(page.getByRole('link', openLink));
   expect(params.get('commune')).toBe(NIMES.codeInsee);
   expect(params.get('risque')).toBe(RisqueCatnat.INONDATION);
   expect(params.get('date')).toBe(ARRETE.eventStart);
@@ -96,7 +96,7 @@ test('two arrêtés get a dossier button each, in the order of the answer', asyn
   await mockCommuneArretes(page, [secheresse, communeArreteFixture()]);
   await page.goto(communeAnswerPath());
 
-  const boutons = page.getByRole('link', ouvrir);
+  const boutons = page.getByRole('link', openLink);
   await expect(boutons).toHaveCount(2);
   expect((await hrefParams(boutons.first())).get('risque')).toBe(
     RisqueCatnat.SECHERESSE,
@@ -121,7 +121,7 @@ test('a refusal is named in words and carries no deadline', async ({
   await expect(page.locator('[data-slot="deadline-badge"]')).toHaveCount(0);
   // The dossier is still on offer: the plan of the first days does not depend
   // on the recognition (docs/prd/dossier-preliminaire.md).
-  await expect(page.getByRole('link', ouvrir)).toHaveCount(1);
+  await expect(page.getByRole('link', openLink)).toHaveCount(1);
   await expectNoAxeViolations(page);
 });
 
@@ -153,7 +153,7 @@ test('an arrêté naming several risks asks the dossier page which one', async (
   ]);
   await page.goto(communeAnswerPath());
 
-  const params = await hrefParams(page.getByRole('link', ouvrir));
+  const params = await hrefParams(page.getByRole('link', openLink));
   expect(params.get('risques')).toBe(
     `${RisqueCatnat.INONDATION},${RisqueCatnat.MOUVEMENT_TERRAIN}`,
   );

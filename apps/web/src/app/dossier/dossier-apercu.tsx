@@ -99,7 +99,7 @@ function Apercu({
     // the new aperçu loads would drop the focus to the top of the page.
     placeholderData: keepPreviousData,
   });
-  const apercu = query.data;
+  const preview = query.data;
 
   // A 400 is this endpoint's way of saying the address cannot be previewed —
   // an unknown commune, a future date — so the way out is the form, not the
@@ -170,23 +170,23 @@ function Apercu({
           </>
         ) : null}
 
-        {apercu ? (
+        {preview ? (
           <>
             <DossierHeader
-              title={dossierTitle(apercu)}
-              status={apercu.status}
-              points={timelinePoints(apercu)}
+              title={dossierTitle(preview)}
+              status={preview.status}
+              points={timelinePoints(preview)}
               badge={
-                apercu.declarationDeadline ? (
+                preview.declarationDeadline ? (
                   <DeclarationDeadlineBlock
-                    deadline={apercu.declarationDeadline}
+                    deadline={preview.declarationDeadline}
                     preview
                   />
                 ) : null
               }
             >
-              {apercu.arrete ? (
-                <ArretePublication arrete={apercu.arrete} />
+              {preview.arrete ? (
+                <ArretePublication arrete={preview.arrete} />
               ) : null}
             </DossierHeader>
 
@@ -194,15 +194,15 @@ function Apercu({
               refined: the visitor arrived from the commune answer with the
               first day of the period, and only the days it covers can anchor
               the plan (PRD, «Ouvrir mon dossier»). */}
-            {apercu.arrete?.outcome === ArreteEntryOutcome.RECONNU ? (
+            {preview.arrete?.outcome === ArreteEntryOutcome.RECONNU ? (
               <section className="space-y-4">
                 <SectionHeading>{fr.dossier.form.refine.title}</SectionHeading>
                 <DossierForm
                   params={params}
                   risqueOptions={risqueOptions}
                   period={{
-                    min: apercu.arrete.eventStart,
-                    max: apercu.arrete.eventEnd,
+                    min: preview.arrete.eventStart,
+                    max: preview.arrete.eventEnd,
                   }}
                 />
               </section>
@@ -211,7 +211,7 @@ function Apercu({
             {/* No onMark: nothing is stored to be marked until the dossier is
               saved, so the plan is read-only here. */}
             <DossierSheet>
-              <PlanList steps={apercu.steps} />
+              <PlanList steps={preview.steps} />
             </DossierSheet>
 
             <Button

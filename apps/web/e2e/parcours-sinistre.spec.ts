@@ -122,7 +122,7 @@ test('from the home page of a commune without an arrêté to the dossier saved b
   page,
 }) => {
   const email = `dossier-${randomUUID()}@example.fr`;
-  const titre = fr.sinistres.list.dossierLabel(RISQUE_LABEL, SANS_ARRETE.label);
+  const title = fr.sinistres.list.dossierLabel(RISQUE_LABEL, SANS_ARRETE.label);
 
   await page.goto('/');
   await selectCommune(page, fr.home.communeLabel, SANS_ARRETE.name, /Lyon/);
@@ -138,7 +138,7 @@ test('from the home page of a commune without an arrêté to the dossier saved b
   await page.getByRole('button', { name: fr.dossier.form.submit }).click();
 
   await expect(
-    page.getByRole('heading', { level: 1, name: titre }),
+    page.getByRole('heading', { level: 1, name: title }),
   ).toBeVisible();
   await expect(statutTampon(page)).toHaveText(
     fr.sinistres.status[SinistreStatus.AVANT_ARRETE],
@@ -163,7 +163,7 @@ test('from the home page of a commune without an arrêté to the dossier saved b
   await expect(page).toHaveURL(/\/sinistres\/[0-9a-f-]{36}$/);
 
   await expect(
-    page.getByRole('heading', { level: 1, name: titre }),
+    page.getByRole('heading', { level: 1, name: title }),
   ).toBeVisible();
   // The date reappears as the planned day of the first step, which is
   // anchored on the event itself (STEP_TEMPLATE_SEED, order 1).

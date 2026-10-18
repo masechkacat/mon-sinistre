@@ -86,10 +86,10 @@ test('home: choosing a commune asks for its arrêtés and answers under the fiel
 test('home: the dossier of an arrêté opens from the answer, with no address typed', async ({
   page,
 }) => {
-  const apercu = apercuFixture();
+  const preview = apercuFixture();
   await page.route(`${testApiBaseUrl}/communes**`, mockCommuneSearch);
   await mockCommuneArretes(page, [communeArreteFixture()]);
-  await mockApercu(page, apercu);
+  await mockApercu(page, preview);
   await gotoPage(page, home);
 
   await selectNimes(page, fr.home.communeLabel);
@@ -101,6 +101,6 @@ test('home: the dossier of an arrêté opens from the answer, with no address ty
     new RegExp(`/dossier\\?.*commune=${NIMES.codeInsee}`),
   );
   await expect(
-    page.getByRole('heading', { level: 1, name: dossierTitle(apercu) }),
+    page.getByRole('heading', { level: 1, name: dossierTitle(preview) }),
   ).toBeVisible();
 });

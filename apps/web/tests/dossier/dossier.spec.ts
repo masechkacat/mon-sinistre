@@ -89,8 +89,8 @@ const legifranceLink = (page: Page) =>
 const planItem = (page: Page, step: StepView) =>
   page.getByRole('listitem').filter({ hasText: step.name });
 
-async function openDossier(page: Page, apercu: DossierApercu) {
-  await mockApercu(page, apercu);
+async function openDossier(page: Page, preview: DossierApercu) {
+  await mockApercu(page, preview);
   await page.goto(DOSSIER_PATH);
   await expect(
     page.getByRole('list', { name: copy.timelineLabel }),
@@ -100,11 +100,11 @@ async function openDossier(page: Page, apercu: DossierApercu) {
 test('arrêté attendu: the step anchored on the publication waits without a date, and no deadline is shown', async ({
   page,
 }) => {
-  const apercu = apercuFixture();
-  await openDossier(page, apercu);
+  const preview = apercuFixture();
+  await openDossier(page, preview);
 
   await expect(
-    page.getByRole('heading', { level: 1, name: dossierTitle(apercu) }),
+    page.getByRole('heading', { level: 1, name: dossierTitle(preview) }),
   ).toBeVisible();
   await expect(
     page.getByText(fr.sinistres.status[SinistreStatus.AVANT_ARRETE]),
@@ -114,7 +114,7 @@ test('arrêté attendu: the step anchored on the publication waits without a dat
   const timeline = page.getByRole('list', {
     name: copy.timeline.label,
   });
-  await expect(timeline).toContainText(formatDateShortFr(apercu.eventDate));
+  await expect(timeline).toContainText(formatDateShortFr(preview.eventDate));
   await expect(timeline).toContainText(copy.timeline.expected);
 
   const declaration = planItem(page, APERCU_STEPS.declaration);
@@ -339,7 +339,7 @@ test('an empty address asks for the three parameters and sends no request', asyn
   page,
 }) => {
   let apercuCalled = false;
-  await page.route(`${testApiBaseUrl}/dossier/apercu**`, (route) => {
+  await page.route(`${testApiBaseUrl}/dossier/preview**`, (route) => {
     apercuCalled = true;
     return route.fulfill({ status: 200, body: '{}' });
   });
@@ -454,12 +454,12 @@ test('with an arrêté the date is refined inside its period, and nowhere outsid
   await expect(date).toHaveValue(APERCU_PARAMS.date);
   await expect(date).toHaveAttribute('min', ARRETE.eventStart);
   await expect(date).toHaveAttribute('max', ARRETE.eventEnd);
-  const preciser = page.getByRole('button', {
+  const refine = page.getByRole('button', {
     name: fr.dossier.form.refine.submit,
   });
 
   await date.fill('2026-09-30');
-  await preciser.click();
+  await refine.click();
 
   await expectErrorTiedTo(
     date,
@@ -473,12 +473,12 @@ test('with an arrêté the date is refined inside its period, and nowhere outsid
   await expect(page).toHaveURL(DOSSIER_PATH);
 
   await date.fill(ARRETE.eventEnd);
-  await preciser.click();
+  await refine.click();
 
   await expect(page).toHaveURL(
     dossierPath('/dossier', { ...APERCU_PARAMS, date: ARRETE.eventEnd }),
   );
-  await expect(preciser).toBeFocused();
+  await expect(refine).toBeFocused();
 });
 
 test('refining the date to the one already shown says so instead of doing nothing', async ({
@@ -498,7 +498,7 @@ test('refining the date to the one already shown says so instead of doing nothin
 async function refuseApercu(page: Page) {
   const calls = { count: 0 };
   await page.route(`${testApiBaseUrl}/communes**`, mockCommuneSearch);
-  await page.route(`${testApiBaseUrl}/dossier/apercu**`, (route) => {
+  await page.route(`${testApiBaseUrl}/dossier/preview**`, (route) => {
     calls.count += 1;
     return route.fulfill({
       status: 400,
@@ -552,11 +552,11 @@ test('the address alone opens the dossier in a browser that has never seen it', 
 }) => {
   const context = await browser.newContext();
   const page = await context.newPage();
-  const apercu = apercuPublie();
-  await openDossier(page, apercu);
+  const preview = apercuPublie();
+  await openDossier(page, preview);
 
   await expect(
-    page.getByRole('heading', { level: 1, name: dossierTitle(apercu) }),
+    page.getByRole('heading', { level: 1, name: dossierTitle(preview) }),
   ).toBeVisible();
   await expect(heroBadge(page)).toContainText(
     badgeCopy.countdown(DEADLINE.daysLeft),
@@ -567,7 +567,7 @@ test('the address alone opens the dossier in a browser that has never seen it', 
 test('a failed request says so in French instead of showing an empty plan', async ({
   page,
 }) => {
-  await page.route(/\/dossier\/apercu/, (route) =>
+  await page.route(/\/dossier\/preview/, (route) =>
     route.fulfill({ status: 500 }),
   );
   await page.goto(DOSSIER_PATH);

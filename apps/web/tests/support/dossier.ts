@@ -103,12 +103,12 @@ export function apercuFixture(
 }
 
 /** The only request the dossier page sends on load. */
-export function mockApercu(page: Page, apercu: DossierApercu) {
-  return page.route(`${testApiBaseUrl}/dossier/apercu**`, (route) =>
+export function mockApercu(page: Page, preview: DossierApercu) {
+  return page.route(`${testApiBaseUrl}/dossier/preview**`, (route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify(apercu),
+      body: JSON.stringify(preview),
     }),
   );
 }
