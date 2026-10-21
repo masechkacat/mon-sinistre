@@ -79,8 +79,8 @@ npm workspaces, три пакета:
   версии — после обновления такого пакета `npm install-scripts approve <pkg>`
   заново, иначе `bcrypt` и движок Prisma не соберутся. `@scarf/scarf` запрещён
   как телеметрия.
-- `node .claude/metrics.js [--prs N]` — замер харнеса; что считается и
-  зачем — `docs/plan/harness-v2.md`.
+- `node .claude/metrics.js` — замер харнеса; локальные отчёты и сравнение
+  выборок — `docs/research/harness-v2.md`, «Замер встроен в цикл».
 - `dup` — jscpd против `.jscpd-baseline.json`: буквальный копипаст, которого
   нет в baseline, валит коммит. Baseline — список известных клонов, а не
   разрешение на них: устранив клон, пересобрать его `dup:baseline`, чтобы он
@@ -95,6 +95,8 @@ npm workspaces, три пакета:
 `node .claude/ralph.js` (`--dry-run` — проверить обвязку, не запуская агента).
 Всё о цикле — правила итерации, предполётные проверки, условия останова,
 `allowedTools` — `.claude/ralph.md` и `.claude/ralph.js`.
+Приёмка и восстановление прерванного прогона — `docs/research/harness-v2.md`,
+«Приёмка и возобновление».
 
 ## Коммиты и PR
 

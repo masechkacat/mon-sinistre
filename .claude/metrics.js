@@ -6,6 +6,7 @@
  * Запуск: node .claude/metrics.js [--sessions <id,id,…>] [--prs <N>]
  *   --sessions — транскрипты сессий Ralph (id задаёт сам цикл);
  *   --prs      — сколько последних смерженных PR считать (по умолчанию 20).
+ * Локальные выборки --runs/--compare — docs/research/harness-v2.md.
  * Без флагов — только отношение тестов к коду.
  */
 
@@ -13,6 +14,12 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
+import {
+  buildRunReport,
+  formatRunReport,
+  listRuns,
+  loadRuns,
+} from './run-report.js';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
 
@@ -46,8 +53,9 @@ function usageOfTranscript(text) {
     let entry;
     try {
       entry = JSON.parse(line);
-    } catch {
-      continue;
+    } catch (error) {
+      if (!(error instanceof SyntaxError)) throw error;
+      return null;
     }
     const usage = entry.type === 'assistant' && entry.message?.usage;
     if (!usage) continue;
@@ -63,7 +71,7 @@ function usageOfTranscript(text) {
       (usage.input_tokens || 0);
     sum.output += usage.output_tokens || 0;
   }
-  return sum;
+  return sum.turns ? sum : null;
 }
 
 function addUsage(a, b) {
@@ -85,9 +93,11 @@ function sessionTranscripts(dir, id) {
 }
 
 function sessionUsage(dir, id) {
-  return sessionTranscripts(dir, id)
-    .map((f) => usageOfTranscript(fs.readFileSync(f, 'utf8')))
-    .reduce(addUsage, EMPTY_USAGE);
+  if (!fs.existsSync(path.join(dir, `${id}.jsonl`))) return null;
+  const usages = sessionTranscripts(dir, id).map((f) =>
+    usageOfTranscript(fs.readFileSync(f, 'utf8')),
+  );
+  return usages.includes(null) ? null : usages.reduce(addUsage, EMPTY_USAGE);
 }
 
 function averageUsage(usages) {
@@ -183,7 +193,7 @@ function mergedPullRequests(limit) {
 const millions = (n) => `${(n / 1e6).toFixed(1)} млн`;
 
 /** Строки для тела PR и для консоли — один формат. */
-function formatReport({ usage, sessions, ratios, review }) {
+function formatReport({ usage, sessions, missing = 0, costs, ratios, review }) {
   const lines = [];
   if (usage && sessions > 0)
     lines.push(
@@ -191,6 +201,20 @@ function formatReport({ usage, sessions, ratios, review }) {
         `${usage.turns} ходов, ${millions(usage.output)} на выходе ` +
         `(среднее по ${sessions} сессиям)`,
     );
+  if (missing)
+    lines.push(
+      `- Нет данных о токенах: ${missing} из ${sessions + missing} сессий`,
+    );
+  if (costs?.length) {
+    const known = costs.filter((cost) => cost !== null);
+    lines.push(
+      `- Стоимость попыток (оценка CLI): ` +
+        (known.length
+          ? `$${known.reduce((sum, cost) => sum + cost, 0).toFixed(2)}`
+          : 'нет данных') +
+        `; учтено ${known.length} из ${costs.length} сессий`,
+    );
+  }
   if (ratios)
     lines.push(
       `- Тесты к коду: ` +
@@ -207,28 +231,91 @@ function formatReport({ usage, sessions, ratios, review }) {
 
 function parseArgs(argv) {
   const args = { sessions: [], prs: 0 };
+  const seen = new Set();
   for (let i = 0; i < argv.length; i++) {
-    if (argv[i] === '--sessions')
-      args.sessions = (argv[++i] || '').split(',').filter(Boolean);
-    else if (argv[i] === '--prs') args.prs = Number(argv[++i]) || 20;
+    const flag = argv[i];
+    if (seen.has(flag)) throw new Error(`Повторён аргумент ${flag}`);
+    seen.add(flag);
+    if (flag === '--json') args.json = true;
+    else if (flag === '--list-runs') args.listRuns = true;
+    else if (flag === '--prs') {
+      const value = argv[i + 1];
+      args.prs = !value || value.startsWith('--') ? 20 : Number(argv[++i]);
+      if (!Number.isInteger(args.prs) || args.prs < 1)
+        throw new Error('--prs требует положительное целое число');
+    } else if (['--sessions', '--runs', '--compare'].includes(flag)) {
+      const value = argv[++i];
+      if (
+        !value ||
+        value.startsWith('--') ||
+        value.split(',').some((v) => !v.trim())
+      )
+        throw new Error(`${flag} требует непустой список через запятую`);
+      args[flag.slice(2)] = value.split(',').map((v) => v.trim());
+    } else throw new Error(`Неизвестный аргумент ${flag}`);
   }
+  if (args.compare && !args.runs)
+    throw new Error('--compare требует текущую выборку --runs');
+  if (args.json && !args.runs && !args.listRuns)
+    throw new Error('--json используется с --runs или --list-runs');
+  if (
+    (args.runs || args.listRuns) &&
+    (args.sessions.length || args.prs || (args.runs && args.listRuns))
+  )
+    throw new Error(
+      'Журналы --runs/--list-runs не смешиваются с --sessions/--prs или друг с другом',
+    );
   return args;
 }
 
 /** Строки отчёта: для консоли и для тела PR фазы (`ralph.js`). */
-function report({ sessions = [], prs = 0, root = ROOT }) {
+function report({ sessions = [], attempts, prs = 0, root = ROOT }) {
   const dir = transcriptsDir(root);
-  const usages = sessions.map((id) => sessionUsage(dir, id));
+  const usages = attempts
+    ? attempts.map((attempt) => attempt.outcome?.usage ?? null)
+    : sessions.map((id) => sessionUsage(dir, id));
+  const known = usages.filter((usage) => usage !== null);
   return formatReport({
-    usage: averageUsage(usages),
-    sessions: usages.length,
+    usage: averageUsage(known),
+    sessions: known.length,
+    missing: usages.length - known.length,
+    costs: attempts?.map((attempt) => attempt.outcome?.costUsd ?? null),
     ratios: testCodeRatio(root),
     review: prs ? reviewFixShare(mergedPullRequests(prs)) : null,
   });
 }
 
-if (import.meta.main)
-  console.log(report(parseArgs(process.argv.slice(2))).join('\n'));
+if (import.meta.main) {
+  try {
+    const args = parseArgs(process.argv.slice(2));
+    if (args.listRuns) {
+      const runs = listRuns(ROOT).map((run) => ({
+        branch: run.branch,
+        attempts: run.attempts.length,
+      }));
+      console.log(
+        args.json
+          ? JSON.stringify({ version: 1, runs }, null, 2)
+          : runs
+              .map((run) => `${run.branch}: ${run.attempts} попыток`)
+              .join('\n') || 'Нет сохранённых журналов Ralph',
+      );
+    } else if (args.runs) {
+      const result = buildRunReport(
+        loadRuns(ROOT, args.runs),
+        args.compare ? loadRuns(ROOT, args.compare) : undefined,
+      );
+      console.log(
+        args.json
+          ? JSON.stringify(result, null, 2)
+          : formatRunReport(result).join('\n'),
+      );
+    } else console.log(report(args).join('\n'));
+  } catch (error) {
+    console.error(`Метрики: ${error.message}`);
+    process.exitCode = 1;
+  }
+}
 
 export {
   averageUsage,

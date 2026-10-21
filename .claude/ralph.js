@@ -17,6 +17,17 @@ import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import * as metrics from './metrics.js';
+import { runProcess } from './process-runner.js';
+import {
+  RalphStop,
+  acquireLock,
+  isFinished,
+  parseRunResult,
+  readState,
+  statePath,
+  verificationRuns,
+  writeState,
+} from './ralph-state.js';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
 const CONFIG_PATH = path.join(import.meta.dirname, 'ralph.config.json');
@@ -27,6 +38,7 @@ const ISSUE_LIMIT = 200;
 
 /** `--dry-run` прогоняет всю обвязку, но не запускает claude и ничего не меняет. */
 const DRY_RUN = process.argv.includes('--dry-run');
+const VERIFY_CANDIDATE = process.argv.includes('--verify-candidate');
 
 // ─── примитивы ────────────────────────────────────────────────────────────────
 
@@ -49,19 +61,6 @@ const ok = (m) => console.log(`\x1b[32m✓\x1b[0m ${m}`);
 const step = (m) => console.log(`\n\x1b[1m${m}\x1b[0m`);
 const warn = (m) => console.log(`\x1b[33m!\x1b[0m ${m}`);
 
-/**
- * Остановка цикла. Бросается, а не `process.exit`: иначе проверки нельзя
- * покрыть тестами — они гасили бы тестовый процесс вместо возврата ошибки.
- * Печатает и выходит один обработчик внизу файла.
- */
-class RalphStop extends Error {
-  constructor(message, hint) {
-    super(message);
-    this.name = 'RalphStop';
-    this.hint = hint;
-  }
-}
-
 function fail(message, hint) {
   throw new RalphStop(message, hint);
 }
@@ -75,6 +74,9 @@ function quiet(fn) {
   }
 }
 
+const isAncestor = (before, after) =>
+  quiet(() => git(['merge-base', '--is-ancestor', before, after]));
+
 // ─── конфигурация ─────────────────────────────────────────────────────────────
 
 const isPositiveInt = (v) => Number.isInteger(v) && v >= 1;
@@ -87,6 +89,8 @@ function loadConfig() {
 
 /** Проверка и дефолты — отдельно от чтения файла, чтобы покрывалось тестами. */
 function validateConfig(cfg) {
+  if (!cfg || typeof cfg !== 'object' || Array.isArray(cfg))
+    fail('Конфигурация должна быть объектом');
   if (!cfg.feature) fail('В конфиге не указана feature');
   if (!Array.isArray(cfg.phases) || cfg.phases.length === 0) {
     fail('В конфиге не указаны phases', 'Например: "phases": [3]');
@@ -110,17 +114,39 @@ function validateConfig(cfg) {
   if (!cfg.phases.every(isPositiveInt)) {
     fail('В phases допустимы только положительные целые номера фаз');
   }
-  if (typeof cfg.project.number !== 'number') {
-    fail('project.number должен быть числом');
+  if (!isPositiveInt(cfg.project.number)) {
+    fail('project.number должен быть целым числом ≥ 1');
   }
 
   cfg.maxIterations ??= 1;
   cfg.stallLimit ??= 2;
+  cfg.iterationTimeoutMs ??= 7_200_000;
   // Тип проверяется после дефолтов: "5" из конфига прошло бы дальше и сломалось
   // бы уже в сравнении с числом — цикл шёл бы либо вечно, либо ни разу.
-  for (const key of ['maxIterations', 'stallLimit']) {
+  for (const key of ['maxIterations', 'stallLimit', 'iterationTimeoutMs']) {
     if (!isPositiveInt(cfg[key])) fail(`${key} должен быть целым числом ≥ 1`);
   }
+  if (cfg.maxTurns !== undefined && !isPositiveInt(cfg.maxTurns))
+    fail('maxTurns должен быть целым числом ≥ 1');
+  if (
+    cfg.maxBudgetUsd !== undefined &&
+    (!Number.isFinite(cfg.maxBudgetUsd) || cfg.maxBudgetUsd <= 0)
+  )
+    fail('maxBudgetUsd должен быть конечным числом > 0');
+  if (
+    !Array.isArray(cfg.verificationCommands) ||
+    cfg.verificationCommands.length === 0 ||
+    !cfg.verificationCommands.every(
+      (args) =>
+        Array.isArray(args) &&
+        args.length === 3 &&
+        args[0] === 'npm' &&
+        args[1] === 'run' &&
+        typeof args[2] === 'string' &&
+        /^[a-z][a-z0-9:_-]*$/i.test(args[2]),
+    )
+  )
+    fail('verificationCommands: непустой список ["npm", "run", "<script>"]');
 
   // Тип коммита в заголовке PR фазы: инфраструктурная фаза — не feat.
   cfg.prType ??= 'feat';
@@ -152,6 +178,11 @@ function preflight(cfg) {
     );
   }
   ok(`подготовка на месте: PRD, план, research`);
+  validateVerificationScripts(
+    cfg.verificationCommands,
+    JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')),
+  );
+  ok('команды приёмки существуют в package.json');
 
   if (!quiet(() => gh(['auth', 'status']))) {
     fail('gh не авторизован', 'gh auth login');
@@ -169,6 +200,17 @@ function preflight(cfg) {
       ? 'рабочее дерево не чистое (в dry-run не мешает)'
       : 'рабочее дерево чистое',
   );
+}
+
+function validateVerificationScripts(commands, manifest) {
+  for (const [, , script] of commands) {
+    if (
+      !Object.hasOwn(manifest.scripts || {}, script) ||
+      typeof manifest.scripts[script] !== 'string' ||
+      !manifest.scripts[script].trim()
+    )
+      fail(`Команда приёмки npm run ${script} отсутствует в package.json`);
+  }
 }
 
 /**
@@ -469,7 +511,7 @@ function requireRemoteMerged(branch) {
     git(['rev-parse', '--verify', '--quiet', `refs/remotes/${remote}`]),
   );
   if (!known) return;
-  if (quiet(() => git(['merge-base', '--is-ancestor', remote, branch]))) return;
+  if (isAncestor(remote, branch)) return;
 
   const behind = git(['rev-list', '--count', `${branch}..${remote}`]);
   fail(
@@ -484,9 +526,7 @@ function requireRemoteMerged(branch) {
  * никто не прочитает, поэтому цикл останавливается.
  */
 function requireFreshBase(branch, origin) {
-  if (
-    quiet(() => git(['merge-base', '--is-ancestor', 'origin/main', branch]))
-  ) {
+  if (isAncestor('origin/main', branch)) {
     return;
   }
   const behind = git(['rev-list', '--count', `${branch}..origin/main`]);
@@ -529,13 +569,124 @@ function checkSameBranch(now, branch) {
  * потерялась бы между бордом и планом.
  */
 function verifyCommit(before, after, issueNumber, repo, branch) {
-  checkLinearAdvance(
-    quiet(() => git(['merge-base', '--is-ancestor', before, after])),
-    branch,
-  );
+  checkLinearAdvance(isAncestor(before, after), branch);
   const count = Number(git(['rev-list', '--count', `${before}..${after}`]));
   const message = git(['log', '-1', '--format=%B', after]);
   checkIterationCommit(count, message, issueNumber, repo);
+  requireUnchangedVerification(before, after);
+}
+
+const VERIFICATION_INPUTS = [
+  '.claude',
+  '.claude/**',
+  '.githooks',
+  '.githooks/**',
+  '**/package.json',
+  '**/package-lock.json',
+  '**/npm-shrinkwrap.json',
+  '**/.npmrc',
+  '**/.gitignore',
+  '**/.gitattributes',
+  '**/.jscpd*',
+  '**/knip.*',
+  '**/.knip*',
+  '**/eslint.config.*',
+  '**/.eslint*',
+  '**/vitest.config.*',
+  '**/playwright*.config.*',
+  '**/tsconfig*.json',
+  '**/nest-cli.json',
+  '**/next.config.*',
+  '**/postcss.config.*',
+  '**/prisma.config.*',
+  '**/.prettierrc*',
+  '**/.prettierignore',
+  '**/prettier.config.*',
+  'apps/api/test/setup/**',
+  'apps/api/scripts/e2e-seed.ts',
+  'apps/web/tests/support/env.ts',
+];
+
+function isVerificationInput(file) {
+  return VERIFICATION_INPUTS.some((pattern) =>
+    path.posix.matchesGlob(file, pattern),
+  );
+}
+
+function requireUnchangedVerification(before, after) {
+  const protectedChanges = git([
+    'diff',
+    '--name-only',
+    before,
+    after,
+    '--',
+    ...VERIFICATION_INPUTS.map((pattern) => `:(glob)${pattern}`),
+  ]);
+  if (protectedChanges)
+    fail(
+      'Кандидат изменил команды или механизм собственной приёмки',
+      `Эти изменения выполняются с человеком вне Ralph:\n${protectedChanges}`,
+    );
+}
+
+function verifyIntegration(anchor, head, attempt) {
+  if (anchor === head) return;
+  if (!VERIFY_CANDIDATE && attempt.approvedHead !== head)
+    fail('Интеграция main требует --verify-candidate');
+  checkLinearAdvance(isAncestor(anchor, head), currentBranch());
+  let previous = anchor;
+  const merges = git([
+    'rev-list',
+    '--first-parent',
+    '--reverse',
+    `${anchor}..${head}`,
+  ]).split('\n');
+  for (const merge of merges) {
+    const [commit, first, incoming, ...extra] = git([
+      'rev-list',
+      '--parents',
+      '-n',
+      '1',
+      merge,
+    ]).split(' ');
+    if (
+      first !== previous ||
+      !incoming ||
+      extra.length ||
+      !isAncestor(incoming, 'origin/main')
+    )
+      fail('После коммита задачи разрешён только мерж origin/main');
+    const expected = spawnSync(
+      'git',
+      [
+        'merge-tree',
+        '--write-tree',
+        '--name-only',
+        '--no-messages',
+        '-z',
+        previous,
+        incoming,
+      ],
+      { cwd: ROOT, encoding: 'utf8', timeout: 60_000, killSignal: 'SIGKILL' },
+    );
+    if (expected.error || expected.signal || ![0, 1].includes(expected.status))
+      fail(
+        'Не удалось построить эталон мержа',
+        expected.error?.message || expected.stderr,
+      );
+    const [tree, ...names] = expected.stdout.split('\0');
+    const conflicts = names.filter(Boolean);
+    if (
+      expected.status === 1 &&
+      (!conflicts.length || conflicts.some(isVerificationInput))
+    )
+      fail(
+        'Конфликт в механизме приёмки требует ручного разбора вне Ralph',
+        conflicts.filter(isVerificationInput).join('\n'),
+      );
+    requireUnchangedVerification(tree, commit);
+    previous = commit;
+  }
 }
 
 /**
@@ -571,9 +722,17 @@ function checkIterationCommit(count, message, issueNumber, repo) {
         `«Closes #${issueNumber}», «Closes ${repo}#${issueNumber}», ссылкой на issue.`,
     );
   }
+  if (closingReferences(message).length !== 1)
+    fail('В коммите должна быть ровно одна закрывающая ссылка на issue');
 }
 
-const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+function closingReferences(message) {
+  return [
+    ...message.matchAll(
+      /\b(?:clos(?:e|es|ed)|fix(?:es|ed)?|resolv(?:e|es|ed)):?[ \t]+(?:(?:https?:\/\/(?:www\.)?github\.com\/([\w.-]+\/[\w.-]+)\/issues\/)|(?:([\w.-]+\/[\w.-]+)?#))(\d+)\b/gi,
+    ),
+  ].map((match) => ({ repo: match[1] || match[2], number: Number(match[3]) }));
+}
 
 /**
  * Закроет ли сообщение коммита именно этот issue при мерже PR.
@@ -589,19 +748,11 @@ const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
  * «Closes other/repo#12» закроет чужой issue, а наш останется открытым.
  */
 function closesIssue(message, issueNumber, repo) {
-  const keyword = '(?:clos(?:e|es|ed)|fix(?:es|ed)?|resolv(?:e|es|ed))';
-  const forms = ['#'];
-  if (repo) {
-    const slug = escapeRegExp(repo);
-    forms.push(
-      `${slug}#`,
-      `https?:\\/\\/(?:www\\.)?github\\.com\\/${slug}\\/issues\\/`,
-    );
-  }
-  return new RegExp(
-    `\\b${keyword}:?[ \\t]+(?:${forms.join('|')})${issueNumber}\\b`,
-    'i',
-  ).test(message);
+  return closingReferences(message).some(
+    (ref) =>
+      ref.number === issueNumber &&
+      (!ref.repo || ref.repo.toLowerCase() === repo?.toLowerCase()),
+  );
 }
 
 /**
@@ -633,30 +784,211 @@ function buildPrompt(cfg, phase, milestone, branch, issue) {
     '',
     `Задача этой сессии — issue #${issue.number}: ${issue.title}`,
     'Только он. После коммита сразу заверши сессию.',
+    '',
+    'Полная приёмка до коммита:',
+    ...cfg.verificationCommands.map((command) => `- ${command.join(' ')}`),
   ].join('\n');
 }
 
-function runIteration(cfg, prompt, sessionId) {
+async function runIteration(
+  cfg,
+  prompt,
+  sessionId,
+  { cwd = ROOT, env = process.env, extraArgs = [] } = {},
+) {
   const args = [
     '-p',
     prompt,
     '--session-id',
     sessionId,
+    '--output-format',
+    'json',
     '--permission-mode',
     cfg.permissionMode || 'acceptEdits',
   ];
   if (cfg.model) args.push('--model', cfg.model);
   if (cfg.maxBudgetUsd) args.push('--max-budget-usd', String(cfg.maxBudgetUsd));
   if (cfg.maxTurns) args.push('--max-turns', String(cfg.maxTurns));
+  args.push(...extraArgs);
   // variadic-флаги — последними: иначе они съедают следующие за ними опции
   if (cfg.disallowedTools?.length)
     args.push('--disallowedTools', ...cfg.disallowedTools);
-  if (cfg.allowedTools?.length)
-    args.push('--allowedTools', ...cfg.allowedTools);
+  const allowedTools = new Set([
+    ...(cfg.allowedTools ?? []),
+    ...(cfg.verificationCommands ?? []).map(
+      (command) => `Bash(${command.join(' ')})`,
+    ),
+  ]);
+  if (allowedTools.size) args.push('--allowedTools', ...allowedTools);
 
-  const res = spawnSync('claude', args, { cwd: ROOT, stdio: 'inherit' });
-  if (res.error) fail(`Не удалось запустить claude: ${res.error.message}`);
-  return res.status;
+  const res = await runProcess('claude', args, {
+    cwd,
+    env,
+    stdio: ['ignore', 'pipe', 'inherit'],
+    timeout: cfg.iterationTimeoutMs,
+  });
+  return parseRunResult(res, sessionId);
+}
+
+function requireCandidate(branch, head) {
+  requireSameBranch(branch);
+  if (git(['rev-parse', branch]) !== head)
+    fail('HEAD изменился после подготовки кандидата — приёмка недействительна');
+  if (git(['status', '--porcelain']))
+    fail('Рабочее дерево не чистое — незавершённые изменения сохранены');
+}
+
+async function verifyCandidate(cfg, branch, head, history, save) {
+  requireCandidate(branch, head);
+  const check = {
+    head,
+    commands: cfg.verificationCommands,
+    startedAt: new Date().toISOString(),
+    status: 'running',
+  };
+  history.push(check);
+  save();
+  try {
+    for (const [command, ...args] of cfg.verificationCommands) {
+      step(`Приёмка ${head.slice(0, 8)}: ${command} ${args.join(' ')}`);
+      const res = await runProcess(command, args, {
+        cwd: ROOT,
+        stdio: 'inherit',
+        timeout: cfg.iterationTimeoutMs,
+      });
+      if (res.error || res.status !== 0) {
+        check.failedCommand = [command, ...args];
+        fail(
+          `Приёмка не пройдена: ${command} ${args.join(' ')}`,
+          res.error?.message || `exit=${res.status}, signal=${res.signal}`,
+        );
+      }
+      requireCandidate(branch, head);
+    }
+    check.status = 'passed';
+  } catch (error) {
+    check.status = 'failed';
+    throw error;
+  } finally {
+    check.completedAt = new Date().toISOString();
+    save();
+  }
+}
+
+function hasPassedVerification(cfg, head, attempt) {
+  const proof = verificationRuns(attempt).at(-1);
+  return (
+    proof?.status === 'passed' &&
+    proof.head === head &&
+    JSON.stringify(proof.commands) === JSON.stringify(cfg.verificationCommands)
+  );
+}
+
+async function verifyAttempt(cfg, branch, head, attempt, save) {
+  attempt.operation = 'verification';
+  attempt.verifications ??= verificationRuns(attempt);
+  delete attempt.verification;
+  save();
+  await verifyCandidate(cfg, branch, head, attempt.verifications, save);
+}
+
+function recordStop(attempt, kind, save) {
+  attempt.stops ??= [];
+  attempt.stops.push({ kind, at: new Date().toISOString() });
+  save();
+}
+
+async function finishAttempt(cfg, repo, branch, board, attempt, save) {
+  attempt.operation = 'candidate';
+  try {
+    return await advanceAttempt(cfg, repo, branch, board, attempt, save);
+  } catch (error) {
+    recordStop(attempt, attempt.operation, save);
+    throw error;
+  }
+}
+
+async function advanceAttempt(cfg, repo, branch, board, attempt, save) {
+  requireSameBranch(branch);
+  const head = git(['rev-parse', branch]);
+  requireCandidate(branch, head);
+  const published = attempt.stage === 'published';
+  if (published) {
+    if (
+      !attempt.head ||
+      !isAncestor(attempt.head, head) ||
+      !isAncestor(attempt.head, `origin/${branch}`)
+    )
+      fail(
+        'Опубликованный кандидат отсутствует в локальной ветке или origin — проверь ветку',
+      );
+    verifyIntegration(attempt.head, head, attempt);
+  } else {
+    if (head === attempt.before) {
+      if (!attempt.outcome)
+        fail(
+          'Прерванная сессия не оставила результата — состояние агента неизвестно',
+          'Проверь, завершился ли процесс агента. Попытка сохранена для ручного разбора; второй агент не запускается.',
+        );
+      if (VERIFY_CANDIDATE) fail('Нет коммита-кандидата для подтверждения');
+      attempt.stage = 'no_commit';
+      recordStop(
+        attempt,
+        attempt.outcome.failureKind ||
+          (attempt.outcome.status === 'failed' ? 'failed_result' : 'no_commit'),
+        save,
+      );
+      warn(`Сессия ${attempt.sessionId} не оставила коммита`);
+      return false;
+    }
+    if (attempt.head && attempt.head !== head) {
+      if (!VERIFY_CANDIDATE)
+        fail(
+          'HEAD не совпадает с сохранённым кандидатом',
+          'Проверь изменения; новый кандидат требует --verify-candidate.',
+        );
+      attempt.approvedHead = null;
+    }
+    const commitHead =
+      git(['rev-parse', `${head}^`]) === attempt.before
+        ? head
+        : (attempt.commitHead ?? attempt.head ?? head);
+    verifyCommit(attempt.before, commitHead, attempt.issue, repo, branch);
+    verifyIntegration(commitHead, head, attempt);
+    attempt.commitHead = commitHead;
+    attempt.head = head;
+    attempt.stage = 'candidate';
+    if (
+      attempt.outcome?.status !== 'success' &&
+      attempt.approvedHead !== head &&
+      !VERIFY_CANDIDATE
+    ) {
+      attempt.operation = 'model_result';
+      save();
+      fail(
+        `Сессия прервана или завершилась ошибкой: ${attempt.outcome?.reason || 'результат неизвестен'}`,
+        'Кандидат сохранён. Проверь его и запусти node .claude/ralph.js --verify-candidate.',
+      );
+    }
+  }
+  if (VERIFY_CANDIDATE) attempt.approvedHead = head;
+  if (!published || !hasPassedVerification(cfg, head, attempt))
+    await verifyAttempt(cfg, branch, head, attempt, save);
+  if (!published) {
+    attempt.operation = 'push';
+    save();
+    pushBranch(branch);
+    attempt.stage = 'published';
+    save();
+  }
+  attempt.operation = 'board';
+  save();
+  moveToInReview(cfg, board, attempt.issue);
+  attempt.stage = 'complete';
+  attempt.completedAt = new Date().toISOString();
+  attempt.operation = null;
+  save();
+  return true;
 }
 
 // ─── завершение фазы ──────────────────────────────────────────────────────────
@@ -666,9 +998,9 @@ function prTitle(cfg, phase, milestone) {
   return `${cfg.prType}(${cfg.feature}): фаза ${phase} — ${phaseLabel(milestone)}`;
 }
 
-function dryReviewPrompt(branch) {
+function dryReviewPrompt(range) {
   return (
-    `Запусти субагента dry-reviewer по диффу origin/main...${branch} ` +
+    `Запусти субагента dry-reviewer по диффу ${range} ` +
     'и верни его отчёт дословно, без вступления и выводов.'
   );
 }
@@ -676,8 +1008,8 @@ function dryReviewPrompt(branch) {
 const DRY_REVIEW_TIMEOUT_MS = 20 * 60 * 1000;
 
 // Сбой этого ревью PR не блокирует: дубли тогда смотрят руками.
-function dryReview(cfg, branch) {
-  const args = ['-p', dryReviewPrompt(branch), '--permission-mode', 'default'];
+async function dryReview(cfg, range) {
+  const args = ['-p', dryReviewPrompt(range), '--permission-mode', 'default'];
   if (cfg.model) args.push('--model', cfg.model);
   if (cfg.maxBudgetUsd) args.push('--max-budget-usd', String(cfg.maxBudgetUsd));
   args.push(
@@ -693,12 +1025,10 @@ function dryReview(cfg, branch) {
     'Bash(git log:*)',
     'Bash(git show:*)',
   );
-  const res = spawnSync('claude', args, {
+  const res = await runProcess('claude', args, {
     cwd: ROOT,
-    encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'inherit'],
     timeout: DRY_REVIEW_TIMEOUT_MS,
-    killSignal: 'SIGKILL',
   });
   const report = (res.stdout || '').trim();
   if (res.error || res.status !== 0 || !report) {
@@ -713,20 +1043,31 @@ function dryReview(cfg, branch) {
 
 const DRY_REVIEW_HEADING = '## dry-reviewer по диффу';
 
-const hasDryReviewComment = (comments) =>
-  comments.some((c) => (c.body || '').startsWith(DRY_REVIEW_HEADING));
+const reviewMarker = (base, head) =>
+  `<!-- ralph-dry-review:${base}:${head} -->`;
+
+const hasDryReviewComment = (comments, base, head) =>
+  comments.some(
+    (c) =>
+      (c.body || '').startsWith(DRY_REVIEW_HEADING) &&
+      c.body
+        .split(/\r?\n/)
+        .some((line) => line.trim() === reviewMarker(base, head)),
+  );
 
 // Отдельно от `gh pr create`: PR мог быть открыт прошлым запуском, упавшим
 // до комментария, или руками — отчёт нужен и ему, но один раз.
-function commentDryReview(cfg, branch, url) {
+async function commentDryReview(cfg, branch, url) {
+  const base = git(['rev-parse', 'origin/main']);
+  const head = git(['rev-parse', branch]);
   const comments =
     ghJson(['pr', 'view', url, '--json', 'comments', '--jq', '.comments']) ??
     [];
-  if (hasDryReviewComment(comments)) {
+  if (hasDryReviewComment(comments, base, head)) {
     ok('отчёт dry-reviewer уже есть в PR');
     return;
   }
-  const report = dryReview(cfg, branch);
+  const report = await dryReview(cfg, `${base}...${head}`);
   if (!report) return;
   try {
     gh([
@@ -734,7 +1075,7 @@ function commentDryReview(cfg, branch, url) {
       'comment',
       url,
       '--body',
-      `${DRY_REVIEW_HEADING} origin/main...${branch}\n\n${report}`,
+      `${DRY_REVIEW_HEADING} ${base}...${head}\n${reviewMarker(base, head)}\n\n${report}`,
     ]);
     ok('отчёт dry-reviewer добавлен комментарием к PR');
   } catch (e) {
@@ -744,12 +1085,36 @@ function commentDryReview(cfg, branch, url) {
   }
 }
 
-function openPullRequest(cfg, phase, milestone, branch, sessions = []) {
+async function openPullRequest(cfg, phase, milestone, branch, state, save) {
   if (DRY_RUN) {
     ok(`здесь был бы push ветки ${branch} и PR в main — в dry-run пропущено`);
     return null;
   }
 
+  const head = git(['rev-parse', branch]);
+  requireCandidate(branch, head);
+  const commits = Number(
+    git(['rev-list', '--count', `origin/main..${branch}`]),
+  );
+  if (commits === 0) {
+    warn(
+      `В ${branch} нет коммитов относительно origin/main — открывать нечего (фаза уже смержена?)`,
+    );
+    return null;
+  }
+  const accepted =
+    hasPassedVerification(cfg, head, state) ||
+    state.attempts.some(
+      (attempt) =>
+        attempt.stage === 'complete' &&
+        hasPassedVerification(cfg, head, attempt),
+    );
+  if (!accepted) {
+    state.verifications ??= [];
+    await verifyCandidate(cfg, branch, head, state.verifications, save);
+  }
+
+  pushBranch(branch);
   const existing = ghJson([
     'pr',
     'list',
@@ -762,23 +1127,9 @@ function openPullRequest(cfg, phase, milestone, branch, sessions = []) {
   ]);
   if (existing?.length) {
     ok(`PR уже открыт: ${existing[0].url}`);
-    commentDryReview(cfg, branch, existing[0].url);
+    await commentDryReview(cfg, branch, existing[0].url);
     return existing[0].url;
   }
-
-  // Фаза могла быть закрыта и смержена раньше: тогда коммитов относительно
-  // origin/main нет, и `gh pr create` упал бы на «No commits between».
-  const commits = Number(
-    git(['rev-list', '--count', `origin/main..${branch}`]),
-  );
-  if (commits === 0) {
-    warn(
-      `В ${branch} нет коммитов относительно origin/main — открывать нечего (фаза уже смержена?)`,
-    );
-    return null;
-  }
-
-  pushBranch(branch);
 
   const all = milestoneIssues(milestone, 'all');
 
@@ -813,7 +1164,7 @@ function openPullRequest(cfg, phase, milestone, branch, sessions = []) {
     `- PRD: \`docs/prd/${cfg.feature}.md\``,
     `- Research: \`docs/research/${cfg.feature}.md\``,
     `- Текст (\`*.md\`): +${mdAdded}/−${mdDeleted} строк к \`origin/main\``,
-    ...metrics.report({ sessions, root: ROOT }),
+    ...metrics.report({ attempts: state.attempts, root: ROOT }),
     '',
     '_Собрано Ralph Loop (`.claude/ralph.js`), по одному коммиту на issue._',
   ].join('\n');
@@ -839,27 +1190,25 @@ function openPullRequest(cfg, phase, milestone, branch, sessions = []) {
     );
   }
   ok(`PR открыт: ${url}`);
-  commentDryReview(cfg, branch, url);
+  await commentDryReview(cfg, branch, url);
   return url;
 }
 
 // ─── основной цикл ────────────────────────────────────────────────────────────
 
-function main() {
+async function main() {
   const cfg = loadConfig();
+  if (VERIFY_CANDIDATE && cfg.phases.length !== 1)
+    fail('--verify-candidate требует ровно одну фазу в конфигурации');
   preflight(cfg);
+  const runnerRevision = git(['rev-parse', 'HEAD']);
 
   const repo = repoSlug();
   const board = { items: boardItems(cfg), fields: resolveBoardFields(cfg) };
   const opened = [];
 
-  // Счётчики на весь запуск, а не на фазу: maxIterations — это «сколько issues
-  // за прогон», как и обещано в конфиге и CLAUDE.md. Итерация без коммита тоже
-  // израсходована (сессия оплачена), поэтому при maxIterations = 1 до stallLimit
-  // дело не доходит — он предохранитель для прогонов на несколько issues.
   let iterations = 0;
   let stall = 0;
-  const sessions = [];
   let previous = null;
 
   for (const phase of cfg.phases) {
@@ -882,6 +1231,21 @@ function main() {
     fetchOrigin();
     ensureBranch(branch);
     previous = { phase, milestone };
+    const stateFile = statePath(ROOT, branch);
+    const state = readState(stateFile, branch);
+    const save = () => writeState(stateFile, state);
+    const pending = state.attempts.at(-1);
+    if (pending && !isFinished(pending)) {
+      if (DRY_RUN) {
+        ok(`незавершённая попытка #${pending.issue}: ${pending.stage}`);
+        return report(opened);
+      }
+      step(`Восстановление #${pending.issue}: ${pending.stage}`);
+      await finishAttempt(cfg, repo, branch, board, pending, save);
+      if (VERIFY_CANDIDATE) return report(opened);
+    } else if (VERIFY_CANDIDATE) {
+      fail('В журнале нет незавершённого кандидата — модель не запускалась');
+    }
 
     while (true) {
       board.items = boardItems(cfg);
@@ -889,7 +1253,14 @@ function main() {
 
       if (queue.length === 0) {
         step(`Фаза ${phase} закрыта — открываю PR`);
-        const url = openPullRequest(cfg, phase, milestone, branch, sessions);
+        const url = await openPullRequest(
+          cfg,
+          phase,
+          milestone,
+          branch,
+          state,
+          save,
+        );
         if (url) opened.push(url);
         break;
       }
@@ -916,39 +1287,44 @@ function main() {
         return report(opened);
       }
 
-      const headBefore = git(['rev-parse', branch]);
-      const sessionId = randomUUID();
-      sessions.push(sessionId);
-      const exit = runIteration(
+      const attempt = {
+        issue: issue.number,
+        sessionId: randomUUID(),
+        before: git(['rev-parse', branch]),
+        head: null,
+        stage: 'running',
+        outcome: null,
+        startedAt: new Date().toISOString(),
+        telemetryVersion: 2,
+        runnerRevision,
+        model: cfg.model ?? null,
+        stops: [],
+      };
+      state.attempts.push(attempt);
+      save();
+      attempt.outcome = await runIteration(
         cfg,
         buildPrompt(cfg, phase, milestone, branch, issue),
-        sessionId,
+        attempt.sessionId,
       );
-      requireSameBranch(branch);
-      // Состояние читается по имени ветки, а не по HEAD: коммит на посторонней
-      // ветке HEAD продвинул бы, а `git push origin {ветка}` отработал бы как
-      // «Everything up-to-date» — цикл отчитался бы об успехе, увёл карточку в
-      // In Review, и issue выпал бы из очереди навсегда вместе с работой.
-      const headAfter = git(['rev-parse', branch]);
-
-      const dirty = git(['status', '--porcelain']);
-      if (dirty) {
+      attempt.finishedAt = new Date().toISOString();
+      save();
+      if (
+        attempt.outcome.errorCode &&
+        attempt.outcome.errorCode !== 'ETIMEDOUT'
+      ) {
+        recordStop(attempt, 'process_error', save);
         fail(
-          `Итерация оставила незакоммиченные изменения — цикл остановлен`,
-          'Разбери руками: продолжать поверх недоделанного нельзя.',
+          'Ошибка процесса Claude — цикл остановлен',
+          attempt.outcome.reason,
         );
       }
-
-      if (headAfter !== headBefore) {
-        verifyCommit(headBefore, headAfter, issue.number, repo, branch);
-        pushBranch(branch);
-        ok(`коммит ${headAfter.slice(0, 8)} запушен в origin/${branch}`);
-        moveToInReview(cfg, board, issue.number);
+      if (await finishAttempt(cfg, repo, branch, board, attempt, save)) {
         stall = 0;
       } else {
         stall++;
         warn(
-          `Итерация завершилась без коммита (код ${exit}) — #${issue.number} не сделан ` +
+          `Итерация завершилась без коммита (${attempt.outcome.reason || 'успешный выход'}) — #${issue.number} не сделан ` +
             `[${stall}/${cfg.stallLimit}]`,
         );
         if (stall >= cfg.stallLimit) {
@@ -990,19 +1366,28 @@ function abort(e) {
 
   console.error(`\n\x1b[31m⛔ ${stop.message}\x1b[0m`);
   if (stop.hint) console.error(`   ${stop.hint}`);
-  process.exit(1);
+  process.exitCode = 1;
 }
 
 if (import.meta.main) {
+  let release;
   try {
-    main();
+    if (!DRY_RUN)
+      release = acquireLock(
+        path.resolve(ROOT, git(['rev-parse', '--git-path', 'ralph.lock'])),
+      );
+    await main();
   } catch (e) {
     abort(e);
+  } finally {
+    try {
+      release?.();
+    } catch (e) {
+      abort(e);
+    }
   }
 }
 
-// Экспорт — только для тестов (`.claude/ralph.test.js`): наружу цикл остаётся
-// одним исполняемым файлом.
 export {
   RalphStop,
   branchName,
@@ -1014,10 +1399,13 @@ export {
   dryReviewPrompt,
   fieldKey,
   hasDryReviewComment,
+  isVerificationInput,
   filterQueue,
   milestonePrefix,
   phaseLabel,
   pickMilestone,
   prTitle,
+  runIteration,
   validateConfig,
+  validateVerificationScripts,
 };

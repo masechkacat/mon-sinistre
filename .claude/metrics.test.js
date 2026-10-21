@@ -12,6 +12,7 @@ import {
   classifyPaths,
   formatReport,
   parseArgs,
+  report,
   reviewFixShare,
   transcriptsDir,
   usageOfTranscript,
@@ -32,7 +33,6 @@ test('usageOfTranscript считает каждый ответ модели од
     line({ type: 'assistant', message: { id: 'msg_1', usage } }),
     line({ type: 'assistant', message: { id: 'msg_1', usage } }),
     line({ type: 'assistant', message: { content: [] } }),
-    'не json',
     line({
       type: 'assistant',
       message: { usage: { cache_read_input_tokens: 2000, output_tokens: 5 } },
@@ -43,6 +43,33 @@ test('usageOfTranscript считает каждый ответ модели од
     context: 3110,
     output: 55,
   });
+});
+
+test('отсутствующие или повреждённые данные не становятся нулевой стоимостью', () => {
+  for (const text of ['', 'не json', line({ type: 'user' })])
+    assert.equal(usageOfTranscript(text), null);
+  const lines = report({ sessions: ['test-nonexistent-ralph-session'] });
+  assert.ok(
+    lines.some((value) => value.includes('Нет данных о токенах: 1 из 1')),
+  );
+  assert.ok(!lines.some((value) => value.startsWith('- Итерация:')));
+  const partial = report({
+    attempts: [
+      {
+        outcome: {
+          usage: { turns: 2, context: 100, output: 10 },
+          costUsd: 0.5,
+        },
+      },
+      { outcome: { status: 'failed', usage: null, costUsd: 0.25 } },
+      { outcome: null },
+    ],
+  });
+  assert.ok(partial.some((value) => value.includes('среднее по 1 сессиям')));
+  assert.ok(
+    partial.some((value) => value.includes('Нет данных о токенах: 2 из 3')),
+  );
+  assert.ok(partial.some((value) => value.includes('$0.75; учтено 2 из 3')));
 });
 
 test('averageUsage округляет среднее и не делит на ноль', () => {
@@ -136,4 +163,33 @@ test('parseArgs читает сессии и число PR', () => {
     prs: 5,
   });
   assert.deepEqual(parseArgs([]), { sessions: [], prs: 0 });
+  assert.deepEqual(parseArgs(['--prs']), { sessions: [], prs: 20 });
+  assert.deepEqual(
+    parseArgs([
+      '--runs',
+      'new/phase-1,new/phase-2',
+      '--compare',
+      'old/phase-1',
+      '--json',
+    ]),
+    {
+      sessions: [],
+      prs: 0,
+      runs: ['new/phase-1', 'new/phase-2'],
+      compare: ['old/phase-1'],
+      json: true,
+    },
+  );
+  for (const args of [
+    ['--runs'],
+    ['--compare', 'base'],
+    ['--json'],
+    ['--runs', 'a,,b'],
+    ['--runs', 'a', '--list-runs'],
+    ['--runs', 'a', '--prs'],
+    ['--prs', 'zero'],
+    ['--json', '--json'],
+    ['--unknown'],
+  ])
+    assert.throws(() => parseArgs(args), Error);
 });

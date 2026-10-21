@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "base": "817e682e93dde24f67c0a802cc415f77dd9248cd",
+  "tasks": [
+    {
+      "id": "cors-methods",
+      "fix": "a14ceb9f5745231856303f95ca48d0990275d83d",
+      "paths": ["apps/api/src/main.ts"],
+      "prompt": "Из браузера не проходят PATCH и DELETE к API: preflight не разрешает методы. Исправь конфигурацию приложения, сохранив origin и credentials и работу GET/HEAD/POST. Не меняй тесты, манифесты и механизм приёмки.",
+      "script": "test",
+      "spec": "src/control-cors.spec.ts",
+      "oracle": "cors.spec.ts",
+      "tests": ["control: bootstrap permits credentialed PATCH and DELETE"],
+      "regressionFailure": "control: bootstrap permits credentialed PATCH and DELETE",
+      "failureIncludes": ["to include 'PATCH'", "to include 'DELETE'"]
+    },
+    {
+      "id": "declaration-mark",
+      "fix": "cdf07d0a6a6c7e7188a256a9a313b02397034921",
+      "paths": ["apps/api/src/sinistres/sinistres.service.ts"],
+      "prompt": "PATCH шага DECLARATION позволяет рассогласовать отметку и declarationDate. Прямые отметки этого шага должны отвечать 400 без изменения данных; установка и очистка даты декларации через PATCH синистра остаются рабочими. Сохрани поведение остальных шагов и проверку принадлежности. Не меняй тесты, манифесты и механизм приёмки.",
+      "script": "test:int",
+      "spec": "test/integration/sinistres/sinistres.int-spec.ts",
+      "tests": [
+        "refuses to mark the DECLARATION step, whose mark is the declaration date, and leaves it unchanged",
+        "sets DECLARE on an unlinked sinistre, then clearing restores AVANT_ARRETE, not ARRETE_PUBLIE"
+      ],
+      "regressionFailure": "refuses to mark the DECLARATION step, whose mark is the declaration date, and leaves it unchanged",
+      "failureIncludes": ["expected 200 to be 400"]
+    },
+    {
+      "id": "dossier-url",
+      "fix": "10f97ca41b0d1361b5c18f0386c66c3e800ab679",
+      "paths": ["apps/web/src/lib/api/dossier.ts"],
+      "prompt": "Предварительное досье не загружается: клиент получает 404 от API. Восстанови запрос по существующему публичному контракту API, сохранив параметры коммуны, риска и даты. Не добавляй маршрут-синоним и не подгоняй моки под ошибочный URL. Не меняй тесты, манифесты и механизм приёмки.",
+      "script": "test:int",
+      "spec": "test/integration/dossier/control-client.int-spec.ts",
+      "oracle": "dossier.int-spec.ts",
+      "clientOracle": "dossier-client.ts",
+      "tests": ["control: dossier client reaches the public API"],
+      "regressionFailure": "control: dossier client reaches the public API",
+      "failureIncludes": ["API error 404 on /dossier/preview?"]
+    }
+  ]
+}
