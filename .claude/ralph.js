@@ -784,6 +784,9 @@ function buildPrompt(cfg, phase, milestone, branch, issue) {
     '',
     `Задача этой сессии — issue #${issue.number}: ${issue.title}`,
     'Только он. После коммита сразу заверши сессию.',
+    '',
+    'Полная приёмка до коммита:',
+    ...cfg.verificationCommands.map((command) => `- ${command.join(' ')}`),
   ].join('\n');
 }
 
@@ -810,8 +813,13 @@ async function runIteration(
   // variadic-флаги — последними: иначе они съедают следующие за ними опции
   if (cfg.disallowedTools?.length)
     args.push('--disallowedTools', ...cfg.disallowedTools);
-  if (cfg.allowedTools?.length)
-    args.push('--allowedTools', ...cfg.allowedTools);
+  const allowedTools = new Set([
+    ...(cfg.allowedTools ?? []),
+    ...(cfg.verificationCommands ?? []).map(
+      (command) => `Bash(${command.join(' ')})`,
+    ),
+  ]);
+  if (allowedTools.size) args.push('--allowedTools', ...allowedTools);
 
   const res = await runProcess('claude', args, {
     cwd,

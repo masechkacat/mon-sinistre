@@ -9,7 +9,7 @@ import { acquireLock, readState, writeState } from './ralph-state.js';
 const COMMAND = String.raw`#!/usr/bin/env node
 const fs = require('node:fs');
 const path = require('node:path');
-const { execFileSync } = require('node:child_process');
+const { execFileSync, spawnSync } = require('node:child_process');
 const file = process.env.RALPH_TEST_CONTROL;
 const state = JSON.parse(fs.readFileSync(file, 'utf8'));
 const save = () => fs.writeFileSync(file, JSON.stringify(state));
@@ -17,10 +17,17 @@ const args = process.argv.slice(2);
 const role = path.basename(process.argv[1]);
 const value = (flag) => args[args.indexOf(flag) + 1];
 const output = (data) => console.log(JSON.stringify(data));
-if (role === 'verify.cjs') {
+if (role === 'verify.cjs' || role === 'regression.cjs') {
   state.checks = (state.checks || 0) + 1;
+  const failed = state.failVerification ||
+    (role === 'regression.cjs' && fs.readFileSync('feature.txt', 'utf8').includes('broken'));
+  if (state.agent === 'self-check') {
+    state.checkEvents ??= [];
+    state.checkEvents.push({ script: role, passed: !failed,
+      head: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim() });
+  }
   save();
-  if (state.failVerification) process.exitCode = 1;
+  if (failed) process.exitCode = 1;
 } else if (role === 'claude') {
   const session = args.includes('--session-id') && value('--session-id');
   if (!session) {
@@ -32,6 +39,30 @@ if (role === 'verify.cjs') {
     save();
     if (state.agent !== 'no-commit') {
       fs.appendFileSync('feature.txt', 'implemented\n');
+      if (state.agent === 'self-check') {
+        const commands = value('-p').split('\n')
+          .filter(line => line.startsWith('- npm run '))
+          .map(line => line.slice(2).split(' '));
+        if (commands.length !== 2) throw new Error('Missing full pre-commit checks in prompt');
+        for (const command of commands)
+          if (args.filter(arg => arg === 'Bash(' + command.join(' ') + ')').length !== 1)
+            throw new Error('Pre-commit command is not allowed');
+        if (!args.includes('Read')) throw new Error('Existing permission was lost');
+        if (args.includes('Bash(npm run:*)')) throw new Error('Broad npm permission');
+        const check = () => {
+          for (const [command, ...rest] of commands) {
+            const result = spawnSync(command, rest, { encoding: 'utf8', timeout: 5000 });
+            if (result.error) throw result.error;
+            Object.assign(state, JSON.parse(fs.readFileSync(file, 'utf8')));
+            if (result.status !== 0) return false;
+          }
+          return true;
+        };
+        fs.appendFileSync('feature.txt', 'broken\n');
+        if (check()) throw new Error('Regression was not detected');
+        fs.writeFileSync('feature.txt', 'implemented\n');
+        if (!check()) throw new Error('Repair did not pass the full checks');
+      }
       execFileSync('git', ['add', 'feature.txt']);
       if (state.agent === 'change-manifest') {
         const manifest = JSON.parse(fs.readFileSync('package.json', 'utf8'));
@@ -152,9 +183,14 @@ function fixture(t, options = {}) {
     else fs.chmodSync(path.join(bin, 'claude'), 0o644);
   }
   fs.writeFileSync(path.join(root, 'verify.cjs'), COMMAND);
+  const scripts = { verify: 'node verify.cjs' };
+  if (options.agent === 'self-check') {
+    fs.writeFileSync(path.join(root, 'regression.cjs'), COMMAND);
+    scripts['check:regression'] = 'node regression.cjs';
+  }
   fs.writeFileSync(
     path.join(root, 'package.json'),
-    JSON.stringify({ type: 'module', scripts: { verify: 'node verify.cjs' } }),
+    JSON.stringify({ type: 'module', scripts }),
   );
   fs.writeFileSync(
     path.join(root, '.claude/ralph.config.json'),
@@ -164,7 +200,15 @@ function fixture(t, options = {}) {
       maxIterations: options.maxIterations ?? 1,
       stallLimit: options.stallLimit ?? 2,
       iterationTimeoutMs: options.agent === 'timeout' ? 1000 : 10000,
-      verificationCommands: [['npm', 'run', 'verify']],
+      verificationCommands: Object.keys(scripts).map((script) => [
+        'npm',
+        'run',
+        script,
+      ]),
+      allowedTools:
+        options.agent === 'self-check'
+          ? ['Read', 'Bash(npm run verify)']
+          : undefined,
       project: {
         number: 1,
         owner: 'test',
@@ -220,6 +264,29 @@ function expectExit(result, code) {
   assert.equal(result.error, undefined);
   assert.equal(result.status, code, result.stdout + result.stderr);
 }
+
+test('самопроверка до коммита и независимая приёмка используют один полный набор', (t) => {
+  const f = fixture(t, { agent: 'self-check' });
+  const before = f.git('rev-parse', 'HEAD');
+  expectExit(f.run(), 0);
+  const after = f.git('rev-parse', 'HEAD');
+  const events = f.read().checkEvents;
+  assert.deepEqual(
+    events.map((event) => event.passed),
+    [true, false, true, true, true, true],
+  );
+  assert.deepEqual(
+    events.map((event) => event.head),
+    [before, before, before, before, after, after],
+  );
+  assert.equal(f.git('rev-list', '--count', `${before}..${after}`), '1');
+  assert.equal(f.git('rev-parse', 'origin/fixture/phase-1'), after);
+  assert.equal(f.read().agentCalls, 1);
+  assert.equal(f.read().done, true);
+  const attempt = f.journal().attempts[0];
+  assert.equal(attempt.stage, 'complete');
+  assert.deepEqual(attempt.stops, []);
+});
 
 test('ошибка запуска Claude сохраняется и останавливает цикл без повторов', (t) => {
   for (const code of ['ENOENT', 'EACCES']) {

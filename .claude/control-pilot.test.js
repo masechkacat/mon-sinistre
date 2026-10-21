@@ -45,6 +45,7 @@ assert.ok(args.includes('--strict-mcp-config'));
 assert.ok(args.includes('--disable-slash-commands'));
 assert.ok(args.includes('Read(./**)'));
 assert.ok(args.includes('Edit(./apps/api/src/main.ts)'));
+assert.equal(args.some(arg => arg.startsWith('Bash(')), false);
 assert.equal(value('--model'), 'claude-test-fixture');
 assert.equal(value('--max-budget-usd'), '1');
 assert.equal(process.env.GITHUB_TOKEN, undefined);
